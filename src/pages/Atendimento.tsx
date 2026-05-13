@@ -506,35 +506,64 @@ export default function Atendimento() {
 
       {/* Modal de Novo Lead */}
       <AnimatePresence>
-        {isModalOpen && (
+         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-8"
+              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-md"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900">Novo Interessado</h2>
-                <button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
+              <div className="absolute top-0 right-0 p-4">
+                 <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                    <X className="w-4 h-4" />
+                 </button>
               </div>
-              <form onSubmit={handleCreateLead} className="space-y-4">
+
+              <div className="mb-8">
+                <h2 className="text-xl font-black text-black uppercase italic italic flex items-center gap-2">
+                   <Plus className="w-6 h-6 text-[#ff6b00]" /> NOVO_INTERESSADO
+                </h2>
+                <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
+              </div>
+
+              <form onSubmit={handleCreateLead} className="space-y-6">
                  <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Nome do Lead</label>
-                   <input required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} />
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO</label>
+                   <input 
+                     required 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none" 
+                     value={formData.nome} 
+                     onChange={(e) => setFormData({...formData, nome: e.target.value})} 
+                   />
                  </div>
                  <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">WhatsApp</label>
-                   <input required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" value={formData.telefone} onChange={(e) => setFormData({...formData, telefone: e.target.value})} />
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
+                   <input 
+                     required 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none" 
+                     value={formData.telefone} 
+                     onChange={(e) => setFormData({...formData, telefone: e.target.value})} 
+                   />
                  </div>
                  <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Curso de Interesse</label>
-                   <select required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" value={formData.interesse_curso_id} onChange={(e) => setFormData({...formData, interesse_curso_id: e.target.value})}>
-                     <option value="">Selecione...</option>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CURSO_DE_INTERESSE</label>
+                   <select 
+                     required 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none" 
+                     value={formData.interesse_curso_id} 
+                     onChange={(e) => setFormData({...formData, interesse_curso_id: e.target.value})}
+                   >
+                     <option value="">SELECIONE...</option>
                      {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                    </select>
                  </div>
-                 <button type="submit" className="w-full bg-primary text-white py-4 rounded-2xl font-black shadow-lg shadow-primary/30 mt-4 active:scale-95 transition-all">Salvar Lead</button>
+                 <button 
+                   type="submit" 
+                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                 >
+                   SALVAR_LEAD
+                 </button>
               </form>
             </motion.div>
           </div>
