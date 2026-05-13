@@ -34,6 +34,7 @@ const adminItems = [
   { icon: CreditCard, label: 'Financeiro', path: '/financeiro' },
   { icon: FileText, label: 'Contratos', path: '/contratos' },
   { icon: Trophy, label: 'Conquistas', path: '/conquistas' },
+  { icon: Users, label: 'Acessos e Usuários', path: '/usuarios' },
 ];
 
 export function Sidebar() {

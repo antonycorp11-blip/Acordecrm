@@ -16,6 +16,7 @@ import Conquistas from './pages/Conquistas';
 import Ranking from './pages/Ranking';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Usuarios from './pages/Usuarios';
 
 import { Toaster } from 'sonner';
 
@@ -72,6 +73,7 @@ export default function App() {
                   <Route path="/conquistas" element={<Conquistas />} />
                   <Route path="/ranking" element={<Ranking />} />
                   <Route path="/area-professor" element={<AreaProfessor />} />
+                  <Route path="/usuarios" element={<Usuarios />} />
                 </Routes>
               </MainLayout>
             </PrivateRoute>

@@ -149,6 +149,57 @@ async function startServer() {
             res.status(500).json({ error: 'Erro interno no servidor ao registrar usuário: ' + error.message }); 
         }
     });
+    // --- Usuários (Acessos) ---
+    app.get('/api/usuarios', async (req, res) => {
+        try {
+            const { data, error } = await supabase.from('usuarios').select('id, nome, email, role').order('nome');
+            if (error) throw error;
+            res.json(data);
+        } catch (error) { res.status(500).json({ error: 'Erro ao buscar usuários' }); }
+    });
+
+    app.post('/api/usuarios', async (req, res) => {
+        try {
+            const { nome, email, password, role } = req.body;
+            const { data: existingUsers } = await supabase.from('usuarios').select('id').eq('email', email);
+            if (existingUsers && existingUsers.length > 0) return res.status(400).json({ error: 'Email já cadastrado.' });
+
+            const salt = bcrypt.genSaltSync(10);
+            const hashedPassword = bcrypt.hashSync(password, salt);
+
+            const { data, error } = await supabase.from('usuarios').insert([{
+                nome, email, senha: hashedPassword, role
+            }]).select('id, nome, email, role').single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error) { res.status(500).json({ error: 'Erro ao criar usuário' }); }
+    });
+
+    app.put('/api/usuarios/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { nome, email, role, password } = req.body;
+            let updateData: any = { nome, email, role };
+            
+            if (password) {
+                const salt = bcrypt.genSaltSync(10);
+                updateData.senha = bcrypt.hashSync(password, salt);
+            }
+
+            const { data, error } = await supabase.from('usuarios').update(updateData).eq('id', id).select('id, nome, email, role').single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error) { res.status(500).json({ error: 'Erro ao atualizar usuário' }); }
+    });
+
+    app.delete('/api/usuarios/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase.from('usuarios').delete().eq('id', id);
+            if (error) throw error;
+            res.json({ message: 'Usuário deletado com sucesso' });
+        } catch (error) { res.status(500).json({ error: 'Erro ao deletar usuário' }); }
+    });
 
     app.get('/api/vagas', async (req, res) => {
         console.log('--- CHAMADA API VAGAS ---', req.query);
