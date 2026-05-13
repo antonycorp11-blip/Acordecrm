@@ -119,18 +119,32 @@ async function startServer() {
     // Auth (Login)
     app.post('/api/auth/login', async (req, res) => {
         try {
-            const { email, password } = req.body;
+            const { email, password, senha } = req.body;
+            const effectivePassword = password || senha;
+            
+            if (!effectivePassword) return res.status(400).json({ error: 'Senha não fornecida' });
+
             const { data: user, error } = await supabase.from('usuarios').select('*').eq('email', email).single();
-            if (error || !user || !bcrypt.compareSync(password, user.senha)) return res.status(401).json({ message: 'Credenciais inválidas' });
+            
+            if (error || !user || !bcrypt.compareSync(effectivePassword, user.senha)) {
+                return res.status(401).json({ message: 'Credenciais inválidas' });
+            }
+
             const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
             res.json({ token, user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
-        } catch (error) { res.status(500).json({ error: 'Erro interno no servidor' }); }
+        } catch (error: any) { 
+            console.error('Login error:', error);
+            res.status(500).json({ error: 'Erro interno no servidor: ' + error.message }); 
+        }
     });
 
     // Auth (Register)
     app.post('/api/auth/register', async (req, res) => {
         try {
-            const { nome, email, password } = req.body;
+            const { nome, email, password, senha } = req.body;
+            const effectivePassword = password || senha;
+            if (!effectivePassword) return res.status(400).json({ error: 'Senha não fornecida' });
+
             // Verificar se o email já existe
             const { data: existingUsers, error: checkError } = await supabase.from('usuarios').select('id').eq('email', email);
             if (checkError) throw checkError;
@@ -138,7 +152,7 @@ async function startServer() {
 
             // Hash da senha
             const salt = bcrypt.genSaltSync(10);
-            const hashedPassword = bcrypt.hashSync(password, salt);
+            const hashedPassword = bcrypt.hashSync(effectivePassword, salt);
 
             // Inserir novo usuário
             const { data: user, error } = await supabase.from('usuarios').insert([{
@@ -168,12 +182,15 @@ async function startServer() {
 
     app.post('/api/usuarios', async (req, res) => {
         try {
-            const { nome, email, password, role } = req.body;
+            const { nome, email, password, senha, role } = req.body;
+            const effectivePassword = password || senha;
+            if (!effectivePassword) return res.status(400).json({ error: 'Senha não fornecida' });
+
             const { data: existingUsers } = await supabase.from('usuarios').select('id').eq('email', email);
             if (existingUsers && existingUsers.length > 0) return res.status(400).json({ error: 'Email já cadastrado.' });
 
             const salt = bcrypt.genSaltSync(10);
-            const hashedPassword = bcrypt.hashSync(password, salt);
+            const hashedPassword = bcrypt.hashSync(effectivePassword, salt);
 
             const { data, error } = await supabase.from('usuarios').insert([{
                 nome, email, senha: hashedPassword, role
@@ -186,12 +203,13 @@ async function startServer() {
     app.put('/api/usuarios/:id', async (req, res) => {
         try {
             const { id } = req.params;
-            const { nome, email, role, password } = req.body;
+            const { nome, email, role, password, senha } = req.body;
+            const effectivePassword = password || senha;
             let updateData: any = { nome, email, role };
             
-            if (password) {
+            if (effectivePassword) {
                 const salt = bcrypt.genSaltSync(10);
-                updateData.senha = bcrypt.hashSync(password, salt);
+                updateData.senha = bcrypt.hashSync(effectivePassword, salt);
             }
 
             const { data, error } = await supabase.from('usuarios').update(updateData).eq('id', id).select('id, nome, email, role').single();
