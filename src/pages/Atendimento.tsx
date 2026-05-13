@@ -380,7 +380,7 @@ export default function Atendimento() {
         )}
 
         {activeTab === 'vagas' && (
-          <div className="space-y-             <div className="space-y-4">
+          <div className="space-y-4">
                 <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
                    <Music className="w-3 h-3 text-[#ff6b00]" /> 1. Escolha o Instrumento
                 </h3>
@@ -406,8 +406,7 @@ export default function Atendimento() {
                      </button>
                    ))}
                 </div>
-             </div>
-              <div className="space-y-4">
+                <div className="space-y-4">
                 <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
                    <Calendar className="w-3 h-3 text-[#ff6b00]" /> 2. ESCOLHA_O_DIA_DA_SEMANA
                 </h3>
@@ -426,10 +425,7 @@ export default function Atendimento() {
                      </button>
                    ))}
                 </div>
-             </div>
-    ))}
-                </div>
-             </div>
+              </div>
 
              {searchInstrumento && searchDia && (
                <motion.div 
@@ -497,7 +493,7 @@ export default function Atendimento() {
                     </div>
                   )}
                </motion.div>
-             )}
+              )}
           </div>
         )}
 
