@@ -36,6 +36,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     horario: '',
     sala_id: undefined as number | undefined,
     pacote_id: '',
+    valor_parcela: 0,
     data_primeira_parcela: new Date().toISOString().split('T')[0],
     dia_vencimento: 10,
     total_parcelas: 12,
@@ -110,9 +111,13 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
       const selectedPacote = pacotes.find(p => String(p.id) === String(formData.pacote_id));
       if (selectedPacote) {
         const name = selectedPacote.nome.toLowerCase();
-        if (name.includes('legado') || name.includes('emusys')) {
-          setFormData(prev => ({ ...prev, is_emusys_legacy: true }));
-        }
+        const isLegacy = name.includes('legado') || name.includes('emusys');
+        setFormData(prev => ({ 
+          ...prev, 
+          is_emusys_legacy: isLegacy,
+          valor_parcela: selectedPacote.valor_mensal || 0,
+          total_parcelas: selectedPacote.total_parcelas || 12
+        }));
       }
     }
   }, [formData.pacote_id, pacotes]);
