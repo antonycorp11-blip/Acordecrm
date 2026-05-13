@@ -2,13 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// vite é importado dinamicamente apenas em dev (devDependency não disponível em produção)
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import multer from 'multer';
 import { execSync } from 'child_process';
 // pdf-parse é importado dinamicamente para evitar crash no módulo
@@ -31,12 +30,17 @@ try {
 }
 const upload = multer({ dest: uploadDir });
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('CRITICAL ERROR: Supabase credentials are missing!');
+}
+
+const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder', {
   global: {
     headers: {
-      'x-backend-secret': 'studio-acorde-secret-key-2024' // Sempre enviar a chave hardcoded esperada pela function no banco
+      'x-backend-secret': 'studio-acorde-secret-key-2024'
     }
   }
 });
@@ -115,6 +119,19 @@ async function startServer() {
 
     // --- API ROUTES ---
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
+    
+    app.get('/api/health', (req, res) => {
+        res.json({
+            status: 'ok',
+            env: {
+                hasUrl: !!supabaseUrl,
+                hasKey: !!supabaseAnonKey,
+                hasJwt: !!process.env.JWT_SECRET,
+                urlStart: supabaseUrl ? supabaseUrl.substring(0, 10) + '...' : 'missing',
+                isVercel: !!process.env.VERCEL
+            }
+        });
+    });
 
     // Auth (Login)
     app.post('/api/auth/login', async (req, res) => {
