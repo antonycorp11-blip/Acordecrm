@@ -124,8 +124,9 @@ async function startServer() {
         try {
             const { nome, email, password } = req.body;
             // Verificar se o email já existe
-            const { data: existingUser } = await supabase.from('usuarios').select('*').eq('email', email).single();
-            if (existingUser) return res.status(400).json({ error: 'Email já cadastrado.' });
+            const { data: existingUsers, error: checkError } = await supabase.from('usuarios').select('id').eq('email', email);
+            if (checkError) throw checkError;
+            if (existingUsers && existingUsers.length > 0) return res.status(400).json({ error: 'Email já cadastrado.' });
 
             // Hash da senha
             const salt = bcrypt.genSaltSync(10);
@@ -143,7 +144,10 @@ async function startServer() {
 
             const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
             res.json({ token, user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
-        } catch (error) { res.status(500).json({ error: 'Erro interno no servidor ao registrar usuário' }); }
+        } catch (error: any) { 
+            console.error('Register error:', error);
+            res.status(500).json({ error: 'Erro interno no servidor ao registrar usuário: ' + error.message }); 
+        }
     });
 
     app.get('/api/vagas', async (req, res) => {
