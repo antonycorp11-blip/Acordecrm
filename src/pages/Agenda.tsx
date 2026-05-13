@@ -9,11 +9,11 @@ export default function Agenda() {
   const [professores, setProfessores] = useState<any[]>([]);
   const [aulas, setAulas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [semanaOffset, setSemanaOffset] = useState(0);
+  const [diaOffset, setDiaOffset] = useState(0);
   const [viewType, setViewType] = useState<'individual' | 'grupo'>('individual');
 
   const currentBaseDate = new Date();
-  currentBaseDate.setDate(currentBaseDate.getDate() + (semanaOffset * 7));
+  currentBaseDate.setDate(currentBaseDate.getDate() + diaOffset);
   
   const getDisplayDate = (offset: number) => {
     const d = new Date(currentBaseDate);
@@ -28,7 +28,7 @@ export default function Agenda() {
     const headers = { Authorization: `Bearer ${token}` };
     setLoading(true);
 
-    // Ajustamos a busca para a semana atual baseada no offset
+    // Ajustamos a busca para o dia atual baseado no offset
     const start = getDisplayDate(0).toISOString().split('T')[0];
     
     Promise.all([
@@ -38,7 +38,7 @@ export default function Agenda() {
       setProfessores(Array.isArray(profs) ? profs.slice(0, 15) : []);
       setAulas(Array.isArray(ag) ? ag : []);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [semanaOffset]);
+  }, [diaOffset]);
 
   // Map aula to grid position - simplificado para o dia atual exibido (ou lógica de semana se fosse o caso)
   const getAulaForProfHour = (profId: number, hour: string) => {
@@ -84,7 +84,7 @@ export default function Agenda() {
           <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ background: '#ff6b00', borderBottom: '3px solid #261812' }}>
             <div className="flex items-center gap-2">
               <span className="text-white text-[10px] font-black">📅</span>
-              <span className="text-white font-black text-sm uppercase tracking-widest">QUADRO DE HORÁRIOS - {semanaOffset === 0 ? 'HOJE' : getDisplayDate(0).toLocaleDateString('pt-BR')}</span>
+              <span className="text-white font-black text-sm uppercase tracking-widest">QUADRO DE HORÁRIOS - {diaOffset === 0 ? 'HOJE' : getDisplayDate(0).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-red-500 rounded-sm"></div>
@@ -97,20 +97,20 @@ export default function Agenda() {
           <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ background: '#fff8f6', borderBottom: '3px solid #261812' }}>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setSemanaOffset(o => o - 1)}
+                onClick={() => setDiaOffset(o => o - 1)}
                 className="px-4 py-2 rounded font-black text-xs uppercase text-[#261812] border-2 border-[#7b5647] hover:bg-[#feccba] transition-all"
               >
                 Anterior
               </button>
               <button
-                onClick={() => setSemanaOffset(0)}
+                onClick={() => setDiaOffset(0)}
                 className="px-5 py-2 rounded font-black text-xs uppercase text-white"
                 style={{ background: '#261812', border: '2px solid #261812' }}
               >
                 Hoje
               </button>
               <button
-                onClick={() => setSemanaOffset(o => o + 1)}
+                onClick={() => setDiaOffset(o => o + 1)}
                 className="px-4 py-2 rounded font-black text-xs uppercase text-[#261812] border-2 border-[#7b5647] hover:bg-[#feccba] transition-all"
               >
                 Próximo

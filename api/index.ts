@@ -594,12 +594,12 @@ async function startServer() {
             const aulasRestantes = is_emusys_legacy ? (originalTotalAulas - (Number(emusys_aulas_feitas) || 0)) : originalTotalAulas;
             
             const aulasToInsert = [];
-            let currentAulaDate = new Date(dia_semana);
+            let currentAulaDate = new Date(dia_semana + 'T12:00:00');
 
             // Se for legado, podemos querer começar da data da última aula + 7 dias?
             // Se o usuário forneceu emusys_data_ultima_aula, usamos ela como base.
             if (is_emusys_legacy && emusys_data_ultima_aula) {
-                currentAulaDate = new Date(emusys_data_ultima_aula);
+                currentAulaDate = new Date(emusys_data_ultima_aula + 'T12:00:00');
                 currentAulaDate.setDate(currentAulaDate.getDate() + 7);
             }
             
@@ -632,7 +632,7 @@ async function startServer() {
 
             // 4. Geração de Pagamentos (Parcelas)
             const pagamentosToInsert = [];
-            let currentVencimento = new Date(data_primeira_parcela);
+            let currentVencimento = new Date(data_primeira_parcela + 'T12:00:00');
             
             const parcelasToGenerate = is_emusys_legacy ? ((Number(emusys_original_parcelas) || 12) - (Number(emusys_parcelas_pagas) || 0)) : (total_parcelas || 1);
 
@@ -980,7 +980,7 @@ async function startServer() {
                     id: `reg-${a.id}`,
                     originalId: a.id,
                     type: 'regular',
-                    nome: a.alunos?.nome,
+                    aluno_nome: a.alunos?.nome,
                     professor_nome: a.professores?.nome,
                     curso_nome: a.cursos?.nome || 'Curso'
                 })) || []),
@@ -989,7 +989,7 @@ async function startServer() {
                     id: `exp-${e.id}`,
                     originalId: e.id,
                     type: 'experimental',
-                    nome: e.leads?.nome,
+                    aluno_nome: e.leads?.nome,
                     professor_nome: e.professores?.nome,
                     curso_nome: 'Experimental'
                 })) || [])
