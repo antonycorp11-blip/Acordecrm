@@ -171,9 +171,9 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
       `}</style>
 
       <motion.main 
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-7xl max-h-[98vh] bg-[#1A1A1A] border-4 border-white rounded-none flex flex-col shadow-hard-white relative z-10 retro-font text-white"
+        className="w-[98vw] max-w-[1800px] h-[95vh] bg-[#1A1A1A] border-4 border-white rounded-none flex flex-col shadow-hard-white relative z-10 retro-font text-white"
       >
         {/* Header Section */}
         <div className="flex justify-between items-center p-4 border-b-4 border-white shrink-0 bg-[#1A1A1A]">
@@ -369,6 +369,15 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                         <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_parcelas_pagas} onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: Number(e.target.value)})} />
                       </div>
                     </div>
+                    <div>
+                      <label className="text-[7px] font-bold uppercase block">Data Última Aula Emusys</label>
+                      <input 
+                        type="date" 
+                        className="w-full bg-white border border-black px-1 py-1 text-[10px]" 
+                        value={formData.emusys_data_ultima_aula} 
+                        onChange={(e) => setFormData({...formData, emusys_data_ultima_aula: e.target.value})} 
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -388,12 +397,14 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
 
                 {/* Calendar Controls */}
                 <div className="flex items-center justify-between mb-2 bg-gray-100 border border-black p-1">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setSemanaOffset(o => o - 1)} className="border border-black px-1 hover:bg-black hover:text-white text-[10px]">&lt;</button>
-                    <div className="font-bold uppercase text-[9px] px-2 min-w-[140px] text-center">{mesAno}</div>
-                    <button onClick={() => setSemanaOffset(o => o + 1)} className="border border-black px-1 hover:bg-black hover:text-white text-[10px]">&gt;</button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setSemanaOffset(o => o - 1)} className="border-2 border-black px-2 py-0.5 hover:bg-black hover:text-white text-[12px] font-black">&lt;</button>
+                    <div className="font-black uppercase text-[12px] px-4 min-w-[280px] text-center border-x border-black bg-white py-0.5">
+                      {getDisplayDate(0).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
+                    </div>
+                    <button onClick={() => setSemanaOffset(o => o + 1)} className="border-2 border-black px-2 py-0.5 hover:bg-black hover:text-white text-[12px] font-black">&gt;</button>
                   </div>
-                  <button onClick={() => setSemanaOffset(0)} className="bg-[#FF8A00] text-black font-bold text-[8px] px-2 py-0.5 border border-black">HOJE</button>
+                  <button onClick={() => setSemanaOffset(0)} className="bg-[#FF8A00] text-black font-black text-[10px] px-4 py-1 border-2 border-black shadow-hard hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all">HOJE</button>
                 </div>
 
                 {/* Schedule Table */}
