@@ -106,10 +106,12 @@ export function WeeklyCalendar({ onSelectSlot, mode = 'view', selectedSlot }: We
     setCurrentStart(startStr);
     setCurrentEnd(endStr);
 
+    const token = localStorage.getItem('acorde_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
     const [aData, sData, pData] = await Promise.all([
-      fetch(`/api/agenda?start=${startStr}&end=${endStr}`).then(res => res.ok ? res.json() : []),
-      fetch('/api/salas').then(res => res.ok ? res.json() : []),
-      fetch('/api/professores').then(res => res.ok ? res.json() : []),
+      fetch(`/api/agenda?start=${startStr}&end=${endStr}`, { headers }).then(res => res.ok ? res.json() : []),
+      fetch('/api/salas', { headers }).then(res => res.ok ? res.json() : []),
+      fetch('/api/professores', { headers }).then(res => res.ok ? res.json() : []),
     ]);
     
     setAgenda(Array.isArray(aData) ? aData : []);
@@ -189,9 +191,13 @@ export function WeeklyCalendar({ onSelectSlot, mode = 'view', selectedSlot }: We
     setDragConfirmation(null);
 
     // Call API
+    const token = localStorage.getItem('acorde_token');
     await fetch(`/api/agenda/${activeId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify(bodyData)
     });
     fetchCalendarData();
@@ -216,7 +222,11 @@ export function WeeklyCalendar({ onSelectSlot, mode = 'view', selectedSlot }: We
 
   const handleCancel = async (id: string) => {
     if (confirm('Deseja realmente cancelar este agendamento?')) {
-      await fetch(`/api/agenda/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('acorde_token');
+      await fetch(`/api/agenda/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       fetchCalendarData();
     }
   };
@@ -521,9 +531,13 @@ function DraggableLesson({ lesson, onCancel, isOpen, onOpenMenu, onCloseMenu, re
   const [newTime, setNewTime] = useState(lesson.horario ? lesson.horario.substring(0, 5) : '00:00');
 
   const handleAttendance = async (status: string) => {
+    const token = localStorage.getItem('acorde_token');
     await fetch(`/api/aulas/${lesson.originalId}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ status, type: lesson.type })
     });
     refresh();
@@ -531,15 +545,23 @@ function DraggableLesson({ lesson, onCancel, isOpen, onOpenMenu, onCloseMenu, re
   };
 
   const handlePayment = async () => {
-    await fetch(`/api/agenda/${lesson.originalId}/pagar`, { method: 'POST' });
+    const token = localStorage.getItem('acorde_token');
+    await fetch(`/api/agenda/${lesson.originalId}/pagar`, { 
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
     toast.success('Pagamento registrado com sucesso!');
     onCloseMenu();
   };
 
   const handleReschedule = async () => {
+    const token = localStorage.getItem('acorde_token');
     await fetch(`/api/aulas/${lesson.originalId}/reschedule`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ data: newDate, horario: newTime })
     });
     setIsRescheduling(false);

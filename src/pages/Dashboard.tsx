@@ -10,7 +10,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetch('/api/dashboard/stats', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      headers: { Authorization: `Bearer ${localStorage.getItem('acorde_token')}` }
     })
       .then(r => r.ok ? r.json() : null)
       .then(data => setStats(data))

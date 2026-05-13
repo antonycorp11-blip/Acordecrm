@@ -38,11 +38,13 @@ export default function Professores() {
   const [selectedProfForDisp, setSelectedProfForDisp] = useState<any>(null);
 
   const fetchData = async () => {
+    const token = localStorage.getItem('acorde_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
     setLoading(true);
     try {
       const [pRes, cRes] = await Promise.all([
-        fetch('/api/professores'),
-        fetch('/api/cursos')
+        fetch('/api/professores', { headers }),
+        fetch('/api/cursos', { headers })
       ]);
       const pData = pRes.ok ? await pRes.json() : [];
       const cData = cRes.ok ? await cRes.json() : [];
@@ -61,18 +63,17 @@ export default function Professores() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
-      ...formData,
-      especialidades: formData.especialidades.join(', ')
-    };
-
-    const method = editingId ? 'PUT' : 'POST';
+    const token = localStorage.getItem('acorde_token');
+    const method = editingId ? 'PATCH' : 'POST';
     const url = editingId ? `/api/professores/${editingId}` : '/api/professores';
-
+    
     const res = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(formData),
     });
     if (res.ok) {
       setIsModalOpen(false);
@@ -110,7 +111,11 @@ export default function Professores() {
   const handleDelete = async (id: number) => {
     if (!confirm('Tem certeza que deseja excluir este professor? Essa ação não pode ser desfeita.')) return;
     try {
-      const res = await fetch(`/api/professores/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/professores/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.ok) fetchData();
       else alert('Erro ao excluir professor.');
     } catch (err) {
@@ -120,9 +125,13 @@ export default function Professores() {
 
   const handleSaveDisponibilidade = async (id: number, disp: any) => {
     try {
+      const token = localStorage.getItem('acorde_token');
       const res = await fetch(`/api/professores/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ disponibilidade: disp })
       });
       if (res.ok) {

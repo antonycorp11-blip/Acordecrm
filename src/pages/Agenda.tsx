@@ -16,7 +16,7 @@ export default function Agenda() {
   const mesAno = hoje.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase().replace(' DE ', ' ');
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('acorde_token');
     const headers = { Authorization: `Bearer ${token}` };
 
     Promise.all([

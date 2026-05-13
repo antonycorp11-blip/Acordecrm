@@ -192,9 +192,13 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
   const handleBaixa = async () => {
     if (!baixaModal.id) return;
     setSaving(true);
+    const token = localStorage.getItem('acorde_token');
     await fetch(`/api/pagamentos/${baixaModal.id}/baixa`, { 
       method: 'PATCH', 
-      headers: { 'Content-Type': 'application/json' }, 
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }, 
       body: JSON.stringify({ metodo_pagamento: baixaMetodo }) 
     });
     setSaving(false);
@@ -205,7 +209,15 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
   const handleEditDate = async (id: number) => {
     if (!editDate) return;
     setSaving(true);
-    await fetch(`/api/pagamentos/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_vencimento: editDate }) });
+    const token = localStorage.getItem('acorde_token');
+    await fetch(`/api/pagamentos/${id}`, { 
+      method: 'PATCH', 
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }, 
+      body: JSON.stringify({ data_vencimento: editDate }) 
+    });
     setSaving(false);
     setEditingId(null);
     onRefresh();
@@ -350,7 +362,10 @@ export default function AlunoPerfil() {
   const [savingMaterial, setSavingMaterial] = useState(false);
 
   const fetchAgenda = async () => {
-    const res = await fetch(`/api/alunos/${id}/agenda`).then(r => r.json());
+    const token = localStorage.getItem('acorde_token');
+    const res = await fetch(`/api/alunos/${id}/agenda`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(r => r.json());
     setAgenda(res);
     setFrequencia(res.filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente'));
   };
@@ -361,15 +376,23 @@ export default function AlunoPerfil() {
 
     const data = new FormData();
     data.append('icon', file);
+    const token = localStorage.getItem('acorde_token');
 
     setUploadingAvatar(true);
     try {
-      const res = await fetch('/api/gamificacao/upload', { method: 'POST', body: data });
+      const res = await fetch('/api/gamificacao/upload', { 
+        method: 'POST', 
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: data 
+      });
       if (res.ok) {
         const json = await res.json();
         const updateRes = await fetch(`/api/alunos/${id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ avatar_url: json.url })
         });
         if (updateRes.ok) {
@@ -384,10 +407,14 @@ export default function AlunoPerfil() {
   };
 
   const handleSaveEdit = async () => {
+    const token = localStorage.getItem('acorde_token');
     try {
       const res = await fetch(`/api/alunos/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(editFormData)
       });
       if (res.ok) {
@@ -401,13 +428,15 @@ export default function AlunoPerfil() {
 
   useEffect(() => {
     const fetchData = async () => {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { 'Authorization': `Bearer ${token}` };
       setLoading(true);
       try {
         const [alunoData, aData, fData, mData] = await Promise.all([
-          fetch(`/api/alunos/${id}`).then(res => res.ok ? res.json() : null),
-          fetch(`/api/alunos/${id}/agenda`).then(res => res.ok ? res.json() : []),
-          fetch(`/api/alunos/${id}/financeiro`).then(res => res.ok ? res.json() : []),
-          fetch(`/api/alunos/${id}/materiais`).then(res => res.ok ? res.json() : [])
+          fetch(`/api/alunos/${id}`, { headers }).then(res => res.ok ? res.json() : null),
+          fetch(`/api/alunos/${id}/agenda`, { headers }).then(res => res.ok ? res.json() : []),
+          fetch(`/api/alunos/${id}/financeiro`, { headers }).then(res => res.ok ? res.json() : []),
+          fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : [])
         ]);
         
         setAluno(alunoData);
@@ -428,10 +457,14 @@ export default function AlunoPerfil() {
   }, [id]);
 
   const updateAttendance = async (aulaId: number, status: string) => {
+    const token = localStorage.getItem('acorde_token');
     try {
       const res = await fetch(`/api/aulas/${aulaId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status })
       });
       if (res.ok) {
@@ -445,12 +478,16 @@ export default function AlunoPerfil() {
 
   const handleReschedule = async () => {
     setRescheduling(true);
+    const token = localStorage.getItem('acorde_token');
     try {
       if (rescheduleModal.type === 'emergencial' && rescheduleModal.aulaId) {
         // Mudar apenas 1 aula
         await fetch(`/api/aulas/${rescheduleModal.aulaId.replace('reg-', '').replace('exp-', '')}/reschedule`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ data: rescheduleModal.data, horario: rescheduleModal.horario })
         });
       } else {
@@ -462,7 +499,10 @@ export default function AlunoPerfil() {
         for (const aula of futuras) {
            await fetch(`/api/aulas/${aula.id}/reschedule`, {
              method: 'PATCH',
-             headers: { 'Content-Type': 'application/json' },
+             headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+             },
              // Mantemos a data daquela aula, mudamos apenas o horário
              body: JSON.stringify({ data: aula.data, horario: rescheduleModal.horario })
            });
@@ -471,7 +511,10 @@ export default function AlunoPerfil() {
         // E também atualizamos a matrícula do aluno para o novo horário
         await fetch(`/api/alunos/${id}`, {
            method: 'PATCH',
-           headers: { 'Content-Type': 'application/json' },
+           headers: { 
+             'Content-Type': 'application/json',
+             'Authorization': `Bearer ${token}`
+           },
            body: JSON.stringify({ horario: rescheduleModal.horario })
         });
       }
@@ -486,9 +529,13 @@ export default function AlunoPerfil() {
   const handleAddMaterial = async () => {
     if (!novoMaterial.titulo || !novoMaterial.url) return;
     setSavingMaterial(true);
+    const token = localStorage.getItem('acorde_token');
     const res = await fetch(`/api/alunos/${id}/materiais`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify(novoMaterial)
     });
     if (res.ok) {
@@ -502,8 +549,15 @@ export default function AlunoPerfil() {
 
   const handleDeleteMaterial = async (matId: number) => {
     if (!confirm('Deseja remover este material?')) return;
-    await fetch(`/api/materiais/${matId}`, { method: 'DELETE' });
-    setMateriais(materiais.filter(m => m.id !== matId));
+    const token = localStorage.getItem('acorde_token');
+    await fetch(`/api/materiais/${matId}`, { 
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const mRes = await fetch(`/api/alunos/${id}/materiais`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(r => r.json());
+    setMateriais(Array.isArray(mRes) ? mRes : []);
   };
 
   if (loading) return <div className="p-20 text-center font-black text-slate-400 animate-pulse">Carregando Perfil...</div>;

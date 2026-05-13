@@ -55,8 +55,10 @@ export default function Atendimento() {
   });
 
   const fetchLeads = () => {
+    const token = localStorage.getItem('acorde_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
     setLoading(true);
-    fetch('/api/leads')
+    fetch('/api/leads', { headers })
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         setLeads(Array.isArray(data) ? data : []);
@@ -67,20 +69,22 @@ export default function Atendimento() {
         setLoading(false);
       });
 
-    fetch('/api/leads/experimentais-pendentes')
+    fetch('/api/leads/experimentais-pendentes', { headers })
       .then(res => res.ok ? res.json() : [])
       .then(data => setExperimentaisPendentes(Array.isArray(data) ? data : []))
       .catch(() => setExperimentaisPendentes([]));
   };
 
   useEffect(() => {
+    const token = localStorage.getItem('acorde_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
     fetchLeads();
-    fetch('/api/cursos')
+    fetch('/api/cursos', { headers })
       .then(res => res.ok ? res.json() : [])
       .then(data => setCursos(Array.isArray(data) ? data : []))
       .catch(() => setCursos([]));
       
-    fetch('/api/professores')
+    fetch('/api/professores', { headers })
       .then(res => res.ok ? res.json() : [])
       .then(data => setProfessores(Array.isArray(data) ? data : []))
       .catch(() => setProfessores([]));
@@ -111,7 +115,10 @@ export default function Atendimento() {
     const term = searchTerms[inst] || inst;
 
     try {
-      const res = await fetch(`/api/vagas?instrumento=${term}&dia_semana=${dia}`);
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/vagas?instrumento=${term}&dia_semana=${dia}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await res.json();
       setVagasResult(data);
     } catch (e) {
@@ -149,10 +156,14 @@ export default function Atendimento() {
   };
 
   const handleCreateLead = async (e: React.FormEvent) => {
+    const token = localStorage.getItem('acorde_token');
     e.preventDefault();
     const res = await fetch('/api/leads', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify(formData),
     });
     if (res.ok) {
@@ -163,10 +174,14 @@ export default function Atendimento() {
   };
 
   const handleScheduleExp = async (e: React.FormEvent) => {
+    const token = localStorage.getItem('acorde_token');
     e.preventDefault();
     const res = await fetch('/api/leads/experimental', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify(expData),
     });
     if (res.ok) {

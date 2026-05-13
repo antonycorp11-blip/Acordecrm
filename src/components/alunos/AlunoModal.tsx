@@ -53,17 +53,20 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
 
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/cursos')
+      const token = localStorage.getItem('acorde_token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      
+      fetch('/api/cursos', { headers })
         .then(res => res.ok ? res.json() : [])
         .then(data => setCursos(Array.isArray(data) ? data : []))
         .catch(() => setCursos([]));
         
-      fetch('/api/professores')
+      fetch('/api/professores', { headers })
         .then(res => res.ok ? res.json() : [])
         .then(data => setProfessores(Array.isArray(data) ? data : []))
         .catch(() => setProfessores([]));
         
-      fetch('/api/pacotes')
+      fetch('/api/pacotes', { headers })
         .then(res => res.ok ? res.json() : [])
         .then(data => setPacotes(Array.isArray(data) ? data : []))
         .catch(() => setPacotes([]));
@@ -79,9 +82,13 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
 
     setLoading(true);
     try {
+      const token = localStorage.getItem('acorde_token');
       const response = await fetch('/api/alunos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(formData),
       });
 

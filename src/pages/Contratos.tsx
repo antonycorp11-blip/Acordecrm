@@ -50,13 +50,14 @@ export default function Contratos() {
   const [clauses, setClauses] = useState(CLAUSULAS_PADRAO);
   const [editingClause, setEditingClause] = useState<number | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+    const token = localStorage.getItem('acorde_token');
+    const headers = { Authorization: `Bearer ${token}` };
+    
     try {
       const [pRes, cRes, aRes] = await Promise.all([
-        fetch('/api/pacotes').then(r => r.ok ? r.json() : []),
-        fetch('/api/cursos').then(r => r.ok ? r.json() : []),
-        fetch('/api/alunos').then(r => r.ok ? r.json() : [])
+        fetch('/api/pacotes', { headers }).then(r => r.ok ? r.json() : []),
+        fetch('/api/cursos', { headers }).then(r => r.ok ? r.json() : []),
+        fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : [])
       ]);
       setPacotes(Array.isArray(pRes) ? pRes : []);
       setCursos(Array.isArray(cRes) ? cRes : []);
@@ -72,9 +73,13 @@ export default function Contratos() {
 
   const handleCreatePacote = async (e: React.FormEvent) => {
     e.preventDefault();
+    const token = localStorage.getItem('acorde_token');
     const res = await fetch('/api/pacotes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({
         ...newPacote,
         curso_ids: newPacote.curso_ids.join(',')

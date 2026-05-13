@@ -24,9 +24,12 @@ export default function Alunos() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchAlunos = () => {
+    const token = localStorage.getItem('acorde_token');
     setLoading(true);
     const endpoint = statusFilter === 'ativos' ? '/api/alunos' : '/api/alunos?status=arquivado';
-    fetch(endpoint)
+    fetch(endpoint, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         setAlunos(Array.isArray(data) ? data : []);

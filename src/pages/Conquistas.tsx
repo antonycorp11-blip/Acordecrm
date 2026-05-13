@@ -15,8 +15,11 @@ export default function Conquistas() {
   const [uploading, setUploading] = useState(false);
 
   const fetchConquistas = async () => {
+    const token = localStorage.getItem('acorde_token');
     try {
-      const res = await fetch('/api/gamificacao/conquistas');
+      const res = await fetch('/api/gamificacao/conquistas', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
         setConquistas(data);
@@ -29,11 +32,15 @@ export default function Conquistas() {
   useEffect(() => { fetchConquistas(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    const token = localStorage.getItem('acorde_token');
     e.preventDefault();
     try {
       const res = await fetch('/api/gamificacao/conquistas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(formData)
       });
       if (res.ok) {
@@ -49,10 +56,12 @@ export default function Conquistas() {
   };
 
   const handleDelete = async (id: number) => {
+    const token = localStorage.getItem('acorde_token');
     if (confirm('Deseja realmente excluir esta conquista?')) {
       try {
         const res = await fetch(`/api/gamificacao/conquistas/${id}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
           fetchConquistas();
@@ -72,10 +81,12 @@ export default function Conquistas() {
     const data = new FormData();
     data.append('icon', file);
 
+    const token = localStorage.getItem('acorde_token');
     setUploading(true);
     try {
       const res = await fetch('/api/gamificacao/upload', {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
         body: data
       });
       if (res.ok) {

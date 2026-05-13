@@ -14,7 +14,7 @@ export default function Ranking() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [assignData, setAssignData] = useState({ aluno_id: '', conquista_id: '' });
 
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('acorde_token');
   const headers = { Authorization: `Bearer ${token}` };
 
   const fetchData = async () => {

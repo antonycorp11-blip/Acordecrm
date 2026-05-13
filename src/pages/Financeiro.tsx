@@ -36,13 +36,15 @@ export default function Financeiro() {
   const [baixaMetodo, setBaixaMetodo] = useState('dinheiro');
 
   const fetchData = async () => {
+    const token = localStorage.getItem('acorde_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
     setLoading(true);
     try {
       const [pagsRes, resumoRes, alunosRes, remunRes] = await Promise.all([
-        fetch(`/api/pagamentos?mes=${currentMonth}`).then(r => r.ok ? r.json() : []),
-        fetch(`/api/financeiro/resumo?mes=${currentMonth}`).then(r => r.ok ? r.json() : null),
-        fetch('/api/alunos').then(r => r.ok ? r.json() : []),
-        fetch(`/api/financeiro/remuneracao?mes_ano=${currentMonth}`).then(r => r.ok ? r.json() : []),
+        fetch(`/api/pagamentos?mes=${currentMonth}`, { headers }).then(r => r.ok ? r.json() : []),
+        fetch(`/api/financeiro/resumo?mes=${currentMonth}`, { headers }).then(r => r.ok ? r.json() : null),
+        fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : []),
+        fetch(`/api/financeiro/remuneracao?mes_ano=${currentMonth}`, { headers }).then(r => r.ok ? r.json() : []),
       ]);
       setPagamentos(Array.isArray(pagsRes) ? pagsRes : []);
       setResumo(resumoRes || { receitaMes: 0, faturamentoPrevisto: 0, pendentes: 0, total: 0 });
@@ -63,9 +65,13 @@ export default function Financeiro() {
   const handleBaixa = async () => {
     if (!baixaModal.id) return;
     setSaving(true);
+    const token = localStorage.getItem('acorde_token');
     await fetch(`/api/pagamentos/${baixaModal.id}/baixa`, { 
       method: 'PATCH', 
-      headers: { 'Content-Type': 'application/json' }, 
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }, 
       body: JSON.stringify({ metodo_pagamento: baixaMetodo }) 
     });
     setSaving(false);
@@ -77,9 +83,13 @@ export default function Financeiro() {
     if (!extraForm.descricao || !extraForm.valor) return alert('Preencha descrição e valor.');
     setSaving(true);
     const now = new Date();
+    const token = localStorage.getItem('acorde_token');
     await fetch('/api/pagamentos/entrada-extra', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ 
         ...extraForm, 
         valor: Number(extraForm.valor), 

@@ -23,8 +23,11 @@ export default function Usuarios() {
   const [role, setRole] = useState('admin');
 
   const fetchUsuarios = async () => {
+    const token = localStorage.getItem('acorde_token');
     try {
-      const res = await fetch('/api/usuarios');
+      const res = await fetch('/api/usuarios', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!res.ok) throw new Error('Erro ao buscar usuários');
       const data = await res.json();
       setUsuarios(data);
@@ -76,9 +79,13 @@ export default function Usuarios() {
         throw new Error('A senha é obrigatória para novos usuários.');
       }
 
+      const token = localStorage.getItem('acorde_token');
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(payload),
       });
 
@@ -98,7 +105,11 @@ export default function Usuarios() {
   const handleDelete = async (id: number) => {
     if (!window.confirm('Tem certeza que deseja deletar este usuário? Esta ação não pode ser desfeita.')) return;
     try {
-      const res = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/usuarios/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!res.ok) throw new Error('Erro ao deletar usuário');
       toast.success('Usuário removido.');
       fetchUsuarios();

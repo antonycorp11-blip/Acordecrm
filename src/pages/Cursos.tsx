@@ -20,8 +20,11 @@ export default function Cursos() {
   const [formData, setFormData] = useState({ nome: '', descricao: '', valor_base: '' });
 
   const fetchCursos = () => {
+    const token = localStorage.getItem('acorde_token');
     setLoading(true);
-    fetch('/api/cursos')
+    fetch('/api/cursos', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         setCursos(Array.isArray(data) ? data : []);
@@ -34,8 +37,12 @@ export default function Cursos() {
   };
 
   const handleDelete = async (id: number, nome: string) => {
+    const token = localStorage.getItem('acorde_token');
     if (confirm(`Deseja realmente excluir o curso ${nome}? Isso pode afetar alunos matriculados.`)) {
-      const res = await fetch(`/api/cursos/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/cursos/${id}`, { 
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.ok) fetchCursos();
     }
   };
@@ -45,10 +52,14 @@ export default function Cursos() {
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    const token = localStorage.getItem('acorde_token');
     e.preventDefault();
     const res = await fetch('/api/cursos', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify(formData),
     });
     if (res.ok) {
