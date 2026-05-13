@@ -1315,21 +1315,33 @@ async function startServer() {
     return app;
 }
 
-const appPromise = startServer();
+let cachedApp: any = null;
 
 // Start the server if not running in a Serverless environment (like Vercel)
-if (process.env.VERCEL !== '1') {
-    appPromise.then((app) => {
+if (!isVercel) {
+    startServer().then((app) => {
         const port = process.env.PORT || 3000;
         app.listen(port, () => {
             console.log(`Server running at http://0.0.0.0:${port}`);
         });
-    });
+    }).catch(err => console.error('Local server startup failed:', err));
 }
 
 // Export a handler for Vercel Serverless Functions
 export default async function handler(req: any, res: any) {
-    const app = await appPromise;
-    return app(req, res);
+    try {
+        if (!cachedApp) {
+            console.log('Initializing app for the first time...');
+            cachedApp = await startServer();
+        }
+        return cachedApp(req, res);
+    } catch (error: any) {
+        console.error('CRITICAL INITIALIZATION ERROR:', error);
+        res.status(500).json({ 
+            error: 'Erro crítico na inicialização do servidor',
+            message: error.message,
+            stack: error.stack
+        });
+    }
 }
 
