@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Novo Aluno &amp; Matrícula - 8-Bit Dark Mode</title>
+<!-- Google Fonts: Space Mono for 8-bit feel -->
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['"Space Mono"', 'monospace'],
+          },
+          colors: {
+            'dark-bg': '#000000',
+            'sticker-cream': '#FDF9F0',
+            'retro-orange': '#FF8A00',
+            'retro-brown': '#3D2B1F',
+            'retro-green': '#00FF41',
+          },
+          boxShadow: {
+            'hard': '4px 4px 0px 0px rgba(0, 0, 0, 1)',
+            'hard-white': '4px 4px 0px 0px rgba(255, 255, 255, 0.2)',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-retro-styles">
+    body {
+      background-color: #000000;
+      font-family: 'Space Mono', monospace;
+      color: #FFFFFF;
+      overflow-x: hidden;
+    }
+
+    /* Sticker effect */
+    .sticker-card {
+      border: 4px solid #000000;
+      box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 1);
+      transition: transform 0.2s ease;
+    }
+
+    .sticker-card:hover {
+      transform: scale(1.01) rotate(-0.5deg);
+    }
+
+    /* Custom scrollbar for 8-bit look */
+    ::-webkit-scrollbar {
+      width: 12px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1a1a1a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #FF8A00;
+      border: 3px solid #1a1a1a;
+    }
+
+    /* Floating musical elements */
+    .floating-note {
+      position: absolute;
+      z-index: -1;
+      opacity: 0.3;
+      filter: grayscale(1) invert(1);
+    }
+
+    /* Grid Schedule Styling */
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: 100px repeat(11, minmax(60px, 1fr));
+    }
+    
+    .pixel-border {
+      border: 2px solid black;
+      image-rendering: pixelated;
+    }
+
+    input, select {
+      border: 3px solid black !important;
+      border-radius: 0 !important;
+      box-shadow: 4px 4px 0px 0px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex items-center justify-center relative">
+<!-- BEGIN: Background Decorations -->
+<div class="fixed top-10 left-10 text-6xl floating-note rotate-12">🎸</div>
+<div class="fixed bottom-20 right-10 text-6xl floating-note -rotate-12">🎹</div>
+<div class="fixed top-1/2 left-5 text-4xl floating-note">🎵</div>
+<div class="fixed top-20 right-20 text-4xl floating-note">🎶</div>
+<!-- END: Background Decorations -->
+<!-- BEGIN: Main Enrollment Modal -->
+<main class="w-full max-w-7xl bg-[#1A1A1A] border-4 border-white rounded-none p-6 md:p-10 shadow-hard-white relative z-10" data-purpose="enrollment-container" id="enrollment-modal">
+<!-- Header Section -->
+<div class="flex justify-between items-start mb-10">
+<div class="flex items-center gap-4">
+<div class="w-16 h-16 bg-retro-orange border-4 border-black flex items-center justify-center text-3xl shadow-hard">
+          👤
+        </div>
+<div>
+<h1 class="text-3xl font-bold uppercase tracking-tighter">Novo Aluno &amp; Matrícula</h1>
+<p class="text-retro-orange text-sm mt-1 uppercase tracking-widest">&gt;&gt; CADASTRO DE NOVO INTEGRANTE DA BANDA</p>
+</div>
+</div>
+<button class="bg-red-600 border-4 border-black p-2 hover:bg-red-500 shadow-hard transition-all active:translate-y-1">
+<svg class="w-8 h-8" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="square" stroke-linejoin="round" stroke-width="3"></path></svg>
+</button>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- BEGIN: Left Column - Personal Data -->
+<section class="lg:col-span-4 space-y-6">
+<div class="sticker-card bg-sticker-cream p-6 -rotate-1">
+<h2 class="text-black font-bold uppercase mb-4 border-b-2 border-black pb-2 flex items-center gap-2">
+<span>📝</span> Dados Pessoais
+          </h2>
+<div class="space-y-4 text-black">
+<div data-purpose="input-group">
+<label class="block text-[10px] font-bold uppercase">Nome Completo</label>
+<input class="w-full bg-white px-3 py-2 placeholder:opacity-30" placeholder="EX: JIMMY PAGE" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div data-purpose="input-group">
+<label class="block text-[10px] font-bold uppercase">Nascimento</label>
+<input class="w-full bg-white px-3 py-2" placeholder="DD/MM/AAAA" type="text"/>
+</div>
+<div data-purpose="input-group">
+<label class="block text-[10px] font-bold uppercase">WhatsApp</label>
+<input class="w-full bg-white px-3 py-2" placeholder="(00) 00000-0000" type="text"/>
+</div>
+</div>
+<div data-purpose="input-group">
+<label class="block text-[10px] font-bold uppercase">CPF</label>
+<input class="w-full bg-white px-3 py-2" placeholder="000.000.000-00" type="text"/>
+</div>
+<div data-purpose="input-group">
+<label class="block text-[10px] font-bold uppercase">E-mail</label>
+<input class="w-full bg-white px-3 py-2" placeholder="ROCK@ROLL.COM" type="email"/>
+</div>
+<div data-purpose="input-group">
+<label class="block text-[10px] font-bold uppercase">Endereço Completo</label>
+<input class="w-full bg-white px-3 py-2" placeholder="RUA DA MÚSICA, 123" type="text"/>
+</div>
+</div>
+</div>
+<!-- Course Selection -->
+<div class="sticker-card bg-retro-brown p-6 rotate-1">
+<h2 class="text-white font-bold uppercase mb-4 border-b-2 border-white pb-2">🎸 Escolha o Instrumento</h2>
+<div class="grid grid-cols-2 gap-3">
+<button class="bg-white text-black font-bold py-2 border-4 border-black hover:bg-retro-orange shadow-hard transition-colors">BAIXO</button>
+<button class="bg-retro-orange text-black font-bold py-2 border-4 border-black shadow-hard">BATERIA</button>
+<button class="bg-white text-black font-bold py-2 border-4 border-black hover:bg-retro-orange shadow-hard">GUITARRA</button>
+<button class="bg-white text-black font-bold py-2 border-4 border-black hover:bg-retro-orange shadow-hard">PIANO</button>
+</div>
+</div>
+</section>
+<!-- END: Left Column -->
+<!-- BEGIN: Right Column - Schedule Selector -->
+<section class="lg:col-span-8">
+<div class="sticker-card bg-white p-6 h-full text-black">
+<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+<h2 class="font-bold uppercase text-xl">Selecione o Horário</h2>
+<div class="flex items-center gap-2">
+<div class="flex items-center gap-1"><span class="w-3 h-3 bg-gray-200 border border-black"></span> <span class="text-[10px] font-bold">LIVRE</span></div>
+<div class="flex items-center gap-1"><span class="w-3 h-3 bg-retro-orange border border-black"></span> <span class="text-[10px] font-bold">OCUPADO</span></div>
+</div>
+</div>
+<!-- Calendar Controls -->
+<div class="flex items-center justify-between mb-4 bg-gray-100 border-2 border-black p-2">
+<div class="flex gap-2">
+<button class="border-2 border-black px-2 hover:bg-black hover:text-white">&lt;</button>
+<div class="font-bold uppercase text-sm px-4">Quarta-feira, 13 de Maio</div>
+<button class="border-2 border-black px-2 hover:bg-black hover:text-white">&gt;</button>
+</div>
+<div class="flex gap-2">
+<button class="bg-retro-orange text-black font-bold text-[10px] px-3 py-1 border-2 border-black">HOJE</button>
+<button class="bg-black text-white text-[10px] px-3 py-1 border-2 border-black">SEMANAL</button>
+</div>
+</div>
+<!-- Schedule Table -->
+<div class="overflow-x-auto border-2 border-black">
+<table class="w-full text-[10px] border-collapse">
+<thead>
+<tr class="bg-gray-200 border-b-2 border-black">
+<th class="p-2 border-r-2 border-black text-left">PROFESSOR</th>
+<th class="p-2 border-r border-black">08:00</th>
+<th class="p-2 border-r border-black">09:00</th>
+<th class="p-2 border-r border-black">10:00</th>
+<th class="p-2 border-r border-black">11:00</th>
+<th class="p-2 border-r border-black">12:00</th>
+<th class="p-2 border-r border-black">13:00</th>
+<th class="p-2 border-r border-black">14:00</th>
+<th class="p-2 border-r border-black">15:00</th>
+<th class="p-2 border-r border-black">16:00</th>
+<th class="p-2 border-r border-black">17:00</th>
+<th class="p-2">18:00</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-b border-gray-300">
+<td class="p-2 font-bold border-r-2 border-black">SLASH</td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 bg-retro-orange"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 bg-retro-orange"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 bg-retro-orange"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2"></td>
+</tr>
+<tr class="border-b border-gray-300 bg-gray-50">
+<td class="p-2 font-bold border-r-2 border-black">FLEA</td>
+<td class="p-2 border-r border-gray-300 bg-retro-orange"></td>
+<td class="p-2 border-r border-gray-300 bg-retro-orange"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 bg-retro-orange"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2"></td>
+</tr>
+<!-- More rows as needed for visual consistency -->
+<tr class="border-b border-gray-300">
+<td class="p-2 font-bold border-r-2 border-black">NEIL PEART</td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 bg-retro-orange"></td>
+<td class="p-2 border-r border-gray-300 bg-retro-orange"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2 border-r border-gray-300 hover:bg-retro-green cursor-pointer"></td>
+<td class="p-2"></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="mt-8 p-4 bg-retro-green text-black border-4 border-black font-bold text-center uppercase tracking-widest shadow-hard">
+            TOTAL DO CONTRATO: R$ 370,00 / MÊS
+          </div>
+</div>
+</section>
+<!-- END: Right Column -->
+</div>
+<!-- BEGIN: Footer Actions -->
+<footer class="mt-10 pt-8 border-t-4 border-white flex flex-col md:flex-row justify-end items-center gap-4">
+<button class="w-full md:w-auto px-10 py-3 bg-transparent text-white font-bold uppercase hover:underline decoration-retro-orange decoration-4">
+        Cancelar
+      </button>
+<button class="w-full md:w-auto px-10 py-4 bg-retro-orange text-black font-bold uppercase border-4 border-black shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex items-center justify-center gap-3">
+<span>💾</span> Finalizar Matrícula &amp; Gerar Agenda
+      </button>
+</footer>
+<!-- END: Footer Actions -->
+</main>
+<!-- END: Main Enrollment Modal -->
+<!-- Sidebar Overlay (Simplified/Visual Placeholder) -->
+<aside class="fixed left-0 top-0 h-full w-20 bg-[#0A0A0A] border-r-4 border-retro-orange flex flex-col items-center py-10 gap-8 z-0">
+<div class="text-2xl opacity-50 grayscale">🏠</div>
+<div class="text-2xl bg-retro-orange p-2 border-2 border-black">👥</div>
+<div class="text-2xl opacity-50 grayscale">📅</div>
+<div class="text-2xl opacity-50 grayscale">💰</div>
+<div class="mt-auto text-2xl opacity-50 grayscale">⚙️</div>
+</aside>
+</body></html>

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&amp;family=Plus+Jakarta+Sans:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#f8ddd2",
+                        "inverse-primary": "#ffb693",
+                        "on-tertiary-fixed-variant": "#454747",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#7a5446",
+                        "on-error-container": "#93000a",
+                        "on-primary": "#ffffff",
+                        "primary-container": "#ff6b00",
+                        "surface-tint": "#a04100",
+                        "on-tertiary-container": "#2f3132",
+                        "inverse-on-surface": "#ffede6",
+                        "on-primary-fixed-variant": "#7a3000",
+                        "surface-container": "#ffeae1",
+                        "outline-variant": "#e2bfb0",
+                        "secondary-fixed-dim": "#ecbcaa",
+                        "secondary": "#7b5647",
+                        "tertiary-container": "#989999",
+                        "tertiary": "#5d5f5f",
+                        "surface-bright": "#fff8f6",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#5a4136",
+                        "on-tertiary-fixed": "#1a1c1c",
+                        "inverse-surface": "#3d2d26",
+                        "on-surface": "#261812",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#e2e2e2",
+                        "surface-dim": "#efd5ca",
+                        "secondary-fixed": "#ffdbce",
+                        "surface-variant": "#f8ddd2",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed-dim": "#ffb693",
+                        "on-primary-fixed": "#351000",
+                        "on-primary-container": "#572000",
+                        "background": "#fff8f6",
+                        "error": "#ba1a1a",
+                        "on-background": "#261812",
+                        "secondary-container": "#feccba",
+                        "surface-container-high": "#fee3d8",
+                        "surface-container-low": "#fff1eb",
+                        "primary-fixed": "#ffdbcc",
+                        "on-secondary-fixed": "#2e140a",
+                        "outline": "#8e7164",
+                        "on-secondary-fixed-variant": "#613e31",
+                        "on-secondary": "#ffffff",
+                        "surface": "#fff8f6",
+                        "tertiary-fixed-dim": "#c6c6c7",
+                        "primary": "#a04100"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-page": "32px",
+                        "gutter": "24px",
+                        "unit": "4px",
+                        "sticker-offset": "6px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["Space Mono"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "headline-xl": ["Space Mono"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "headline-lg-mobile": ["Space Mono"],
+                        "headline-lg": ["Space Mono"]
+                    },
+                    "fontSize": {
+                        "label-sm": ["12px", {"lineHeight": "1.0", "fontWeight": "400"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "600"}],
+                        "headline-xl": ["48px", {"lineHeight": "1.1", "letterSpacing": "-2px", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #000000; color: #ffffff; }
+        .sticker-card {
+            background-color: #ffffff;
+            border: 2px solid #261812;
+            box-shadow: 4px 4px 0px 0px #261812, 8px 8px 0px 0px #a04100;
+            position: relative;
+        }
+        .pixel-border {
+            border-bottom: 4px solid #a04100;
+        }
+        .retro-table th {
+            background-color: #261812;
+            color: #ffffff;
+            font-family: 'Space Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .status-chip {
+            border: 2px solid #261812;
+            box-shadow: 2px 2px 0px 0px #261812;
+        }
+    </style>
+</head>
+<body class="font-body-md text-on-background">
+<!-- Top Navigation Shell -->
+<nav class="bg-background dark:bg-inverse-surface border-b-4 border-on-surface flex justify-between items-center w-full px-margin-page h-20 z-50 fixed top-0 left-0">
+<div class="flex items-center gap-4">
+<h1 class="font-headline-xl text-headline-xl text-primary dark:text-primary-fixed uppercase italic tracking-tighter">BEAT_BOX</h1>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer hover:scale-110 transition-transform" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined text-primary cursor-pointer hover:scale-110 transition-transform" data-icon="settings">settings</span>
+</div>
+<img alt="Administrator pixel art avatar" class="w-10 h-10 border-2 border-on-surface bg-primary-fixed p-1 rounded-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAiTqB6cFF-hnr_K39DCp9pyyWjsnQg3fqpWFw6jP6OU5Jm6CF8hNqsbzjE33GwqlTRHIlkAS98lRzBMWkN3n6WOcQAxkbCgwdaziJJgNcguY_v80TyXgF9DYw0s6Y8aLcQ-Dd_M4e6VBdbOn3JWrDCyG0NyHXJdEXePg54i_J3GB76M_lrjxw_7KEnZbfdDRxAw_wJzGnNxex19hJhn4Iu-6mXpLOb5JGvhd3zYE86U4H1PhjPpuwSl95quQsrbG_V2S-eTWC1bHTF"/>
+</div>
+</nav>
+<!-- Side Navigation Shell -->
+<aside class="fixed left-0 top-0 h-full flex flex-col items-center pt-24 pb-8 z-40 bg-surface-container dark:bg-inverse-surface border-r-4 border-on-surface w-24">
+<div class="flex flex-col gap-8">
+<div class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant py-4 grayscale hover:grayscale-0 hover:-rotate-1 transition-all">
+<span class="material-symbols-outlined text-2xl" data-icon="dashboard">dashboard</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Dash</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant py-4 grayscale hover:grayscale-0 hover:-rotate-1 transition-all">
+<span class="material-symbols-outlined text-2xl" data-icon="person_filled">person_filled</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Studs</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant py-4 grayscale hover:grayscale-0 hover:-rotate-1 transition-all">
+<span class="material-symbols-outlined text-2xl" data-icon="music_note">music_note</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Class</span>
+</div>
+<div class="bg-primary dark:bg-primary-container text-on-primary dark:text-on-primary-container border-2 border-on-surface rotate-2 scale-110 flex flex-col items-center justify-center p-2 mx-2 rounded-lg">
+<span class="material-symbols-outlined text-2xl" data-icon="payments">payments</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Coin</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant py-4 grayscale hover:grayscale-0 hover:-rotate-1 transition-all">
+<span class="material-symbols-outlined text-2xl" data-icon="leaderboard">leaderboard</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest mt-1">Rank</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="pl-32 pr-8 pt-28 pb-12 min-h-screen">
+<!-- Header Section: Forecast -->
+<header class="mb-10 sticker-card p-8 flex flex-col md:flex-row justify-between items-center bg-white">
+<div class="absolute -top-4 -left-4 w-12 h-12 bg-primary-container border-2 border-on-surface flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-icon="trending_up">trending_up</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase mb-2">Previsão de Receita (Mês Atual)</p>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">R$ 0,00</h2>
+</div>
+<div class="mt-4 md:mt-0 flex gap-4">
+<div class="flex flex-col items-end">
+<span class="font-label-sm text-label-sm text-primary font-bold">META MENSAL</span>
+<div class="w-48 h-6 bg-surface-container border-2 border-on-surface mt-1 overflow-hidden">
+<div class="h-full bg-primary-container" style="width: 15%"></div>
+</div>
+</div>
+</div>
+</header>
+<!-- Summary Cards Grid -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+<!-- Total Received -->
+<div class="sticker-card p-6 bg-white">
+<div class="flex items-center gap-4 mb-4">
+<div class="w-10 h-10 bg-green-500 border-2 border-on-surface flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-icon="check_circle">check_circle</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Total Recebido</span>
+</div>
+<p class="font-headline-lg text-headline-lg text-on-surface">R$ 0,00</p>
+</div>
+<!-- Total Pending -->
+<div class="sticker-card p-6 bg-white">
+<div class="flex items-center gap-4 mb-4">
+<div class="w-10 h-10 bg-yellow-500 border-2 border-on-surface flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-icon="schedule">schedule</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Pendente</span>
+</div>
+<p class="font-headline-lg text-headline-lg text-on-surface">R$ 0,00</p>
+</div>
+<!-- Overdue -->
+<div class="sticker-card p-6 bg-white border-red-500">
+<div class="flex items-center gap-4 mb-4">
+<div class="w-10 h-10 bg-red-500 border-2 border-on-surface flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-icon="error">error</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Atrasado</span>
+</div>
+<p class="font-headline-lg text-headline-lg text-red-600">R$ 0,00</p>
+</div>
+</section>
+<!-- Filters Section -->
+<section class="sticker-card p-4 mb-8 bg-white flex flex-col md:flex-row gap-6 items-center">
+<div class="flex items-center gap-2 border-2 border-on-surface p-2 bg-surface-container-low w-full md:w-auto">
+<span class="material-symbols-outlined text-on-surface" data-icon="calendar_month">calendar_month</span>
+<select class="bg-transparent border-none font-label-sm text-label-sm focus:ring-0 uppercase">
+<option>Outubro 2023</option>
+<option>Novembro 2023</option>
+<option>Dezembro 2023</option>
+</select>
+</div>
+<div class="flex-grow flex items-center gap-2 border-2 border-on-surface p-2 bg-surface-container-low w-full">
+<span class="material-symbols-outlined text-on-surface" data-icon="search">search</span>
+<input class="bg-transparent border-none font-label-sm text-label-sm focus:ring-0 w-full uppercase" placeholder="BUSCAR ALUNO OU INSTRUMENTO..." type="text"/>
+</div>
+<button class="bg-primary text-on-primary font-label-sm text-label-sm px-6 py-2 border-2 border-on-surface shadow-[4px_4px_0px_0px_#261812] active:translate-y-1 active:shadow-none transition-all uppercase flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+                Filtrar
+            </button>
+</section>
+<!-- Main Payments Table -->
+<section class="sticker-card bg-white overflow-hidden">
+<div class="p-4 border-b-2 border-on-surface bg-surface-container-high flex justify-between items-center">
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface uppercase">Relatório de Pagamentos</h3>
+<div class="flex gap-2">
+<div class="w-4 h-4 bg-primary-container border border-on-surface"></div>
+<div class="w-4 h-4 bg-secondary-container border border-on-surface"></div>
+<div class="w-4 h-4 bg-tertiary-container border border-on-surface"></div>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full retro-table">
+<thead>
+<tr>
+<th class="p-4 text-left border-r-2 border-on-surface">Estudante</th>
+<th class="p-4 text-left border-r-2 border-on-surface">Instrumento</th>
+<th class="p-4 text-left border-r-2 border-on-surface">Plano</th>
+<th class="p-4 text-left border-r-2 border-on-surface">Vencimento</th>
+<th class="p-4 text-left border-r-2 border-on-surface">Valor</th>
+<th class="p-4 text-left">Status</th>
+</tr>
+</thead>
+<tbody class="font-body-md">
+<!-- Empty State or Mock Data Rows with 0,00 -->
+<tr class="border-b-2 border-on-surface hover:bg-surface-container-low transition-colors">
+<td class="p-4 border-r-2 border-on-surface">Alice Walker</td>
+<td class="p-4 border-r-2 border-on-surface">
+<span class="bg-inverse-surface text-white text-xs px-2 py-1 uppercase font-label-sm">Piano</span>
+</td>
+<td class="p-4 border-r-2 border-on-surface">Mensal Gold</td>
+<td class="p-4 border-r-2 border-on-surface">10/10/2023</td>
+<td class="p-4 border-r-2 border-on-surface font-bold text-primary">R$ 0,00</td>
+<td class="p-4">
+<span class="status-chip bg-green-100 text-green-800 px-3 py-1 text-xs font-bold uppercase rounded-full">Paid</span>
+</td>
+</tr>
+<tr class="border-b-2 border-on-surface hover:bg-surface-container-low transition-colors">
+<td class="p-4 border-r-2 border-on-surface">Bruno Mars</td>
+<td class="p-4 border-r-2 border-on-surface">
+<span class="bg-inverse-surface text-white text-xs px-2 py-1 uppercase font-label-sm">Vocal</span>
+</td>
+<td class="p-4 border-r-2 border-on-surface">Anual Elite</td>
+<td class="p-4 border-r-2 border-on-surface">15/10/2023</td>
+<td class="p-4 border-r-2 border-on-surface font-bold text-primary">R$ 0,00</td>
+<td class="p-4">
+<span class="status-chip bg-yellow-100 text-yellow-800 px-3 py-1 text-xs font-bold uppercase rounded-full">Pending</span>
+</td>
+</tr>
+<tr class="border-b-2 border-on-surface hover:bg-surface-container-low transition-colors">
+<td class="p-4 border-r-2 border-on-surface">Carlos Santana</td>
+<td class="p-4 border-r-2 border-on-surface">
+<span class="bg-inverse-surface text-white text-xs px-2 py-1 uppercase font-label-sm">Guitarra</span>
+</td>
+<td class="p-4 border-r-2 border-on-surface">Trimestral</td>
+<td class="p-4 border-r-2 border-on-surface">05/10/2023</td>
+<td class="p-4 border-r-2 border-on-surface font-bold text-primary">R$ 0,00</td>
+<td class="p-4">
+<span class="status-chip bg-red-100 text-red-800 px-3 py-1 text-xs font-bold uppercase rounded-full">Overdue</span>
+</td>
+</tr>
+<!-- Repeat filler rows as needed -->
+<tr class="border-b-2 border-on-surface hover:bg-surface-container-low transition-colors">
+<td class="p-4 border-r-2 border-on-surface">Diana Krall</td>
+<td class="p-4 border-r-2 border-on-surface">
+<span class="bg-inverse-surface text-white text-xs px-2 py-1 uppercase font-label-sm">Jazz Piano</span>
+</td>
+<td class="p-4 border-r-2 border-on-surface">Mensal</td>
+<td class="p-4 border-r-2 border-on-surface">20/10/2023</td>
+<td class="p-4 border-r-2 border-on-surface font-bold text-primary">R$ 0,00</td>
+<td class="p-4">
+<span class="status-chip bg-yellow-100 text-yellow-800 px-3 py-1 text-xs font-bold uppercase rounded-full">Pending</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<footer class="p-4 bg-surface-container flex justify-between items-center">
+<span class="font-label-sm text-label-sm">Página 1 de 1</span>
+<div class="flex gap-2">
+<button class="w-10 h-10 border-2 border-on-surface bg-white flex items-center justify-center hover:bg-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="w-10 h-10 border-2 border-on-surface bg-white flex items-center justify-center hover:bg-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</footer>
+</section>
+<!-- Decorative Music Stickers (Positioned Absolutely but non-interfering) -->
+<div class="fixed bottom-10 right-10 opacity-20 pointer-events-none z-0">
+<div class="w-32 h-32 border-4 border-primary-container bg-white flex items-center justify-center rotate-12">
+<span class="material-symbols-outlined text-6xl text-primary" data-icon="music_video">music_video</span>
+</div>
+</div>
+<div class="fixed top-40 right-20 opacity-10 pointer-events-none z-0">
+<div class="w-24 h-24 border-4 border-secondary-container bg-white flex items-center justify-center -rotate-6">
+<span class="material-symbols-outlined text-5xl text-secondary" data-icon="headphones">headphones</span>
+</div>
+</div>
+</main>
+<!-- Contextual Floating Action Button -->
+<button class="fixed bottom-8 right-8 w-16 h-16 bg-primary border-4 border-on-surface text-on-primary rounded-full shadow-[6px_6px_0px_0px_#261812] flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-3xl" data-icon="add">add</span>
+</button>
+</body></html>

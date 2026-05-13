@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, Search, Filter, ArrowUpRight, ArrowDownLeft,
-  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp
+  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { format, addMonths, subMonths } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { format } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const TIPOS_EXTRA = [
@@ -140,263 +139,297 @@ export default function Financeiro() {
   });
 
   return (
-    <div className="flex flex-col flex-1 animate-in fade-in duration-500">
-      <header className="h-24 px-8 frosted-bg border-b border-slate-200/50 flex items-center justify-between shrink-0">
+    <div className="flex flex-col flex-1 p-6 md:p-10 bg-[#0A0A0A] retro-font text-white overflow-y-auto">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+        .retro-font { font-family: 'Space Mono', monospace; }
+        .shadow-hard { box-shadow: 4px 4px 0px 0px rgba(255, 255, 255, 0.2); }
+        .shadow-hard-black { box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1); }
+        .pixel-card { border: 4px solid white; border-radius: 0; }
+        .sticker-card { border: 3px solid black; box-shadow: 6px 6px 0px 0px rgba(0,0,0,1); }
+      `}</style>
+
+      {/* Header */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Financeiro</h1>
-          <p className="text-sm font-medium text-slate-500">Mensalidades, entradas e fluxo de caixa do mês.</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-[#FF8A00] border-4 border-white flex items-center justify-center text-xl shadow-hard">💰</div>
+            <h1 className="text-3xl font-black uppercase tracking-tighter">Financeiro Global</h1>
+          </div>
+          <p className="text-[#FF8A00] text-xs font-bold uppercase tracking-[0.2em]">&gt;&gt; FLUXO DE CAIXA E CONTROLE DE PAGAMENTOS</p>
         </div>
-          <div className="flex bg-slate-100 p-1 rounded-xl mr-4">
+
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Tabs */}
+          <div className="flex bg-[#1A1A1A] p-1 border-2 border-white">
             <button 
               onClick={() => setActiveTab('caixa')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${activeTab === 'caixa' ? 'bg-white shadow-sm text-primary' : 'text-slate-400'}`}
+              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'caixa' ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}
             >
               Caixa Geral
             </button>
             <button 
               onClick={() => setActiveTab('professores')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${activeTab === 'professores' ? 'bg-white shadow-sm text-primary' : 'text-slate-400'}`}
+              className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'professores' ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}
             >
-              Professores
+              Remuneração
             </button>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-              <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all"><ChevronLeft className="w-4 h-4" /></button>
-              <div className="px-4 flex items-center text-sm font-black text-slate-700 min-w-[120px] justify-center uppercase">
-                {currentMonth}
-              </div>
-              <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all"><ChevronRight className="w-4 h-4" /></button>
-            </div>
-            {activeTab === 'caixa' && (
-              <div className="flex items-center gap-3">
-                <label className={`cursor-pointer bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-slate-900/30 text-sm active:scale-95 transition-all flex items-center gap-2 ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <FileUp className="w-4 h-4" />
-                  {importing ? 'Processando...' : 'Importar PDF'}
-                  <input type="file" accept=".pdf" className="hidden" onChange={handleImportPDF} disabled={importing} />
-                </label>
-                <button onClick={() => setShowExtraModal(true)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-emerald-600/30 text-sm active:scale-95 transition-all flex items-center gap-2">
-                  <Plus className="w-4 h-4" /> Entrada Extra
-                </button>
-              </div>
-            )}
-          </div>
-        </header>
 
-      <div className="p-8 space-y-8 flex-1 overflow-auto">
-        {activeTab === 'caixa' ? (
-          <>
-            {/* Cards de resumo */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="glass-card p-6 bg-slate-900 text-white border-slate-800">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Faturamento Previsto</p>
-            <h3 className="text-3xl font-black mt-1">R$ {(resumo?.faturamentoPrevisto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+          {/* Month Selector */}
+          <div className="flex items-center bg-[#1A1A1A] border-2 border-white overflow-hidden">
+            <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white hover:text-black border-r-2 border-white"><ChevronLeft className="w-4 h-4" /></button>
+            <div className="px-4 text-[10px] font-black uppercase tracking-widest min-w-[100px] text-center">{currentMonth}</div>
+            <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-white hover:text-black border-l-2 border-white"><ChevronRight className="w-4 h-4" /></button>
           </div>
-          <div className="glass-card p-6 bg-emerald-500 text-white border-emerald-400">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Recebido (Total)</p>
-            <h3 className="text-3xl font-black mt-1">R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-          </div>
-          <div className="glass-card p-6 bg-orange-500 text-white border-orange-400">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Pendente (Total)</p>
-            <h3 className="text-3xl font-black mt-1">R$ {(resumo?.pendentes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-          </div>
-          <div className="glass-card p-6 bg-blue-500 text-white border-blue-400">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Fluxo do Mês</p>
-            <h3 className="text-3xl font-black mt-1">R$ {(resumo?.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+
+          <div className="flex items-center gap-3">
+             <label className="cursor-pointer bg-[#1A1A1A] border-4 border-white p-3 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
+               <FileUp className="w-4 h-4" />
+               {importing ? '...' : 'PDF'}
+               <input type="file" accept=".pdf" className="hidden" onChange={handleImportPDF} disabled={importing} />
+             </label>
+             <button onClick={() => setShowExtraModal(true)} className="bg-[#FF8A00] text-black border-4 border-black p-3 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
+               <Plus className="w-4 h-4" /> Entrada Extra
+             </button>
           </div>
         </div>
+      </header>
 
-        {/* Tabela */}
-        <div className="glass-card overflow-hidden">
-          <div className="p-4 border-b border-slate-200/50 bg-white/40 flex items-center justify-between">
-            <div className="relative flex-1 max-w-md group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <input type="text" placeholder="Buscar por aluno, referência ou tipo..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white/50 border border-slate-200 rounded-xl text-sm" />
-            </div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 -rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Faturamento Previsto</p>
+          <h3 className="text-3xl font-black text-white">R$ {(resumo?.faturamentoPrevisto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+          <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-[#FF8A00]">
+            <TrendingUp className="w-3 h-3" />
+            <span>ESTIMATIVA MENSAL</span>
+          </div>
+        </div>
+        <div className="bg-[#00FF41] border-4 border-black p-6 shadow-hard-black relative overflow-hidden group text-black">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-black/5 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
+          <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2 text-black">Recebido Real</p>
+          <h3 className="text-3xl font-black">R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+          <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+            <CheckCircle2 className="w-3 h-3" />
+            <span>EM CAIXA AGORA</span>
+          </div>
+        </div>
+        <div className="bg-[#FF0000] border-4 border-black p-6 shadow-hard-black relative overflow-hidden group text-white">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
+          <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Pendente / Atrasado</p>
+          <h3 className="text-3xl font-black">R$ {(resumo?.pendentes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+          <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+            <AlertCircle className="w-3 h-3 text-white" />
+            <span>CRITICAL STATE</span>
+          </div>
+        </div>
+      </div>
+
+      {activeTab === 'caixa' ? (
+        <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+             <div className="relative w-full md:w-96 group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <input 
+                  type="text" 
+                  placeholder="BUSCAR TRANSAÇÃO..." 
+                  value={search} 
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-black border-2 border-white/20 text-white text-[10px] font-bold uppercase tracking-widest focus:border-[#FF8A00] outline-none" 
+                />
+             </div>
+             <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                   <div className="w-3 h-3 bg-[#00FF41] border border-black shadow-sm"></div>
+                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">PAGO</span>
+                </div>
+                <div className="flex items-center gap-2">
+                   <div className="w-3 h-3 bg-[#FF0000] border border-black shadow-sm"></div>
+                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">PENDENTE</span>
+                </div>
+             </div>
           </div>
 
-          <table className="w-full text-left">
-            <thead className="bg-slate-50/30 border-b border-slate-100/50">
-              <tr>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Aluno / Descrição</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vencimento</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/50">
-              {loading ? (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400">Carregando...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400 font-bold">Nenhum pagamento encontrado.</td></tr>
-              ) : filtered.map((p, idx) => (
-                <tr key={`${p.id}-${idx}`} className="hover:bg-white/40 transition-all">
-                  <td className="px-6 py-4">
-                    <p className="text-sm font-bold text-slate-900">{p.aluno_nome || p.descricao || '---'}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{p.referencia_mes_ano || ''}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter">{p.tipo_receita || 'mensalidade'}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm font-black text-slate-900">R$ {Number(p.valor).toFixed(2).replace('.', ',')}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy') : '---'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {p.status === 'pago' ? (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest border border-emerald-100 w-fit">
-                        <CheckCircle2 className="w-3 h-3" /> Pago
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 text-orange-600 text-[10px] font-black uppercase tracking-widest border border-orange-100 w-fit">
-                        <AlertCircle className="w-3 h-3" /> Pendente
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {p.status !== 'pago' ? (
-                      <button onClick={() => setBaixaModal({ id: p.id, open: true })} className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-emerald-600 transition-all">
-                        Dar Baixa
-                      </button>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-300">Quitado</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            </table>
-          </div>
-        </>
-        ) : (
-          <div className="glass-card overflow-hidden">
-            <div className="p-4 border-b border-slate-200/50 bg-white/40 flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-900 tracking-tight">Remuneração Estimada</h2>
-            </div>
-            <table className="w-full text-left">
-              <thead className="bg-slate-50/30 border-b border-slate-100/50">
-                <tr>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Professor</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Aulas Dadas (Mês)</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Total a Repassar</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b-2 border-white/10">
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00]">Aluno / Descrição</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00]">Tipo</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00]">Valor</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00]">Vencimento</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00]">Status</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00] text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {remuneracao.length === 0 ? (
-                   <tr>
-                     <td colSpan={3} className="px-6 py-8 text-center text-sm font-bold text-slate-400">Nenhuma aula registrada para este mês.</td>
-                   </tr>
-                ) : (
-                  remuneracao.map((r, i) => (
-                    <tr key={`prof-${r.professor_id}-${i}`} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className="font-bold text-slate-900 text-sm">{r.professor_nome}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm font-medium text-slate-600">{r.total_aulas} aulas</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm font-black text-emerald-600">R$ {r.valor_estimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
+              <tbody className="divide-y divide-white/5">
+                {loading ? (
+                  <tr><td colSpan={6} className="py-20 text-center text-[10px] font-black uppercase animate-pulse">Sincronizando Banco de Dados...</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="py-20 text-center text-[10px] font-black uppercase opacity-50">Nenhuma transação registrada</td></tr>
+                ) : filtered.map((p, idx) => (
+                  <tr key={`${p.id}-${idx}`} className="hover:bg-white/5 transition-colors group">
+                    <td className="px-4 py-5">
+                      <p className="text-[11px] font-bold uppercase tracking-tight">{p.aluno_nome || p.descricao || '---'}</p>
+                      <p className="text-[9px] text-[#FF8A00] font-black uppercase tracking-widest mt-1 opacity-70">{p.referencia_mes_ano || ''}</p>
+                    </td>
+                    <td className="px-4 py-5">
+                      <span className="text-[9px] font-black uppercase bg-[#333] px-2 py-1 border border-white/10">{p.tipo_receita || 'mensalidade'}</span>
+                    </td>
+                    <td className="px-4 py-5">
+                      <span className="text-[12px] font-black">R$ {Number(p.valor).toFixed(2).replace('.', ',')}</span>
+                    </td>
+                    <td className="px-4 py-5">
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy') : '---'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-5">
+                      {p.status === 'pago' ? (
+                        <span className="inline-flex items-center gap-2 px-3 py-1 bg-[#00FF41]/10 text-[#00FF41] text-[9px] font-black uppercase border border-[#00FF41]/30">
+                          <CheckCircle2 className="w-3 h-3" /> PAGO
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2 px-3 py-1 bg-[#FF0000]/10 text-[#FF0000] text-[9px] font-black uppercase border border-[#FF0000]/30">
+                          <AlertCircle className="w-3 h-3" /> PENDENTE
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-5 text-right">
+                      {p.status !== 'pago' ? (
+                        <button 
+                          onClick={() => setBaixaModal({ id: p.id, open: true })}
+                          className="bg-white text-black px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95"
+                        >
+                          DAR BAIXA
+                        </button>
+                      ) : (
+                        <span className="text-[9px] font-black uppercase opacity-20">QUITADO</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard">
+           <div className="mb-8">
+              <h2 className="text-xl font-black uppercase tracking-tighter flex items-center gap-3">
+                 <Users className="w-6 h-6 text-[#FF8A00]" />
+                 Folha de Repasse (Estimada)
+              </h2>
+           </div>
+           <div className="overflow-x-auto">
+             <table className="w-full text-left">
+               <thead>
+                 <tr className="border-b-2 border-white/10">
+                   <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00]">Professor</th>
+                   <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00]">Aulas Ministradas</th>
+                   <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00]">Valor Repasse</th>
+                   <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF8A00] text-right">Status</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-white/5">
+                  {remuneracao.length === 0 ? (
+                    <tr><td colSpan={4} className="py-20 text-center text-[10px] font-black uppercase opacity-50">Sem registros para o período</td></tr>
+                  ) : remuneracao.map((r, i) => (
+                    <tr key={`prof-${r.professor_id}-${i}`} className="hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-5 font-bold uppercase text-[11px]">{r.professor_nome}</td>
+                      <td className="px-4 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{r.total_aulas} AULAS</td>
+                      <td className="px-4 py-5 text-[12px] font-black text-[#00FF41]">R$ {r.valor_estimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-5 text-right font-black uppercase text-[9px] text-[#FF8A00] animate-pulse">PENDENTE</td>
+                    </tr>
+                  ))}
+               </tbody>
+             </table>
+           </div>
+        </div>
+      )}
 
       {/* Modal Entrada Extra */}
       <AnimatePresence>
         {showExtraModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-black text-slate-900">Nova Entrada Extra</h2>
-                <button onClick={() => setShowExtraModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="space-y-4">
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1A1A1A] border-4 border-white p-8 w-full max-w-md shadow-hard relative">
+              <button onClick={() => setShowExtraModal(false)} className="absolute -top-6 -right-6 bg-[#FF0000] border-4 border-black p-2 shadow-hard-black transition-all hover:translate-x-1 hover:translate-y-1 hover:shadow-none">
+                 <X className="w-6 h-6 text-white" />
+              </button>
+              
+              <h2 className="text-2xl font-black uppercase mb-8 border-b-4 border-white pb-4 tracking-tighter flex items-center gap-3">
+                 <Plus className="w-6 h-6 text-[#FF8A00]" />
+                 Lançamento Extra
+              </h2>
+
+              <div className="space-y-6">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Aluno (Opcional)</label>
-                  <select value={extraForm.aluno_id} onChange={e => setExtraForm(f => ({...f, aluno_id: e.target.value}))} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20">
-                    <option value="">Nenhum / Avulso</option>
-                    {alunos.map((a, idx) => <option key={`aluno-${a.id}-${idx}`} value={a.id}>{a.nome}</option>)}
+                  <label className="text-[10px] font-black text-[#FF8A00] uppercase tracking-widest block mb-2">Aluno Associado (Opcional)</label>
+                  <select value={extraForm.aluno_id} onChange={e => setExtraForm(f => ({...f, aluno_id: e.target.value}))} className="w-full bg-black border-2 border-white/20 p-3 text-[10px] font-bold uppercase focus:border-[#FF8A00] outline-none text-white">
+                    <option value="">NENHUM / AVULSO</option>
+                    {alunos.map((a, idx) => <option key={`aluno-${a.id}-${idx}`} value={a.id}>{a.nome.toUpperCase()}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Descrição</label>
-                  <input value={extraForm.descricao} onChange={e => setExtraForm(f => ({...f, descricao: e.target.value}))} placeholder="Ex: Ensaio Banda XYZ" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Tipo</label>
-                  <select value={extraForm.tipo_receita} onChange={e => setExtraForm(f => ({...f, tipo_receita: e.target.value}))} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20">
-                    {TIPOS_EXTRA.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
+                  <label className="text-[10px] font-black text-[#FF8A00] uppercase tracking-widest block mb-2">Descrição / Motivo</label>
+                  <input value={extraForm.descricao} onChange={e => setExtraForm(f => ({...f, descricao: e.target.value}))} placeholder="EX: ALUGUEL ESTÚDIO" className="w-full bg-black border-2 border-white/20 p-3 text-[10px] font-bold uppercase focus:border-[#FF8A00] outline-none text-white" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Valor (R$)</label>
-                    <input type="number" step="0.01" value={extraForm.valor} onChange={e => setExtraForm(f => ({...f, valor: e.target.value}))} placeholder="0,00" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    <label className="text-[10px] font-black text-[#FF8A00] uppercase tracking-widest block mb-2">Valor (R$)</label>
+                    <input type="number" step="0.01" value={extraForm.valor} onChange={e => setExtraForm(f => ({...f, valor: e.target.value}))} placeholder="0,00" className="w-full bg-black border-2 border-white/20 p-3 text-[10px] font-bold uppercase focus:border-[#FF8A00] outline-none text-white" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Data</label>
-                    <input type="date" value={extraForm.data_vencimento} onChange={e => setExtraForm(f => ({...f, data_vencimento: e.target.value}))} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    <label className="text-[10px] font-black text-[#FF8A00] uppercase tracking-widest block mb-2">Data Venc.</label>
+                    <input type="date" value={extraForm.data_vencimento} onChange={e => setExtraForm(f => ({...f, data_vencimento: e.target.value}))} className="w-full bg-black border-2 border-white/20 p-3 text-[10px] font-bold uppercase focus:border-[#FF8A00] outline-none text-white" />
                   </div>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowExtraModal(false)} className="flex-1 border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Cancelar</button>
-                <button onClick={handleSaveExtra} disabled={saving} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-emerald-600/30 transition-all active:scale-95 flex items-center justify-center gap-2">
-                  <Save className="w-4 h-4" /> {saving ? 'Salvando...' : 'Salvar'}
-                </button>
+
+              <div className="mt-10 flex gap-4">
+                 <button onClick={() => setShowExtraModal(false)} className="flex-1 p-4 text-[10px] font-black uppercase hover:underline">VOLTAR</button>
+                 <button onClick={handleSaveExtra} disabled={saving} className="flex-1 bg-[#00FF41] text-black border-4 border-black p-4 shadow-hard-black font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
+                    <Save className="w-4 h-4" /> {saving ? 'SALVANDO...' : 'CONFIRMAR'}
+                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
-      {/* Modal Baixa Financeira */}
+      {/* Modal Baixa */}
       <AnimatePresence>
         {baixaModal.open && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-black text-slate-900">Dar Baixa</h2>
-                <button onClick={() => setBaixaModal({ id: null, open: false })} className="p-2 hover:bg-slate-100 rounded-xl transition-all"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Método de Pagamento</label>
-                  <select 
-                    value={baixaMetodo} 
-                    onChange={e => setBaixaMetodo(e.target.value)} 
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                  >
-                    <option value="dinheiro">Dinheiro</option>
-                    <option value="pix">PIX</option>
-                    <option value="cartao_credito">Cartão de Crédito</option>
-                    <option value="cartao_debito">Cartão de Débito</option>
-                    <option value="transferencia">Transferência Bancária</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button onClick={() => setBaixaModal({ id: null, open: false })} className="flex-1 border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Cancelar</button>
-                <button onClick={handleBaixa} disabled={saving} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> {saving ? 'Processando...' : 'Confirmar'}
-                </button>
-              </div>
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1A1A1A] border-4 border-white p-8 w-full max-w-sm shadow-hard">
+               <h2 className="text-xl font-black uppercase mb-8 border-b-4 border-white pb-4 tracking-tighter">Baixa de Pagamento</h2>
+               <div className="space-y-6">
+                 <div>
+                    <label className="text-[10px] font-black text-[#FF8A00] uppercase tracking-widest block mb-3">Método de Entrada</label>
+                    <div className="grid grid-cols-1 gap-2">
+                      {['pix', 'dinheiro', 'cartao_credito', 'cartao_debito', 'transferencia'].map(m => (
+                        <button 
+                          key={m}
+                          onClick={() => setBaixaMetodo(m)}
+                          className={`p-3 border-4 text-[9px] font-black uppercase transition-all ${baixaMetodo === m ? 'bg-white text-black border-black translate-x-1 translate-y-1' : 'bg-transparent text-white border-white/20 hover:border-white'}`}
+                        >
+                          {m.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                 </div>
+               </div>
+               <div className="mt-10 flex gap-4">
+                  <button onClick={() => setBaixaModal({ id: null, open: false })} className="flex-1 p-4 text-[10px] font-black uppercase hover:underline">CANCELAR</button>
+                  <button onClick={handleBaixa} disabled={saving} className="flex-1 bg-[#00FF41] text-black border-4 border-black p-4 shadow-hard-black font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
+                     <CheckCircle2 className="w-4 h-4" /> {saving ? '...' : 'DAR BAIXA'}
+                  </button>
+               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

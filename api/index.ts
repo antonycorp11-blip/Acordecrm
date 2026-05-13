@@ -551,7 +551,7 @@ async function startServer() {
                 nome, email, telefone, cpf, endereco, curso_id, professor_id, 
                 dia_semana, horario, sala_id, pacote_id, 
                 data_primeira_parcela, dia_vencimento, valor_parcela, total_parcelas,
-                is_emusys_legacy, emusys_aulas_feitas, emusys_aulas_reposicao, emusys_parcelas_pagas, emusys_data_ultima_aula
+                is_emusys_legacy, emusys_original_aulas, emusys_aulas_feitas, emusys_original_parcelas, emusys_parcelas_pagas, emusys_data_ultima_aula
             } = req.body;
 
             // 1. Criar Aluno
@@ -580,7 +580,6 @@ async function startServer() {
                 data_inicio: dia_semana || null,
                 is_emusys_legacy: is_emusys_legacy || false,
                 emusys_aulas_feitas: emusys_aulas_feitas || 0,
-                emusys_aulas_reposicao: emusys_aulas_reposicao || 0,
                 emusys_parcelas_pagas: emusys_parcelas_pagas || 0,
                 emusys_data_ultima_aula: emusys_data_ultima_aula || null
             }]).select().single();
@@ -591,8 +590,8 @@ async function startServer() {
 
             // 3. Automação de Aulas (Reserva na Agenda)
             const { data: pacote } = await supabase.from('pacotes').select('*').eq('id', pacote_id).single();
-            const totalAulas = pacote?.total_aulas || 1;
-            const aulasRestantes = is_emusys_legacy ? (totalAulas - (emusys_aulas_feitas || 0)) : totalAulas;
+            const originalTotalAulas = is_emusys_legacy ? (Number(emusys_original_aulas) || 48) : (pacote?.total_aulas || 1);
+            const aulasRestantes = is_emusys_legacy ? (originalTotalAulas - (Number(emusys_aulas_feitas) || 0)) : originalTotalAulas;
             
             const aulasToInsert = [];
             let currentAulaDate = new Date(dia_semana);
@@ -634,14 +633,16 @@ async function startServer() {
             // 4. Geração de Pagamentos (Parcelas)
             const pagamentosToInsert = [];
             let currentVencimento = new Date(data_primeira_parcela);
+            
+            const parcelasToGenerate = is_emusys_legacy ? ((Number(emusys_original_parcelas) || 12) - (Number(emusys_parcelas_pagas) || 0)) : (total_parcelas || 1);
 
-            for (let i = 0; i < (total_parcelas || 1); i++) {
+            for (let i = 0; i < (parcelasToGenerate > 0 ? parcelasToGenerate : 0); i++) {
                 pagamentosToInsert.push({
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
                     valor: valor_parcela,
                     data_vencimento: currentVencimento.toISOString().split('T')[0],
-                    status: (is_emusys_legacy && i < emusys_parcelas_pagas) ? 'pago' : 'pendente',
+                    status: 'pendente',
                     tipo_receita: 'mensalidade',
                     referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
                 });
