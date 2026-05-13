@@ -31,7 +31,7 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
-      'x-backend-secret': JWT_SECRET
+      'x-backend-secret': 'studio-acorde-secret-key-2024' // Sempre enviar a chave hardcoded esperada pela function no banco
     }
   }
 });
