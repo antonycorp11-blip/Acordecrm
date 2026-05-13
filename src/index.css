@@ -129,6 +129,7 @@
     border: 3px solid #7b5647;
     background: #fff8f6;
     transition: all 0.1s;
+    font-family: "Space Mono", monospace;
 }
 .retro-input:focus {
     outline: none;
@@ -137,6 +138,7 @@
 }
 .retro-input-alt {
     box-shadow: inset 4px 4px 0 0 rgba(123, 86, 71, 0.1);
+    font-family: "Space Mono", monospace;
 }
 .pressable-btn {
     border-bottom: 4px solid #7a3000;

@@ -105,7 +105,7 @@ export default function Login() {
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary">person_filled</span>
                   <input 
-                    className="w-full bg-surface-container-low border-2 border-secondary p-4 pl-12 font-headline-lg text-body-md focus:ring-4 focus:ring-primary-container focus:outline-none retro-input-alt" 
+                    className="w-full bg-surface-container-low border-2 border-secondary p-4 pl-12 font-headline-lg text-[14px] focus:ring-4 focus:ring-primary-container focus:outline-none retro-input-alt" 
                     placeholder="email@acorde.com" 
                     type="email"
                     value={email}
@@ -119,7 +119,7 @@ export default function Login() {
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary">key</span>
                   <input 
-                    className="w-full bg-surface-container-low border-2 border-secondary p-4 pl-12 font-headline-lg text-body-md focus:ring-4 focus:ring-primary-container focus:outline-none retro-input-alt" 
+                    className="w-full bg-surface-container-low border-2 border-secondary p-4 pl-12 font-headline-lg text-[14px] focus:ring-4 focus:ring-primary-container focus:outline-none retro-input-alt" 
                     placeholder="********" 
                     type="password"
                     value={senha}
