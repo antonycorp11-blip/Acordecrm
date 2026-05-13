@@ -54,13 +54,13 @@ export default function Contratos() {
     setLoading(true);
     try {
       const [pRes, cRes, aRes] = await Promise.all([
-        fetch('/api/pacotes'),
-        fetch('/api/cursos'),
-        fetch('/api/alunos')
+        fetch('/api/pacotes').then(r => r.ok ? r.json() : []),
+        fetch('/api/cursos').then(r => r.ok ? r.json() : []),
+        fetch('/api/alunos').then(r => r.ok ? r.json() : [])
       ]);
-      setPacotes(await pRes.json());
-      setCursos(await cRes.json());
-      setAlunos(await aRes.json());
+      setPacotes(Array.isArray(pRes) ? pRes : []);
+      setCursos(Array.isArray(cRes) ? cRes : []);
+      setAlunos(Array.isArray(aRes) ? aRes : []);
     } catch (err) {
       console.error(err);
     } finally {

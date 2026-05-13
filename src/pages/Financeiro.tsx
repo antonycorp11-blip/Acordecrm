@@ -39,15 +39,15 @@ export default function Financeiro() {
     setLoading(true);
     try {
       const [pagsRes, resumoRes, alunosRes, remunRes] = await Promise.all([
-        fetch(`/api/pagamentos?mes=${currentMonth}`).then(r => r.json()),
-        fetch(`/api/financeiro/resumo?mes=${currentMonth}`).then(r => r.json()),
-        fetch('/api/alunos').then(r => r.json()),
-        fetch(`/api/financeiro/remuneracao?mes_ano=${currentMonth}`).then(r => r.json()),
+        fetch(`/api/pagamentos?mes=${currentMonth}`).then(r => r.ok ? r.json() : []),
+        fetch(`/api/financeiro/resumo?mes=${currentMonth}`).then(r => r.ok ? r.json() : null),
+        fetch('/api/alunos').then(r => r.ok ? r.json() : []),
+        fetch(`/api/financeiro/remuneracao?mes_ano=${currentMonth}`).then(r => r.ok ? r.json() : []),
       ]);
-      setPagamentos(pagsRes);
-      setResumo(resumoRes);
-      setAlunos(alunosRes);
-      setRemuneracao(remunRes);
+      setPagamentos(Array.isArray(pagsRes) ? pagsRes : []);
+      setResumo(resumoRes || { receitaMes: 0, faturamentoPrevisto: 0, pendentes: 0, total: 0 });
+      setAlunos(Array.isArray(alunosRes) ? alunosRes : []);
+      setRemuneracao(Array.isArray(remunRes) ? remunRes : []);
     } catch (e) { console.error(e); }
     setLoading(false);
   };

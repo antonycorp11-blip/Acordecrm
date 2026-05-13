@@ -146,7 +146,7 @@ export default function Agenda() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(professores.length > 0 ? professores : Array.from({ length: 8 }, (_, i) => ({ id: i + 1, nome: `Prof. ${['Rican...','Alice','Mate...','Sônia','Jonas','Clara','Beto','Elza'][i]}`, cor: '#feccba' }))).map((prof, pi) => (
+                  {professores.length > 0 ? professores.map((prof, pi) => (
                     <tr key={prof.id} style={{ borderBottom: '2px solid #e2bfb0' }}>
                       <td className="sticky left-0 z-10 px-4 py-2" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
                         <div className="flex items-center gap-2">
@@ -175,7 +175,13 @@ export default function Agenda() {
                         );
                       })}
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan={HOURS.length + 1} className="py-20 text-center">
+                        <p className="text-[#7b5647] font-black uppercase text-xs opacity-50 tracking-widest">Nenhum professor com aula hoje</p>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             )}
@@ -193,11 +199,10 @@ export default function Agenda() {
             </div>
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-[#ff6b00]" />
-              <span className="text-white font-black text-[10px] uppercase tracking-widest">3 ALUNOS SEM CONFIRMAÇÃO</span>
+              <span className="text-white font-black text-[10px] uppercase tracking-widest">SISTEMA SINCRONIZADO</span>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-[#ff6b00] font-black text-[10px] uppercase tracking-widest cursor-pointer hover:underline">AVISO DO DIRETOR!</span>
-              <span className="text-[#8e7164] font-black text-[10px] uppercase tracking-widest cursor-pointer hover:underline">RECITAL VINDO AÍ...</span>
+              <span className="text-[#8e7164] font-black text-[10px] uppercase tracking-widest">QUADRO_HORARIO_V1.0</span>
             </div>
           </div>
         </div>

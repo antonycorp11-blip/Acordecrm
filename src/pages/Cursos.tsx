@@ -22,9 +22,13 @@ export default function Cursos() {
   const fetchCursos = () => {
     setLoading(true);
     fetch('/api/cursos')
-      .then(res => res.json())
+      .then(res => res.ok ? res.json() : [])
       .then(data => {
-        setCursos(data);
+        setCursos(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setCursos([]);
         setLoading(false);
       });
   };

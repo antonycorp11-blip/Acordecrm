@@ -44,10 +44,10 @@ export default function Professores() {
         fetch('/api/professores'),
         fetch('/api/cursos')
       ]);
-      const pData = await pRes.json();
-      const cData = await cRes.json();
-      setProfessores(pData);
-      setCursos(cData);
+      const pData = pRes.ok ? await pRes.json() : [];
+      const cData = cRes.ok ? await cRes.json() : [];
+      setProfessores(Array.isArray(pData) ? pData : []);
+      setCursos(Array.isArray(cData) ? cData : []);
     } catch (err: any) {
       setError(err.message);
     } finally {

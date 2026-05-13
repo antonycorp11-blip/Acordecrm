@@ -55,13 +55,7 @@ export default function Ranking() {
 
   const getInstrumento = (aluno: any) => aluno.instrumento || aluno.curso_nome || 'MÚSICA';
 
-  const mockRanking = ranking.length > 0 ? ranking : [
-    { id: 1, nome: 'RICARDO_MEYER', xp: 9999, conquistas: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }] },
-    { id: 2, nome: 'BEATRIZ_LIS', xp: 8420, conquistas: [{ id: 1 }, { id: 2 }] },
-    { id: 3, nome: 'LUCAS_DRUM', xp: 7650, conquistas: [{ id: 1 }] },
-    { id: 4, nome: 'GABRIEL_M', xp: 5200, conquistas: [] },
-    { id: 5, nome: 'ANA_VOICE', xp: 4980, conquistas: [] },
-  ];
+  const mockRanking = ranking;
 
   const achievementIcons = [
     <Star key="s" className="w-6 h-6" />,
@@ -133,81 +127,96 @@ export default function Ranking() {
         ) : viewMode === 'cards' ? (
           /* ── CARDS VIEW ── */
           <div className="grid grid-cols-3 gap-5">
-            {/* Featured #1 card (left, large) */}
-            {mockRanking[0] && (
-              <div className="col-span-2 rounded-lg overflow-hidden relative" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '6px 6px 0 #000' }}>
-                {/* Rank badge */}
-                <div className="absolute top-4 left-4 w-10 h-10 flex items-center justify-center font-black text-white text-sm z-10" style={{ background: '#ff6b00', border: '2px solid #261812', boxShadow: '2px 2px 0 #261812' }}>
-                  #1
-                </div>
-                <div className="flex h-full">
-                  {/* Photo area */}
-                  <div className="w-64 bg-gradient-to-b from-[#261812] to-[#1a0a05] flex items-center justify-center shrink-0" style={{ minHeight: '340px', borderRight: '3px solid #261812' }}>
-                    <div className="w-40 h-48 bg-[#3d2d26] rounded border-2 border-[#ff6b00] flex items-center justify-center" style={{ boxShadow: '0 0 30px rgba(255,107,0,0.3)' }}>
-                      <span className="text-[#ff6b00] font-black text-5xl">{(mockRanking[0].nome || 'R').charAt(0)}</span>
+            {mockRanking.length > 0 ? (
+              <>
+                {/* Featured #1 card (left, large) */}
+                {mockRanking[0] && (
+                  <div className="col-span-2 rounded-lg overflow-hidden relative" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '6px 6px 0 #000' }}>
+                    {/* Rank badge */}
+                    <div className="absolute top-4 left-4 w-10 h-10 flex items-center justify-center font-black text-white text-sm z-10" style={{ background: '#ff6b00', border: '2px solid #261812', boxShadow: '2px 2px 0 #261812' }}>
+                      #1
                     </div>
-                  </div>
-                  {/* Info */}
-                  <div className="flex-1 p-8">
-                    <h3 className="font-black text-[#261812] text-3xl uppercase tracking-tight mb-3">{mockRanking[0].nome}</h3>
-                    <div className="flex items-center gap-2 mb-6">
-                      <span className="bg-[#261812] text-white font-black text-[10px] px-3 py-1 rounded uppercase tracking-widest">MASTER_MODE</span>
-                      <span className="bg-[#ff6b00] text-white font-black text-[10px] px-3 py-1 rounded uppercase tracking-widest">{getInstrumento(mockRanking[0])}</span>
-                    </div>
-                    <p className="text-[#7b5647] text-sm font-bold leading-relaxed mb-6">
-                      Domínio total das escalas pentatônicas e composição modular. Aluno atingiu o nível máximo de produção nesta temporada.
-                    </p>
-                    {/* Achievements */}
-                    <p className="text-[#ff6b00] font-black text-[10px] uppercase tracking-widest mb-3">CONQUISTAS_DESBLOQUEADAS</p>
-                    <div className="flex gap-3 mb-6">
-                      {(mockRanking[0].conquistas?.slice(0, 4) || []).map((_: any, i: number) => (
-                        <div key={i} className="w-14 h-14 rounded border-2 border-[#7b5647] flex items-center justify-center text-[#7b5647]" style={{ background: '#ffeae1' }}>
-                          {achievementIcons[i % 4]}
+                    <div className="flex h-full">
+                      {/* Photo area */}
+                      <div className="w-64 bg-gradient-to-b from-[#261812] to-[#1a0a05] flex items-center justify-center shrink-0" style={{ minHeight: '340px', borderRight: '3px solid #261812' }}>
+                        <div className="w-40 h-48 bg-[#3d2d26] rounded border-2 border-[#ff6b00] flex items-center justify-center" style={{ boxShadow: '0 0 30px rgba(255,107,0,0.3)' }}>
+                          <span className="text-[#ff6b00] font-black text-5xl">{(mockRanking[0].nome || 'R').charAt(0)}</span>
                         </div>
-                      ))}
-                    </div>
-                    {/* XP Bar */}
-                    <div className="rounded p-3 flex items-center gap-4" style={{ background: '#ff6b00', border: '2px solid #261812' }}>
-                      <div className="flex-1 h-4 rounded overflow-hidden" style={{ background: '#261812' }}>
-                        <div className="h-full bg-[#fff8f6] rounded" style={{ width: `${Math.min(100, (mockRanking[0].xp / 10000) * 100)}%` }}></div>
                       </div>
-                      <span className="text-white font-black text-xs whitespace-nowrap">XP: {mockRanking[0].xp}/{mockRanking[0].xp >= 10000 ? '10000' : '10000'}</span>
+                      {/* Info */}
+                      <div className="flex-1 p-8">
+                        <h3 className="font-black text-[#261812] text-3xl uppercase tracking-tight mb-3">{mockRanking[0].nome}</h3>
+                        <div className="flex items-center gap-2 mb-6">
+                          <span className="bg-[#261812] text-white font-black text-[10px] px-3 py-1 rounded uppercase tracking-widest">RANKING_ATIVO</span>
+                          <span className="bg-[#ff6b00] text-white font-black text-[10px] px-3 py-1 rounded uppercase tracking-widest">{getInstrumento(mockRanking[0])}</span>
+                        </div>
+                        <p className="text-[#7b5647] text-sm font-bold leading-relaxed mb-6">
+                          Desempenho excepcional nesta temporada. Continue evoluindo suas habilidades musicais!
+                        </p>
+                        {/* Achievements */}
+                        <p className="text-[#ff6b00] font-black text-[10px] uppercase tracking-widest mb-3">CONQUISTAS_DESBLOQUEADAS</p>
+                        <div className="flex gap-3 mb-6">
+                          {(mockRanking[0].conquistas?.slice(0, 4) || []).map((_: any, i: number) => (
+                            <div key={i} className="w-14 h-14 rounded border-2 border-[#7b5647] flex items-center justify-center text-[#7b5647]" style={{ background: '#ffeae1' }}>
+                              {achievementIcons[i % 4]}
+                            </div>
+                          ))}
+                          {(!mockRanking[0].conquistas || mockRanking[0].conquistas.length === 0) && (
+                            <div className="text-[10px] font-black text-[#8e7164] uppercase opacity-50">Nenhuma conquista ainda</div>
+                          )}
+                        </div>
+                        {/* XP Bar */}
+                        <div className="rounded p-3 flex items-center gap-4" style={{ background: '#ff6b00', border: '2px solid #261812' }}>
+                          <div className="flex-1 h-4 rounded overflow-hidden" style={{ background: '#261812' }}>
+                            <div className="h-full bg-[#fff8f6] rounded" style={{ width: `${Math.min(100, (mockRanking[0].xp / 10000) * 100)}%` }}></div>
+                          </div>
+                          <span className="text-white font-black text-xs whitespace-nowrap">XP: {mockRanking[0].xp}/{mockRanking[0].xp >= 10000 ? '10000' : '10000'}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                )}
+
+                {/* Side cards #2, #3 */}
+                <div className="flex flex-col gap-5">
+                  {mockRanking.slice(1, 3).map((aluno, i) => (
+                    <div key={aluno.id} className="rounded-lg overflow-hidden relative flex-1" style={{ background: '#fff1eb', border: '3px solid #261812', boxShadow: '4px 4px 0 #000', minHeight: '150px' }}>
+                      <div className="absolute top-3 left-3 flex items-center justify-center font-black text-[#261812] text-sm border-2 border-[#261812] w-9 h-9" style={{ background: '#fff8f6' }}>
+                        #{i + 2}
+                      </div>
+                      <div className="flex h-full p-4 pt-12">
+                        <div className="w-20 h-24 bg-[#261812] rounded border border-[#ff6b00] flex items-center justify-center shrink-0 mr-4">
+                          <span className="text-[#ff6b00] font-black text-2xl">{(aluno.nome || '?').charAt(0)}</span>
+                        </div>
+                        <div>
+                          <h4 className="font-black text-[#261812] text-lg uppercase leading-tight truncate max-w-[120px]">{aluno.nome}</h4>
+                          <span className="text-[#8e7164] font-black text-[10px] uppercase">LEVEL_{Math.floor(aluno.xp / 200)}</span>
+                          <span className="ml-2 text-[#7b5647] font-black text-[10px] uppercase">{getInstrumento(aluno)}</span>
+                          <div className="flex gap-2 mt-3">
+                            {(aluno.conquistas?.slice(0, 3) || []).map((_: any, j: number) => (
+                              <div key={j} className="w-8 h-8 rounded border border-[#7b5647] flex items-center justify-center text-[#8e7164]" style={{ background: '#ffeae1' }}>
+                                {achievementIcons[j % 4] && React.cloneElement(achievementIcons[j % 4] as React.ReactElement, { className: 'w-4 h-4' })}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {mockRanking.length < 2 && (
+                    <div className="flex-1 rounded-lg border-2 border-dashed border-[#5a4136] flex items-center justify-center text-[#8e7164] font-black uppercase text-[10px] tracking-widest">
+                      Aguardando competidores
+                    </div>
+                  )}
                 </div>
+              </>
+            ) : (
+              <div className="col-span-3 py-20 flex flex-col items-center justify-center rounded-lg border-4 border-dashed border-[#5a4136] bg-[#1a0a05]/50">
+                <Trophy className="w-16 h-16 text-[#5a4136] mb-4" />
+                <p className="text-[#8e7164] font-black uppercase tracking-widest text-lg">Nenhum aluno no ranking ainda</p>
+                <p className="text-[#5a4136] font-bold uppercase text-[10px] mt-2">Comece a atribuir conquistas para ver o progresso</p>
               </div>
             )}
-
-            {/* Side cards #2, #3 */}
-            <div className="flex flex-col gap-5">
-              {mockRanking.slice(1, 3).map((aluno, i) => (
-                <div key={aluno.id} className="rounded-lg overflow-hidden relative flex-1" style={{ background: '#fff1eb', border: '3px solid #261812', boxShadow: '4px 4px 0 #000', minHeight: '150px' }}>
-                  <div className="absolute top-3 left-3 flex items-center justify-center font-black text-[#261812] text-sm border-2 border-[#261812] w-9 h-9" style={{ background: '#fff8f6' }}>
-                    #{i + 2}
-                  </div>
-                  {i === 0 && (
-                    <div className="absolute top-3 right-3 bg-[#ff6b00] text-white font-black text-[9px] px-2 py-1 uppercase tracking-widest">ALUNO_DESTAQUE_MES</div>
-                  )}
-                  <div className="flex h-full p-4 pt-12">
-                    <div className="w-20 h-24 bg-[#261812] rounded border border-[#ff6b00] flex items-center justify-center shrink-0 mr-4">
-                      <span className="text-[#ff6b00] font-black text-2xl">{(aluno.nome || '?').charAt(0)}</span>
-                    </div>
-                    <div>
-                      <h4 className="font-black text-[#261812] text-lg uppercase leading-tight truncate max-w-[120px]">{aluno.nome}</h4>
-                      <span className="text-[#8e7164] font-black text-[10px] uppercase">LEVEL_{Math.floor(aluno.xp / 200)}</span>
-                      <span className="ml-2 text-[#7b5647] font-black text-[10px] uppercase">{getInstrumento(aluno)}</span>
-                      <div className="flex gap-2 mt-3">
-                        {(aluno.conquistas?.slice(0, 3) || []).map((_: any, j: number) => (
-                          <div key={j} className="w-8 h-8 rounded border border-[#7b5647] flex items-center justify-center text-[#8e7164]" style={{ background: '#ffeae1' }}>
-                            {achievementIcons[j % 4] && React.cloneElement(achievementIcons[j % 4] as React.ReactElement, { className: 'w-4 h-4' })}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         ) : (
           /* ── LIST VIEW ── */

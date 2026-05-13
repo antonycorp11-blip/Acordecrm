@@ -56,17 +56,34 @@ export default function Atendimento() {
 
   const fetchLeads = () => {
     setLoading(true);
-    fetch('/api/leads').then(res => res.json()).then(data => {
-      setLeads(data);
-      setLoading(false);
-    });
-    fetch('/api/leads/experimentais-pendentes').then(res => res.json()).then(setExperimentaisPendentes);
+    fetch('/api/leads')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        setLeads(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLeads([]);
+        setLoading(false);
+      });
+
+    fetch('/api/leads/experimentais-pendentes')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setExperimentaisPendentes(Array.isArray(data) ? data : []))
+      .catch(() => setExperimentaisPendentes([]));
   };
 
   useEffect(() => {
     fetchLeads();
-    fetch('/api/cursos').then(res => res.json()).then(setCursos);
-    fetch('/api/professores').then(res => res.json()).then(setProfessores);
+    fetch('/api/cursos')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setCursos(Array.isArray(data) ? data : []))
+      .catch(() => setCursos([]));
+      
+    fetch('/api/professores')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setProfessores(Array.isArray(data) ? data : []))
+      .catch(() => setProfessores([]));
   }, []);
 
   const sendReminder = (exp: any) => {

@@ -44,6 +44,16 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// Componente para redirecionamento baseado em Role
+const RoleRedirect = ({ children, defaultPath }: { children: React.ReactNode, defaultPath: string }) => {
+  const { user } = useAuth();
+  
+  if (user?.role === 'professor') return <Navigate to="/area-professor" />;
+  if (user?.role === 'aluno') return <Navigate to="/area-aluno" />;
+  
+  return <>{children}</>;
+};
+
 export default function App() {
   return (
     <AuthProvider>
@@ -57,24 +67,32 @@ export default function App() {
           {/* Rotas Privadas */}
           <Route path="/*" element={
             <PrivateRoute>
-              <MainLayout>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/atendimento" element={<Atendimento />} />
-                  <Route path="/alunos" element={<Alunos />} />
-                  <Route path="/alunos/:id" element={<AlunoPerfil />} />
-                  <Route path="/agenda" element={<Agenda />} />
-                  <Route path="/professores" element={<Professores />} />
-                  <Route path="/cursos" element={<Cursos />} />
-                  <Route path="/financeiro" element={<Financeiro />} />
-                  <Route path="/contratos" element={<Contratos />} />
-                  <Route path="/conquistas" element={<Conquistas />} />
-                  <Route path="/ranking" element={<Ranking />} />
-                  <Route path="/area-professor" element={<AreaProfessor />} />
-                  <Route path="/area-aluno" element={<AreaAluno />} />
-                  <Route path="/usuarios" element={<Usuarios />} />
-                </Routes>
-              </MainLayout>
+              <Routes>
+                <Route path="/area-professor" element={<AreaProfessor />} />
+                <Route path="/area-aluno" element={<AreaAluno />} />
+                <Route path="*" element={
+                  <MainLayout>
+                    <Routes>
+                      <Route path="/" element={
+                        <RoleRedirect defaultPath="/">
+                          <Dashboard />
+                        </RoleRedirect>
+                      } />
+                      <Route path="/atendimento" element={<Atendimento />} />
+                      <Route path="/alunos" element={<Alunos />} />
+                      <Route path="/alunos/:id" element={<AlunoPerfil />} />
+                      <Route path="/agenda" element={<Agenda />} />
+                      <Route path="/professores" element={<Professores />} />
+                      <Route path="/cursos" element={<Cursos />} />
+                      <Route path="/financeiro" element={<Financeiro />} />
+                      <Route path="/contratos" element={<Contratos />} />
+                      <Route path="/conquistas" element={<Conquistas />} />
+                      <Route path="/ranking" element={<Ranking />} />
+                      <Route path="/usuarios" element={<Usuarios />} />
+                    </Routes>
+                  </MainLayout>
+                } />
+              </Routes>
             </PrivateRoute>
           } />
         </Routes>

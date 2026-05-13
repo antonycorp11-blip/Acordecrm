@@ -22,7 +22,7 @@ const adminItems = [
   { icon: FileText, label: 'Contratos', path: '/contratos' },
   { icon: Trophy, label: 'Conquistas', path: '/conquistas' },
   { icon: Trophy, label: 'Ranking', path: '/ranking' },
-  { icon: UserCheck, label: 'Portal Prof', path: '/area-professor' },
+  { icon: UserCheck, label: 'Portal Prof', path: '/area-professor', hideFor: ['admin'] },
 ];
 
 export function Sidebar() {
@@ -91,7 +91,7 @@ export function Sidebar() {
           {!isCollapsed && (
             <p className="px-4 text-[9px] font-black uppercase tracking-widest text-[#8e7164] mb-2">Admin</p>
           )}
-          {adminItems.map((item) => (
+          {adminItems.filter(item => !item.hideFor || !item.hideFor.includes(user?.role || '')).map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
