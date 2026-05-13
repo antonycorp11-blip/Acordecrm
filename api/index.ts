@@ -1105,6 +1105,25 @@ async function startServer() {
         res.json(updated);
     });
 
+    app.get('/api/alunos/me', async (req: any, res) => {
+        try {
+            const { email } = req.user;
+            const { data: aluno, error } = await supabase
+                .from('alunos')
+                .select('*, matriculas(*), conquistas(*)')
+                .eq('email', email)
+                .single();
+
+            if (error || !aluno) {
+                return res.status(404).json({ error: 'Aluno não encontrado' });
+            }
+
+            res.json(aluno);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.delete('/api/agenda/:id', async (req, res) => {
         const { id } = req.params;
         const [type, originalId] = id.split('-');

@@ -232,10 +232,10 @@ export default function Agenda() {
                 <tbody>
                   {professores.length > 0 ? professores.map((prof, pi) => (
                     <tr key={prof.id} style={{ borderBottom: '2px solid #e2bfb0' }}>
-                      <td className="sticky left-0 z-10 px-4 py-2" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
-                        <div className="flex items-center gap-2">
+                      <td className="sticky left-0 z-10 px-4 py-2 align-top" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
+                        <div className="flex items-center gap-2 mt-1">
                           <div className="w-5 h-5 rounded-sm shrink-0 shadow-sm" style={{ background: prof.cor_agenda || '#feccba', border: '2px solid #261812' }}></div>
-                          <span className="text-[#261812] font-black text-[11px] truncate max-w-[110px] leading-tight">{prof.nome}</span>
+                          <span className="text-[#261812] font-black text-[11px] truncate max-w-[110px] leading-tight uppercase">{prof.nome}</span>
                         </div>
                       </td>
                       {HOURS.map(h => {

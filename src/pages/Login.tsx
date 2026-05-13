@@ -8,23 +8,38 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSetupMode, setIsSetupMode] = useState(false);
+  const [step, setStep] = useState<'email' | 'password' | 'setup'>('email');
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleCheckEmail = async () => {
-    if (!email || !email.includes('@')) return;
+  const handleNextStep = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!email || !email.includes('@')) {
+      toast.error('Insira um e-mail válido');
+      return;
+    }
     
+    setIsLoading(true);
     try {
       const res = await fetch(`/api/auth/check-student?email=${email}`);
       const data = await res.json();
       
-      if (data.needsSetup) {
-        setIsSetupMode(true);
-        toast.info('Seja bem-vindo! Crie uma senha para acessar sua área do aluno.');
+      if (data.exists) {
+        if (data.needsSetup) {
+          setStep('setup');
+          toast.info(`Olá ${data.nome.split(' ')[0]}! Crie sua senha de acesso.`);
+        } else {
+          setStep('password');
+        }
+      } else {
+        // Se não é aluno, talvez seja admin/professor
+        setStep('password');
       }
     } catch (error) {
       console.error('Error checking email:', error);
+      setStep('password');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -33,7 +48,12 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      if (isSetupMode) {
+      if (step === 'setup') {
+        if (!senha || senha.length < 4) {
+          toast.error('A senha deve ter pelo menos 4 caracteres');
+          setIsLoading(false);
+          return;
+        }
         if (senha !== confirmarSenha) {
           toast.error('As senhas não coincidem!');
           setIsLoading(false);
@@ -55,9 +75,18 @@ export default function Login() {
       }
 
       await login(email, senha);
-      navigate('/');
+      
+      // Redirect based on role
+      const storedUser = localStorage.getItem('acorde_user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      
+      if (user?.role === 'aluno') {
+        navigate('/area-aluno');
+      } else {
+        navigate('/');
+      }
     } catch (error: any) {
-      toast.error(error.message || 'Erro ao fazer login. Verifique suas credenciais.');
+      toast.error(error.message || 'Erro ao entrar. Verifique seus dados.');
     } finally {
       setIsLoading(false);
     }
@@ -90,71 +119,89 @@ export default function Login() {
 
         <div className="p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-black text-black uppercase italic tracking-tighter mb-1">
-              {isSetupMode ? 'CRIAR SENHA' : 'LOGIN'}
+            <h1 className="text-3xl font-black text-black uppercase italic tracking-tighter mb-1 leading-none">
+              {step === 'setup' ? 'ATIVAR CONTA' : 'LOGIN'}
             </h1>
             <p className="text-[9px] font-black text-[#7b5647] uppercase tracking-[0.2em]">
-              {isSetupMode ? 'ATIVE SEU ACESSO DE ALUNO' : 'ACESSO AO SISTEMA'}
+              {step === 'setup' ? 'CRIE SUA SENHA DE ALUNO' : 'ACESSO AO SISTEMA'}
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={step === 'email' ? handleNextStep : handleLogin} className="space-y-5">
+            
+            {/* EMAIL STEP */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-black uppercase block">E-MAIL</label>
               <input 
-                className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none transition-all" 
+                className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none transition-all disabled:opacity-50" 
                 placeholder="SEU@EMAIL.COM" 
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onBlur={handleCheckEmail}
+                disabled={step !== 'email' || isLoading}
                 required
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-black uppercase block">
-                {isSetupMode ? 'NOVA SENHA' : 'SENHA'}
-              </label>
-              <input 
-                className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none transition-all" 
-                placeholder="********" 
-                type="password"
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                required
-              />
-            </div>
+            {/* PASSWORD STEP */}
+            {(step === 'password' || step === 'setup') && (
+              <div className="space-y-5 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-black uppercase block">
+                    {step === 'setup' ? 'ESCOLHA UMA SENHA' : 'SENHA'}
+                  </label>
+                  <input 
+                    className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none transition-all" 
+                    placeholder="********" 
+                    type="password"
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
 
-            {isSetupMode && (
-              <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                <label className="text-[10px] font-black text-black uppercase block">CONFIRMAR SENHA</label>
-                <input 
-                  className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none transition-all" 
-                  placeholder="********" 
-                  type="password"
-                  value={confirmarSenha}
-                  onChange={(e) => setConfirmarSenha(e.target.value)}
-                  required
-                />
+                {step === 'setup' && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-black uppercase block">CONFIRME A SENHA</label>
+                    <input 
+                      className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none transition-all" 
+                      placeholder="********" 
+                      type="password"
+                      value={confirmarSenha}
+                      onChange={(e) => setConfirmarSenha(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
               </div>
             )}
             
             <div className="pt-2">
               <button 
-                className="w-full bg-[#ff6b00] text-white font-black text-lg py-4 border-b-8 border-r-4 border-black hover:translate-y-1 hover:border-b-4 hover:border-r-2 active:scale-95 transition-all uppercase italic tracking-widest flex items-center justify-center gap-3" 
+                className="w-full bg-[#ff6b00] text-white font-black text-lg py-4 border-b-8 border-r-4 border-black hover:translate-y-1 hover:border-b-4 hover:border-r-2 active:scale-95 transition-all uppercase italic tracking-widest flex items-center justify-center gap-3 shadow-[4px_4px_0_#000]" 
                 type="submit"
                 disabled={isLoading}
               >
-                {isLoading ? 'AGUARDE...' : (isSetupMode ? 'ATIVAR CONTA' : 'ENTRAR')}
+                {isLoading ? '...' : (step === 'email' ? 'PROSSEGUIR' : 'ENTRAR')}
                 <span className="material-symbols-outlined">
                   {isLoading ? 'hourglass_empty' : 'play_arrow'}
                 </span>
               </button>
+
+              {step !== 'email' && (
+                <button 
+                  type="button"
+                  onClick={() => setStep('email')}
+                  className="w-full mt-4 text-[10px] font-black text-[#7b5647] uppercase hover:text-black transition-colors"
+                >
+                  ← Alterar E-mail
+                </button>
+              )}
             </div>
           </form>
 
-          {!isSetupMode && (
+          {step === 'email' && (
             <div className="mt-8 pt-6 border-t-2 border-[#e2bfb0] text-center">
               <p className="text-[9px] font-black text-[#7b5647] uppercase mb-4">Problemas no acesso?</p>
               <Link to="/atendimento" className="inline-flex items-center gap-2 text-[10px] font-black text-[#ff6b00] uppercase hover:underline">
