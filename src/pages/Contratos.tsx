@@ -50,6 +50,7 @@ export default function Contratos() {
   const [clauses, setClauses] = useState(CLAUSULAS_PADRAO);
   const [editingClause, setEditingClause] = useState<number | null>(null);
 
+  const fetchData = async () => {
     const token = localStorage.getItem('acorde_token');
     const headers = { Authorization: `Bearer ${token}` };
     
