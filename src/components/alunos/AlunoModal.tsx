@@ -78,6 +78,19 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     }
   }, [isOpen]);
 
+  // Ativa modo legado automaticamente se o pacote tiver "Legado" ou "Emusys" no nome
+  useEffect(() => {
+    if (formData.pacote_id) {
+      const selectedPacote = pacotes.find(p => String(p.id) === String(formData.pacote_id));
+      if (selectedPacote) {
+        const name = selectedPacote.nome.toLowerCase();
+        if (name.includes('legado') || name.includes('emusys')) {
+          setFormData(prev => ({ ...prev, is_emusys_legacy: true }));
+        }
+      }
+    }
+  }, [formData.pacote_id, pacotes]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.curso_id || !formData.professor_id || !formData.horario || !formData.cpf || !formData.pacote_id) {
