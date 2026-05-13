@@ -150,12 +150,49 @@ async function startServer() {
                 return res.status(401).json({ message: 'Credenciais inválidas' });
             }
 
-            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
             res.json({ token, user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
-        } catch (error: any) { 
-            console.error('Login error:', error);
-            res.status(500).json({ error: 'Erro interno no servidor: ' + error.message }); 
-        }
+        } catch (error) { res.status(500).json({ error: 'Erro no login' }); }
+    });
+
+    app.get('/api/auth/check-student', async (req, res) => {
+        try {
+            const { email } = req.query;
+            if (!email) return res.status(400).json({ error: 'Email não fornecido' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            if (!aluno) return res.json({ exists: false });
+
+            const { data: usuario } = await supabase.from('usuarios').select('id').eq('email', email).single();
+            
+            res.json({ 
+                exists: true, 
+                needsSetup: !usuario,
+                alunoId: aluno.id,
+                nome: aluno.nome
+            });
+        } catch (error) { res.status(500).json({ error: 'Erro ao verificar aluno' }); }
+    });
+
+    app.post('/api/auth/setup-password', async (req, res) => {
+        try {
+            const { email, senha } = req.body;
+            if (!email || !senha) return res.status(400).json({ error: 'Dados incompletos' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            const hashed = bcrypt.hashSync(senha, 10);
+            const { data: newUser, error: errU } = await supabase.from('usuarios').insert([{
+                nome: aluno.nome,
+                email,
+                senha: hashed,
+                role: 'aluno'
+            }]).select().single();
+
+            if (errU) throw errU;
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
     // Auth (Register)
@@ -633,6 +670,10 @@ async function startServer() {
             // 4. Geração de Pagamentos (Parcelas)
             const pagamentosToInsert = [];
             let currentVencimento = new Date(data_primeira_parcela + 'T12:00:00');
+            
+            if (is_emusys_legacy && req.body.emusys_mes_inicio_parcela === 'proximo') {
+                currentVencimento.setMonth(currentVencimento.getMonth() + 1);
+            }
             
             const parcelasToGenerate = is_emusys_legacy ? ((Number(emusys_original_parcelas) || 12) - (Number(emusys_parcelas_pagas) || 0)) : (total_parcelas || 1);
 

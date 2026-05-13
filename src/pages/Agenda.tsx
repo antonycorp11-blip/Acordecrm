@@ -6,11 +6,12 @@ const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','
 
 export default function Agenda() {
   const { user } = useAuth();
-  const [professores, setProfessores] = useState<any[]>([]);
-  const [aulas, setAulas] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [diaOffset, setDiaOffset] = useState(0);
+  const [navType, setNavType] = useState<'dia' | 'semana'>('dia');
   const [viewType, setViewType] = useState<'individual' | 'grupo'>('individual');
+  const [selectedAula, setSelectedAula] = useState<any>(null);
+  const [menuPos, setMenuPos] = useState<{x: number, y: number} | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const currentBaseDate = new Date();
   currentBaseDate.setDate(currentBaseDate.getDate() + diaOffset);
@@ -54,6 +55,54 @@ export default function Agenda() {
     return { bg: '#ff6b00', border: '#261812', text: '#fff' };
   };
 
+  const handleDragStart = (e: React.DragEvent, aula: any) => {
+    e.dataTransfer.setData('aulaId', aula.id);
+    setIsDragging(true);
+  };
+
+  const handleDrop = async (e: React.DragEvent, profId: string, horario: string) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const aulaId = e.dataTransfer.getData('aulaId');
+    if (!aulaId) return;
+
+    try {
+      const res = await fetch(`/api/agenda/${aulaId}`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
+        },
+        body: JSON.stringify({ 
+          professor_id: profId, 
+          horario,
+          data: currentBaseDate.toISOString().split('T')[0]
+        })
+      });
+
+      if (res.ok) {
+        toast.success('Aula remarcada!');
+        const start = getDisplayDate(0).toISOString().split('T')[0];
+        const headers = { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` };
+        fetch(`/api/agenda?date=${start}`, { headers }).then(r => r.json()).then(setAulas);
+      }
+    } catch (err) {
+      toast.error('Erro ao remarcar aula');
+    }
+  };
+
+  const handleAulaClick = (e: React.MouseEvent, aula: any) => {
+    e.stopPropagation();
+    setMenuPos({ x: e.clientX, y: e.clientY });
+    setSelectedAula(aula);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = () => setSelectedAula(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
   return (
     <div className="flex flex-col flex-1 h-screen overflow-hidden" style={{ background: '#1a0f0a', fontFamily: "'Space Mono', monospace" }}>
 
@@ -96,8 +145,24 @@ export default function Agenda() {
           {/* Nav + Legend */}
           <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ background: '#fff8f6', borderBottom: '3px solid #261812' }}>
             <div className="flex items-center gap-2">
+              {/* DIA / SEMANA TOGGLE */}
+              <div className="flex bg-[#261812] border-2 border-black p-0.5 rounded shadow-[3px_3px_0_#000] mr-4">
+                <button 
+                  onClick={() => setNavType('dia')}
+                  className={`px-3 py-1 rounded text-[9px] font-black uppercase transition-all ${navType === 'dia' ? 'bg-[#ff6b00] text-white shadow-[1px_1px_0_#000]' : 'text-[#8e7164] hover:text-white'}`}
+                >
+                  Dia
+                </button>
+                <button 
+                  onClick={() => setNavType('semana')}
+                  className={`px-3 py-1 rounded text-[9px] font-black uppercase transition-all ${navType === 'semana' ? 'bg-[#ff6b00] text-white shadow-[1px_1px_0_#000]' : 'text-[#8e7164] hover:text-white'}`}
+                >
+                  Semana
+                </button>
+              </div>
+
               <button
-                onClick={() => setDiaOffset(o => o - 1)}
+                onClick={() => setDiaOffset(o => o - (navType === 'semana' ? 7 : 1))}
                 className="px-4 py-2 rounded font-black text-xs uppercase text-[#261812] border-2 border-[#7b5647] hover:bg-[#feccba] transition-all"
               >
                 Anterior
@@ -110,7 +175,7 @@ export default function Agenda() {
                 Hoje
               </button>
               <button
-                onClick={() => setDiaOffset(o => o + 1)}
+                onClick={() => setDiaOffset(o => o + (navType === 'semana' ? 7 : 1))}
                 className="px-4 py-2 rounded font-black text-xs uppercase text-[#261812] border-2 border-[#7b5647] hover:bg-[#feccba] transition-all"
               >
                 Próximo
@@ -161,23 +226,32 @@ export default function Agenda() {
                 <tbody>
                   {professores.length > 0 ? professores.map((prof, pi) => (
                     <tr key={prof.id} style={{ borderBottom: '2px solid #e2bfb0' }}>
-                      <td className="sticky left-0 z-10 px-4 py-3" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
+                      <td className="sticky left-0 z-10 px-4 py-2" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
                         <div className="flex items-center gap-2">
                           <div className="w-5 h-5 rounded-sm shrink-0 shadow-sm" style={{ background: prof.cor_agenda || '#feccba', border: '2px solid #261812' }}></div>
-                          <span className="text-[#261812] font-black text-[11px] truncate max-w-[110px]">{prof.nome}</span>
+                          <span className="text-[#261812] font-black text-[11px] truncate max-w-[110px] leading-tight">{prof.nome}</span>
                         </div>
                       </td>
                       {HOURS.map(h => {
                         const aulasDaHora = getAulaForProfHour(prof.id, h);
                         return (
-                          <td key={h} className="px-1 py-1 text-center align-top min-h-[60px]" style={{ borderRight: '1px solid #e2bfb0' }}>
+                          <td 
+                            key={h} 
+                            className={`px-1 py-1 text-center align-top min-h-[60px] transition-colors ${isDragging ? 'bg-[#feccba]/30' : ''}`} 
+                            style={{ borderRight: '1px solid #e2bfb0' }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => handleDrop(e, prof.id, h)}
+                          >
                             <div className="flex flex-col gap-1 min-h-full">
                               {aulasDaHora.map(aula => {
                                 const c = getAulaColor(aula);
                                 return (
                                   <div
                                     key={aula.id}
-                                    className="px-2 py-1.5 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95"
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, aula)}
+                                    onClick={(e) => handleAulaClick(e, aula)}
+                                    className="px-2 py-1.5 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95 z-0"
                                     style={{ background: c.bg, border: `2px solid ${c.border}`, color: c.text, boxShadow: `3px 3px 0 ${c.border}` }}
                                     title={aula.aluno_nome || 'Aula'}
                                   >
@@ -222,6 +296,37 @@ export default function Agenda() {
           </div>
         </div>
       </div>
+      {/* MINI MENU */}
+      {selectedAula && menuPos && (
+        <div 
+          className="fixed z-[100] bg-white border-4 border-black shadow-[6px_6px_0_#000] p-2 flex flex-col gap-1 animate-in zoom-in-95 duration-200"
+          style={{ top: menuPos.y, left: menuPos.x }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button 
+            onClick={() => navigate(`/alunos/${selectedAula.aluno_id}`)}
+            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black"
+          >
+            <Users className="w-3.5 h-3.5" /> Ver Perfil
+          </button>
+          <button 
+            onClick={() => {
+              if (confirm('Deseja desmarcar esta aula?')) {
+                fetch(`/api/agenda/${selectedAula.id}`, { 
+                  method: 'DELETE',
+                  headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
+                }).then(() => {
+                  fetchAulas();
+                  setSelectedAula(null);
+                });
+              }
+            }}
+            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Desmarcar
+          </button>
+        </div>
+      )}
     </div>
   );
 }

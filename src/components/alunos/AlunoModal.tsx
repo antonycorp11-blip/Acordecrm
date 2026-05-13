@@ -45,7 +45,8 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     emusys_aulas_feitas: 0,
     emusys_original_parcelas: 12,
     emusys_parcelas_pagas: 0,
-    emusys_data_ultima_aula: ''
+    emusys_data_ultima_aula: '',
+    emusys_mes_inicio_parcela: 'atual' as 'atual' | 'proximo'
   });
 
   const calculateAge = (dateString: string) => {
@@ -393,6 +394,25 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                           value={formData.emusys_data_ultima_aula} 
                           onChange={(e) => setFormData({...formData, emusys_data_ultima_aula: e.target.value})} 
                         />
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <label className="text-[7px] font-bold uppercase block text-center">Início das Parcelas</label>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({...formData, emusys_mes_inicio_parcela: 'atual'})}
+                          className={`flex-1 py-1 text-[8px] font-bold uppercase border-2 border-black transition-all ${formData.emusys_mes_inicio_parcela === 'atual' ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black hover:bg-gray-100'}`}
+                        >
+                          Mês Atual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({...formData, emusys_mes_inicio_parcela: 'proximo'})}
+                          className={`flex-1 py-1 text-[8px] font-bold uppercase border-2 border-black transition-all ${formData.emusys_mes_inicio_parcela === 'proximo' ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black hover:bg-gray-100'}`}
+                        >
+                          Próximo Mês
+                        </button>
                       </div>
                     </div>
                   </div>
