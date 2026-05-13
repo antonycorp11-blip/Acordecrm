@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Bell, HelpCircle, Search, ChevronLeft, ChevronRight, Zap, Users, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, HelpCircle, Search, ChevronLeft, ChevronRight, Zap, Users, AlertTriangle, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
 
 const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00'];
 
 export default function Agenda() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [professores, setProfessores] = useState<any[]>([]);
+  const [aulas, setAulas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [diaOffset, setDiaOffset] = useState(0);
   const [navType, setNavType] = useState<'dia' | 'semana'>('dia');
   const [viewType, setViewType] = useState<'individual' | 'grupo'>('individual');
@@ -24,14 +30,12 @@ export default function Agenda() {
 
   const mesAno = currentBaseDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase().replace(' DE ', ' ');
 
-  useEffect(() => {
+  const fetchAulas = () => {
     const token = localStorage.getItem('acorde_token');
     const headers = { Authorization: `Bearer ${token}` };
-    setLoading(true);
-
-    // Ajustamos a busca para o dia atual baseado no offset
     const start = getDisplayDate(0).toISOString().split('T')[0];
     
+    setLoading(true);
     Promise.all([
       fetch('/api/professores', { headers }).then(r => r.ok ? r.json() : []),
       fetch(`/api/agenda?date=${start}`, { headers }).then(r => r.ok ? r.json() : []),
@@ -39,6 +43,10 @@ export default function Agenda() {
       setProfessores(Array.isArray(profs) ? profs.slice(0, 15) : []);
       setAulas(Array.isArray(ag) ? ag : []);
     }).catch(console.error).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchAulas();
   }, [diaOffset]);
 
   // Map aula to grid position - simplificado para o dia atual exibido (ou lógica de semana se fosse o caso)
@@ -82,9 +90,7 @@ export default function Agenda() {
 
       if (res.ok) {
         toast.success('Aula remarcada!');
-        const start = getDisplayDate(0).toISOString().split('T')[0];
-        const headers = { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` };
-        fetch(`/api/agenda?date=${start}`, { headers }).then(r => r.json()).then(setAulas);
+        fetchAulas();
       }
     } catch (err) {
       toast.error('Erro ao remarcar aula');
