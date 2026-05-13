@@ -106,14 +106,15 @@ export function WeeklyCalendar({ onSelectSlot, mode = 'view', selectedSlot }: We
     setCurrentStart(startStr);
     setCurrentEnd(endStr);
 
-    const [agendaRes, salasRes, profsRes] = await Promise.all([
-      fetch(`/api/agenda?start=${startStr}&end=${endStr}`).then(res => res.json()),
-      fetch('/api/salas').then(res => res.json()),
-      fetch('/api/professores').then(res => res.json()),
+    const [aData, sData, pData] = await Promise.all([
+      fetch(`/api/agenda?start=${startStr}&end=${endStr}`).then(res => res.ok ? res.json() : []),
+      fetch('/api/salas').then(res => res.ok ? res.json() : []),
+      fetch('/api/professores').then(res => res.ok ? res.json() : []),
     ]);
-    setAgenda(agendaRes);
-    setProfessores(profsRes.filter((p: any) => p.status === 'ativo'));
-    setSalas(salasRes);
+    
+    setAgenda(Array.isArray(aData) ? aData : []);
+    setProfessores(Array.isArray(pData) ? pData.filter((p: any) => p.status === 'ativo') : []);
+    setSalas(Array.isArray(sData) ? sData : []);
   };
 
   useEffect(() => {

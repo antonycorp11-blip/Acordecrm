@@ -27,12 +27,9 @@ export default function Alunos() {
     setLoading(true);
     const endpoint = statusFilter === 'ativos' ? '/api/alunos' : '/api/alunos?status=arquivado';
     fetch(endpoint)
-      .then(res => {
-        if (!res.ok) throw new Error('Erro ao carregar lista de alunos');
-        return res.json();
-      })
+      .then(res => res.ok ? res.json() : [])
       .then(data => {
-        setAlunos(data);
+        setAlunos(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(err => {

@@ -53,9 +53,20 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
 
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/cursos').then(res => res.json()).then(setCursos);
-      fetch('/api/professores').then(res => res.json()).then(setProfessores);
-      fetch('/api/pacotes').then(res => res.json()).then(setPacotes);
+      fetch('/api/cursos')
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setCursos(Array.isArray(data) ? data : []))
+        .catch(() => setCursos([]));
+        
+      fetch('/api/professores')
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setProfessores(Array.isArray(data) ? data : []))
+        .catch(() => setProfessores([]));
+        
+      fetch('/api/pacotes')
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setPacotes(Array.isArray(data) ? data : []))
+        .catch(() => setPacotes([]));
     }
   }, [isOpen]);
 

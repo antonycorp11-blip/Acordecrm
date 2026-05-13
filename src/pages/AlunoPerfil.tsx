@@ -403,19 +403,21 @@ export default function AlunoPerfil() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [alunoData, agendaData, financeiroData, materiaisData] = await Promise.all([
-          fetch(`/api/alunos/${id}`).then(res => res.json()),
-          fetch(`/api/alunos/${id}/agenda`).then(res => res.json()),
-          fetch(`/api/alunos/${id}/financeiro`).then(res => res.json()),
-          fetch(`/api/alunos/${id}/materiais`).then(res => res.json())
+        const [alunoData, aData, fData, mData] = await Promise.all([
+          fetch(`/api/alunos/${id}`).then(res => res.ok ? res.json() : null),
+          fetch(`/api/alunos/${id}/agenda`).then(res => res.ok ? res.json() : []),
+          fetch(`/api/alunos/${id}/financeiro`).then(res => res.ok ? res.json() : []),
+          fetch(`/api/alunos/${id}/materiais`).then(res => res.ok ? res.json() : [])
         ]);
         
         setAluno(alunoData);
-        setAgenda(agendaData);
-        setFinanceiro(financeiroData);
-        setMateriais(materiaisData);
+        setAgenda(Array.isArray(aData) ? aData : []);
+        setFinanceiro(Array.isArray(fData) ? fData : []);
+        setMateriais(Array.isArray(mData) ? mData : []);
+        
         // Filtrar frequência (aulas passadas)
-        const past = agendaData.filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente');
+        const agendaArr = Array.isArray(aData) ? aData : [];
+        const past = agendaArr.filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente');
         setFrequencia(past);
       } catch (err) {
         console.error(err);
