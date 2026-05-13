@@ -12,6 +12,7 @@ import Cursos from './pages/Cursos';
 import Contratos from './pages/Contratos';
 import AlunoPerfil from './pages/AlunoPerfil';
 import AreaProfessor from './pages/AreaProfessor';
+import AreaAluno from './pages/AreaAluno';
 import Conquistas from './pages/Conquistas';
 import Ranking from './pages/Ranking';
 import Login from './pages/Login';
@@ -34,12 +35,9 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 // Layout principal do sistema
 const MainLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col relative overflow-auto">
-        {/* BACKGROUND ACCENT (FROST EFFECT) */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-orange-400/10 blur-[120px] -z-10 rounded-full"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-400/5 blur-[100px] -z-10 rounded-full"></div>
         {children}
       </main>
     </div>
@@ -73,6 +71,7 @@ export default function App() {
                   <Route path="/conquistas" element={<Conquistas />} />
                   <Route path="/ranking" element={<Ranking />} />
                   <Route path="/area-professor" element={<AreaProfessor />} />
+                  <Route path="/area-aluno" element={<AreaAluno />} />
                   <Route path="/usuarios" element={<Usuarios />} />
                 </Routes>
               </MainLayout>
