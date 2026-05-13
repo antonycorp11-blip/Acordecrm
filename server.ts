@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
+// vite é importado dinamicamente apenas em dev (devDependency não disponível em produção)
 import { createClient } from '@supabase/supabase-js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -11,7 +11,7 @@ import dotenv from 'dotenv';
 import { dirname, join } from 'path';
 import multer from 'multer';
 import { execSync } from 'child_process';
-import { PDFParse } from 'pdf-parse';
+// pdf-parse é importado dinamicamente para evitar crash no módulo
 
 dotenv.config();
 
@@ -1050,8 +1050,9 @@ async function startServer() {
 
         try {
             const pdfBuffer = fs.readFileSync(req.file.path);
-            const parser = new PDFParse({ data: pdfBuffer });
-            const pdfData = await parser.getText();
+            // Import dinâmico para não crashar no startup da Vercel
+            const pdfParse = (await import('pdf-parse')).default;
+            const pdfData = await pdfParse(pdfBuffer);
             const text = pdfData.text;
             
             const lines = text.split('\n');
@@ -1251,6 +1252,7 @@ async function startServer() {
     // Vite Integration for local development
     if (process.env.NODE_ENV !== 'production') {
         try {
+            const { createServer: createViteServer } = await import('vite');
             const vite = await createViteServer({
                 server: { middlewareMode: true },
                 appType: 'spa',
