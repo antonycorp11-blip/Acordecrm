@@ -168,28 +168,36 @@ export default function Conquistas() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-8"
+              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-md"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900">Nova Conquista</h2>
-                <button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
+              <div className="absolute top-0 right-0 p-4">
+                 <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                    <X className="w-4 h-4" />
+                 </button>
               </div>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                 
-                 <div className="flex flex-col items-center justify-center mb-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Ícone da Conquista</label>
-                    <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer hover:border-primary hover:bg-primary/5 transition-all">
+
+              <div className="mb-8">
+                <h2 className="text-xl font-black text-black uppercase italic italic flex items-center gap-2">
+                   <Trophy className="w-6 h-6 text-[#ff6b00]" /> NOVA_MEDALHA
+                </h2>
+                <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                 <div className="flex flex-col items-center justify-center">
+                    <label className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest mb-4">ÍCONE_PIXEL_ART</label>
+                    <div className="w-28 h-28 border-4 border-black bg-white flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
                        {formData.icone_url ? (
                           <img src={formData.icone_url} alt="Ícone" className="w-full h-full object-contain p-2" />
                        ) : (
                           <>
-                            <Upload className="w-6 h-6 text-slate-300 mb-2 group-hover:text-primary transition-colors" />
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center px-2 group-hover:text-primary">Upload</span>
+                            <Upload className="w-8 h-8 text-black/10 mb-2 group-hover:text-[#ff6b00] transition-colors" />
+                            <span className="text-[8px] font-black text-black/20 uppercase tracking-widest text-center px-2 group-hover:text-[#ff6b00]">UPLOAD_IMG</span>
                           </>
                        )}
                        {uploading && (
                          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                           <span className="text-[10px] font-bold text-primary">Enviando...</span>
+                           <span className="text-[10px] font-black text-[#ff6b00] animate-pulse">ENVIANDO...</span>
                          </div>
                        )}
                        <input 
@@ -202,57 +210,57 @@ export default function Conquistas() {
                     </div>
                  </div>
 
-                 <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Nome da Conquista</label>
-                   <input 
-                     required
-                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                     value={formData.nome}
-                     onChange={(e) => setFormData({...formData, nome: e.target.value})}
-                   />
-                 </div>
-                 <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Descrição</label>
-                   <textarea 
-                     required
-                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium resize-none h-24"
-                     value={formData.descricao}
-                     onChange={(e) => setFormData({...formData, descricao: e.target.value})}
-                   />
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Pontuação (Coins)</label>
-                      <input 
-                        type="number"
-                        required
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={formData.pontos}
-                        onChange={(e) => setFormData({...formData, pontos: Number(e.target.value)})}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Gatilho Automático</label>
-                      <select 
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={formData.regra_automatica}
-                        onChange={(e) => setFormData({...formData, regra_automatica: e.target.value})}
-                      >
-                        <option value="">Nenhum (Manual)</option>
-                        <option value="presenca_perfeita">100% Presença Mensal</option>
-                        <option value="pagamento_em_dia">Mensalidade em Dia</option>
-                      </select>
-                    </div>
+                 <div className="space-y-4">
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_DA_CONQUISTA</label>
+                     <input 
+                       required
+                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                       value={formData.nome}
+                       onChange={(e) => setFormData({...formData, nome: e.target.value})}
+                     />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">DESCRIÇÃO_DA_MISSÃO</label>
+                     <textarea 
+                       required
+                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none resize-none h-24"
+                       value={formData.descricao}
+                       onChange={(e) => setFormData({...formData, descricao: e.target.value})}
+                     />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">COINS_RECOMPENSA</label>
+                        <input 
+                          type="number"
+                          required
+                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                          value={formData.pontos}
+                          onChange={(e) => setFormData({...formData, pontos: Number(e.target.value)})}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">GATILHO_AUTO</label>
+                        <select 
+                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                          value={formData.regra_automatica}
+                          onChange={(e) => setFormData({...formData, regra_automatica: e.target.value})}
+                        >
+                          <option value="">MANUAL</option>
+                          <option value="presenca_perfeita">PRESENÇA_100%</option>
+                          <option value="pagamento_em_dia">PAGAMENTO_OK</option>
+                        </select>
+                      </div>
+                   </div>
                  </div>
                  
-                 <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end">
-                   <button 
-                     type="submit"
-                     className="w-full bg-primary text-white py-4 rounded-2xl font-black shadow-lg shadow-primary/30 mt-4 active:scale-95 transition-all flex items-center justify-center gap-2"
-                   >
-                     <Save className="w-5 h-5" /> Salvar Conquista
-                   </button>
-                 </div>
+                 <button 
+                   type="submit"
+                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
+                 >
+                   <Save className="w-5 h-5" /> SALVAR_CONQUISTA
+                 </button>
               </form>
             </motion.div>
           </div>
