@@ -71,6 +71,7 @@
   --spacing-sticker-offset: 6px;
 
   --radius-card: 1.5rem;
+  --shadow-glass: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 @layer base {
