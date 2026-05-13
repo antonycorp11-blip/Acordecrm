@@ -34,7 +34,12 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     pacote_id: '',
     data_primeira_parcela: new Date().toISOString().split('T')[0],
     dia_vencimento: 10,
-    total_parcelas: 12
+    total_parcelas: 12,
+    is_emusys_legacy: false,
+    emusys_aulas_feitas: 0,
+    emusys_aulas_reposicao: 0,
+    emusys_parcelas_pagas: 0,
+    emusys_data_ultima_aula: ''
   });
 
   const calculateAge = (dateString: string) => {
@@ -379,10 +384,75 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                 </div>
                     {formData.pacote_id && (
                       <div className="space-y-6 pt-6 border-t border-slate-200">
-                        <h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest border-b border-emerald-200 pb-2">Configuração Financeira</h3>
+                        <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+                           <h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Configuração Financeira</h3>
+                           <label className="flex items-center gap-2 cursor-pointer">
+                              <span className="text-[9px] font-black text-slate-400 uppercase">Migração Legado</span>
+                              <input 
+                                type="checkbox" 
+                                checked={formData.is_emusys_legacy}
+                                onChange={(e) => setFormData({...formData, is_emusys_legacy: e.target.checked})}
+                                className="w-4 h-4 rounded text-primary focus:ring-primary/20"
+                              />
+                           </label>
+                        </div>
+
+                        <AnimatePresence>
+                          {formData.is_emusys_legacy && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="bg-primary/5 border border-primary/10 p-4 rounded-2xl space-y-4 mb-4"
+                            >
+                              <p className="text-[9px] font-black text-primary uppercase tracking-widest">Dados do Sistema Antigo (Emusys)</p>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Aulas já Feitas</label>
+                                  <input 
+                                    type="number"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium"
+                                    value={formData.emusys_aulas_feitas}
+                                    onChange={(e) => setFormData({...formData, emusys_aulas_feitas: Number(e.target.value)})}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">A Repor (Saldo)</label>
+                                  <input 
+                                    type="number"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium"
+                                    value={formData.emusys_aulas_reposicao}
+                                    onChange={(e) => setFormData({...formData, emusys_aulas_reposicao: Number(e.target.value)})}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Parcelas Pagas</label>
+                                  <input 
+                                    type="number"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium"
+                                    value={formData.emusys_parcelas_pagas}
+                                    onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: Number(e.target.value)})}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Data Última Aula</label>
+                                  <input 
+                                    type="date"
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium"
+                                    value={formData.emusys_data_ultima_aula}
+                                    onChange={(e) => setFormData({...formData, emusys_data_ultima_aula: e.target.value})}
+                                  />
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
                         <div className="space-y-4">
                           <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Data da 1ª Parcela</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Data da 1ª Parcela (Acorde)</label>
                             <input 
                               type="date"
                               className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20"
@@ -402,7 +472,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Nº de Parcelas</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Nº Total Parcelas</label>
                               <input 
                                 type="number"
                                 className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20"

@@ -550,7 +550,8 @@ async function startServer() {
             const { 
                 nome, email, telefone, cpf, endereco, curso_id, professor_id, 
                 dia_semana, horario, sala_id, pacote_id, 
-                data_primeira_parcela, dia_vencimento, valor_parcela, total_parcelas 
+                data_primeira_parcela, dia_vencimento, valor_parcela, total_parcelas,
+                is_emusys_legacy, emusys_aulas_feitas, emusys_aulas_reposicao, emusys_parcelas_pagas, emusys_data_ultima_aula
             } = req.body;
 
             // 1. Criar Aluno
@@ -576,7 +577,12 @@ async function startServer() {
                 dia_vencimento,
                 valor_parcela,
                 total_parcelas,
-                data_inicio: dia_semana || null
+                data_inicio: dia_semana || null,
+                is_emusys_legacy: is_emusys_legacy || false,
+                emusys_aulas_feitas: emusys_aulas_feitas || 0,
+                emusys_aulas_reposicao: emusys_aulas_reposicao || 0,
+                emusys_parcelas_pagas: emusys_parcelas_pagas || 0,
+                emusys_data_ultima_aula: emusys_data_ultima_aula || null
             }]).select().single();
             if (errM) {
                 await supabase.from('alunos').delete().eq('id', aluno.id);
@@ -586,11 +592,19 @@ async function startServer() {
             // 3. Automação de Aulas (Reserva na Agenda)
             const { data: pacote } = await supabase.from('pacotes').select('*').eq('id', pacote_id).single();
             const totalAulas = pacote?.total_aulas || 1;
+            const aulasRestantes = is_emusys_legacy ? (totalAulas - (emusys_aulas_feitas || 0)) : totalAulas;
             
             const aulasToInsert = [];
             let currentAulaDate = new Date(dia_semana);
+
+            // Se for legado, podemos querer começar da data da última aula + 7 dias?
+            // Se o usuário forneceu emusys_data_ultima_aula, usamos ela como base.
+            if (is_emusys_legacy && emusys_data_ultima_aula) {
+                currentAulaDate = new Date(emusys_data_ultima_aula);
+                currentAulaDate.setDate(currentAulaDate.getDate() + 7);
+            }
             
-            for (let i = 0; i < totalAulas; i++) {
+            for (let i = 0; i < (aulasRestantes > 0 ? aulasRestantes : 0); i++) {
                 // Pular feriados
                 while (isHoliday(currentAulaDate)) {
                     currentAulaDate.setDate(currentAulaDate.getDate() + 7);
@@ -627,7 +641,7 @@ async function startServer() {
                     matricula_id: matricula.id,
                     valor: valor_parcela,
                     data_vencimento: currentVencimento.toISOString().split('T')[0],
-                    status: 'pendente',
+                    status: (is_emusys_legacy && i < emusys_parcelas_pagas) ? 'pago' : 'pendente',
                     tipo_receita: 'mensalidade',
                     referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
                 });
