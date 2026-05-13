@@ -12,23 +12,35 @@ export default function Agenda() {
   const [semanaOffset, setSemanaOffset] = useState(0);
   const [viewType, setViewType] = useState<'individual' | 'grupo'>('individual');
 
-  const hoje = new Date();
-  const mesAno = hoje.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase().replace(' DE ', ' ');
+  const currentBaseDate = new Date();
+  currentBaseDate.setDate(currentBaseDate.getDate() + (semanaOffset * 7));
+  
+  const getDisplayDate = (offset: number) => {
+    const d = new Date(currentBaseDate);
+    d.setDate(d.getDate() + offset);
+    return d;
+  };
+
+  const mesAno = currentBaseDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase().replace(' DE ', ' ');
 
   useEffect(() => {
     const token = localStorage.getItem('acorde_token');
     const headers = { Authorization: `Bearer ${token}` };
+    setLoading(true);
 
+    // Ajustamos a busca para a semana atual baseada no offset
+    const start = getDisplayDate(0).toISOString().split('T')[0];
+    
     Promise.all([
       fetch('/api/professores', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/agenda', { headers }).then(r => r.ok ? r.json() : []),
+      fetch(`/api/agenda?date=${start}`, { headers }).then(r => r.ok ? r.json() : []),
     ]).then(([profs, ag]) => {
-      setProfessores(Array.isArray(profs) ? profs.slice(0, 9) : []);
+      setProfessores(Array.isArray(profs) ? profs.slice(0, 15) : []);
       setAulas(Array.isArray(ag) ? ag : []);
     }).catch(console.error).finally(() => setLoading(false));
-  }, []);
+  }, [semanaOffset]);
 
-  // Map aula to grid position
+  // Map aula to grid position - simplificado para o dia atual exibido (ou lógica de semana se fosse o caso)
   const getAulaForProfHour = (profId: number, hour: string) => {
     return aulas.filter(a => {
       const h = (a.horario || '').substring(0, 5);
@@ -72,7 +84,7 @@ export default function Agenda() {
           <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ background: '#ff6b00', borderBottom: '3px solid #261812' }}>
             <div className="flex items-center gap-2">
               <span className="text-white text-[10px] font-black">📅</span>
-              <span className="text-white font-black text-sm uppercase tracking-widest">QUADRO DE HORÁRIOS - SEMANA ATUAL</span>
+              <span className="text-white font-black text-sm uppercase tracking-widest">QUADRO DE HORÁRIOS - {semanaOffset === 0 ? 'HOJE' : getDisplayDate(0).toLocaleDateString('pt-BR')}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-red-500 rounded-sm"></div>
@@ -91,6 +103,7 @@ export default function Agenda() {
                 Anterior
               </button>
               <button
+                onClick={() => setSemanaOffset(0)}
                 className="px-5 py-2 rounded font-black text-xs uppercase text-white"
                 style={{ background: '#261812', border: '2px solid #261812' }}
               >
@@ -105,7 +118,7 @@ export default function Agenda() {
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="border-2 border-[#261812] rounded px-3 py-1 font-black text-xs text-[#261812] uppercase">{mesAno.substring(0, 12)}</span>
+              <span className="border-2 border-[#261812] rounded px-3 py-1 font-black text-xs text-[#261812] uppercase">{mesAno}</span>
               <div className="flex items-center gap-4 ml-4">
                 <button
                   onClick={() => setViewType('individual')}
@@ -132,14 +145,14 @@ export default function Agenda() {
                 <span className="text-[#7b5647] font-black uppercase text-sm animate-pulse">Carregando agenda...</span>
               </div>
             ) : (
-              <table className="min-w-full h-full" style={{ borderCollapse: 'collapse' }}>
+              <table className="min-w-full h-full" style={{ borderCollapse: 'separate', borderSpacing: '0' }}>
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-10 px-4 py-3 text-[#261812] font-black text-[10px] uppercase tracking-widest text-left min-w-[130px]" style={{ background: '#feccba', borderRight: '3px solid #261812', borderBottom: '3px solid #261812' }}>
+                    <th className="sticky left-0 z-10 px-4 py-3 text-[#261812] font-black text-[10px] uppercase tracking-widest text-left min-w-[150px]" style={{ background: '#feccba', borderRight: '3px solid #261812', borderBottom: '3px solid #261812' }}>
                       PROFESSORES
                     </th>
                     {HOURS.map(h => (
-                      <th key={h} className="px-2 py-3 text-[#261812] font-black text-[10px] uppercase tracking-widest text-center min-w-[72px]" style={{ background: '#feccba', borderRight: '2px solid #e2bfb0', borderBottom: '3px solid #261812' }}>
+                      <th key={h} className="px-2 py-3 text-[#261812] font-black text-[10px] uppercase tracking-widest text-center min-w-[100px]" style={{ background: '#feccba', borderRight: '2px solid #e2bfb0', borderBottom: '3px solid #261812' }}>
                         {h}
                       </th>
                     ))}
@@ -148,29 +161,31 @@ export default function Agenda() {
                 <tbody>
                   {professores.length > 0 ? professores.map((prof, pi) => (
                     <tr key={prof.id} style={{ borderBottom: '2px solid #e2bfb0' }}>
-                      <td className="sticky left-0 z-10 px-4 py-2" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
+                      <td className="sticky left-0 z-10 px-4 py-3" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
                         <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-sm shrink-0" style={{ background: prof.cor || '#feccba', border: '1px solid #7b5647' }}></div>
-                          <span className="text-[#261812] font-black text-[11px] truncate max-w-[90px]">{prof.nome}</span>
+                          <div className="w-5 h-5 rounded-sm shrink-0 shadow-sm" style={{ background: prof.cor_agenda || '#feccba', border: '2px solid #261812' }}></div>
+                          <span className="text-[#261812] font-black text-[11px] truncate max-w-[110px]">{prof.nome}</span>
                         </div>
                       </td>
                       {HOURS.map(h => {
                         const aulasDaHora = getAulaForProfHour(prof.id, h);
                         return (
-                          <td key={h} className="px-1 py-2 text-center align-middle" style={{ borderRight: '1px solid #e2bfb0' }}>
-                            {aulasDaHora.map(aula => {
-                              const c = getAulaColor(aula);
-                              return (
-                                <div
-                                  key={aula.id}
-                                  className="px-2 py-1 rounded text-[10px] font-black uppercase truncate max-w-[68px] mx-auto cursor-pointer"
-                                  style={{ background: c.bg, border: `2px solid ${c.border}`, color: c.text, boxShadow: `2px 2px 0 ${c.border}` }}
-                                  title={aula.nome || aula.aluno_nome}
-                                >
-                                  {(aula.nome || aula.aluno_nome || '').split(' ')[0].substring(0, 7)}
-                                </div>
-                              );
-                            })}
+                          <td key={h} className="px-1 py-1 text-center align-top min-h-[60px]" style={{ borderRight: '1px solid #e2bfb0' }}>
+                            <div className="flex flex-col gap-1 min-h-full">
+                              {aulasDaHora.map(aula => {
+                                const c = getAulaColor(aula);
+                                return (
+                                  <div
+                                    key={aula.id}
+                                    className="px-2 py-1.5 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95"
+                                    style={{ background: c.bg, border: `2px solid ${c.border}`, color: c.text, boxShadow: `3px 3px 0 ${c.border}` }}
+                                    title={aula.aluno_nome || 'Aula'}
+                                  >
+                                    {(aula.aluno_nome || 'ALUNO').split(' ')[0].substring(0, 10)}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </td>
                         );
                       })}
@@ -178,7 +193,7 @@ export default function Agenda() {
                   )) : (
                     <tr>
                       <td colSpan={HOURS.length + 1} className="py-20 text-center">
-                        <p className="text-[#7b5647] font-black uppercase text-xs opacity-50 tracking-widest">Nenhum professor com aula hoje</p>
+                        <p className="text-[#7b5647] font-black uppercase text-xs opacity-50 tracking-widest">Nenhum professor cadastrado</p>
                       </td>
                     </tr>
                   )}
