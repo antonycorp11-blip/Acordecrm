@@ -106,23 +106,24 @@ export default function Contratos() {
   };
 
   return (
-    <div className="flex flex-col flex-1 animate-in fade-in duration-500 overflow-hidden">
-      <header className="h-16 px-8 frosted-bg border-b border-slate-200/50 flex items-center justify-between shrink-0">
+    <div className="flex flex-col flex-1 animate-in fade-in duration-500 overflow-hidden h-screen bg-[#1a0f0a]">
+      <header className="h-24 px-8 bg-[#feccba] border-b-4 border-black flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight">Contratos e Planos</h1>
+          <h1 className="text-2xl font-black text-black uppercase italic italic tracking-tighter">Contratos & Planos</h1>
+          <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Documentação e pacotes de serviços.</p>
         </div>
-        <div className="flex bg-slate-100 p-1 rounded-xl">
+        <div className="flex bg-black/10 p-1 border-4 border-black shadow-[4px_4px_0_#000]">
           <button 
             onClick={() => setActiveTab('planos')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${activeTab === 'planos' ? 'bg-white shadow-sm text-primary' : 'text-slate-400'}`}
+            className={`px-4 py-2 text-[10px] font-black uppercase transition-all ${activeTab === 'planos' ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'text-black/40 hover:text-black'}`}
           >
-            <Package className="w-3.5 h-3.5 inline mr-1" /> Planos
+            <Package className="w-3.5 h-3.5 inline mr-1" /> PLANOS
           </button>
           <button 
             onClick={() => setActiveTab('gerar')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${activeTab === 'gerar' ? 'bg-white shadow-sm text-primary' : 'text-slate-400'}`}
+            className={`px-4 py-2 text-[10px] font-black uppercase transition-all ${activeTab === 'gerar' ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'text-black/40 hover:text-black'}`}
           >
-            <FileText className="w-3.5 h-3.5 inline mr-1" /> Gerar Contrato
+            <FileText className="w-3.5 h-3.5 inline mr-1" /> GERAR_CONTRATO
           </button>
         </div>
       </header>
@@ -132,57 +133,57 @@ export default function Contratos() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Pacotes de Aulas</h2>
-                <p className="text-sm text-slate-500">Defina os planos de estudo da escola.</p>
+                <h2 className="text-xl font-black text-white uppercase italic italic">Pacotes de Aulas</h2>
+                <p className="text-[10px] text-[#8e7164] font-black uppercase">Defina os planos de estudo da escola.</p>
               </div>
               <button 
                 onClick={() => setIsModalOpen(true)}
-                className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/30 text-sm active:scale-95 transition-all flex items-center gap-2"
+                className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
               >
-                <Plus className="w-4 h-4" /> Novo Plano
+                <Plus className="w-4 h-4" /> NOVO_PLANO
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {pacotes.map(pacote => (
-                <div key={pacote.id} className="glass-card p-6 border border-slate-200/50 group hover:border-primary/30 transition-all hover:shadow-xl hover:shadow-primary/5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="bg-primary/10 p-2.5 rounded-xl group-hover:bg-primary group-hover:text-white transition-all">
-                      <Package className="w-5 h-5" />
+                <div key={pacote.id} className="bg-[#fff8f6] border-4 border-black p-6 group shadow-[6px_6px_0_#000] relative overflow-hidden">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="bg-[#ff6b00] p-3 border-4 border-black text-white shadow-[4px_4px_0_#000]">
+                      <Package className="w-6 h-6" />
                     </div>
-                    <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-                      R$ {pacote.valor_mensal} / mês
+                    <span className="bg-[#25d366] text-white px-3 py-1 border-2 border-black text-[8px] font-black uppercase tracking-widest shadow-[2px_2px_0_#000]">
+                      R$ {pacote.valor_mensal} / MÊS
                     </span>
                   </div>
-                  <h3 className="text-base font-black text-slate-900 mb-1">{pacote.nome}</h3>
-                  <div className="flex flex-wrap gap-1 mb-4">
+                  <h3 className="text-lg font-black text-black uppercase italic italic mb-2">{pacote.nome}</h3>
+                  <div className="flex flex-wrap gap-1 mb-6">
                     {(pacote.curso_ids || '').split(',').map((id: string) => {
                       const curso = cursos.find(c => String(c.id) === id);
                       return curso ? (
-                        <span key={id} className="bg-primary/5 text-primary text-[9px] font-black uppercase px-2 py-0.5 rounded border border-primary/10">
+                        <span key={id} className="bg-[#feccba] text-black text-[8px] font-black uppercase px-2 py-0.5 border-2 border-black">
                           {curso.nome}
                         </span>
                       ) : null;
                     })}
                   </div>
                   
-                  <div className="space-y-3 pt-4 border-t border-slate-100">
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <FileText className="w-4 h-4" />
-                      <span className="text-xs font-black">{pacote.total_aulas} aulas no total</span>
+                  <div className="space-y-3 pt-6 border-t-4 border-black/5">
+                    <div className="flex items-center gap-3 text-black">
+                      <FileText className="w-4 h-4 text-[#ff6b00]" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">{pacote.total_aulas} AULAS NO TOTAL</span>
                     </div>
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <Calendar className="w-4 h-4" />
-                      <span className="text-xs font-medium">{pacote.aulas_por_semana} aula(s) por semana</span>
+                    <div className="flex items-center gap-3 text-black">
+                      <Calendar className="w-4 h-4 text-[#ff6b00]" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">{pacote.aulas_por_semana} AULA(S) POR SEMANA</span>
                     </div>
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-xs font-medium">{pacote.duracao_aula_minutos} minutos por aula</span>
+                    <div className="flex items-center gap-3 text-black">
+                      <Clock className="w-4 h-4 text-[#ff6b00]" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">{pacote.duracao_aula_minutos} MINUTOS POR AULA</span>
                     </div>
                     {pacote.desconto_automatico > 0 && (
-                      <div className="flex items-center gap-3 text-emerald-600">
+                      <div className="flex items-center gap-3 text-[#ff6b00]">
                         <DollarSign className="w-4 h-4" />
-                        <span className="text-xs font-bold">Desconto de R$ {pacote.desconto_automatico} incluso</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">DESCONTO DE R$ {pacote.desconto_automatico}</span>
                       </div>
                     )}
                   </div>

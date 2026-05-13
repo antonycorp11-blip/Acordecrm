@@ -151,121 +151,100 @@ export default function Professores() {
   );
 
   return (
-    <div className="flex flex-col flex-1 animate-in fade-in duration-500">
-      <header className="h-24 px-8 frosted-bg border-b border-slate-200/50 flex items-center justify-between shrink-0">
+    <div className="flex flex-col flex-1 animate-in fade-in duration-500 bg-[#1a0f0a] h-screen overflow-hidden">
+      <header className="h-24 px-8 bg-[#feccba] border-b-4 border-black flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Professores</h1>
-          <p className="text-sm font-medium text-slate-500">Gestão do corpo docente e especialidades.</p>
+          <h1 className="text-2xl font-black text-black uppercase italic italic tracking-tighter">Mestres & Professores</h1>
+          <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Gestão do corpo docente e especialidades.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/30 text-sm active:scale-95 transition-all flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" /> Novo Professor
-          </button>
-        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
+        >
+          <Plus className="w-4 h-4" /> NOVO_PROFESSOR
+        </button>
       </header>
 
       <div className="p-8 flex-1 overflow-auto">
-        <div className="glass-card overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200/50 bg-white/40 flex items-center gap-4">
-            <div className="relative flex-1 group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 transition-colors group-focus-within:text-primary" />
-              <input 
-                type="text" 
-                placeholder="Buscar por nome ou especialidade..."
-                className="w-full pl-10 pr-4 py-2 bg-white/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm font-medium"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+        <div className="mb-8 flex items-center gap-4">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-black/40 w-5 h-5 z-10" />
+            <input 
+              type="text" 
+              placeholder="BUSCAR_PROFESSOR..."
+              className="w-full pl-12 pr-4 py-4 bg-[#fff8f6] border-4 border-black font-black text-xs uppercase focus:outline-none shadow-[4px_4px_0_#000] placeholder:text-black/20"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
+        </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50/30 border-b border-slate-100/50">
-                <tr>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Professor</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Especialidades</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Instrumentos</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100/50">
-                {error ? (
-                  <tr>
-                    <td colSpan={5} className="p-12 text-center text-red-500 font-bold">Erro: {error}</td>
-                  </tr>
-                ) : loading ? (
-                  <tr>
-                    <td colSpan={5} className="p-12 text-center text-slate-400 font-medium">Carregando professores...</td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-20 text-center flex flex-col items-center justify-center gap-4">
-                        <div className="bg-slate-100/50 p-6 rounded-full">
-                          <Briefcase className="w-10 h-10 text-slate-300" />
-                        </div>
-                        <p className="text-slate-400 font-bold">Nenhum professor encontrado.</p>
-                    </td>
-                  </tr>
-                ) : filtered.map((p) => (
-                  <tr key={p.id} className="hover:bg-white/40 transition-all group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black shadow-sm"
-                          style={{ backgroundColor: p.cor_agenda || '#f97316' }}
-                        >
-                          {p.nome.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900 group-hover:text-primary transition-colors">{p.nome}</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{p.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                       <div className="flex flex-wrap gap-1">
-                         {p.especialidades?.split(',').filter(Boolean).map((esp: string, i: number) => (
-                           <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
-                             {esp.trim()}
-                           </span>
-                         ))}
-                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-xs font-bold text-slate-600">{p.instrumentos || '-'}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${
-                        p.status === 'ativo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'
-                      }`}>
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right flex justify-end gap-2">
-                      <button 
-                        onClick={() => { setSelectedProfForDisp(p); setDispModalOpen(true); }} 
-                        className="p-2 text-slate-300 hover:text-primary hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-100"
-                        title="Disponibilidade"
-                      >
-                        <CalendarDays className="w-5 h-5" />
-                      </button>
-                      <button onClick={() => handleEdit(p)} className="p-2 text-slate-300 hover:text-primary hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-100" title="Editar">
-                        <MoreVertical className="w-5 h-5" />
-                      </button>
-                      <button onClick={() => handleDelete(p.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-100" title="Excluir">
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {loading ? (
+            <div className="col-span-full text-center p-20 text-white font-black uppercase italic italic">CARREGANDO_MESTRES...</div>
+          ) : filtered.length === 0 ? (
+            <div className="col-span-full border-4 border-dashed border-white/10 rounded-xl p-20 text-center flex flex-col items-center justify-center gap-4">
+              <Briefcase className="w-12 h-12 text-white/10" />
+              <p className="text-white/20 font-black uppercase">NENHUM_PROFESSOR_ENCONTRADO</p>
+            </div>
+          ) : filtered.map((p) => (
+            <motion.div 
+              layout
+              key={p.id} 
+              className="bg-[#fff8f6] border-4 border-black p-6 group shadow-[6px_6px_0_#000] relative overflow-hidden flex flex-col"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div 
+                  className="w-14 h-14 border-4 border-black flex items-center justify-center text-white font-black text-xl shadow-[4px_4px_0_#000]"
+                  style={{ backgroundColor: p.cor_agenda || '#ff6b00' }}
+                >
+                  {p.nome.charAt(0)}
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => { setSelectedProfForDisp(p); setDispModalOpen(true); }}
+                    className="p-2 border-2 border-black bg-white shadow-[2px_2px_0_#000] hover:translate-y-[-2px] active:translate-y-0 active:shadow-none transition-all"
+                  >
+                    <CalendarDays className="w-4 h-4 text-[#ff6b00]" />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(p.id)}
+                    className="p-2 border-2 border-black bg-white shadow-[2px_2px_0_#000] hover:translate-y-[-2px] active:translate-y-0 active:shadow-none transition-all hover:bg-red-50 text-red-500"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <h3 className="text-lg font-black text-black uppercase italic italic mb-1 truncate">{p.nome}</h3>
+              <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest mb-4 truncate">{p.email || 'SEM_EMAIL'}</p>
+              
+              <div className="flex-1 space-y-4">
+                <div>
+                   <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest mb-1">ESPECIALIDADES</p>
+                   <div className="flex flex-wrap gap-1">
+                     {p.especialidades?.split(',').filter(Boolean).map((esp: string, i: number) => (
+                       <span key={i} className="px-2 py-0.5 bg-[#feccba] text-black border-2 border-black text-[8px] font-black uppercase">
+                         {esp.trim()}
+                       </span>
+                     ))}
+                   </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t-2 border-black/5 flex items-center justify-between">
+                 <button 
+                   onClick={() => handleEdit(p)}
+                   className="text-[9px] font-black text-black bg-[#ff6b00] px-3 py-1.5 border-2 border-black shadow-[2px_2px_0_#000] uppercase italic italic hover:translate-y-[-1px] active:translate-y-0 active:shadow-none"
+                 >
+                   EDITAR_PERFIL
+                 </button>
+                 <div className="flex gap-1">
+                    <span className={`w-2 h-2 border border-black ${p.status === 'ativo' ? 'bg-[#25d366]' : 'bg-black/20'}`}></span>
+                 </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
 

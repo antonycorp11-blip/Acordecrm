@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut } from 'lucide-react';
+import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -44,6 +44,29 @@ export default function AreaAluno() {
     .finally(() => setLoading(false));
   }, []);
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    const token = localStorage.getItem('acorde_token');
+    try {
+      const res = await fetch('/api/alunos/me/photo', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setAlunoData(prev => ({ ...prev, foto_url: updated.foto_url }));
+      }
+    } catch (err) {
+      console.error('Erro ao subir foto:', err);
+    }
+  };
+
   const missoes = [
     { id: 1, titulo: 'PRATICAR ESCALAS', descricao: '30 minutos de piano clássico', xp: 250, progresso: 60, tipo: 'play' },
     { id: 2, titulo: '8-BIT THEORY QUIZ', descricao: 'Acertar 10 questões de teoria', xp: 150, status: 'READY', tipo: 'quiz' },
@@ -68,10 +91,26 @@ export default function AreaAluno() {
       {/* TOP BAR — Mobile style */}
       <header className="flex items-center justify-between px-5 py-4 shrink-0" style={{ background: '#261812', borderBottom: '3px solid #000' }}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded border-2 border-[#ff6b00]" style={{ background: '#ff6b00' }}>
-            <div className="w-full h-full flex items-center justify-center text-white font-black">
-              {(alunoData?.nome || user?.nome || 'A').charAt(0).toUpperCase()}
+          <div className="relative group cursor-pointer" onClick={() => document.getElementById('photo-input')?.click()}>
+            <div className="w-10 h-10 rounded border-2 border-[#ff6b00] overflow-hidden" style={{ background: '#ff6b00' }}>
+              {alunoData?.foto_url ? (
+                <img src={alunoData.foto_url} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white font-black">
+                  {(alunoData?.nome || user?.nome || 'A').charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded">
+              <Camera className="w-4 h-4 text-white" />
+            </div>
+            <input 
+              id="photo-input" 
+              type="file" 
+              className="hidden" 
+              accept="image/*" 
+              onChange={handlePhotoUpload} 
+            />
           </div>
           <h1 className="text-white font-black text-lg uppercase tracking-widest">MUSIC_HUB</h1>
         </div>

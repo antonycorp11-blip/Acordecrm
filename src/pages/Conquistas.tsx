@@ -103,57 +103,57 @@ export default function Conquistas() {
   };
 
   return (
-    <div className="flex flex-col flex-1 animate-in fade-in duration-500">
-      <header className="h-24 px-8 frosted-bg border-b border-slate-200/50 flex items-center justify-between shrink-0">
+    <div className="flex flex-col flex-1 animate-in fade-in duration-500 bg-[#1a0f0a] h-screen overflow-hidden">
+      <header className="h-24 px-8 bg-[#feccba] border-b-4 border-black flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Trophy className="w-8 h-8 text-yellow-500" />
-            Conquistas e Medalhas
+          <h1 className="text-2xl font-black text-black uppercase italic italic tracking-tighter flex items-center gap-2">
+            <Trophy className="w-8 h-8 text-[#ff6b00]" />
+            Conquistas & Medalhas
           </h1>
-          <p className="text-sm font-medium text-slate-500">Crie e gerencie as medalhas dos alunos pelo desempenho na escola.</p>
+          <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Crie e gerencie as medalhas dos alunos pelo desempenho na escola.</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/30 text-sm active:scale-95 transition-all flex items-center gap-2"
+          className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
         >
-          <Plus className="w-4 h-4" /> Nova Conquista
+          <Plus className="w-4 h-4" /> NOVA_CONQUISTA
         </button>
       </header>
 
       <div className="p-8 flex-1 overflow-auto">
         {conquistas.length === 0 ? (
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center py-20">
-            <Trophy className="w-16 h-16 text-slate-200 mb-4" />
-            <h2 className="text-xl font-black text-slate-900 mb-2">Nenhuma conquista criada</h2>
-            <p className="text-slate-500 font-medium max-w-md mb-6">Crie medalhas customizadas, faça upload de ícones ou selecione regras automáticas como presença e pagamentos.</p>
+          <div className="bg-[#fff8f6] border-4 border-dashed border-black/20 p-20 text-center flex flex-col items-center justify-center gap-4">
+            <Trophy className="w-16 h-16 text-black/10 mb-4" />
+            <h2 className="text-xl font-black text-black uppercase italic italic">Nenhuma conquista criada</h2>
+            <p className="text-[#8e7164] font-black uppercase text-[10px] max-w-md mb-6">Crie medalhas customizadas, faça upload de ícones ou selecione regras automáticas.</p>
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="bg-primary text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/30 text-sm active:scale-95 transition-all"
+              className="bg-[#ff6b00] text-white px-8 py-4 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
             >
               Criar Primeira Conquista
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
             {conquistas.map(c => (
-              <div key={c.id} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col items-center text-center relative group hover:shadow-md transition-all">
+              <div key={c.id} className="bg-[#fff8f6] border-4 border-black p-6 flex flex-col items-center text-center relative group shadow-[6px_6px_0_#000] hover:translate-y-[-4px] transition-all">
                 <button 
                   onClick={() => handleDelete(c.id)}
-                  className="absolute top-4 right-4 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-2 hover:bg-red-50 rounded-full"
+                  className="absolute top-2 right-2 text-black/10 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
-                <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mb-4 text-amber-500 shadow-inner overflow-hidden">
+                <div className="w-20 h-20 border-4 border-black bg-white flex items-center justify-center mb-4 shadow-[4px_4px_0_#000] overflow-hidden">
                   {c.icone_url ? (
-                     <img src={c.icone_url} alt="Ícone" className="w-full h-full object-cover" />
+                     <img src={c.icone_url} alt="Ícone" className="w-full h-full object-contain p-2" />
                   ) : (
-                     <Trophy className="w-10 h-10" />
+                     <Trophy className="w-10 h-10 text-[#ff6b00]" />
                   )}
                 </div>
-                <h3 className="font-black text-slate-900">{c.nome}</h3>
-                <p className="text-xs text-slate-500 mt-2 font-medium">{c.descricao}</p>
-                <div className="mt-4 inline-flex items-center gap-1 bg-amber-50 text-amber-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-                   +{c.pontos} pontos
+                <h3 className="font-black text-black uppercase italic italic text-sm">{c.nome}</h3>
+                <p className="text-[8px] font-black text-[#8e7164] mt-2 uppercase tracking-tighter line-clamp-2">{c.descricao}</p>
+                <div className="mt-4 inline-flex items-center gap-1 bg-black text-white px-3 py-1 border-2 border-[#ff6b00] text-[8px] font-black uppercase tracking-widest shadow-[2px_2px_0_#ff6b00]">
+                   +{c.pontos} ACORDE_COINS
                 </div>
               </div>
             ))}
