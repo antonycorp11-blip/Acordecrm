@@ -160,333 +160,336 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black/90 backdrop-blur-md overflow-hidden">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
         .retro-font { font-family: 'Space Mono', monospace; }
-        .shadow-hard { box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1); }
-        .shadow-hard-white { box-shadow: 6px 6px 0px 0px rgba(255, 255, 255, 0.2); }
+        .shadow-hard { box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1); }
+        .shadow-hard-white { box-shadow: 4px 4px 0px 0px rgba(255, 255, 255, 0.2); }
         .pixel-border { border: 4px solid white; }
-        .sticker-card { border: 3px solid black; box-shadow: 6px 6px 0px 0px rgba(0,0,0,1); }
+        .sticker-card { border: 2px solid black; box-shadow: 4px 4px 0px 0px rgba(0,0,0,1); }
       `}</style>
 
       <motion.main 
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-7xl bg-[#1A1A1A] border-4 border-white rounded-none p-6 md:p-10 shadow-hard-white relative z-10 retro-font text-white my-8"
+        className="w-full max-w-7xl max-h-[98vh] bg-[#1A1A1A] border-4 border-white rounded-none flex flex-col shadow-hard-white relative z-10 retro-font text-white"
       >
         {/* Header Section */}
-        <div className="flex justify-between items-start mb-10">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-[#FF8A00] border-4 border-black flex items-center justify-center text-3xl shadow-hard">
+        <div className="flex justify-between items-center p-4 border-b-4 border-white shrink-0 bg-[#1A1A1A]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#FF8A00] border-2 border-black flex items-center justify-center text-xl shadow-hard">
               👤
             </div>
             <div>
-              <h1 className="text-3xl font-bold uppercase tracking-tighter">Novo Aluno & Matrícula</h1>
-              <p className="text-[#FF8A00] text-sm mt-1 uppercase tracking-widest">&gt;&gt; CADASTRO DE NOVO INTEGRANTE DA BANDA</p>
+              <h1 className="text-xl font-bold uppercase tracking-tighter">Matrícula</h1>
+              <p className="text-[#FF8A00] text-[8px] uppercase tracking-widest">&gt;&gt; NOVO ALUNO</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="bg-red-600 border-4 border-black p-2 hover:bg-red-500 shadow-hard transition-all active:translate-y-1"
+            className="bg-red-600 border-2 border-black p-1 hover:bg-red-500 shadow-hard transition-all active:translate-y-1"
           >
-            <X className="w-8 h-8" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column */}
-          <section className="lg:col-span-4 space-y-6">
-            <div className="sticker-card bg-[#FDF9F0] p-6 -rotate-1 text-black">
-              <h2 className="font-bold uppercase mb-4 border-b-2 border-black pb-2 flex items-center gap-2">
-                <span>📝</span> Dados Pessoais
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase">Nome Completo</label>
-                  <input 
-                    required
-                    type="text" 
-                    className="w-full bg-white border-2 border-black px-3 py-2 text-sm focus:outline-none"
-                    value={formData.nome}
-                    onChange={(e) => setFormData({...formData, nome: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column */}
+            <section className="lg:col-span-4 space-y-4">
+              <div className="sticker-card bg-[#FDF9F0] p-4 text-black">
+                <h2 className="text-[11px] font-bold uppercase mb-3 border-b border-black pb-1 flex items-center gap-2">
+                  <span>📝</span> Dados Pessoais
+                </h2>
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase">Nascimento</label>
-                    <input 
-                      type="date" 
-                      className="w-full bg-white border-2 border-black px-3 py-2 text-sm focus:outline-none"
-                      value={formData.data_nascimento}
-                      onChange={(e) => setFormData({...formData, data_nascimento: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase">WhatsApp</label>
+                    <label className="block text-[8px] font-bold uppercase">Nome Completo</label>
                     <input 
                       required
                       type="text" 
-                      className="w-full bg-white border-2 border-black px-3 py-2 text-sm focus:outline-none"
-                      value={formData.telefone}
-                      onChange={(e) => setFormData({...formData, telefone: e.target.value})}
+                      className="w-full bg-white border border-black px-2 py-1 text-xs focus:outline-none"
+                      value={formData.nome}
+                      onChange={(e) => setFormData({...formData, nome: e.target.value})}
                     />
                   </div>
-                </div>
-                
-                <AnimatePresence>
-                  {isMinor && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4 overflow-hidden bg-orange-100 p-3 border-2 border-black">
-                      <p className="text-[9px] font-bold uppercase text-orange-800">Responsável (Aluno Menor)</p>
-                      <input placeholder="NOME RESPONSÁVEL" className="w-full bg-white border-2 border-black px-2 py-1 text-xs" value={formData.responsavel_nome} onChange={(e) => setFormData({...formData, responsavel_nome: e.target.value})} />
-                      <div className="grid grid-cols-2 gap-2">
-                        <input placeholder="CPF RESP" className="w-full bg-white border-2 border-black px-2 py-1 text-xs" value={formData.responsavel_cpf} onChange={(e) => setFormData({...formData, responsavel_cpf: e.target.value})} />
-                        <input placeholder="WHATSAPP RESP" className="w-full bg-white border-2 border-black px-2 py-1 text-xs" value={formData.responsavel_telefone} onChange={(e) => setFormData({...formData, responsavel_telefone: e.target.value})} />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase">CPF</label>
-                  <input 
-                    required
-                    type="text" 
-                    className="w-full bg-white border-2 border-black px-3 py-2 text-sm focus:outline-none"
-                    value={formData.cpf}
-                    onChange={(e) => setFormData({...formData, cpf: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase">E-mail</label>
-                  <input 
-                    type="email" 
-                    className="w-full bg-white border-2 border-black px-3 py-2 text-sm focus:outline-none"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase">Endereço</label>
-                  <input 
-                    type="text" 
-                    className="w-full bg-white border-2 border-black px-3 py-2 text-sm focus:outline-none"
-                    value={formData.endereco}
-                    onChange={(e) => setFormData({...formData, endereco: e.target.value})}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Course Selection */}
-            <div className="sticker-card bg-[#3D2B1F] p-6 rotate-1">
-              <h2 className="text-white font-bold uppercase mb-4 border-b-2 border-white pb-2 flex items-center gap-2">
-                <span>🎸</span> Instrumento & Curso
-              </h2>
-              <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2">
-                {cursos.filter(c => !['Black','Laranja','White'].some(x => c.nome.includes(x))).map(curso => (
-                  <button
-                    key={curso.id}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, curso_id: curso.id })}
-                    className={`font-bold py-2 border-4 border-black shadow-hard transition-all ${
-                      formData.curso_id === curso.id 
-                        ? 'bg-[#FF8A00] text-black translate-x-1 translate-y-1 shadow-none' 
-                        : 'bg-white text-black hover:bg-[#FF8A00]/20'
-                    }`}
-                  >
-                    {curso.nome.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Plan Selection */}
-            <div className="sticker-card bg-[#00FF41] p-6 -rotate-1 text-black">
-              <h2 className="font-bold uppercase mb-4 border-b-2 border-black pb-2 flex items-center gap-2">
-                <span>💰</span> Plano de Aulas
-              </h2>
-              <div className="space-y-3">
-                {pacotes.map(pacote => (
-                  <button
-                    key={pacote.id}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, pacote_id: pacote.id })}
-                    className={`w-full p-3 border-4 border-black shadow-hard text-left transition-all ${
-                      formData.pacote_id === pacote.id
-                        ? 'bg-black text-white translate-x-1 translate-y-1 shadow-none'
-                        : 'bg-white hover:bg-black/5'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold">{pacote.nome.toUpperCase()}</span>
-                      <span className="text-sm font-black">R$ {pacote.valor_mensal}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Legacy Migration */}
-            {formData.is_emusys_legacy && (
-              <div className="sticker-card bg-[#FF8A00] p-6 rotate-1 text-black">
-                <h2 className="font-bold uppercase mb-4 border-b-2 border-black pb-2">💾 Migração Emusys</h2>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-bold uppercase">Aulas Originais</label>
-                      <select 
-                        className="w-full bg-white border-2 border-black px-2 py-1 text-xs"
-                        value={formData.emusys_original_aulas}
-                        onChange={(e) => setFormData({...formData, emusys_original_aulas: Number(e.target.value)})}
-                      >
-                        <option value={24}>24 AULAS</option>
-                        <option value={48}>48 AULAS</option>
-                      </select>
+                      <label className="block text-[8px] font-bold uppercase">Nascimento</label>
+                      <input 
+                        type="date" 
+                        className="w-full bg-white border border-black px-2 py-1 text-xs focus:outline-none"
+                        value={formData.data_nascimento}
+                        onChange={(e) => setFormData({...formData, data_nascimento: e.target.value})}
+                      />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase">Aulas Feitas</label>
-                      <input type="number" className="w-full bg-white border-2 border-black px-2 py-1 text-xs" value={formData.emusys_aulas_feitas} onChange={(e) => setFormData({...formData, emusys_aulas_feitas: Number(e.target.value)})} />
+                      <label className="block text-[8px] font-bold uppercase">WhatsApp</label>
+                      <input 
+                        required
+                        type="text" 
+                        className="w-full bg-white border border-black px-2 py-1 text-xs focus:outline-none"
+                        value={formData.telefone}
+                        onChange={(e) => setFormData({...formData, telefone: e.target.value})}
+                      />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  
+                  <AnimatePresence>
+                    {isMinor && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-2 overflow-hidden bg-orange-100 p-2 border border-black">
+                        <p className="text-[7px] font-bold uppercase text-orange-800">Responsável</p>
+                        <input placeholder="NOME" className="w-full bg-white border border-black px-2 py-1 text-[10px]" value={formData.responsavel_nome} onChange={(e) => setFormData({...formData, responsavel_nome: e.target.value})} />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input placeholder="CPF" className="w-full bg-white border border-black px-2 py-1 text-[10px]" value={formData.responsavel_cpf} onChange={(e) => setFormData({...formData, responsavel_cpf: e.target.value})} />
+                          <input placeholder="FONE" className="w-full bg-white border border-black px-2 py-1 text-[10px]" value={formData.responsavel_telefone} onChange={(e) => setFormData({...formData, responsavel_telefone: e.target.value})} />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-bold uppercase">Parcelas Originais</label>
-                      <select 
-                        className="w-full bg-white border-2 border-black px-2 py-1 text-xs"
-                        value={formData.emusys_original_parcelas}
-                        onChange={(e) => setFormData({...formData, emusys_original_parcelas: Number(e.target.value)})}
-                      >
-                        <option value={6}>6 PARCELAS</option>
-                        <option value={12}>12 PARCELAS</option>
-                      </select>
+                      <label className="block text-[8px] font-bold uppercase">CPF</label>
+                      <input 
+                        required
+                        type="text" 
+                        className="w-full bg-white border border-black px-2 py-1 text-xs focus:outline-none"
+                        value={formData.cpf}
+                        onChange={(e) => setFormData({...formData, cpf: e.target.value})}
+                      />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase">Pagas</label>
-                      <input type="number" className="w-full bg-white border-2 border-black px-2 py-1 text-xs" value={formData.emusys_parcelas_pagas} onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: Number(e.target.value)})} />
+                      <label className="block text-[8px] font-bold uppercase">E-mail</label>
+                      <input 
+                        type="email" 
+                        className="w-full bg-white border border-black px-2 py-1 text-xs focus:outline-none"
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      />
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase">Data Última Aula</label>
-                    <input type="date" className="w-full bg-white border-2 border-black px-2 py-1 text-xs" value={formData.emusys_data_ultima_aula} onChange={(e) => setFormData({...formData, emusys_data_ultima_aula: e.target.value})} />
+                    <label className="block text-[8px] font-bold uppercase">Endereço</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-white border border-black px-2 py-1 text-xs focus:outline-none"
+                      value={formData.endereco}
+                      onChange={(e) => setFormData({...formData, endereco: e.target.value})}
+                    />
                   </div>
                 </div>
               </div>
-            )}
-          </section>
 
-          {/* Right Column - Agenda */}
-          <section className="lg:col-span-8">
-            <div className="sticker-card bg-white p-6 h-full text-black">
-              <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                <h2 className="font-bold uppercase text-xl">Selecione o Horário</h2>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1"><span className="w-3 h-3 bg-white border-2 border-black"></span> <span className="text-[10px] font-bold">LIVRE</span></div>
-                  <div className="flex items-center gap-1"><span className="w-3 h-3 bg-[#FF8A00] border-2 border-black"></span> <span className="text-[10px] font-bold">OCUPADO</span></div>
-                  <div className={`flex items-center gap-1 ${formData.horario ? 'animate-bounce' : 'opacity-20'}`}><span className="w-3 h-3 bg-[#00FF41] border-2 border-black"></span> <span className="text-[10px] font-bold">SELECIONADO</span></div>
+              {/* Course Selection */}
+              <div className="sticker-card bg-[#3D2B1F] p-4">
+                <h2 className="text-white text-[11px] font-bold uppercase mb-3 border-b border-white pb-1 flex items-center gap-2">
+                  <span>🎸</span> Curso
+                </h2>
+                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+                  {cursos.filter(c => !['Black','Laranja','White'].some(x => c.nome.includes(x))).map(curso => (
+                    <button
+                      key={curso.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, curso_id: curso.id })}
+                      className={`font-bold py-1.5 border-2 border-black shadow-hard transition-all text-[10px] ${
+                        formData.curso_id === curso.id 
+                          ? 'bg-[#FF8A00] text-black translate-x-0.5 translate-y-0.5 shadow-none' 
+                          : 'bg-white text-black hover:bg-[#FF8A00]/20'
+                      }`}
+                    >
+                      {curso.nome.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Calendar Controls */}
-              <div className="flex items-center justify-between mb-4 bg-gray-100 border-2 border-black p-2">
-                <div className="flex gap-2">
-                  <button onClick={() => setSemanaOffset(o => o - 1)} className="border-2 border-black px-2 hover:bg-black hover:text-white">&lt;</button>
-                  <div className="font-bold uppercase text-sm px-4">{mesAno}</div>
-                  <button onClick={() => setSemanaOffset(o => o + 1)} className="border-2 border-black px-2 hover:bg-black hover:text-white">&gt;</button>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setSemanaOffset(0)} className="bg-[#FF8A00] text-black font-bold text-[10px] px-3 py-1 border-2 border-black">HOJE</button>
+              {/* Plan Selection */}
+              <div className="sticker-card bg-[#00FF41] p-4 text-black">
+                <h2 className="text-[11px] font-bold uppercase mb-3 border-b border-black pb-1 flex items-center gap-2">
+                  <span>💰</span> Plano
+                </h2>
+                <div className="space-y-2">
+                  {pacotes.map(pacote => (
+                    <button
+                      key={pacote.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, pacote_id: pacote.id })}
+                      className={`w-full p-2 border-2 border-black shadow-hard text-left transition-all ${
+                        formData.pacote_id === pacote.id
+                          ? 'bg-black text-white translate-x-0.5 translate-y-0.5 shadow-none'
+                          : 'bg-white hover:bg-black/5'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-bold">{pacote.nome.toUpperCase()}</span>
+                        <span className="text-[10px] font-black">R$ {pacote.valor_mensal}</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Schedule Table */}
-              <div className="overflow-auto border-2 border-black max-h-[60vh] relative">
-                {agendaLoading && (
-                  <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-50 flex items-center justify-center">
-                    <span className="font-bold text-xs animate-pulse">SINCRONIZANDO...</span>
-                  </div>
-                )}
-                <table className="w-full text-[10px] border-collapse">
-                  <thead className="sticky top-0 z-40 bg-gray-200 border-b-2 border-black">
-                    <tr>
-                      <th className="p-3 border-r-2 border-black text-left sticky left-0 bg-gray-200 min-w-[120px]">PROFESSOR</th>
-                      {HOURS.map(h => (
-                        <th key={h} className="p-2 border-r border-black min-w-[80px]">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {professores.map((prof) => (
-                      <tr key={prof.id} className="border-b border-gray-300">
-                        <td className="p-3 font-bold border-r-2 border-black sticky left-0 bg-white z-10 flex items-center gap-2">
-                           <div className="w-3 h-3 border border-black shadow-sm" style={{ background: prof.cor_agenda || '#FF8A00' }}></div>
-                           <span className="truncate w-full">{prof.nome.toUpperCase()}</span>
-                        </td>
-                        {HOURS.map(h => {
-                          const aulasNoHorario = getAulaForProfHour(prof.id, h);
-                          const isOccupied = aulasNoHorario.length > 0;
-                          const isSelected = formData.professor_id === prof.id && formData.horario === `${h}:00` && formData.dia_semana === getDisplayDate(0).toISOString().split('T')[0];
-                          
-                          return (
-                            <td 
-                              key={h} 
-                              onClick={() => {
-                                if (!isOccupied) {
-                                  setFormData({
-                                    ...formData,
-                                    professor_id: prof.id,
-                                    horario: `${h}:00`,
-                                    dia_semana: getDisplayDate(0).toISOString().split('T')[0]
-                                  });
-                                }
-                              }}
-                              className={`p-2 border-r border-gray-300 transition-all cursor-pointer h-12 ${
-                                isOccupied ? 'bg-[#FF8A00] cursor-not-allowed opacity-50' : 
-                                isSelected ? 'bg-[#00FF41] border-2 border-black' : 
-                                'hover:bg-[#00FF41]/20'
-                              }`}
-                            >
-                              {isOccupied && <div className="text-[8px] font-black text-white leading-tight">{aulasNoHorario[0].aluno_nome?.split(' ')[0]}</div>}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Summary Banner */}
-              {formData.horario && (
-                <div className="mt-8 p-4 bg-[#00FF41] text-black border-4 border-black font-bold text-center uppercase tracking-widest shadow-hard flex items-center justify-between">
-                  <span>AGENDA SELECIONADA: {getDisplayDate(0).toLocaleDateString('pt-BR')} ÀS {formData.horario.substring(0, 5)}</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-black border border-white"></div>
-                    <span className="text-xs">PROF. {professores.find(p => p.id === formData.professor_id)?.nome.split(' ')[0].toUpperCase()}</span>
+              {/* Legacy Migration */}
+              {formData.is_emusys_legacy && (
+                <div className="sticker-card bg-[#FF8A00] p-4 text-black">
+                  <h2 className="text-[11px] font-bold uppercase mb-3 border-b border-black pb-1">💾 Legado</h2>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[7px] font-bold uppercase">Aulas Orig.</label>
+                        <select 
+                          className="w-full bg-white border border-black px-1 py-1 text-[10px]"
+                          value={formData.emusys_original_aulas}
+                          onChange={(e) => setFormData({...formData, emusys_original_aulas: Number(e.target.value)})}
+                        >
+                          <option value={24}>24</option>
+                          <option value={48}>48</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[7px] font-bold uppercase">Feitas</label>
+                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_aulas_feitas} onChange={(e) => setFormData({...formData, emusys_aulas_feitas: Number(e.target.value)})} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[7px] font-bold uppercase">Parc. Orig.</label>
+                        <select 
+                          className="w-full bg-white border border-black px-1 py-1 text-[10px]"
+                          value={formData.emusys_original_parcelas}
+                          onChange={(e) => setFormData({...formData, emusys_original_parcelas: Number(e.target.value)})}
+                        >
+                          <option value={6}>6</option>
+                          <option value={12}>12</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[7px] font-bold uppercase">Pagas</label>
+                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_parcelas_pagas} onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: Number(e.target.value)})} />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
-          </section>
+            </section>
+
+            {/* Right Column - Agenda */}
+            <section className="lg:col-span-8 flex flex-col h-full">
+              <div className="sticker-card bg-white p-4 h-full text-black flex flex-col overflow-hidden">
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="font-bold uppercase text-[14px]">Agenda de Aulas</h2>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1"><span className="w-2 h-2 bg-white border border-black"></span> <span className="text-[7px] font-bold">LIVRE</span></div>
+                    <div className="flex items-center gap-1"><span className="w-2 h-2 bg-[#FF8A00] border border-black"></span> <span className="text-[7px] font-bold">OCUP.</span></div>
+                    <div className="flex items-center gap-1"><span className="w-2 h-2 bg-[#00FF41] border border-black"></span> <span className="text-[7px] font-bold">SEL.</span></div>
+                  </div>
+                </div>
+
+                {/* Calendar Controls */}
+                <div className="flex items-center justify-between mb-2 bg-gray-100 border border-black p-1">
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setSemanaOffset(o => o - 1)} className="border border-black px-1 hover:bg-black hover:text-white text-[10px]">&lt;</button>
+                    <div className="font-bold uppercase text-[9px] px-2 min-w-[140px] text-center">{mesAno}</div>
+                    <button onClick={() => setSemanaOffset(o => o + 1)} className="border border-black px-1 hover:bg-black hover:text-white text-[10px]">&gt;</button>
+                  </div>
+                  <button onClick={() => setSemanaOffset(0)} className="bg-[#FF8A00] text-black font-bold text-[8px] px-2 py-0.5 border border-black">HOJE</button>
+                </div>
+
+                {/* Schedule Table */}
+                <div className="flex-1 overflow-auto border border-black relative bg-gray-50">
+                  {agendaLoading && (
+                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-50 flex items-center justify-center">
+                      <span className="font-bold text-[8px] animate-pulse uppercase tracking-widest">Sincronizando...</span>
+                    </div>
+                  )}
+                  <table className="w-full text-[9px] border-collapse">
+                    <thead className="sticky top-0 z-40 bg-gray-200 border-b border-black">
+                      <tr>
+                        <th className="p-2 border-r border-black text-left sticky left-0 bg-gray-200 min-w-[100px]">PROFESSOR</th>
+                        {HOURS.map(h => (
+                          <th key={h} className="p-1 border-r border-black min-w-[60px] text-center">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {professores.length > 0 ? professores.map((prof) => (
+                        <tr key={prof.id} className="border-b border-gray-200">
+                          <td className="p-2 font-bold border-r border-black sticky left-0 bg-white z-10 flex items-center gap-1">
+                             <div className="w-2 h-2 border border-black shadow-sm shrink-0" style={{ background: prof.cor_agenda || '#FF8A00' }}></div>
+                             <span className="truncate text-[8px]">{prof.nome.toUpperCase()}</span>
+                          </td>
+                          {HOURS.map(h => {
+                            const aulasNoHorario = getAulaForProfHour(prof.id, h);
+                            const isOccupied = aulasNoHorario.length > 0;
+                            const isSelected = formData.professor_id === prof.id && formData.horario === `${h}:00` && formData.dia_semana === getDisplayDate(0).toISOString().split('T')[0];
+                            
+                            return (
+                              <td 
+                                key={h} 
+                                onClick={() => {
+                                  if (!isOccupied) {
+                                    setFormData({
+                                      ...formData,
+                                      professor_id: prof.id,
+                                      horario: `${h}:00`,
+                                      dia_semana: getDisplayDate(0).toISOString().split('T')[0]
+                                    });
+                                  }
+                                }}
+                                className={`p-1 border-r border-gray-100 transition-all cursor-pointer h-10 ${
+                                  isOccupied ? 'bg-[#FF8A00] cursor-not-allowed opacity-40' : 
+                                  isSelected ? 'bg-[#00FF41] border-2 border-black' : 
+                                  'hover:bg-[#00FF41]/20'
+                                }`}
+                              >
+                                {isOccupied && <div className="text-[7px] font-black text-white leading-tight truncate">{aulasNoHorario[0].aluno_nome?.split(' ')[0]}</div>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={HOURS.length + 1} className="py-10 text-center opacity-30 text-[10px] font-bold uppercase tracking-widest">Nenhum professor cadastrado</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Summary Banner */}
+                {formData.horario && (
+                  <div className="mt-3 p-2 bg-[#00FF41] text-black border-2 border-black font-bold text-center uppercase tracking-widest shadow-hard flex items-center justify-between text-[8px]">
+                    <span>SELECIONADO: {getDisplayDate(0).toLocaleDateString('pt-BR')} ÀS {formData.horario.substring(0, 5)}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="opacity-60">PROF:</span>
+                      <span className="text-[9px]">{professores.find(p => p.id === formData.professor_id)?.nome.split(' ')[0].toUpperCase()}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
         </div>
 
         {/* Footer Actions */}
-        <footer className="mt-10 pt-8 border-t-4 border-white flex flex-col md:flex-row justify-end items-center gap-4">
+        <footer className="p-4 border-t-4 border-white flex justify-end items-center gap-4 bg-[#1A1A1A] shrink-0">
           <button 
             onClick={onClose}
-            className="w-full md:w-auto px-10 py-3 bg-transparent text-white font-bold uppercase hover:underline decoration-[#FF8A00] decoration-4"
+            className="px-6 py-2 text-[10px] font-bold uppercase hover:underline decoration-[#FF8A00] decoration-2"
           >
             Cancelar
           </button>
           <button 
             disabled={loading || !formData.horario || !formData.pacote_id}
             onClick={handleSubmit}
-            className="w-full md:w-auto px-10 py-4 bg-[#FF8A00] text-black font-bold uppercase border-4 border-black shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+            className="px-8 py-3 bg-[#FF8A00] text-black font-bold uppercase border-2 border-black shadow-hard hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all flex items-center gap-2 disabled:opacity-50 text-[11px]"
           >
-            {loading ? 'SINCRONIZANDO...' : <><span>💾</span> Finalizar Matrícula & Gerar Agenda</>}
+            {loading ? 'Sincronizando...' : <><span>💾</span> Matricular</>}
           </button>
         </footer>
       </motion.main>
     </div>
+
   );
 }
