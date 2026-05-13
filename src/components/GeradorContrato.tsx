@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale';
 
 interface GeradorContratoProps {
   aluno: any;
+  isOpen: boolean;
   onClose: () => void;
 }
 
@@ -27,7 +28,8 @@ const CLAUSULAS_PADRAO = [
   "No caso de desfazimento antecipado, haverá a incidência de multa contratual no percentual de 20% (vinte por cento) sobre o valor do saldo vincendo do contrato que deve ser paga em até 03 dias uteis apos o informe de cancelamento."
 ];
 
-export default function GeradorContrato({ aluno, onClose }: GeradorContratoProps) {
+export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContratoProps) {
+  if (!isOpen || !aluno) return null;
   const [clausulas, setClausulas] = useState(CLAUSULAS_PADRAO);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editText, setEditText] = useState("");

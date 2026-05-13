@@ -26,12 +26,19 @@ export default function AreaAluno() {
       fetch('/api/agenda', { headers }).then(r => r.ok ? r.json() : [])
     ]).then(([me, agenda]) => {
       setAlunoData(me);
-      const todayStr = new Date().toISOString().split('T')[0];
-      const todayAulas = (Array.isArray(agenda) ? agenda : []).filter((a: any) => {
-          const aData = (a.data || '').split('T')[0];
-          return aData === todayStr;
-      });
-      setAulasHoje(todayAulas);
+      
+      const now = new Date();
+      const allAulas = Array.isArray(agenda) ? agenda : [];
+      
+      // Ordenar por data e hora para achar a próxima
+      const futureAulas = allAulas
+        .filter((a: any) => {
+          const aulaDate = new Date(`${a.data}T${a.horario || '00:00:00'}`);
+          return aulaDate >= now;
+        })
+        .sort((a: any, b: any) => new Date(`${a.data}T${a.horario}`).getTime() - new Date(`${b.data}T${b.horario}`).getTime());
+
+      setAulasHoje(futureAulas);
     })
     .catch(console.error)
     .finally(() => setLoading(false));
@@ -91,8 +98,8 @@ export default function AreaAluno() {
             
             <div className="grid grid-cols-2 gap-4">
                <div className="bg-[#ffeae1] border-2 border-[#261812] p-3 rounded shadow-[2px_2px_0_#000]">
-                 <p className="text-[8px] font-black text-[#8e7164] uppercase mb-1">AULAS RESTANTES</p>
-                 <p className="text-[#ff6b00] font-black text-xl">{alunoData?.aulas_restantes || 0}</p>
+                 <p className="text-[8px] font-black text-[#8e7164] uppercase mb-1">INSTRUMENTO</p>
+                 <p className="text-[#ff6b00] font-black text-[12px] uppercase">{alunoData?.matriculas?.[0]?.cursos?.nome || 'ALUNO'}</p>
                </div>
                <div className="bg-[#ffeae1] border-2 border-[#261812] p-3 rounded shadow-[2px_2px_0_#000]">
                  <p className="text-[8px] font-black text-[#8e7164] uppercase mb-1">RANKING GERAL</p>
@@ -120,7 +127,9 @@ export default function AreaAluno() {
               </div>
               <div className="flex-1">
                 <p className="text-white/80 font-black text-[10px] uppercase tracking-widest mb-1">PRÓXIMA SESSÃO</p>
-                <p className="text-white font-black text-xl uppercase">Hoje às {aulasHoje[0].horario?.substring(0,5)}</p>
+                <p className="text-white font-black text-xl uppercase">
+                  {new Date(aulasHoje[0].data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {aulasHoje[0].horario?.substring(0,5)}
+                </p>
                 <p className="text-white/80 font-black text-xs uppercase">PROF. {aulasHoje[0].professor_nome?.split(' ')[0]}</p>
               </div>
               <button className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: 'white', border: '2px solid #261812' }}>
