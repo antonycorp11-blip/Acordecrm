@@ -142,7 +142,7 @@ async function startServer() {
                 nome,
                 email,
                 senha: hashedPassword,
-                role: 'admin' // Por padrão, ou você pode permitir escolher a role
+                role: 'aluno' // Cadastro público agora define 'aluno' como padrão
             }]).select().single();
 
             if (error) throw error;
