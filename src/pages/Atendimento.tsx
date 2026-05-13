@@ -139,7 +139,7 @@ export default function Atendimento() {
       text += "Infelizmente não temos vagas disponíveis para este critério no momento. 😔";
     } else {
       vagasResult.forEach(item => {
-        text += `*Prof. ${item.professor}*\n`;
+        text += `*Prof. ${item.professor}* (${dia})\n`;
         text += `🕒 ${item.vagas.join(' | ')}\n\n`;
       });
 

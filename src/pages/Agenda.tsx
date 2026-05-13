@@ -51,9 +51,11 @@ export default function Agenda() {
 
   // Map aula to grid position - simplificado para o dia atual exibido (ou lógica de semana se fosse o caso)
   const getAulaForProfHour = (profId: number, hour: string) => {
+    const targetDate = currentBaseDate.toISOString().split('T')[0];
     return aulas.filter(a => {
       const h = (a.horario || '').substring(0, 5);
-      return a.professor_id === profId && h === hour;
+      const d = a.data ? a.data.split('T')[0] : '';
+      return a.professor_id === profId && h === hour && d === targetDate;
     });
   };
 
@@ -232,10 +234,10 @@ export default function Agenda() {
                 <tbody>
                   {professores.length > 0 ? professores.map((prof, pi) => (
                     <tr key={prof.id} style={{ borderBottom: '2px solid #e2bfb0' }}>
-                      <td className="sticky left-0 z-10 px-4 py-2 align-top" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="w-5 h-5 rounded-sm shrink-0 shadow-sm" style={{ background: prof.cor_agenda || '#feccba', border: '2px solid #261812' }}></div>
-                          <span className="text-[#261812] font-black text-[11px] truncate max-w-[110px] leading-tight uppercase">{prof.nome}</span>
+                      <td className="sticky left-0 z-10 px-2 py-1 align-top" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <div className="w-4 h-4 rounded-sm shrink-0 shadow-sm" style={{ background: prof.cor_agenda || '#feccba', border: '1.5px solid #261812' }}></div>
+                          <span className="text-[#261812] font-black text-[9px] truncate max-w-[120px] leading-tight uppercase">{prof.nome.split(' ')[0]}</span>
                         </div>
                       </td>
                       {HOURS.map(h => {

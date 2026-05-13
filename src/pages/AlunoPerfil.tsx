@@ -21,166 +21,161 @@ import {
   X,
   Check,
   Plus,
-  Trash2
+  Trash2,
+  ExternalLink,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import GeradorContrato from '../components/GeradorContrato';
+import { toast } from 'sonner';
+
+// --- STITCH COMPONENTS ---
+
+const Card = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => (
+  <div className={`bg-[#fff8f6] border-4 border-black shadow-[4px_4px_0_#000] p-6 ${className}`}>
+    {children}
+  </div>
+);
+
+const Button = ({ children, onClick, variant = 'primary', className = "", disabled = false }: any) => {
+  const variants: any = {
+    primary: "bg-[#ff6b00] text-white",
+    secondary: "bg-white text-black",
+    dark: "bg-black text-white",
+    outline: "bg-transparent border-2 border-black text-black shadow-none hover:bg-black hover:text-white"
+  };
+  return (
+    <button 
+      onClick={onClick}
+      disabled={disabled}
+      className={`${variants[variant]} font-black uppercase text-[10px] tracking-widest px-4 py-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50 ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Badge = ({ children, color = "orange" }: any) => {
+  const colors: any = {
+    orange: "bg-[#ff6b00] text-white",
+    bege: "bg-[#feccba] text-[#261812]",
+    black: "bg-black text-white",
+    green: "bg-emerald-500 text-white",
+    red: "bg-red-500 text-white"
+  };
+  return (
+    <span className={`${colors[color]} px-2 py-0.5 border border-black font-black text-[8px] uppercase tracking-tighter`}>
+      {children}
+    </span>
+  );
+};
+
+// --- TRACKERS ---
 
 function ProgressTracker({ aulas, total }: { aulas: any[], total: number }) {
   const totalSquares = total || 24;
-
   const getStatusColor = (status: string) => {
     const s = status?.toLowerCase();
-    if (s === 'realizada' || s === 'presente') return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]';
-    if (s === 'falta_aluno' || s === 'ausente' || s === 'falta') return 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]';
-    if (s === 'a_repor' || s === 'reposição') return 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]';
-    if (s === 'pendente') return 'bg-slate-200';
-    return 'bg-slate-100';
+    if (s === 'realizada' || s === 'presente') return 'bg-emerald-500';
+    if (s === 'falta_aluno' || s === 'ausente' || s === 'falta') return 'bg-red-500';
+    if (s === 'a_repor' || s === 'reposição') return 'bg-amber-500';
+    if (s === 'pendente') return 'bg-[#feccba]';
+    return 'bg-[#e2bfb0]';
   };
 
   const sortedAulas = [...aulas].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
 
   return (
-    <div className="glass-card p-8 mb-8 relative overflow-hidden group">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl -z-10 group-hover:bg-primary/10 transition-all"></div>
+    <Card className="mb-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-1">
-            Progresso do Contrato
-          </h3>
-          <p className="text-lg font-black text-slate-900">
-            {aulas.filter(a => a.status?.toLowerCase() === 'realizada' || a.status?.toLowerCase() === 'presente').length} de {totalSquares} Aulas Realizadas
+          <h3 className="text-[10px] font-black text-[#8e7164] uppercase tracking-[0.2em] mb-1">PROG_CONTRATO</h3>
+          <p className="text-xl font-black text-black uppercase italic italic">
+            {aulas.filter(a => a.status?.toLowerCase() === 'realizada' || a.status?.toLowerCase() === 'presente').length}/{totalSquares} AULAS OK
           </p>
-        </div>
-        <div className="flex gap-1.5">
-           {['realizada', 'falta_aluno', 'a_repor', 'pendente'].map(s => (
-             <div key={s} className={`w-3 h-3 rounded-full ${getStatusColor(s)}`}></div>
-           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-3">
+      <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 lg:grid-cols-24 gap-2">
         {Array.from({ length: totalSquares }).map((_, idx) => {
           const aula = sortedAulas[idx];
           const status = aula?.status;
-          
           return (
-            <div key={idx} className="relative group/square">
-              <motion.div 
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: idx * 0.01 }}
-                className={`aspect-square rounded-lg transition-all hover:scale-110 cursor-pointer border border-slate-200/50 flex items-center justify-center ${getStatusColor(status)}`}
-              >
+            <div key={idx} className="group relative">
+              <div className={`aspect-square border-2 border-black shadow-[1px_1px_0_#000] flex items-center justify-center transition-transform hover:scale-110 cursor-help ${getStatusColor(status)}`}>
                 {aula && (status === 'realizada' || status === 'presente') && <Check className="w-3 h-3 text-white" />}
                 {aula && (status === 'falta_aluno' || status === 'ausente') && <X className="w-3 h-3 text-white" />}
                 {aula && status === 'a_repor' && <Clock className="w-3 h-3 text-white" />}
-              </motion.div>
-
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-[10px] rounded-xl opacity-0 group-hover/square:opacity-100 pointer-events-none transition-all z-50 whitespace-nowrap shadow-xl">
-                {aula ? (
-                  <div className="space-y-1">
-                    <p className="font-black">{format(new Date(aula.data), 'dd/MM/yyyy')}</p>
-                    <p className="opacity-70 uppercase tracking-widest text-[8px] font-bold">{status?.replace('_', ' ')}</p>
-                  </div>
-                ) : (
-                  "Aula ainda não agendada"
-                )}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
               </div>
+              {aula && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-[8px] font-black uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 z-50 pointer-events-none">
+                  {format(new Date(aula.data), 'dd/MM/yyyy')} - {status}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      <div className="flex items-center gap-6 mt-8 pt-6 border-t border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div> Realizada</div>
-        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-red-500"></div> Falta Aluno</div>
-        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div> A Repor</div>
-        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-slate-200"></div> Pendente</div>
+      <div className="flex flex-wrap items-center gap-4 mt-6 pt-4 border-t-2 border-[#e2bfb0] text-[8px] font-black uppercase tracking-widest">
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 border border-black bg-emerald-500"></div> REALIZADA</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 border border-black bg-red-500"></div> FALTA</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 border border-black bg-amber-500"></div> A REPOR</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 border border-black bg-[#feccba]"></div> PENDENTE</div>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function FinanceiroTracker({ financeiro, total }: { financeiro: any[], total: number }) {
   const totalSquares = total || 12;
-
   const getStatusColor = (status: string) => {
     const s = status?.toLowerCase();
-    if (s === 'pago') return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]';
-    if (s === 'atrasado') return 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]';
-    if (s === 'pendente') return 'bg-slate-200';
-    return 'bg-slate-100';
+    if (s === 'pago') return 'bg-emerald-500';
+    if (s === 'atrasado') return 'bg-red-500';
+    if (s === 'pendente') return 'bg-[#feccba]';
+    return 'bg-[#e2bfb0]';
   };
 
   const sortedFinanceiro = [...financeiro].sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
 
   return (
-    <div className="glass-card p-8 mb-8 relative overflow-hidden group">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl -z-10 group-hover:bg-primary/10 transition-all"></div>
+    <Card className="mb-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-1">
-            Status Financeiro
-          </h3>
-          <p className="text-lg font-black text-slate-900">
-            {financeiro.filter(f => f.status?.toLowerCase() === 'pago').length} de {totalSquares} Parcelas Pagas
+          <h3 className="text-[10px] font-black text-[#8e7164] uppercase tracking-[0.2em] mb-1">STATUS_FINANCEIRO</h3>
+          <p className="text-xl font-black text-black uppercase italic">
+            {financeiro.filter(f => f.status?.toLowerCase() === 'pago').length}/{totalSquares} PARCELAS PAGAS
           </p>
-        </div>
-        <div className="flex gap-1.5">
-           {['pago', 'atrasado', 'pendente'].map(s => (
-             <div key={s} className={`w-3 h-3 rounded-full ${getStatusColor(s)}`}></div>
-           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-3">
+      <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-2">
         {Array.from({ length: totalSquares }).map((_, idx) => {
           const fatura = sortedFinanceiro[idx];
           const status = fatura?.status;
-          
           return (
-            <div key={idx} className="relative group/square">
-              <motion.div 
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: idx * 0.01 }}
-                className={`aspect-square rounded-lg transition-all hover:scale-110 cursor-pointer border border-slate-200/50 flex items-center justify-center ${getStatusColor(status)}`}
-              >
+            <div key={idx} className="group relative">
+              <div className={`aspect-square border-2 border-black shadow-[1px_1px_0_#000] flex items-center justify-center transition-transform hover:scale-110 cursor-help ${getStatusColor(status)}`}>
                 {fatura && status === 'pago' && <Check className="w-3 h-3 text-white" />}
                 {fatura && status === 'atrasado' && <XCircle className="w-3 h-3 text-white" />}
-              </motion.div>
-              
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 text-white text-[10px] rounded-xl opacity-0 group-hover/square:opacity-100 pointer-events-none transition-all z-50 whitespace-nowrap shadow-xl">
-                {fatura ? (
-                  <div className="space-y-1">
-                    <p className="font-black">{fatura.referencia_mes_ano || format(new Date(fatura.data_vencimento), 'MM/yyyy')}</p>
-                    <p className="opacity-70">Vencimento: {format(new Date(fatura.data_vencimento), 'dd/MM/yyyy')}</p>
-                    <p className="font-bold text-emerald-400 uppercase tracking-widest">{status}</p>
-                    {fatura.data_pagamento && <p className="opacity-70 italic text-[8px]">Pago em: {format(new Date(fatura.data_pagamento), 'dd/MM/yyyy')}</p>}
-                  </div>
-                ) : (
-                  "Parcela não gerada"
-                )}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
               </div>
+              {fatura && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-[8px] font-black uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 z-50 pointer-events-none">
+                  {fatura.referencia_mes_ano || format(new Date(fatura.data_vencimento), 'MM/yyyy')} - {status}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
-
-      <div className="flex items-center gap-6 mt-8 pt-6 border-t border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div> Pago</div>
-        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-red-500"></div> Atrasado</div>
-        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-slate-200"></div> Pendente</div>
-      </div>
-    </div>
+    </Card>
   );
 }
 
+// --- TABS ---
 
 function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], alunoId: string, onRefresh: () => void }) {
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -204,6 +199,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
     setSaving(false);
     setBaixaModal({ id: null, open: false });
     onRefresh();
+    toast.success('Baixa realizada com sucesso!');
   };
 
   const handleEditDate = async (id: number) => {
@@ -221,6 +217,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
     setSaving(false);
     setEditingId(null);
     onRefresh();
+    toast.success('Data de vencimento atualizada!');
   };
 
   const pendentes = financeiro.filter(f => f.status !== 'pago').sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
@@ -228,65 +225,58 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
   const sorted = [...pendentes, ...pagos];
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+    <div className="space-y-6">
       <FinanceiroTracker financeiro={financeiro} total={financeiro.length} />
       
-      <div className="glass-card overflow-hidden">
-      <div className="p-6 border-b border-slate-100 bg-white flex items-center justify-between">
-        <h3 className="font-black text-slate-900">Mensalidades e Cobranças</h3>
-        <span className="text-xs font-bold text-slate-400">{pendentes.length} pendente(s)</span>
-      </div>
-      {sorted.length === 0 ? (
-        <div className="p-20 text-center space-y-4">
-          <CreditCard className="w-12 h-12 text-slate-200 mx-auto" />
-          <p className="text-slate-500 font-bold">Nenhuma fatura encontrada.</p>
+      <Card className="overflow-hidden p-0">
+        <div className="p-4 border-b-4 border-black bg-black flex items-center justify-between">
+          <h3 className="font-black text-white uppercase text-[10px] tracking-widest">Extrato de Faturas</h3>
+          <Badge color="bege">{pendentes.length} PENDENTES</Badge>
         </div>
-      ) : (
+        
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-100">
+            <thead className="bg-[#feccba] border-b-2 border-black">
               <tr>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Descrição / Ref</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Vencimento</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Valor</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right tracking-widest">Ações</th>
+                <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">DESCRIÇÃO</th>
+                <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">VENCIMENTO</th>
+                <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">VALOR</th>
+                <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">STATUS</th>
+                <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-right tracking-widest">AÇÕES</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y-2 divide-[#e2bfb0]">
               {sorted.map(fat => (
-                <tr key={fat.id} className={`hover:bg-slate-50/50 transition-all ${fat.status !== 'pago' ? 'bg-red-50/20' : ''}`}>
+                <tr key={fat.id} className="hover:bg-[#ffeae1] transition-all">
                   <td className="px-6 py-4">
-                    <p className="font-bold text-slate-700 text-sm">{fat.tipo_receita === 'mensalidade' ? 'Mensalidade' : (fat.descricao || fat.tipo_receita)}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">{fat.referencia_mes_ano}</p>
+                    <p className="font-black text-black text-sm uppercase">{fat.tipo_receita === 'mensalidade' ? 'Mensalidade' : (fat.descricao || fat.tipo_receita)}</p>
+                    <p className="text-[9px] text-[#8e7164] font-black uppercase tracking-tighter">{fat.referencia_mes_ano}</p>
                   </td>
-                  <td className="px-6 py-4 font-bold text-slate-600">
+                  <td className="px-6 py-4">
                     {editingId === fat.id ? (
                       <div className="flex items-center gap-2">
-                        <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20" />
-                        <button onClick={() => handleEditDate(fat.id)} disabled={saving} className="p-1 bg-emerald-500 text-white rounded-lg"><Check className="w-3 h-3" /></button>
-                        <button onClick={() => setEditingId(null)} className="p-1 bg-slate-200 text-slate-600 rounded-lg"><X className="w-3 h-3" /></button>
+                        <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="bg-white border-2 border-black p-1 text-[10px] font-black outline-none" />
+                        <button onClick={() => handleEditDate(fat.id)} className="bg-black text-white p-1 border border-black"><Check className="w-3 h-3" /></button>
+                        <button onClick={() => setEditingId(null)} className="bg-white text-black p-1 border border-black"><X className="w-3 h-3" /></button>
                       </div>
                     ) : (
-                      <span className="flex items-center gap-2">
-                        {format(new Date(fat.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')}
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-[#261812] text-sm">{format(new Date(fat.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy')}</span>
                         {fat.status !== 'pago' && (
-                          <button onClick={() => { setEditingId(fat.id); setEditDate(fat.data_vencimento); }} className="text-slate-300 hover:text-primary transition-colors"><Edit3 className="w-3 h-3" /></button>
+                          <button onClick={() => { setEditingId(fat.id); setEditDate(fat.data_vencimento); }} className="text-[#8e7164] hover:text-black"><Edit3 className="w-3 h-3" /></button>
                         )}
-                      </span>
+                      </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 font-black text-slate-900">R$ {Number(fat.valor).toFixed(2).replace('.', ',')}</td>
+                  <td className="px-6 py-4 font-black text-black text-lg italic">R$ {Number(fat.valor).toFixed(2).replace('.', ',')}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${fat.status === 'pago' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>{fat.status}</span>
+                    <Badge color={fat.status === 'pago' ? 'green' : 'red'}>{fat.status}</Badge>
                   </td>
                   <td className="px-6 py-4 text-right">
                     {fat.status !== 'pago' ? (
-                      <button onClick={() => setBaixaModal({ id: fat.id, open: true })} disabled={saving} className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-emerald-600 transition-all flex items-center gap-1.5 ml-auto">
-                        <DollarSign className="w-3 h-3" /> Dar Baixa
-                      </button>
+                      <Button onClick={() => setBaixaModal({ id: fat.id, open: true })}>DAR BAIXA</Button>
                     ) : (
-                      <span className="text-[10px] font-bold text-slate-400">Quitado</span>
+                      <Badge color="bege">QUITADO</Badge>
                     )}
                   </td>
                 </tr>
@@ -294,48 +284,44 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
             </tbody>
           </table>
         </div>
-      )}
-      </div>
+      </Card>
 
-      {/* Modal Baixa Financeira no Perfil do Aluno */}
+      {/* Modal Baixa */}
       <AnimatePresence>
         {baixaModal.open && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-black text-slate-900">Dar Baixa</h2>
-                <button onClick={() => setBaixaModal({ id: null, open: false })} className="p-2 hover:bg-slate-100 rounded-xl transition-all"><X className="w-5 h-5" /></button>
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <Card className="w-full max-w-sm p-8 space-y-6">
+              <div className="flex items-center justify-between border-b-2 border-black pb-4">
+                <h2 className="text-xl font-black text-black uppercase italic">DAR BAIXA</h2>
+                <button onClick={() => setBaixaModal({ id: null, open: false })}><X className="w-6 h-6" /></button>
               </div>
               <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Método de Pagamento</label>
-                  <select 
-                    value={baixaMetodo} 
-                    onChange={e => setBaixaMetodo(e.target.value)} 
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                  >
-                    <option value="dinheiro">Dinheiro</option>
-                    <option value="pix">PIX</option>
-                    <option value="cartao_credito">Cartão de Crédito</option>
-                    <option value="cartao_debito">Cartão de Débito</option>
-                    <option value="transferencia">Transferência Bancária</option>
-                  </select>
-                </div>
+                <label className="text-[10px] font-black text-black uppercase block tracking-widest">Método de Pagamento</label>
+                <select 
+                  value={baixaMetodo} 
+                  onChange={e => setBaixaMetodo(e.target.value)} 
+                  className="w-full bg-white border-4 border-black p-4 font-black text-sm text-black outline-none"
+                >
+                  <option value="dinheiro">Dinheiro</option>
+                  <option value="pix">PIX</option>
+                  <option value="cartao_credito">Cartão de Crédito</option>
+                  <option value="cartao_debito">Cartão de Débito</option>
+                  <option value="transferencia">Transferência</option>
+                </select>
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={() => setBaixaModal({ id: null, open: false })} className="flex-1 border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Cancelar</button>
-                <button onClick={handleBaixa} disabled={saving} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> {saving ? 'Processando...' : 'Confirmar'}
-                </button>
+                <Button variant="secondary" className="flex-1" onClick={() => setBaixaModal({ id: null, open: false })}>CANCELAR</Button>
+                <Button className="flex-1" onClick={handleBaixa} disabled={saving}>CONFIRMAR</Button>
               </div>
-            </motion.div>
-          </motion.div>
+            </Card>
+          </div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
+// --- MAIN PAGE ---
 
 export default function AlunoPerfil() {
   const { id } = useParams();
@@ -352,11 +338,11 @@ export default function AlunoPerfil() {
   const [editFormData, setEditFormData] = useState<any>({});
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  // Estados para reagendamento
+  // Reagendamento
   const [rescheduleModal, setRescheduleModal] = useState<{ open: boolean, aulaId: string | null, type: 'emergencial' | 'permanente', data: string, horario: string }>({ open: false, aulaId: null, type: 'emergencial', data: '', horario: '' });
   const [rescheduling, setRescheduling] = useState(false);
 
-  // Estados para Materiais
+  // Materiais
   const [materialModal, setMaterialModal] = useState(false);
   const [novoMaterial, setNovoMaterial] = useState({ titulo: '', url: '', tipo: 'link' });
   const [savingMaterial, setSavingMaterial] = useState(false);
@@ -369,6 +355,32 @@ export default function AlunoPerfil() {
     setAgenda(res);
     setFrequencia(res.filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente'));
   };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      setLoading(true);
+      try {
+        const [alunoData, aData, fData, mData] = await Promise.all([
+          fetch(`/api/alunos/${id}`, { headers }).then(res => res.ok ? res.json() : null),
+          fetch(`/api/alunos/${id}/agenda`, { headers }).then(res => res.ok ? res.json() : []),
+          fetch(`/api/alunos/${id}/financeiro`, { headers }).then(res => res.ok ? res.json() : []),
+          fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : [])
+        ]);
+        
+        setAluno(alunoData);
+        setAgenda(Array.isArray(aData) ? aData : []);
+        setFinanceiro(Array.isArray(fData) ? fData : []);
+        setMateriais(Array.isArray(mData) ? mData : []);
+        setFrequencia((Array.isArray(aData) ? aData : []).filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente'));
+      } catch (err) {
+        console.error(err);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [id]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -389,21 +401,16 @@ export default function AlunoPerfil() {
         const json = await res.json();
         const updateRes = await fetch(`/api/alunos/${id}`, {
           method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ avatar_url: json.url })
         });
         if (updateRes.ok) {
           setAluno({ ...aluno, avatar_url: json.url });
+          toast.success('Foto atualizada!');
         }
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUploadingAvatar(false);
-    }
+    } catch (err) { console.error(err); } 
+    finally { setUploadingAvatar(false); }
   };
 
   const handleSaveEdit = async () => {
@@ -411,69 +418,15 @@ export default function AlunoPerfil() {
     try {
       const res = await fetch(`/api/alunos/${id}`, {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(editFormData)
       });
       if (res.ok) {
         setAluno({ ...aluno, ...editFormData });
         setIsEditModalOpen(false);
+        toast.success('Perfil atualizado!');
       }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const token = localStorage.getItem('acorde_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-      setLoading(true);
-      try {
-        const [alunoData, aData, fData, mData] = await Promise.all([
-          fetch(`/api/alunos/${id}`, { headers }).then(res => res.ok ? res.json() : null),
-          fetch(`/api/alunos/${id}/agenda`, { headers }).then(res => res.ok ? res.json() : []),
-          fetch(`/api/alunos/${id}/financeiro`, { headers }).then(res => res.ok ? res.json() : []),
-          fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : [])
-        ]);
-        
-        setAluno(alunoData);
-        setAgenda(Array.isArray(aData) ? aData : []);
-        setFinanceiro(Array.isArray(fData) ? fData : []);
-        setMateriais(Array.isArray(mData) ? mData : []);
-        
-        // Filtrar frequência (aulas passadas)
-        const agendaArr = Array.isArray(aData) ? aData : [];
-        const past = agendaArr.filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente');
-        setFrequencia(past);
-      } catch (err) {
-        console.error(err);
-      }
-      setLoading(false);
-    };
-    fetchData();
-  }, [id]);
-
-  const updateAttendance = async (aulaId: number, status: string) => {
-    const token = localStorage.getItem('acorde_token');
-    try {
-      const res = await fetch(`/api/aulas/${aulaId}/status`, {
-        method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status })
-      });
-      if (res.ok) {
-        // Refresh agenda
-        fetchAgenda();
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const handleReschedule = async () => {
@@ -481,48 +434,31 @@ export default function AlunoPerfil() {
     const token = localStorage.getItem('acorde_token');
     try {
       if (rescheduleModal.type === 'emergencial' && rescheduleModal.aulaId) {
-        // Mudar apenas 1 aula
-        await fetch(`/api/aulas/${rescheduleModal.aulaId.replace('reg-', '').replace('exp-', '')}/reschedule`, {
+        await fetch(`/api/agenda/${rescheduleModal.aulaId}`, {
           method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ data: rescheduleModal.data, horario: rescheduleModal.horario })
         });
       } else {
-        // Mudar permanente (todas as aulas futuras)
-        // Precisamos atualizar todas as aulas do aluno que estão pendentes e com data >= hoje
         const today = new Date().toISOString().split('T')[0];
         const futuras = agenda.filter(a => a.status === 'pendente' && a.data >= today);
-        
         for (const aula of futuras) {
-           await fetch(`/api/aulas/${aula.id}/reschedule`, {
+           await fetch(`/api/agenda/${aula.id}`, {
              method: 'PATCH',
-             headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-             },
-             // Mantemos a data daquela aula, mudamos apenas o horário
+             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
              body: JSON.stringify({ data: aula.data, horario: rescheduleModal.horario })
            });
         }
-        
-        // E também atualizamos a matrícula do aluno para o novo horário
         await fetch(`/api/alunos/${id}`, {
            method: 'PATCH',
-           headers: { 
-             'Content-Type': 'application/json',
-             'Authorization': `Bearer ${token}`
-           },
+           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
            body: JSON.stringify({ horario: rescheduleModal.horario })
         });
       }
       fetchAgenda();
       setRescheduleModal({ ...rescheduleModal, open: false });
-    } catch (err) {
-      console.error(err);
-    }
+      toast.success('Aulas remarcadas!');
+    } catch (err) { console.error(err); }
     setRescheduling(false);
   };
 
@@ -532,10 +468,7 @@ export default function AlunoPerfil() {
     const token = localStorage.getItem('acorde_token');
     const res = await fetch(`/api/alunos/${id}/materiais`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(novoMaterial)
     });
     if (res.ok) {
@@ -543,6 +476,7 @@ export default function AlunoPerfil() {
       setMateriais([data, ...materiais]);
       setMaterialModal(false);
       setNovoMaterial({ titulo: '', url: '', tipo: 'link' });
+      toast.success('Material adicionado!');
     }
     setSavingMaterial(false);
   };
@@ -554,500 +488,402 @@ export default function AlunoPerfil() {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    const mRes = await fetch(`/api/alunos/${id}/materiais`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    }).then(r => r.json());
-    setMateriais(Array.isArray(mRes) ? mRes : []);
+    setMateriais(materiais.filter(m => m.id !== matId));
+    toast.success('Material removido!');
   };
 
-  if (loading) return <div className="p-20 text-center font-black text-slate-400 animate-pulse">Carregando Perfil...</div>;
-  if (!aluno) return <div className="p-20 text-center font-black text-red-500">Aluno não encontrado.</div>;
+  const updateAttendance = async (aulaId: string, status: string) => {
+    const token = localStorage.getItem('acorde_token');
+    await fetch(`/api/agenda/${aulaId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ status })
+    });
+    fetchAgenda();
+    toast.success('Status atualizado!');
+  };
+
+  if (loading) return (
+    <div className="flex-1 flex items-center justify-center bg-[#1a0f0a] font-black uppercase tracking-widest text-[#ff6b00] animate-pulse">
+      CONECTANDO AO_PERFIL...
+    </div>
+  );
 
   const isMinor = () => {
-    if (!aluno.data_nascimento) return false;
+    if (!aluno?.data_nascimento) return false;
     const age = new Date().getFullYear() - new Date(aluno.data_nascimento).getFullYear();
     return age < 18;
   };
 
   const tabs = [
-    { id: 'geral', label: 'Informações', icon: User },
-    { id: 'agenda', label: 'Agenda', icon: Calendar },
-    { id: 'frequencia', label: 'Frequência', icon: CheckCircle2 },
-    { id: 'financeiro', label: 'Financeiro', icon: CreditCard },
-    { id: 'materiais', label: 'Materiais', icon: BookOpen },
+    { id: 'geral', label: 'INFO', icon: User },
+    { id: 'agenda', label: 'AGENDA', icon: Calendar },
+    { id: 'frequencia', label: 'HISTORY', icon: CheckCircle2 },
+    { id: 'financeiro', label: 'MONEY', icon: CreditCard },
+    { id: 'materiais', label: 'FILES', icon: BookOpen },
   ];
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden bg-slate-50/50">
-      <header className="bg-white border-b border-slate-200 p-8 shadow-sm">
+    <div className="flex flex-col flex-1 h-screen overflow-hidden bg-[#1a0f0a]" style={{ fontFamily: "'Space Mono', monospace" }}>
+      
+      {/* HEADER SECTION */}
+      <header className="bg-[#fff8f6] border-b-4 border-black p-8 shadow-[0_4px_0_rgba(0,0,0,0.1)] relative z-10 shrink-0">
         <button 
           onClick={() => navigate('/alunos')}
-          className="flex items-center gap-2 text-slate-400 hover:text-primary transition-all font-bold text-xs uppercase tracking-widest mb-6"
+          className="flex items-center gap-2 text-[#8e7164] hover:text-black transition-all font-black text-[10px] uppercase tracking-widest mb-6"
         >
-          <ArrowLeft className="w-4 h-4" /> Voltar para lista
+          <ArrowLeft className="w-4 h-4" /> VOLTAR_LISTA
         </button>
 
-        <div className="flex items-center gap-8">
-          <label className="w-24 h-24 rounded-3xl bg-orange-100 border-4 border-white shadow-xl flex items-center justify-center text-orange-600 text-4xl font-black relative overflow-hidden group cursor-pointer">
-            {uploadingAvatar && <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center text-white text-[10px] font-bold">Enviando...</div>}
+        <div className="flex flex-col md:flex-row md:items-center gap-8">
+          <label className="w-32 h-32 bg-[#feccba] border-4 border-black shadow-[4px_4px_0_#000] flex items-center justify-center text-black text-5xl font-black relative overflow-hidden group cursor-pointer shrink-0">
+            {uploadingAvatar && <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center text-white text-[10px] font-bold">...</div>}
             {aluno.avatar_url ? (
                <img src={aluno.avatar_url} alt="Avatar" className="w-full h-full object-cover z-10" />
             ) : (
-               (aluno.nome || '?').charAt(0)
+               (aluno.nome || '?').charAt(0).toUpperCase()
             )}
-            <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white text-[10px] font-bold z-20">
-              ALTERAR FOTO
+            <div className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center text-white text-[8px] font-black z-20 text-center px-2 uppercase">
+              UPLOAD_FOTO
             </div>
             <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           </label>
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">{aluno.nome}</h1>
-              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
-                aluno.status === 'ativo' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200'
-              }`}>
-                {aluno.status}
-              </span>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
+              <h1 className="text-4xl font-black text-black tracking-tighter uppercase italic">{aluno.nome}</h1>
+              <Badge color={aluno.status === 'ativo' ? 'green' : 'black'}>{aluno.status}</Badge>
             </div>
-            <div className="flex items-center gap-6 text-slate-500 text-sm font-medium">
-               <span className="flex items-center gap-1.5"><Mail className="w-4 h-4" /> {aluno.email || 'Sem e-mail'}</span>
-               <span className="flex items-center gap-1.5"><Phone className="w-4 h-4" /> {aluno.telefone || 'Sem telefone'}</span>
-               <span className="flex items-center gap-1.5 bg-orange-100 text-orange-700 px-3 py-1 rounded-lg text-xs font-black border border-orange-200">
-                  <Calendar className="w-3.5 h-3.5" /> Saldo: {agenda.filter(a => a.status?.toLowerCase() === 'pendente').length} Aulas
-               </span>
+            <div className="flex flex-wrap items-center gap-4 text-[#8e7164] text-[10px] font-black uppercase tracking-widest">
+               <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-black" /> {aluno.email || 'NO_MAIL'}</span>
+               <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-black" /> {aluno.telefone || 'NO_PHONE'}</span>
+               <div className="bg-black text-white px-3 py-1 border border-black flex items-center gap-2">
+                  SALDO: {agenda.filter(a => a.status?.toLowerCase() === 'pendente').length} AULAS
+               </div>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
-             <div className="flex gap-2">
-               <button 
-                 onClick={() => setContratoModal(true)}
-                 className="bg-slate-900 text-white border border-transparent px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2"
-               >
-                 <FileText className="w-4 h-4" /> Gerar Contrato
-               </button>
-               <button 
-                 onClick={() => {
-                   setEditFormData({ 
-                     nome: aluno.nome, 
-                     email: aluno.email, 
-                     telefone: aluno.telefone, 
-                     cpf: aluno.cpf, 
-                     endereco: aluno.endereco,
-                     responsavel_nome: aluno.responsavel_nome,
-                     responsavel_telefone: aluno.responsavel_telefone
-                   });
-                   setIsEditModalOpen(true);
-                 }}
-                 className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-2"
-               >
-                 <Edit className="w-4 h-4" /> Editar Perfil
-               </button>
-             </div>
+
+          <div className="flex flex-col gap-2">
+            <Button variant="dark" onClick={() => setContratoModal(true)}>
+              <FileText className="w-4 h-4 mr-2" /> GERAR_CONTRATO
+            </Button>
+            <Button variant="secondary" onClick={() => {
+              setEditFormData({ ...aluno });
+              setIsEditModalOpen(true);
+            }}>
+              <Edit className="w-4 h-4 mr-2" /> EDITAR_PERFIL
+            </Button>
           </div>
         </div>
       </header>
 
-      <div className="px-8 mt-[-1px]">
-        <div className="flex gap-8 border-b border-slate-200 bg-white shadow-sm rounded-b-3xl px-8">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`py-6 px-4 flex items-center gap-2 text-sm font-black transition-all relative ${
-                activeTab === tab.id ? 'text-primary' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-              {activeTab === tab.id && (
-                <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
-              )}
-            </button>
-          ))}
-        </div>
+      {/* TABS NAVIGATION */}
+      <div className="bg-[#feccba] border-b-4 border-black flex overflow-x-auto no-scrollbar">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`py-4 px-8 flex items-center gap-3 text-[11px] font-black transition-all relative whitespace-nowrap border-r-2 border-black/20 ${
+              activeTab === tab.id ? 'bg-[#ff6b00] text-white shadow-[inset_0_-4px_0_rgba(0,0,0,0.2)]' : 'text-[#8e7164] hover:bg-white/50'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <main className="p-8 flex-1 overflow-auto custom-scrollbar">
+      {/* TAB CONTENT */}
+      <main className="flex-1 overflow-auto p-8 custom-scrollbar">
         <AnimatePresence mode="wait">
           {activeTab === 'geral' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-8">
-                <div className="glass-card p-8 space-y-6">
-                   <h3 className="text-lg font-black text-slate-900 border-b border-slate-100 pb-4">Dados Cadastrais</h3>
-                   <div className="grid grid-cols-2 gap-8">
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CPF do Aluno</p>
-                        <p className="font-bold text-slate-700">{aluno.cpf || 'Não informado'}</p>
+                <Card>
+                   <h3 className="text-xs font-black text-[#8e7164] uppercase tracking-widest border-b-2 border-[#e2bfb0] pb-4 mb-6">DADOS_CADASTRAIS</h3>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">ALUNO_CPF</p>
+                        <p className="font-black text-black text-sm">{aluno.cpf || 'NÃO_INF'}</p>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Data de Nascimento</p>
-                        <p className="font-bold text-slate-700">{aluno.data_nascimento ? format(new Date(aluno.data_nascimento), 'dd/MM/yyyy') : 'Não informada'}</p>
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">NASCIMENTO</p>
+                        <p className="font-black text-black text-sm">{aluno.data_nascimento ? format(new Date(aluno.data_nascimento), 'dd/MM/yyyy') : 'NÃO_INF'}</p>
                       </div>
-                      <div className="col-span-2">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Endereço Completo</p>
-                        <p className="font-bold text-slate-700 flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> {aluno.endereco || 'Não informado'}</p>
+                      <div className="sm:col-span-2 space-y-1">
+                        <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">ENDEREÇO_COMPLETO</p>
+                        <p className="font-black text-black text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-[#ff6b00]" /> {aluno.endereco || 'NÃO_INF'}</p>
                       </div>
                    </div>
-                </div>
+                </Card>
 
                 {isMinor() && (
-                  <div className="bg-orange-50 border border-orange-200 p-8 rounded-3xl space-y-6">
-                     <h3 className="text-lg font-black text-orange-900 border-b border-orange-200/50 pb-4 flex items-center gap-2">
-                       <AlertCircle className="w-5 h-5 text-orange-500" /> Responsável Legal
+                  <Card className="bg-[#feccba]/30">
+                     <h3 className="text-xs font-black text-[#8e7164] uppercase tracking-widest border-b-2 border-[#e2bfb0] pb-4 mb-6 flex items-center gap-2">
+                       <AlertCircle className="w-5 h-5 text-[#ff6b00]" /> RESPONSÁVEL_LEGAL
                      </h3>
-                     <div className="grid grid-cols-2 gap-8">
-                        <div>
-                          <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">Nome do Responsável</p>
-                          <p className="font-bold text-orange-900">{aluno.responsavel_nome}</p>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">NOME_RESP</p>
+                          <p className="font-black text-black text-sm">{aluno.responsavel_nome || '---'}</p>
                         </div>
-                        <div>
-                          <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">CPF do Responsável</p>
-                          <p className="font-bold text-orange-900">{aluno.responsavel_cpf || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">WhatsApp do Responsável</p>
-                          <p className="font-bold text-orange-900 flex items-center gap-2"><Phone className="w-4 h-4 text-orange-500" /> {aluno.responsavel_telefone}</p>
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">TEL_RESP</p>
+                          <p className="font-black text-black text-sm flex items-center gap-2"><Phone className="w-4 h-4 text-[#ff6b00]" /> {aluno.responsavel_telefone || '---'}</p>
                         </div>
                      </div>
-                  </div>
+                  </Card>
                 )}
               </div>
 
               <div className="space-y-8">
-                 <div className="glass-card p-6 bg-primary text-white space-y-4 shadow-xl shadow-primary/20">
-                    <h3 className="text-sm font-black uppercase tracking-widest opacity-80">Próxima Aula</h3>
+                 <Card className="bg-black text-white border-white">
+                    <h3 className="text-[9px] font-black uppercase tracking-widest text-[#ff6b00] mb-4">PRÓXIMA_AULA</h3>
                     {agenda.filter(a => new Date(a.data) >= new Date()).length > 0 ? (
                       <div>
-                        <p className="text-2xl font-black">{format(new Date(agenda.find(a => new Date(a.data) >= new Date()).data), "dd 'de' MMMM", { locale: ptBR })}</p>
-                        <p className="font-bold opacity-90 mt-1 flex items-center gap-2"><Clock className="w-4 h-4" /> {agenda.find(a => new Date(a.data) >= new Date()).horario.substring(0, 5)}</p>
+                        <p className="text-3xl font-black italic italic tracking-tighter uppercase">{format(new Date(agenda.find(a => new Date(a.data) >= new Date()).data), "dd/MM")}</p>
+                        <p className="font-black text-[#feccba] mt-1 flex items-center gap-2"><Clock className="w-4 h-4" /> {agenda.find(a => new Date(a.data) >= new Date()).horario.substring(0, 5)}</p>
                       </div>
                     ) : (
-                      <p className="font-bold">Nenhuma aula agendada</p>
+                      <p className="font-black text-white/40 uppercase text-xs">SEM_AGENDAMENTO</p>
                     )}
-                 </div>
+                 </Card>
               </div>
             </motion.div>
           )}
 
           {activeTab === 'agenda' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="glass-card overflow-hidden"
-            >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white">
-                 <h3 className="font-black text-slate-900">Cronograma de Aulas</h3>
-                 <div className="flex gap-2">
-                    <button onClick={() => setRescheduleModal({ open: true, aulaId: null, type: 'permanente', data: '', horario: '' })} className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg shadow-primary/20 transition-all active:scale-95">Mudar Horário Permanente</button>
-                 </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Data</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Horário</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Professor</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Tipo</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-left tracking-widest">Status</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-right tracking-widest">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {agenda.map(aula => (
-                      <tr key={aula.id} className="hover:bg-slate-50 transition-all">
-                        <td className="px-6 py-4 font-bold text-slate-700">{format(new Date(aula.data), 'dd/MM/yyyy')}</td>
-                        <td className="px-6 py-4 font-bold text-slate-600">{aula.horario.substring(0, 5)}</td>
-                        <td className="px-6 py-4 font-bold text-slate-600">{aula.professor_nome}</td>
-                        <td className="px-6 py-4">
-                           <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter">{aula.tipo}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                           <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter ${
-                             (aula.status === 'realizada' || aula.status === 'presente') ? 'bg-emerald-100 text-emerald-600' : 
-                             (aula.status === 'falta_aluno' || aula.status === 'ausente') ? 'bg-red-100 text-red-600' : 
-                             aula.status === 'a_repor' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
-                           }`}>{aula.status?.replace('_', ' ')}</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                           <button onClick={() => setRescheduleModal({ open: true, aulaId: aula.id, type: 'emergencial', data: aula.data, horario: aula.horario })} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black hover:bg-slate-200 transition-all">
-                             Remarcar
-                           </button>
-                        </td>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <Card className="p-0 overflow-hidden">
+                <div className="p-4 bg-black flex flex-wrap items-center justify-between gap-4">
+                   <h3 className="font-black text-white text-[10px] uppercase tracking-widest">Cronograma de Aulas</h3>
+                   <Button variant="primary" onClick={() => setRescheduleModal({ open: true, aulaId: null, type: 'permanente', data: '', horario: '' })}>
+                     MUDAR_HORÁRIO_PERMANENTE
+                   </Button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-[#feccba] border-b-2 border-black">
+                      <tr>
+                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">DATA</th>
+                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">HORA</th>
+                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">PROFESSOR</th>
+                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">STATUS</th>
+                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-right tracking-widest">AÇÕES</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y-2 divide-[#e2bfb0]">
+                      {agenda.map(aula => (
+                        <tr key={aula.id} className="hover:bg-[#ffeae1]">
+                          <td className="px-6 py-4 font-black text-black uppercase text-sm">{format(new Date(aula.data), 'dd/MM/yyyy')}</td>
+                          <td className="px-6 py-4 font-black text-[#8e7164]">{aula.horario.substring(0, 5)}</td>
+                          <td className="px-6 py-4 font-black text-black uppercase text-[10px]">{aula.professor_nome}</td>
+                          <td className="px-6 py-4">
+                             <Badge color={
+                               (aula.status === 'realizada' || aula.status === 'presente') ? 'green' : 
+                               (aula.status === 'falta_aluno' || aula.status === 'ausente') ? 'red' : 
+                               aula.status === 'a_repor' ? 'orange' : 'bege'
+                             }>{aula.status?.replace('_', ' ')}</Badge>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                             <Button variant="outline" onClick={() => setRescheduleModal({ open: true, aulaId: aula.id, type: 'emergencial', data: aula.data, horario: aula.horario })}>
+                               REMARCAR
+                             </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
             </motion.div>
           )}
 
           {activeTab === 'frequencia' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className=""
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                <ProgressTracker aulas={frequencia} total={agenda.length} />
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {frequencia.map(aula => (
-                 <div key={aula.id} className="glass-card p-6 border-l-4 border-l-primary flex flex-col justify-between">
-                    <div className="flex justify-between items-start mb-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {frequencia.slice().reverse().map(aula => (
+                   <Card key={aula.id} className="group hover:border-[#ff6b00] transition-colors relative overflow-hidden">
+                     <div className="flex justify-between items-start mb-4">
                        <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{format(new Date(aula.data), 'dd/MM/yyyy')}</p>
-                          <p className="text-sm font-black text-slate-900 mt-1">{aula.curso_nome}</p>
+                         <p className="text-[8px] font-black text-[#8e7164] uppercase mb-1">{format(new Date(aula.data), 'EEEE, dd/MM', { locale: ptBR })}</p>
+                         <p className="font-black text-black uppercase italic">{aula.horario?.substring(0,5)} • {aula.professor_nome?.split(' ')[0]}</p>
                        </div>
-                       <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                          (aula.status === 'realizada' || aula.status === 'presente') ? 'bg-emerald-500 text-white' : 
-                          (aula.status === 'falta_aluno' || aula.status === 'ausente') ? 'bg-red-500 text-white' : 
-                          aula.status === 'a_repor' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'
-                       }`}>
-                          {aula.status?.replace('_', ' ')}
-                       </div>
-                    </div>
-                    
-                    <div className="space-y-4">
-                       <p className="text-xs text-slate-500 font-medium italic">"{aula.nota_aula || 'Nenhuma observação registrada para esta aula.'}"</p>
-                       
-                       <div className="flex gap-2 pt-4 border-t border-slate-100">
-                          <button 
-                            onClick={() => updateAttendance(aula.id, 'realizada')}
-                            className="flex-1 bg-emerald-500 text-white py-2 rounded-xl text-[10px] font-black shadow-lg shadow-emerald-200 active:scale-95 transition-all"
-                          >
-                            PRESENÇA
-                          </button>
-                          <button 
-                            onClick={() => updateAttendance(aula.id, 'falta_aluno')}
-                            className="flex-1 bg-red-500 text-white py-2 rounded-xl text-[10px] font-black shadow-lg shadow-red-200 active:scale-95 transition-all"
-                          >
-                            FALTA
-                          </button>
-                       </div>
-                    </div>
-                 </div>
-               ))}
-                {frequencia.length === 0 && (
-                  <div className="col-span-full p-20 text-center glass-card">
-                     <CheckCircle2 className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                     <p className="text-slate-500 font-bold">Nenhuma aula passada registrada para este aluno.</p>
-                  </div>
-                )}
+                       <Badge color={
+                         (aula.status === 'realizada' || aula.status === 'presente') ? 'green' : 
+                         (aula.status === 'falta_aluno' || aula.status === 'ausente') ? 'red' : 'orange'
+                       }>{aula.status?.replace('_', ' ')}</Badge>
+                     </div>
+                     
+                     <div className="flex gap-2 mt-4 pt-4 border-t-2 border-[#e2bfb0]">
+                        <Button variant="dark" className="flex-1" onClick={() => updateAttendance(aula.id, 'realizada')}>PRESENÇA</Button>
+                        <Button variant="outline" className="flex-1" onClick={() => updateAttendance(aula.id, 'falta_aluno')}>FALTA</Button>
+                     </div>
+                   </Card>
+                 ))}
                </div>
             </motion.div>
           )}
 
-          {activeTab === 'financeiro' && (
-            <FinanceiroTab financeiro={financeiro} alunoId={id!} onRefresh={() => {
-              fetch(`/api/alunos/${id}/financeiro`).then(r => r.json()).then(setFinanceiro);
-            }} />
-          )}
+          {activeTab === 'financeiro' && <FinanceiroTab financeiro={financeiro} alunoId={id!} onRefresh={() => {
+              fetch(`/api/alunos/${id}/financeiro`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` } })
+                .then(r => r.json()).then(setFinanceiro);
+          }} />}
 
           {activeTab === 'materiais' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
-            >
-               <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                 <div>
-                   <h3 className="font-black text-slate-900 text-lg">Materiais do Aluno</h3>
-                   <p className="text-sm text-slate-500 font-bold">Gerencie links, partituras e vídeos.</p>
-                 </div>
-                 <button onClick={() => setMaterialModal(true)} className="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-black shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center gap-2">
-                   <Plus className="w-4 h-4" /> Novo Material
-                 </button>
-               </div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              <div className="flex justify-between items-center bg-black p-4 border-4 border-black shadow-[4px_4px_0_#000]">
+                 <h2 className="text-white font-black uppercase text-[10px] tracking-widest italic">Materiais de Estudo</h2>
+                 <Button onClick={() => setMaterialModal(true)}>ADD_MATERIAL</Button>
+              </div>
 
-               {materiais.length === 0 ? (
-                 <div className="glass-card p-20 text-center border-2 border-dashed border-slate-200">
-                    <BookOpen className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                    <p className="text-slate-500 font-bold">Nenhum material adicionado.</p>
-                 </div>
-               ) : (
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                   {materiais.map(mat => (
-                     <div key={mat.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-                        <div>
-                          <div className="flex justify-between items-start mb-4">
-                            <div className="p-3 bg-blue-50 text-blue-500 rounded-xl">
-                              <BookOpen className="w-5 h-5" />
-                            </div>
-                            <button onClick={() => handleDeleteMaterial(mat.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                          </div>
-                          <h4 className="font-black text-slate-800 mb-1 line-clamp-2">{mat.titulo}</h4>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{mat.tipo}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {materiais.map(mat => (
+                   <Card key={mat.id} className="flex flex-col h-full">
+                     <div className="flex-1">
+                        <div className="w-12 h-12 bg-[#feccba] border-2 border-black flex items-center justify-center mb-4 shadow-[2px_2px_0_#000]">
+                          {mat.tipo === 'pdf' ? <FileText className="w-6 h-6" /> : <ExternalLink className="w-6 h-6" />}
                         </div>
-                        <a href={mat.url} target="_blank" rel="noreferrer" className="mt-6 block w-full text-center bg-slate-50 hover:bg-slate-100 text-slate-600 py-2.5 rounded-xl text-xs font-black transition-colors">
-                          Acessar Material
-                        </a>
+                        <h4 className="font-black text-black uppercase text-sm mb-1 leading-tight">{mat.titulo}</h4>
+                        <p className="text-[8px] font-black text-[#8e7164] uppercase mb-4 italic italic">{format(new Date(mat.created_at), 'dd/MM/yyyy')}</p>
                      </div>
-                   ))}
-                 </div>
-               )}
+                     <div className="flex gap-2">
+                        <a href={mat.url} target="_blank" rel="noreferrer" className="flex-1 bg-black text-white font-black text-[9px] uppercase py-2 border-2 border-black text-center active:translate-y-0.5">ABRIR</a>
+                        <button onClick={() => handleDeleteMaterial(mat.id)} className="bg-white border-2 border-black p-2 hover:bg-red-500 hover:text-white transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                     </div>
+                   </Card>
+                 ))}
+                 {materiais.length === 0 && (
+                   <div className="col-span-full py-20 text-center opacity-20 flex flex-col items-center">
+                      <BookOpen className="w-16 h-16 mb-4" />
+                      <p className="font-black uppercase italic italic">Nenhum material compartilhado</p>
+                   </div>
+                 )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
+      {/* MODALS */}
+      
+      {/* Editar Perfil */}
       <AnimatePresence>
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900">Editar Perfil</h2>
-                <button onClick={() => setIsEditModalOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nome Completo</label>
-                  <input type="text" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={editFormData.nome || ''} onChange={e => setEditFormData({...editFormData, nome: e.target.value})} />
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+             <Card className="w-full max-w-2xl max-h-[90vh] overflow-auto">
+                <div className="flex items-center justify-between border-b-4 border-black pb-4 mb-6">
+                   <h2 className="text-xl font-black text-black uppercase italic italic">EDITAR_PERFIL</h2>
+                   <button onClick={() => setIsEditModalOpen(false)}><X className="w-6 h-6" /></button>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">E-mail</label>
-                  <input type="email" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={editFormData.email || ''} onChange={e => setEditFormData({...editFormData, email: e.target.value})} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {[
+                     { label: 'NOME_COMPLETO', key: 'nome' },
+                     { label: 'E-MAIL', key: 'email' },
+                     { label: 'TELEFONE', key: 'telefone' },
+                     { label: 'CPF', key: 'cpf' },
+                     { label: 'ENDEREÇO', key: 'endereco', colSpan: true },
+                     { label: 'NOME_RESPONSÁVEL', key: 'responsavel_nome' },
+                     { label: 'TEL_RESPONSÁVEL', key: 'responsavel_telefone' },
+                   ].map(field => (
+                     <div key={field.key} className={field.colSpan ? 'md:col-span-2' : ''}>
+                        <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">{field.label}</label>
+                        <input 
+                          className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none" 
+                          value={editFormData[field.key] || ''}
+                          onChange={e => setEditFormData({ ...editFormData, [field.key]: e.target.value })}
+                        />
+                     </div>
+                   ))}
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">WhatsApp</label>
-                  <input type="text" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={editFormData.telefone || ''} onChange={e => setEditFormData({...editFormData, telefone: e.target.value})} />
+                <div className="flex gap-4 mt-8">
+                   <Button variant="secondary" className="flex-1" onClick={() => setIsEditModalOpen(false)}>CANCELAR</Button>
+                   <Button className="flex-1" onClick={handleSaveEdit}>SALVAR_ALTERAÇÕES</Button>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Endereço</label>
-                  <input type="text" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={editFormData.endereco || ''} onChange={e => setEditFormData({...editFormData, endereco: e.target.value})} />
-                </div>
-                {isMinor() && (
-                  <>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Responsável</label>
-                      <input type="text" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={editFormData.responsavel_nome || ''} onChange={e => setEditFormData({...editFormData, responsavel_nome: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">WhatsApp Responsável</label>
-                      <input type="text" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={editFormData.responsavel_telefone || ''} onChange={e => setEditFormData({...editFormData, responsavel_telefone: e.target.value})} />
-                    </div>
-                  </>
-                )}
-                <button onClick={handleSaveEdit} className="w-full bg-primary text-white py-3 rounded-xl font-black shadow-lg shadow-primary/30 mt-4">
-                  Salvar Alterações
-                </button>
-              </div>
-            </motion.div>
+             </Card>
           </div>
         )}
       </AnimatePresence>
 
-      {/* MODAL MUDANÇA HORÁRIO */}
+      {/* Modal Reagendamento */}
       <AnimatePresence>
         {rescheduleModal.open && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900">
-                  {rescheduleModal.type === 'emergencial' ? 'Mudança Emergencial' : 'Mudança Permanente'}
-                </h2>
-                <button onClick={() => setRescheduleModal({ ...rescheduleModal, open: false })}><X className="w-5 h-5 text-slate-400" /></button>
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <Card className="w-full max-w-md">
+              <div className="flex items-center justify-between border-b-4 border-black pb-4 mb-6">
+                <h2 className="text-xl font-black text-black uppercase italic italic">REMARCAR_AULA</h2>
+                <button onClick={() => setRescheduleModal({ ...rescheduleModal, open: false })}><X className="w-6 h-6" /></button>
               </div>
-              
-              <div className="space-y-4">
-                <p className="text-sm text-slate-500 mb-4">
-                  {rescheduleModal.type === 'emergencial' 
-                    ? 'Altere a data e/ou horário apenas desta aula específica.'
-                    : 'Esta ação mudará o horário de todas as aulas futuras agendadas. A data de cada aula será mantida.'}
-                </p>
-
-                {rescheduleModal.type === 'emergencial' && (
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nova Data</label>
-                    <input type="date" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={rescheduleModal.data} onChange={e => setRescheduleModal({...rescheduleModal, data: e.target.value})} />
+              <div className="space-y-6">
+                <div>
+                   <label className="text-[9px] font-black text-black uppercase block mb-1">DATA_AULA</label>
+                   <input type="date" className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" value={rescheduleModal.data} onChange={e => setRescheduleModal({ ...rescheduleModal, data: e.target.value })} />
+                </div>
+                <div>
+                   <label className="text-[9px] font-black text-black uppercase block mb-1">HORÁRIO_AULA</label>
+                   <select className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" value={rescheduleModal.horario} onChange={e => setRescheduleModal({ ...rescheduleModal, horario: e.target.value })}>
+                     {['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00'].map(h => (
+                       <option key={h} value={h}>{h}</option>
+                     ))}
+                   </select>
+                </div>
+                {rescheduleModal.type === 'permanente' && (
+                  <div className="bg-[#feccba] border-2 border-black p-3 text-[9px] font-black text-black uppercase">
+                    Atenção: Isso alterará todas as aulas futuras deste aluno.
                   </div>
                 )}
-                
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Novo Horário</label>
-                  <input type="time" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={rescheduleModal.horario} onChange={e => setRescheduleModal({...rescheduleModal, horario: e.target.value})} />
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <button onClick={() => setRescheduleModal({ ...rescheduleModal, open: false })} className="flex-1 border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Cancelar</button>
-                  <button onClick={handleReschedule} disabled={rescheduling} className="flex-1 bg-primary text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" /> {rescheduling ? 'Salvando...' : 'Confirmar'}
-                  </button>
-                </div>
               </div>
-            </motion.div>
+              <div className="flex gap-4 mt-8">
+                <Button variant="secondary" className="flex-1" onClick={() => setRescheduleModal({ ...rescheduleModal, open: false })}>CANCELAR</Button>
+                <Button className="flex-1" onClick={handleReschedule} disabled={rescheduling}>REMARCAR</Button>
+              </div>
+            </Card>
           </div>
         )}
       </AnimatePresence>
 
-      {/* MODAL MATERIAIS */}
+      {/* Modal Adicionar Material */}
       <AnimatePresence>
         {materialModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900">Novo Material</h2>
-                <button onClick={() => setMaterialModal(false)}><X className="w-5 h-5 text-slate-400" /></button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Título</label>
-                  <input type="text" placeholder="Ex: Partitura Für Elise" className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={novoMaterial.titulo} onChange={e => setNovoMaterial({...novoMaterial, titulo: e.target.value})} />
-                </div>
-                
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Link (URL)</label>
-                  <input type="url" placeholder="https://..." className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={novoMaterial.url} onChange={e => setNovoMaterial({...novoMaterial, url: e.target.value})} />
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Tipo</label>
-                  <select className="w-full px-4 py-3 border border-slate-200 rounded-xl" value={novoMaterial.tipo} onChange={e => setNovoMaterial({...novoMaterial, tipo: e.target.value})}>
-                    <option value="link">Link</option>
-                    <option value="partitura">Partitura (PDF)</option>
-                    <option value="video">Vídeo</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <button onClick={() => setMaterialModal(false)} className="flex-1 border border-slate-200 text-slate-600 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">Cancelar</button>
-                  <button onClick={handleAddMaterial} disabled={savingMaterial || !novoMaterial.titulo || !novoMaterial.url} className="flex-1 bg-primary text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
-                    <CheckCircle2 className="w-4 h-4" /> {savingMaterial ? 'Salvando...' : 'Adicionar'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <Card className="w-full max-w-md">
+               <div className="flex items-center justify-between border-b-4 border-black pb-4 mb-6">
+                 <h2 className="text-xl font-black text-black uppercase italic italic">ADD_MATERIAL</h2>
+                 <button onClick={() => setMaterialModal(false)}><X className="w-6 h-6" /></button>
+               </div>
+               <div className="space-y-4">
+                  <div>
+                    <label className="text-[9px] font-black text-black uppercase block mb-1">TÍTULO</label>
+                    <input className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" value={novoMaterial.titulo} onChange={e => setNovoMaterial({ ...novoMaterial, titulo: e.target.value })} placeholder="EX: PARTITURA_PIANO" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-black uppercase block mb-1">URL / LINK</label>
+                    <input className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" value={novoMaterial.url} onChange={e => setNovoMaterial({ ...novoMaterial, url: e.target.value })} placeholder="HTTPS://..." />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black text-black uppercase block mb-1">TIPO</label>
+                    <select className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" value={novoMaterial.tipo} onChange={e => setNovoMaterial({ ...novoMaterial, tipo: e.target.value })}>
+                      <option value="link">LINK_EXTERNO</option>
+                      <option value="pdf">PDF_DOCUMENTO</option>
+                      <option value="video">VÍDEO_AULA</option>
+                    </select>
+                  </div>
+               </div>
+               <div className="flex gap-4 mt-8">
+                 <Button variant="secondary" className="flex-1" onClick={() => setMaterialModal(false)}>CANCELAR</Button>
+                 <Button className="flex-1" onClick={handleAddMaterial} disabled={savingMaterial}>ADICIONAR</Button>
+               </div>
+            </Card>
           </div>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {contratoModal && aluno && (
-          <GeradorContrato aluno={aluno} onClose={() => setContratoModal(false)} />
-        )}
-      </AnimatePresence>
+      {/* Gerador de Contrato */}
+      <GeradorContrato isOpen={contratoModal} onClose={() => setContratoModal(false)} aluno={aluno} />
+
     </div>
   );
 }

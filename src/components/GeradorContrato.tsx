@@ -62,97 +62,99 @@ export default function GeradorContrato({ aluno, onClose }: GeradorContratoProps
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm print:bg-white print:z-0 print:block print:inset-auto print:static">
       
       {/* Container de Edição (não visível na impressão) */}
-      <div className="bg-white w-[95%] max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col print:hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50">
+      <div className="bg-[#fff8f6] w-[95%] max-w-5xl max-h-[90vh] border-4 border-black shadow-[8px_8px_0_#000] overflow-hidden flex flex-col print:hidden">
+        <div className="p-6 border-b-4 border-black flex items-center justify-between shrink-0 bg-[#feccba]">
           <div>
-            <h2 className="text-xl font-black text-slate-900">Gerador de Contrato</h2>
-            <p className="text-sm font-medium text-slate-500">Personalize e emita o contrato para {aluno.nome}</p>
+            <h2 className="text-xl font-black text-black uppercase italic italic tracking-tighter">Gerador de Contrato</h2>
+            <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Personalize e emita o contrato para {aluno.nome}</p>
           </div>
           <div className="flex items-center gap-3">
             <button 
               onClick={handlePrint}
-              className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/30 flex items-center gap-2 hover:scale-105 transition-all"
+              className="bg-[#ff6b00] text-white px-5 py-2.5 border-2 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
             >
-              <Printer className="w-4 h-4" /> Imprimir / PDF
+              <Printer className="w-4 h-4" /> IMPRIMIR_PDF
             </button>
-            <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-all">
-              <X className="w-5 h-5 text-slate-500" />
+            <button onClick={onClose} className="bg-white border-2 border-black p-2 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none">
+              <X className="w-5 h-5 text-black" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-8 bg-slate-100/50 flex gap-8 custom-scrollbar">
+        <div className="flex-1 overflow-auto p-8 bg-[#1a0f0a] flex flex-col md:flex-row gap-8 custom-scrollbar">
           {/* Painel Esquerdo: Dados Variáveis */}
-          <div className="w-1/3 space-y-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Dados do Contratante</h3>
-              <div className="space-y-3">
+          <div className="w-full md:w-1/3 space-y-6">
+            <div className="bg-[#fff8f6] p-5 border-4 border-black shadow-[4px_4px_0_#000]">
+              <h3 className="text-[10px] font-black text-black uppercase tracking-widest mb-4 border-b-2 border-black pb-2">CONTRATANTE</h3>
+              <div className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase">Responsável Legal</label>
-                  <input type="text" value={novoResponsavel} onChange={e => setNovoResponsavel(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700" />
+                  <label className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">Responsável Legal</label>
+                  <input type="text" value={novoResponsavel} onChange={e => setNovoResponsavel(e.target.value)} className="w-full px-3 py-2 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase">CPF</label>
-                  <input type="text" value={novoCpf} onChange={e => setNovoCpf(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700" />
+                  <label className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CPF</label>
+                  <input type="text" value={novoCpf} onChange={e => setNovoCpf(e.target.value)} className="w-full px-3 py-2 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase">RG</label>
-                  <input type="text" value={novoRg} onChange={e => setNovoRg(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700" />
+                  <label className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">RG</label>
+                  <input type="text" value={novoRg} onChange={e => setNovoRg(e.target.value)} className="w-full px-3 py-2 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase">Endereço</label>
-                  <input type="text" value={novoEndereco} onChange={e => setNovoEndereco(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700" />
+                  <label className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">Endereço</label>
+                  <input type="text" value={novoEndereco} onChange={e => setNovoEndereco(e.target.value)} className="w-full px-3 py-2 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Dados Financeiros</h3>
-              <div className="space-y-3">
+            <div className="bg-[#fff8f6] p-5 border-4 border-black shadow-[4px_4px_0_#000]">
+              <h3 className="text-[10px] font-black text-black uppercase tracking-widest mb-4 border-b-2 border-black pb-2">FINANCEIRO</h3>
+              <div className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase">Valor do Plano (R$)</label>
-                  <input type="text" value={valorPlano} onChange={e => setValorPlano(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700" />
+                  <label className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">Valor do Plano (R$)</label>
+                  <input type="text" value={valorPlano} onChange={e => setValorPlano(e.target.value)} className="w-full px-3 py-2 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase">Quantidade de Parcelas</label>
-                  <input type="text" value={qtdParcelas} onChange={e => setQtdParcelas(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700" />
+                  <label className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">Quantidade de Parcelas</label>
+                  <input type="text" value={qtdParcelas} onChange={e => setQtdParcelas(e.target.value)} className="w-full px-3 py-2 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                 </div>
               </div>
             </div>
           </div>
 
           {/* Painel Direito: Cláusulas */}
-          <div className="w-2/3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Cláusulas Contratuais</h3>
-              <button onClick={addClause} className="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
-                <Plus className="w-3 h-3" /> Adicionar
+          <div className="w-full md:w-2/3 bg-[#fff8f6] p-6 border-4 border-black shadow-[4px_4px_0_#000] flex flex-col">
+            <div className="flex items-center justify-between mb-4 border-b-2 border-black pb-2">
+              <h3 className="text-[10px] font-black text-black uppercase tracking-widest">Cláusulas Contratuais</h3>
+              <button onClick={addClause} className="text-[9px] font-black text-[#ff6b00] flex items-center gap-1 hover:underline">
+                <Plus className="w-3 h-3" /> ADD_ITEM
               </button>
             </div>
             
-            <div className="flex-1 overflow-auto pr-2 space-y-3">
+            <div className="flex-1 overflow-auto pr-2 space-y-4">
               {clausulas.map((clausula, idx) => (
-                <div key={idx} className="group relative border border-slate-100 p-3 rounded-xl hover:border-primary/30 transition-all bg-slate-50/50">
+                <div key={idx} className="group relative border-2 border-black p-4 bg-white shadow-[2px_2px_0_#000]">
                   <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                    <button onClick={() => { setEditingIndex(idx); setEditText(clausula); }} className="p-1.5 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200"><Edit2 className="w-3 h-3" /></button>
-                    <button onClick={() => removeClause(idx)} className="p-1.5 bg-red-100 text-red-600 rounded-md hover:bg-red-200"><Trash2 className="w-3 h-3" /></button>
+                    <button onClick={() => { setEditingIndex(idx); setEditText(clausula); }} className="p-1 bg-black text-white border border-black"><Edit2 className="w-3 h-3" /></button>
+                    <button onClick={() => removeClause(idx)} className="p-1 bg-red-500 text-white border border-black"><Trash2 className="w-3 h-3" /></button>
                   </div>
-                  <span className="text-xs font-black text-slate-400 mr-2">{idx + 1}.</span>
-                  {editingIndex === idx ? (
-                    <div className="mt-2 flex flex-col gap-2">
-                      <textarea 
-                        value={editText} 
-                        onChange={e => setEditText(e.target.value)} 
-                        className="w-full text-xs p-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                        rows={3}
-                      />
-                      <button onClick={() => saveEdit(idx)} className="self-end px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Salvar
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-xs font-medium text-slate-600 leading-relaxed">{clausula}</span>
-                  )}
+                  <div className="flex gap-3">
+                    <span className="text-[10px] font-black text-[#ff6b00]">{idx + 1}.</span>
+                    {editingIndex === idx ? (
+                      <div className="flex-1 flex flex-col gap-2">
+                        <textarea 
+                          value={editText} 
+                          onChange={e => setEditText(e.target.value)} 
+                          className="w-full text-xs font-black p-2 border-2 border-black outline-none bg-[#ffeae1]"
+                          rows={4}
+                        />
+                        <button onClick={() => saveEdit(idx)} className="self-end px-4 py-1.5 bg-black text-white text-[9px] font-black uppercase flex items-center gap-1">
+                          <Check className="w-3 h-3" /> SALVAR
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] font-black text-black leading-relaxed uppercase">{clausula}</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
