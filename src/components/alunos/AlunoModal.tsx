@@ -374,14 +374,26 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                         <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_parcelas_pagas} onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: Number(e.target.value)})} />
                       </div>
                     </div>
-                    <div>
-                      <label className="text-[7px] font-bold uppercase block">Data Última Aula Emusys</label>
-                      <input 
-                        type="date" 
-                        className="w-full bg-white border border-black px-1 py-1 text-[10px]" 
-                        value={formData.emusys_data_ultima_aula} 
-                        onChange={(e) => setFormData({...formData, emusys_data_ultima_aula: e.target.value})} 
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[7px] font-bold uppercase block">Valor Parcela (R$)</label>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          className="w-full bg-white border border-black px-1 py-1 text-[10px]" 
+                          value={formData.valor_parcela} 
+                          onChange={(e) => setFormData({...formData, valor_parcela: Number(e.target.value)})} 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[7px] font-bold uppercase block">Data Última Aula</label>
+                        <input 
+                          type="date" 
+                          className="w-full bg-white border border-black px-1 py-1 text-[10px]" 
+                          value={formData.emusys_data_ultima_aula} 
+                          onChange={(e) => setFormData({...formData, emusys_data_ultima_aula: e.target.value})} 
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
