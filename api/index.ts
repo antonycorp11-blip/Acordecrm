@@ -54,7 +54,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
     const token = authHeader && authHeader.split(' ')[1];
     
     // Ignorar rotas públicas
-    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/vagas'];
+    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/vagas', '/api/auth/check-student', '/api/auth/setup-password'];
     if (publicRoutes.includes(req.path)) return next();
     
     // A gamificação/upload pode precisar de token também

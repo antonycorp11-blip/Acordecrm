@@ -146,6 +146,13 @@ export default function Login() {
             {/* PASSWORD STEP */}
             {(step === 'password' || step === 'setup') && (
               <div className="space-y-5 animate-in fade-in slide-in-from-top-4 duration-500">
+                {step === 'setup' && (
+                  <div className="bg-[#feccba] border-2 border-black p-3 mb-4 shadow-[2px_2px_0_#000]">
+                    <p className="text-[10px] font-black text-[#261812] uppercase leading-tight">
+                      <span className="text-[#ff6b00]">💡 PRIMEIRO ACESSO:</span> Escolha uma senha agora. Ela será sua chave de acesso definitiva a partir de hoje. Não é necessário solicitar senha à secretaria.
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-black uppercase block">
                     {step === 'setup' ? 'ESCOLHA UMA SENHA' : 'SENHA'}
