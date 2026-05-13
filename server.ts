@@ -20,9 +20,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Setup multer for local uploads
-const uploadDir = join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+const uploadDir = isVercel ? '/tmp/uploads' : join(__dirname, 'public', 'uploads');
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (e) {
+  console.warn('Could not create upload dir, ignoring for serverless env:', e);
 }
 const upload = multer({ dest: uploadDir });
 
