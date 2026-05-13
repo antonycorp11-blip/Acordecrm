@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Lock, Mail, Loader2, User, Music, Guitar, Piano } from 'lucide-react';
 
 export default function Register() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [senha, setSenha] = useState('');
+  const [confirmSenha, setConfirmSenha] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (senha !== confirmSenha) {
+      toast.error('As senhas não coincidem!');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -20,16 +26,16 @@ export default function Register() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ nome, email, password }),
+        body: JSON.stringify({ nome, email, password: senha }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'Erro ao fazer cadastro');
+        throw new Error(data.error || 'Erro ao realizar cadastro');
       }
 
-      toast.success('Conta criada com sucesso! Faça login para continuar.');
+      toast.success('Cadastro realizado com sucesso!');
       navigate('/login');
     } catch (error: any) {
       toast.error(error.message);
@@ -39,131 +45,180 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex">
-      {/* Right Panel - Form (Swapped sides for variety) */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 lg:p-24 bg-slate-50 relative order-2 lg:order-1">
-        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-purple-400/5 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
+    <div className="bg-background min-h-screen font-body-md text-on-background overflow-x-hidden selection:bg-primary-container selection:text-white">
+      {/* Header */}
+      <header className="w-full px-gutter py-8 sticky top-0 z-50 bg-black flex justify-between items-center border-b-4 border-secondary shadow-[4px_4px_0px_0px_rgba(123,86,71,1)]">
+        <h1 className="font-headline-xl text-headline-lg text-primary uppercase italic tracking-tighter">
+          ACORDE_CRM
+        </h1>
+        <div className="hidden md:flex gap-4">
+          <span className="font-label-sm text-secondary-fixed-dim bg-secondary p-2 rotate-[-2deg]">NO_SLEEP_RECORDS</span>
+        </div>
+      </header>
+
+      <main className="relative px-margin-page py-12 flex flex-col items-center">
+        {/* Maximalist Background Decor (Stickers Collage) */}
+        {/* Top Left */}
+        <div className="sticker-element top-10 left-5 rotate-[-15deg]">
+          <img alt="Pixel Guitar" className="w-24 h-24" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOlrGU0yevtWu7Z84VRmnl-y3S8rglWj8zrkZWXDncK0dLnDcPSc6amReHXVOH2IkwSf6ER0GH8QjmWTpiC2gVtqpeWXoTl_fR0HhMd_WLTafiA3aOna0S3TMFUdBHHuLtWSwdBOaQNgMqjJgA0Esgnh3M_mkaCowREk7rw3GhQTTYYdi8eHHE8isFT3jmE_DdllE0hcMqvKhrMC29F_KtnW4bav9G25cJ8AxXbE-QfnpiNZ3xseuwSrT0jbjTiJjLc5ua_JJqbFmZ"/>
+        </div>
+        <div className="sticker-element top-40 left-20 rotate-[10deg] hidden lg:block">
+          <span className="material-symbols-outlined text-8xl hollow-sticker">album</span>
+        </div>
+        <div className="sticker-element top-[500px] left-[-20px] rotate-[-5deg] hidden lg:block">
+          <span className="material-symbols-outlined text-7xl solid-sticker">cassette</span>
+        </div>
+        <div className="sticker-element top-[700px] left-32 rotate-[20deg] hidden lg:block">
+          <span className="material-symbols-outlined text-6xl text-secondary-container opacity-40">music_note</span>
+        </div>
         
-        <div className="max-w-md w-full relative z-10">
-          <div className="text-center lg:text-left mb-10">
-            <div className="lg:hidden inline-flex items-center justify-center p-3 bg-purple-600 rounded-xl mb-6 shadow-lg shadow-purple-600/30">
-              <Music className="w-8 h-8 text-white" />
+        {/* Top Right */}
+        <div className="sticker-element top-20 right-10 rotate-[15deg]">
+          <img alt="Pixel Synth" className="w-24 h-24" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHqkynhDFAxbIJ6RDm398J2Ckqg8ZHIKv3yzyG-oXi4jZRSlEgEPO5zTIwE0lGj9PCEcU1pTUZiegSJDQ8YyLjrpgt6oBLhw2o7yGFCMSwi3hGcmyDi1-81r95Jr-BkroMyifZ0rFNL3-i2Fdr3hCQJ98zElqxwvmoOvbQAVWq8KBw1yEM_WahKKIgcCknFAiJ2k0InYSH8pKb_hDXJMb60dlPya-HS-t0nb0iqraXwhDZaCSTZkDmWAA6E4kUu96Tor9Fh5pMrM23"/>
+        </div>
+        <div className="sticker-element top-60 right-32 rotate-[-10deg] hidden lg:block">
+          <span className="material-symbols-outlined text-8xl solid-sticker">surround_sound</span>
+        </div>
+        <div className="sticker-element top-[400px] right-5 rotate-[25deg] hidden lg:block">
+          <span className="material-symbols-outlined text-9xl hollow-sticker">speaker</span>
+        </div>
+        <div className="sticker-element top-[800px] right-20 rotate-[-15deg] hidden lg:block">
+          <span className="material-symbols-outlined text-7xl text-primary-container opacity-50">keyboard</span>
+        </div>
+
+        {/* Center Stickers (Vazados e Preenchidos) */}
+        <div className="sticker-element top-[20%] left-[15%] rotate-[-45deg] opacity-20 hidden 2xl:block">
+          <span className="material-symbols-outlined text-[200px] hollow-sticker">music_video</span>
+        </div>
+        <div className="sticker-element bottom-[10%] right-[10%] rotate-[30deg] opacity-20 hidden 2xl:block">
+          <span className="material-symbols-outlined text-[150px] solid-sticker">graphic_eq</span>
+        </div>
+
+        {/* Main Form Container */}
+        <div className="max-w-xl w-full z-10 relative">
+          <div className="sticker-card p-gutter md:p-10 rotate-cw mb-12">
+            <div className="flex flex-col gap-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary uppercase leading-none mb-2">BORALÁ_CRIAR</h2>
+                  <p className="font-label-sm text-secondary-fixed-dim bg-secondary px-2 py-1 inline-block text-white">STEP_01: INFO_BÁSICA</p>
+                </div>
+                <span className="material-symbols-outlined text-primary text-5xl rotate-[-10deg]">auto_fix_high</span>
+              </div>
+              <p className="text-body-lg text-on-surface-variant font-bold">Pronto pra dominar o estúdio? Preenche aí os dados pra gente começar o setup.</p>
+              
+              <form onSubmit={handleRegister} className="flex flex-col gap-8 mt-4">
+                <div className="flex flex-col gap-4">
+                  <div className="relative">
+                    <label className="font-headline-lg text-label-sm text-secondary mb-1 block uppercase">NOME_DO_ARTISTA</label>
+                    <input 
+                      className="retro-input w-full p-4 font-label-sm text-on-surface placeholder:opacity-50" 
+                      placeholder="COMO TE CHAMAM NO PALCO?" 
+                      type="text"
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value)}
+                      required
+                    />
+                    <div className="absolute -right-2 -top-2 bg-primary-container text-white p-1 text-[10px] font-bold px-2 rotate-[5deg] border-2 border-secondary shadow-[2px_2px_0px_0px_rgba(123,86,71,1)]">OBRIGATÓRIO</div>
+                  </div>
+                  
+                  <div className="relative">
+                    <label className="font-headline-lg text-label-sm text-secondary mb-1 block uppercase">E-MAIL_DE_CONTATO</label>
+                    <input 
+                      className="retro-input w-full p-4 font-label-sm text-on-surface placeholder:opacity-50" 
+                      placeholder="EX: FLOW@ACORDE.XYZ" 
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="relative">
+                      <label className="font-headline-lg text-label-sm text-secondary mb-1 block uppercase">SENHA_SECRETA</label>
+                      <input 
+                        className="retro-input w-full p-4 font-label-sm text-on-surface" 
+                        placeholder="••••••••" 
+                        type="password"
+                        value={senha}
+                        onChange={(e) => setSenha(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="relative">
+                      <label className="font-headline-lg text-label-sm text-secondary mb-1 block uppercase">REPETE_A_SENHA</label>
+                      <input 
+                        className="retro-input w-full p-4 font-label-sm text-on-surface" 
+                        placeholder="••••••••" 
+                        type="password"
+                        value={confirmSenha}
+                        onChange={(e) => setConfirmSenha(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="relative py-4">
+                  <button 
+                    disabled={isLoading}
+                    className="pressable-btn w-full bg-primary-container text-white py-6 font-headline-lg text-headline-lg-mobile uppercase italic tracking-tighter border-2 border-secondary shadow-[6px_6px_0px_0px_rgba(123,86,71,1)] hover:bg-primary transition-colors flex justify-center items-center gap-4" 
+                    type="submit"
+                  >
+                    {isLoading ? 'CRIANDO CONTA...' : 'CRIAR CONTA'}
+                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      {isLoading ? 'hourglass_empty' : 'bolt'}
+                    </span>
+                  </button>
+                  <div className="absolute -bottom-8 -right-4 rotate-[15deg] hidden md:block">
+                    <span className="material-symbols-outlined text-primary text-6xl opacity-40">double_arrow</span>
+                  </div>
+                </div>
+              </form>
             </div>
-            <h2 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Junte-se a nós</h2>
-            <p className="text-slate-500">Crie a sua conta e transforme a gestão da sua escola.</p>
           </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-slate-700">Nome Completo</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
-                </div>
-                <input
-                  type="text"
-                  required
-                  className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white text-slate-900 transition-all outline-none shadow-sm placeholder:text-slate-400"
-                  placeholder="João Silva"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-slate-700">E-mail</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
-                </div>
-                <input
-                  type="email"
-                  required
-                  className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white text-slate-900 transition-all outline-none shadow-sm placeholder:text-slate-400"
-                  placeholder="contato@escola.com.br"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-slate-700">Senha</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
-                </div>
-                <input
-                  type="password"
-                  required
-                  className="block w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white text-slate-900 transition-all outline-none shadow-sm placeholder:text-slate-400"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl shadow-lg shadow-purple-600/30 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-4 focus:ring-purple-500/50 transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                'Criar Conta'
-              )}
-            </button>
-          </form>
-
-          <div className="mt-8 pt-8 border-t border-slate-200 text-center">
-            <p className="text-sm text-slate-600">
-              Já tem uma conta?{' '}
-              <Link to="/login" className="font-bold text-purple-600 hover:text-purple-700 transition-colors">
-                Faça login
-              </Link>
-            </p>
+          
+          <div className="flex flex-col md:flex-row justify-center gap-6 text-center">
+            <Link to="/login" className="font-label-sm text-secondary hover:text-primary-container border-b-2 border-dashed border-secondary py-1 transition-all">JÁ TENHO LOGIN</Link>
+            <a className="font-label-sm text-secondary hover:text-primary-container border-b-2 border-dashed border-secondary py-1 transition-all" href="#">PRECISO DE HELP</a>
           </div>
         </div>
-      </div>
 
-      {/* Left Panel - Musical Theme (Order 2) */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-black items-center justify-center overflow-hidden order-1 lg:order-2">
-        {/* Background Image with Overlay */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-50"
-          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?q=80&w=2070&auto=format&fit=crop")' }}
-        ></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
-        <div className="absolute inset-0 bg-purple-600/10 mix-blend-overlay"></div>
-        
-        {/* Animated Elements */}
-        <div className="absolute top-20 right-20 w-72 h-72 bg-purple-500/30 blur-[100px] rounded-full animate-pulse"></div>
-        <div className="absolute bottom-20 left-20 w-96 h-96 bg-blue-500/30 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
-
-        <div className="relative z-10 p-12 text-center">
-          <div className="inline-flex items-center justify-center p-4 bg-white/10 backdrop-blur-md rounded-2xl mb-8 border border-white/20 shadow-2xl">
-            <Piano className="w-12 h-12 text-white" />
+        {/* Extra Aesthetic Elements */}
+        <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl px-gutter z-10 relative">
+          <div className="sticker-card p-4 rotate-ccw bg-surface-container-low flex flex-col items-center gap-2">
+            <span className="material-symbols-outlined text-secondary-container bg-secondary rounded-full p-2" style={{ fontVariationSettings: "'FILL' 1" }}>music_note</span>
+            <span className="font-label-sm text-secondary text-center uppercase">+500 BEATS</span>
           </div>
-          <h1 className="text-5xl font-black text-white tracking-tight mb-6">
-            Eleve o tom da <br/>sua gestão.
-          </h1>
-          <p className="text-lg text-slate-300 max-w-md mx-auto leading-relaxed">
-            Uma plataforma desenhada com paixão pela música. Acompanhe a evolução e o sucesso de cada aluno.
-          </p>
-
-          <div className="mt-12 flex justify-center gap-6">
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-3 backdrop-blur-sm">
-                <Guitar className="w-5 h-5 text-purple-400" />
-              </div>
-              <span className="text-xs text-slate-400 font-medium tracking-wider uppercase">Foco na Arte</span>
-            </div>
+          <div className="sticker-card p-4 rotate-cw bg-surface-container-low flex flex-col items-center gap-2">
+            <span className="material-symbols-outlined text-secondary-container bg-secondary rounded-full p-2" style={{ fontVariationSettings: "'FILL' 1" }}>group</span>
+            <span className="font-label-sm text-secondary text-center uppercase">10k ALUNOS</span>
+          </div>
+          <div className="sticker-card p-4 rotate-ccw bg-surface-container-low flex flex-col items-center gap-2">
+            <span className="material-symbols-outlined text-secondary-container bg-secondary rounded-full p-2" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+            <span className="font-label-sm text-secondary text-center uppercase">PRO QUALITY</span>
+          </div>
+          <div className="sticker-card p-4 rotate-cw bg-surface-container-low flex flex-col items-center gap-2">
+            <span className="material-symbols-outlined text-secondary-container bg-secondary rounded-full p-2" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
+            <span className="font-label-sm text-secondary text-center uppercase">24/7 ACCESS</span>
           </div>
         </div>
-      </div>
+      </main>
+
+      <footer className="bg-secondary w-full border-t-4 border-primary px-margin-page py-8 mt-24 relative z-10">
+        <div className="flex flex-col md:flex-row justify-between items-center w-full gap-4 max-w-6xl mx-auto">
+          <div className="flex flex-col">
+            <span className="font-headline-lg text-secondary-container uppercase">ACORDE_CRM</span>
+            <p className="font-label-sm text-secondary-fixed-dim opacity-80 uppercase tracking-widest">©2024 STUDIO_ACORDE // NO_SLEEP_RECORDS</p>
+          </div>
+          <nav className="flex gap-8">
+            <a className="font-label-sm text-secondary-fixed-dim opacity-80 hover:text-primary-container transition-all" href="#">PATCH_NOTES</a>
+            <a className="font-label-sm text-secondary-fixed-dim opacity-80 hover:text-primary-container transition-all" href="#">SERVER_STATUS</a>
+            <a className="font-label-sm text-secondary-fixed-dim opacity-80 hover:text-primary-container transition-all" href="#">SUPPORT_AI</a>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }

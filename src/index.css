@@ -1,19 +1,76 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary: #f97316;
+  --color-primary: #a04100;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #fff7ed;
-  --color-sidebar: #0f172a; /* bg-slate-900 */
+  --color-secondary: #7b5647;
+  --color-sidebar: #0f172a;
   --color-sidebar-foreground: #ffffff;
   
+  --color-surface-bright: #fff8f6;
+  --color-surface-container-lowest: #ffffff;
+  --color-background: #000000;
+  --color-on-tertiary-container: #2f3132;
+  --color-secondary-container: #feccba;
+  --color-surface-container-low: #fff1eb;
+  --color-secondary-fixed: #ffdbce;
+  --color-on-secondary: #ffffff;
+  --color-primary-fixed-dim: #ffb693;
+  --color-tertiary: #5d5f5f;
+  --color-inverse-primary: #ffb693;
+  --color-on-tertiary-fixed-variant: #454747;
+  --color-outline: #8e7164;
+  --color-on-error: #ffffff;
+  --color-tertiary-container: #989999;
+  --color-surface-dim: #efd5ca;
+  --color-surface: #fff8f6;
+  --color-surface-container-highest: #f8ddd2;
+  --color-on-tertiary-fixed: #1a1c1c;
+  --color-surface-variant: #f8ddd2;
+  --color-error: #ba1a1a;
+  --color-on-secondary-container: #7a5446;
+  --color-surface-container-high: #fee3d8;
+  --color-on-surface: #261812;
+  --color-surface-tint: #a04100;
+  --color-secondary-fixed-dim: #ecbcaa;
+  --color-primary-container: #ff6b00;
+  --color-tertiary-fixed: #e2e2e2;
+  --color-on-background: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-primary-fixed: #351000;
+  --color-surface-container: #ffeae1;
+  --color-on-primary-container: #572000;
+  --color-on-surface-variant: #5a4136;
+  --color-inverse-on-surface: #ffede6;
+  --color-tertiary-fixed-dim: #c6c6c7;
+  --color-primary-fixed: #ffdbcc;
+  --color-on-secondary-fixed: #2e140a;
+  --color-on-primary-fixed-variant: #7a3000;
+  --color-on-secondary-fixed-variant: #613e31;
+  --color-inverse-surface: #3d2d26;
+  --color-on-error-container: #93000a;
+  --color-outline-variant: #e2bfb0;
+  --color-on-primary: #ffffff;
+
   --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui;
-  
-  --radius-card: 1.5rem; /* rounded-3xl */
-  --shadow-glass: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --font-headline-lg: "Space Mono";
+  --font-headline-lg-mobile: "Space Mono";
+  --font-label-sm: "Space Mono";
+  --font-body-md: "Plus Jakarta Sans";
+  --font-body-lg: "Plus Jakarta Sans";
+  --font-headline-xl: "Space Mono";
+
+  --spacing-gutter: 24px;
+  --spacing-unit: 4px;
+  --spacing-margin-page: 32px;
+  --spacing-sticker-offset: 6px;
+
+  --radius-card: 1.5rem;
 }
 
 @layer base {
@@ -33,5 +90,87 @@
   .frosted-bg {
     @apply bg-white/60 dark:bg-slate-800/60 backdrop-blur-md;
   }
+}
+
+/* Sticker CRM Design System */
+.noise-bg {
+    background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD8h8jafWqMYF3pTcvBuW_WqSkGoOANagEZVPrKKczClGdJvvOejuKCSoAA-P-cXv1f-S0RkuGY_vAtAK6sXtPQV7xAsip0kja9FG47SGCzAKObDqvL4cMh99LGultTDVG0NVaWLRENFEi4y5znbby3J8IPqSzBdF2mbUSB5XnXhhgs96-7xNXxwppIFNhbi_rlMYtax-ZecEQlJ2rhGPZhvyvlwmwPM43EQNkCpLIoyYMf1xDxBfsPp_DzUGnqPt-XdT7MT8GoRs7M');
+    background-repeat: repeat;
+    background-color: #000000;
+}
+.sticker-card {
+    background-color: white;
+    border: 2px solid #7b5647;
+    box-shadow: 4px 4px 0px 0px #7b5647;
+    position: relative;
+}
+.sticker-card::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border: 4px solid white;
+    z-index: -1;
+    pointer-events: none;
+}
+.sticker-hollow {
+    box-shadow: 4px 4px 0 0 rgba(255, 107, 0, 1), 0 0 0 4px #000;
+    background: transparent !important;
+    border: 2px solid white !important;
+}
+.pixel-border {
+    border: 4px solid #7b5647;
+    box-shadow: 4px 4px 0px 0px #7b5647;
+}
+.retro-input {
+    border: 3px solid #7b5647;
+    background: #fff8f6;
+    transition: all 0.1s;
+}
+.retro-input:focus {
+    outline: none;
+    border-color: #ff6b00;
+    box-shadow: 4px 4px 0px 0px #ff6b00;
+}
+.retro-input-alt {
+    box-shadow: inset 4px 4px 0 0 rgba(123, 86, 71, 0.1);
+}
+.pressable-btn {
+    border-bottom: 4px solid #7a3000;
+    transition: all 0.05s;
+}
+.pressable-btn:active {
+    transform: translateY(2px);
+    border-bottom-width: 2px;
+}
+.rotate-ccw { transform: rotate(-1.5deg); }
+.rotate-cw { transform: rotate(1.5deg); }
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.sticker-element {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    filter: drop-shadow(4px 4px 0px rgba(0,0,0,0.5));
+}
+.hollow-sticker {
+    color: #ff6b00;
+    -webkit-text-stroke: 1px #ffdbcc;
+    opacity: 0.6;
+}
+.solid-sticker {
+    color: #a04100;
+    background: white;
+    border: 2px solid #7b5647;
+    padding: 4px;
+    border-radius: 4px;
+}
+.hand-drawn-arrow {
+    position: absolute;
+    z-index: 60;
+    pointer-events: none;
 }
 
