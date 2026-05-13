@@ -12,21 +12,24 @@ import multer from 'multer';
 import { execSync } from 'child_process';
 // pdf-parse é importado dinamicamente para evitar crash no módulo
 
-dotenv.config();
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+
+if (!isVercel) {
+  dotenv.config();
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'studio-acorde-secret-key-2024';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Setup multer for local uploads
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
 const uploadDir = isVercel ? '/tmp/uploads' : join(__dirname, 'public', 'uploads');
 try {
-  if (!fs.existsSync(uploadDir)) {
+  if (!isVercel && !fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 } catch (e) {
-  console.warn('Could not create upload dir, ignoring for serverless env:', e);
+  console.warn('Could not create upload dir:', e);
 }
 const upload = multer({ dest: uploadDir });
 
@@ -1288,7 +1291,7 @@ async function startServer() {
     app.use(express.static(join(__dirname, 'public')));
 
     // Vite Integration for local development
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== 'production' && !isVercel) {
         try {
             const { createServer: createViteServer } = await import('vite');
             const vite = await createViteServer({
@@ -1299,12 +1302,14 @@ async function startServer() {
         } catch (e) {
             console.error('Failed to start Vite middleware', e);
         }
-    } else {
+    } else if (!isVercel) {
         const distPath = path.join(__dirname, 'dist');
-        app.use(express.static(distPath));
-        app.get('*', (req, res) => {
-            res.sendFile(path.join(distPath, 'index.html'));
-        });
+        if (fs.existsSync(distPath)) {
+            app.use(express.static(distPath));
+            app.get('*', (req, res) => {
+                res.sendFile(path.join(distPath, 'index.html'));
+            });
+        }
     }
 
     return app;
