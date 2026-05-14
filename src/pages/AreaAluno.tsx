@@ -14,35 +14,42 @@ export default function AreaAluno() {
   const xp = alunoData?.xp || 0;
   const xpMax = 1000; // Exemplo de escala de nível
   const nivel = Math.floor(xp / 100) + 1;
-  const cursoNome = alunoData?.matriculas?.[0]?.cursos?.nome || 'STUDENT';
-  const classe = `${cursoNome.toUpperCase()}_TRAINEE`;
   const xpPct = Math.min(100, ((xp % 100) / 100) * 100);
 
   useEffect(() => {
     const token = localStorage.getItem('acorde_token');
-    const headers = { Authorization: `Bearer ${token}` };
+    const headers = { 
+      'Authorization': `Bearer ${token}`,
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    };
 
-    Promise.all([
-      fetch(`/api/alunos/me?t=${Date.now()}`, { headers }).then(r => r.ok ? r.json() : null),
-      fetch(`/api/agenda?t=${Date.now()}`, { headers }).then(r => r.ok ? r.json() : [])
-    ]).then(([me, agenda]) => {
-      setAlunoData(me);
-      
-      const now = new Date();
-      const allAulas = Array.isArray(agenda) ? agenda : [];
-      
-      // Ordenar por data e hora para achar a próxima
-      const futureAulas = allAulas
-        .filter((a: any) => {
-          const aulaDate = new Date(`${a.data}T${a.horario || '00:00:00'}`);
-          return aulaDate >= now;
-        })
-        .sort((a: any, b: any) => new Date(`${a.data}T${a.horario}`).getTime() - new Date(`${b.data}T${b.horario}`).getTime());
+    const fetchAll = () => {
+      const timestamp = Date.now();
+      Promise.all([
+        fetch(`/api/alunos/me?t=${timestamp}`, { headers }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/agenda?t=${timestamp}`, { headers }).then(r => r.ok ? r.json() : [])
+      ]).then(([me, agenda]) => {
+        if (me) {
+          setAlunoData(me);
+          const now = new Date();
+          const allAulas = Array.isArray(agenda) ? agenda : [];
+          
+          const futureAulas = allAulas
+            .filter((a: any) => {
+              const aulaDate = new Date(`${a.data}T${a.horario || '00:00:00'}`);
+              return aulaDate >= now;
+            })
+            .sort((a: any, b: any) => new Date(`${a.data}T${a.horario}`).getTime() - new Date(`${b.data}T${b.horario}`).getTime());
 
-      setAulasHoje(futureAulas);
-    })
-    .catch(console.error)
-    .finally(() => setLoading(false));
+          setAulasHoje(futureAulas);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+    };
+
+    fetchAll();
   }, []);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,9 +154,9 @@ export default function AreaAluno() {
               <div className="grid grid-cols-2 gap-3">
                  <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
                    <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">INSTRUMENTO</p>
-                   <p className="text-black font-black text-[10px] uppercase italic tracking-tighter truncate">
-                     {alunoData?.matriculas?.[0]?.cursos?.nome || (alunoData ? 'NÃO_MATRICULADO' : '...')}
-                   </p>
+                    <span className="text-white font-black italic uppercase">
+                      {alunoData?.curso_ativo || 'STUDENT'}
+                    </span>
                  </div>
                  <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
                    <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">RANKING</p>

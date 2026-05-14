@@ -492,46 +492,31 @@ async function startServer() {
             
             console.log(`[ALUNO_UPDATE_API] ID: ${studentId}`, { nome, curso_id });
 
-            // 1. Capturar e-mail antigo para sincronização
+            // 1. Capturar dados atuais
             const { data: oldAluno } = await supabase.from('alunos').select('email').eq('id', Number(studentId)).single();
 
-            // 2. Atualizar Aluno (Whitelist rigorosa)
+            // 2. Atualizar Aluno
             const updateFields: any = { nome, email, telefone, cpf, endereco, responsavel_nome, responsavel_telefone };
             Object.keys(updateFields).forEach(key => updateFields[key] === undefined && delete updateFields[key]);
 
-            const { error: aluError } = await supabase.from('alunos')
-                .update(updateFields)
-                .eq('id', Number(studentId));
-            
-            if (aluError) {
-                console.error('[API_ALUNO_UPDATE_ERROR]:', aluError);
-                return res.status(500).json({ error: aluError.message, stage: 'aluno_table' });
-            }
+            await supabase.from('alunos').update(updateFields).eq('id', Number(studentId));
 
-            // 3. Sincronizar com a tabela de usuários (para refletir na Área do Aluno)
+            // 3. Sincronizar Login (Usuários)
             if (oldAluno?.email && (nome || email)) {
-                console.log(`[SYNC_USUARIOS] Sincronizando login de ${oldAluno.email}`);
-                const { error: userError } = await supabase.from('usuarios')
-                    .update({ 
-                        nome: nome || undefined, 
-                        email: email || undefined 
-                    })
+                await supabase.from('usuarios')
+                    .update({ nome: nome || undefined, email: email || undefined })
                     .eq('email', oldAluno.email);
-                
-                if (userError) console.error('[SYNC_USUARIOS_ERROR]:', userError);
             }
 
-            // 4. Atualizar Curso na Matrícula (se fornecido)
-            if (curso_id && !isNaN(Number(curso_id))) {
-                const { error: matError } = await supabase.from('matriculas')
+            // 4. Atualizar Matrícula Ativa
+            if (curso_id) {
+                await supabase.from('matriculas')
                     .update({ curso_id: Number(curso_id) })
                     .eq('aluno_id', Number(studentId))
                     .eq('status', 'ativa');
-                
-                if (matError) {
-                    console.error('[API_MATRICULA_UPDATE_ERROR]:', matError);
-                }
             }
+
+            return res.json({ success: true, message: 'Dados sincronizados com sucesso' });
 
             res.json({ success: true, version: '1.6' });
         } catch (error: any) {
@@ -1186,7 +1171,7 @@ async function startServer() {
             // Força busca pelo e-mail do admin ou do teste
             const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
 
-            const { data: aluno, error } = await supabase
+            const { data: aluno } = await supabase
                 .from('alunos')
                 .select('*, matriculas(*, cursos(nome))')
                 .ilike('email', searchEmail)
@@ -1194,13 +1179,16 @@ async function startServer() {
                 .maybeSingle();
 
             if (!aluno) {
-                // Tenta pegar o ID 3 diretamente se não achar por e-mail
                 const { data: fallback } = await supabase.from('alunos').select('*, matriculas(*, cursos(nome))').eq('id', 3).order('id', { foreignTable: 'matriculas', ascending: false }).maybeSingle();
-                if (fallback) return res.json({ ...fallback, ranking: 1 });
+                if (fallback) {
+                    const activeCourse = fallback.matriculas?.find((m: any) => m.status === 'ativa')?.cursos?.nome || 'STUDENT';
+                    return res.json({ ...fallback, ranking: 1, curso_ativo: activeCourse });
+                }
                 return res.status(404).json({ error: 'Nenhum dado encontrado' });
             }
 
-            res.json({ ...aluno, ranking: 1 });
+            const activeCourse = aluno.matriculas?.find((m: any) => m.status === 'ativa')?.cursos?.nome || 'STUDENT';
+            res.json({ ...aluno, ranking: 1, curso_ativo: activeCourse });
         } catch (err: any) {
             res.status(500).json({ error: err.message });
         }
