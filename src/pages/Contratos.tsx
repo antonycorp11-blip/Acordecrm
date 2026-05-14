@@ -195,8 +195,6 @@ export default function Contratos() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
             {/* Seletor de Aluno e Configuração */}
-            <div className="space-y-6 overflow-y-auto pr-4 custom-scrollbar">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
             {/* Seletor de Aluno e Configuração */}
             <div className="space-y-6 overflow-y-auto pr-4 custom-scrollbar">
               <div className="bg-[#fff8f6] border-4 border-black p-6 shadow-[6px_6px_0_#000]">
