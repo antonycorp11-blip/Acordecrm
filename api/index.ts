@@ -493,7 +493,7 @@ async function startServer() {
             console.log(`[ALUNO_UPDATE_API] ID: ${studentId}`, { nome, curso_id });
 
             // 1. Capturar e-mail antigo para sincronização
-            const { data: oldAluno } = await supabase.from('alunos').select('email').eq('id', studentId).single();
+            const { data: oldAluno } = await supabase.from('alunos').select('email').eq('id', Number(studentId)).single();
 
             // 2. Atualizar Aluno (Whitelist rigorosa)
             const updateFields: any = { nome, email, telefone, cpf, endereco, responsavel_nome, responsavel_telefone };
@@ -501,7 +501,7 @@ async function startServer() {
 
             const { error: aluError } = await supabase.from('alunos')
                 .update(updateFields)
-                .eq('id', studentId);
+                .eq('id', Number(studentId));
             
             if (aluError) {
                 console.error('[API_ALUNO_UPDATE_ERROR]:', aluError);
@@ -521,11 +521,11 @@ async function startServer() {
                 if (userError) console.error('[SYNC_USUARIOS_ERROR]:', userError);
             }
 
-            // 2. Atualizar Curso na Matrícula (se fornecido)
+            // 4. Atualizar Curso na Matrícula (se fornecido)
             if (curso_id && !isNaN(Number(curso_id))) {
                 const { error: matError } = await supabase.from('matriculas')
                     .update({ curso_id: Number(curso_id) })
-                    .eq('aluno_id', studentId)
+                    .eq('aluno_id', Number(studentId))
                     .eq('status', 'ativa');
                 
                 if (matError) {
