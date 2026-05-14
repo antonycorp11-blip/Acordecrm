@@ -116,6 +116,7 @@ export default function Alunos() {
                   <th className="px-6 py-4 text-[10px] font-black text-[#261812] uppercase tracking-widest border-b-4 border-[#261812]">Aluno</th>
                   <th className="px-6 py-4 text-[10px] font-black text-[#261812] uppercase tracking-widest border-b-4 border-[#261812]">Contato</th>
                   <th className="px-6 py-4 text-[10px] font-black text-[#261812] uppercase tracking-widest border-b-4 border-[#261812]">Status</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-[#261812] uppercase tracking-widest border-b-4 border-[#261812]">Curso</th>
                   <th className="px-6 py-4 text-[10px] font-black text-[#261812] uppercase tracking-widest border-b-4 border-[#261812]">Saldo</th>
                   <th className="px-6 py-4 text-[10px] font-black text-[#261812] uppercase tracking-widest border-b-4 border-[#261812] text-right">Ações</th>
                 </tr>
@@ -142,8 +143,12 @@ export default function Alunos() {
                   <tr key={aluno.id} className="hover:bg-[#fff8f6] transition-all group cursor-pointer" onClick={() => navigate(`/alunos/${aluno.id}`)}>
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded bg-[#ff6b00] border-2 border-black flex items-center justify-center text-white font-black text-xl shadow-[3px_3px_0_#000]">
-                          {(aluno.nome || '?').charAt(0).toUpperCase()}
+                        <div className="w-12 h-12 rounded bg-[#ff6b00] border-2 border-black flex items-center justify-center text-white font-black text-xl shadow-[3px_3px_0_#000] overflow-hidden">
+                          {aluno.foto_url ? (
+                            <img src={`${aluno.foto_url}?t=${new Date().getTime()}`} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            (aluno.nome || '?').charAt(0).toUpperCase()
+                          )}
                         </div>
                         <div>
                           <p className="font-black text-sm text-[#261812] uppercase group-hover:text-[#ff6b00] transition-colors tracking-tight">{aluno.nome || 'SEM NOME'}</p>
@@ -169,6 +174,11 @@ export default function Alunos() {
                         'bg-[#8e7164] text-white'
                       }`}>
                         {aluno.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className="text-[10px] font-black text-[#261812] uppercase truncate max-w-[120px] block">
+                        {aluno.matriculas?.[0]?.cursos?.nome || 'SEM_CURSO'}
                       </span>
                     </td>
                     <td className="px-6 py-5">

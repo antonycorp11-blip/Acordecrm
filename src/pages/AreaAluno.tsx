@@ -61,7 +61,9 @@ export default function AreaAluno() {
       });
       if (res.ok) {
         const updated = await res.json();
-        setAlunoData(prev => ({ ...prev, foto_url: updated.foto_url }));
+        // Adicionar timestamp para forçar recarregamento da imagem
+        const newPhotoUrl = `${updated.foto_url}?t=${new Date().getTime()}`;
+        setAlunoData(prev => ({ ...prev, foto_url: newPhotoUrl }));
       }
     } catch (err) {
       console.error('Erro ao subir foto:', err);

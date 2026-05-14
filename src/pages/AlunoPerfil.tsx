@@ -336,6 +336,7 @@ export default function AlunoPerfil() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [contratoModal, setContratoModal] = useState(false);
   const [editFormData, setEditFormData] = useState<any>({});
+  const [cursos, setCursos] = useState<any[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Reagendamento
@@ -362,17 +363,19 @@ export default function AlunoPerfil() {
       const headers = { 'Authorization': `Bearer ${token}` };
       setLoading(true);
       try {
-        const [alunoData, aData, fData, mData] = await Promise.all([
+        const [alunoData, aData, fData, mData, cData] = await Promise.all([
           fetch(`/api/alunos/${id}`, { headers }).then(res => res.ok ? res.json() : null),
           fetch(`/api/alunos/${id}/agenda`, { headers }).then(res => res.ok ? res.json() : []),
           fetch(`/api/alunos/${id}/financeiro`, { headers }).then(res => res.ok ? res.json() : []),
-          fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : [])
+          fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : []),
+          fetch(`/api/cursos`, { headers }).then(res => res.ok ? res.json() : [])
         ]);
         
         setAluno(alunoData);
         setAgenda(Array.isArray(aData) ? aData : []);
         setFinanceiro(Array.isArray(fData) ? fData : []);
         setMateriais(Array.isArray(mData) ? mData : []);
+        setCursos(Array.isArray(cData) ? cData : []);
         setFrequencia((Array.isArray(aData) ? aData : []).filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente'));
       } catch (err) {
         console.error(err);
@@ -569,7 +572,7 @@ export default function AlunoPerfil() {
               <FileText className="w-4 h-4 mr-2" /> GERAR_CONTRATO
             </Button>
             <Button variant="secondary" onClick={() => {
-              setEditFormData({ ...aluno });
+              setEditFormData({ ...aluno, curso_id: aluno.matriculas?.[0]?.curso_id });
               setIsEditModalOpen(true);
             }}>
               <Edit className="w-4 h-4 mr-2" /> EDITAR_PERFIL
@@ -799,6 +802,20 @@ export default function AlunoPerfil() {
                         />
                      </div>
                    ))}
+                   
+                   <div className="md:col-span-2">
+                      <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">CURSO_MATRICULADO</label>
+                      <select 
+                        className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none"
+                        value={editFormData.curso_id || ''}
+                        onChange={e => setEditFormData({ ...editFormData, curso_id: e.target.value })}
+                      >
+                        <option value="">SELECIONE UM CURSO</option>
+                        {cursos.map(curso => (
+                          <option key={curso.id} value={curso.id}>{curso.nome.toUpperCase()}</option>
+                        ))}
+                      </select>
+                   </div>
                 </div>
                 <div className="flex gap-4 mt-8">
                    <Button variant="secondary" className="flex-1" onClick={() => setIsEditModalOpen(false)}>CANCELAR</Button>

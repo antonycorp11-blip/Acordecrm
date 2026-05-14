@@ -541,8 +541,20 @@ async function startServer() {
 
     app.patch('/api/alunos/:id', async (req, res) => {
         try {
-            const { data, error } = await supabase.from('alunos').update(req.body).eq('id', req.params.id).select().single();
+            const { curso_id, ...alunoData } = req.body;
+            
+            // Atualizar dados do aluno
+            const { data, error } = await supabase.from('alunos').update(alunoData).eq('id', req.params.id).select().single();
             if (error) throw error;
+
+            // Se curso_id foi enviado, atualizar a matrícula ativa
+            if (curso_id) {
+                await supabase.from('matriculas')
+                    .update({ curso_id })
+                    .eq('aluno_id', req.params.id)
+                    .eq('status', 'ativa');
+            }
+
             res.json(data);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
@@ -630,7 +642,7 @@ async function startServer() {
     // Alunos + Matrícula
     app.get('/api/alunos', async (req, res) => {
         const { status } = req.query;
-        let query = supabase.from('alunos').select('*, matriculas(*), aulas(status)').order('nome');
+        let query = supabase.from('alunos').select('*, matriculas(*, cursos(nome)), aulas(status)').order('nome');
         
         if (status === 'arquivado') {
             query = query.eq('status', 'arquivado');
