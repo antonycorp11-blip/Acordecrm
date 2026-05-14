@@ -1,21 +1,26 @@
-import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Users, Plus, Pencil, Trash2, Shield, User as UserIcon, Loader2, Save, X } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Shield, User as UserIcon, Loader2, Save, X, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Usuario {
   id: number;
   nome: string;
   email: string;
   role: string;
+  senha_plana?: string;
 }
 
 export default function Usuarios() {
+  const { user: currentUser } = useAuth();
+  const isAdminView = currentUser?.email === 'aquilles1213@gmail.com';
+  
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
+  const [showPasswords, setShowPasswords] = useState(false);
 
   // Form State
   const [nome, setNome] = useState('');
@@ -148,12 +153,23 @@ export default function Usuarios() {
           </h1>
           <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Gerencie permissões e acessos ao sistema.</p>
         </div>
-        <button
-          onClick={() => openModal()}
-          className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
-        >
-          <Plus className="w-5 h-5" /> NOVO_USUÁRIO
-        </button>
+        <div className="flex items-center gap-4">
+          {isAdminView && (
+            <button
+              onClick={() => setShowPasswords(!showPasswords)}
+              className="bg-black text-white px-4 py-3 border-4 border-black font-black uppercase text-[10px] shadow-[4px_4px_0_#ff6b00] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
+            >
+              {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPasswords ? 'OCULTAR_SENHAS' : 'VER_SENHAS'}
+            </button>
+          )}
+          <button
+            onClick={() => openModal()}
+            className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
+          >
+            <Plus className="w-5 h-5" /> NOVO_USUÁRIO
+          </button>
+        </div>
       </header>
 
       <div className="p-8 flex-1 overflow-auto">
@@ -165,6 +181,7 @@ export default function Usuarios() {
                   <th className="p-4 font-black text-xs text-black uppercase italic italic">NOME</th>
                   <th className="p-4 font-black text-xs text-black uppercase italic italic">E-MAIL_LOGIN</th>
                   <th className="p-4 font-black text-xs text-black uppercase italic italic">PERMISSÃO</th>
+                  {isAdminView && showPasswords && <th className="p-4 font-black text-xs text-black uppercase italic italic text-center">SENHA</th>}
                   <th className="p-4 font-black text-xs text-black uppercase italic italic text-right">AÇÕES</th>
                 </tr>
               </thead>
@@ -174,6 +191,13 @@ export default function Usuarios() {
                     <td className="p-4 font-black text-black uppercase text-sm">{usuario.nome}</td>
                     <td className="p-4 font-black text-[#8e7164] text-xs uppercase">{usuario.email}</td>
                     <td className="p-4">{getRoleBadge(usuario.role)}</td>
+                    {isAdminView && showPasswords && (
+                      <td className="p-4 text-center">
+                        <span className="bg-black text-[#25d366] px-2 py-1 font-mono text-[10px] border border-white">
+                          {usuario.senha_plana || '********'}
+                        </span>
+                      </td>
+                    )}
                     <td className="p-4 text-right space-x-2">
                       <button
                         onClick={() => openModal(usuario)}

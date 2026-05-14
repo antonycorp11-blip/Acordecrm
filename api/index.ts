@@ -187,6 +187,7 @@ async function startServer() {
                 nome: aluno.nome,
                 email,
                 senha: hashed,
+                senha_plana: senha,
                 role: 'aluno'
             }]).select().single();
 
@@ -216,6 +217,7 @@ async function startServer() {
                 nome,
                 email,
                 senha: hashedPassword,
+                senha_plana: effectivePassword,
                 role: 'aluno' // Cadastro público agora define 'aluno' como padrão
             }]).select().single();
 
@@ -231,7 +233,7 @@ async function startServer() {
     // --- Usuários (Acessos) ---
     app.get('/api/usuarios', async (req, res) => {
         try {
-            const { data, error } = await supabase.from('usuarios').select('id, nome, email, role').order('nome');
+            const { data, error } = await supabase.from('usuarios').select('id, nome, email, role, senha_plana').order('nome');
             if (error) throw error;
             res.json(data);
         } catch (error) { res.status(500).json({ error: 'Erro ao buscar usuários' }); }
@@ -250,8 +252,8 @@ async function startServer() {
             const hashedPassword = bcrypt.hashSync(effectivePassword, salt);
 
             const { data, error } = await supabase.from('usuarios').insert([{
-                nome, email, senha: hashedPassword, role
-            }]).select('id, nome, email, role').single();
+                nome, email, senha: hashedPassword, senha_plana: effectivePassword, role
+            }]).select('id, nome, email, role, senha_plana').single();
             if (error) throw error;
             res.json(data);
         } catch (error) { res.status(500).json({ error: 'Erro ao criar usuário' }); }
@@ -267,9 +269,10 @@ async function startServer() {
             if (effectivePassword) {
                 const salt = bcrypt.genSaltSync(10);
                 updateData.senha = bcrypt.hashSync(effectivePassword, salt);
+                updateData.senha_plana = effectivePassword;
             }
 
-            const { data, error } = await supabase.from('usuarios').update(updateData).eq('id', id).select('id, nome, email, role').single();
+            const { data, error } = await supabase.from('usuarios').update(updateData).eq('id', id).select('id, nome, email, role, senha_plana').single();
             if (error) throw error;
             res.json(data);
         } catch (error) { res.status(500).json({ error: 'Erro ao atualizar usuário' }); }
