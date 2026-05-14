@@ -1126,17 +1126,37 @@ async function startServer() {
     app.get('/api/alunos/me', async (req: any, res) => {
         try {
             const { email } = req.user;
-            const { data: aluno, error } = await supabase
+            
+            // Tenta buscar o aluno pelo email
+            let { data: aluno, error } = await supabase
                 .from('alunos')
                 .select('*, matriculas(*, cursos(nome)), conquistas(*)')
                 .eq('email', email)
-                .single();
+                .maybeSingle();
 
-            if (error || !aluno) {
+            // Se for o admin e não tiver cadastro de aluno, usamos o aluno de teste para visualização
+            if (!aluno && email === 'aquilles1213@gmail.com') {
+                const { data: testAluno } = await supabase
+                    .from('alunos')
+                    .select('*, matriculas(*, cursos(nome)), conquistas(*)')
+                    .eq('email', 'teste@teste.com')
+                    .maybeSingle();
+                aluno = testAluno;
+            }
+
+            if (!aluno) {
                 return res.status(404).json({ error: 'Aluno não encontrado' });
             }
 
-            res.json(aluno);
+            // Calcular Ranking (Posição baseada em XP)
+            const { count: higherXpCount } = await supabase
+                .from('alunos')
+                .select('*', { count: 'exact', head: true })
+                .gt('xp', aluno.xp || 0);
+            
+            const ranking = (higherXpCount || 0) + 1;
+
+            res.json({ ...aluno, ranking });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }

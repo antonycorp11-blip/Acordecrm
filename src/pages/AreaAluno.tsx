@@ -138,19 +138,19 @@ export default function AreaAluno() {
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000]">
               <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-2">&gt;&gt; BEM_VINDO_PLAYER_ONE</p>
               <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 break-words">
-                {alunoData?.nome?.split(' ')[0] || 'ALUNO'}
+                {alunoData?.nome || 'NOME_INDISPONÍVEL'}
               </h2>
               
               <div className="grid grid-cols-2 gap-3">
                  <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
                    <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">INSTRUMENTO</p>
                    <p className="text-black font-black text-[10px] uppercase italic tracking-tighter truncate">
-                     {alunoData?.matriculas?.[0]?.cursos?.nome || 'ATIVO'}
+                     {alunoData?.matriculas?.[0]?.cursos?.nome || 'NÃO_MATRICULADO'}
                    </p>
                  </div>
                  <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
                    <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">RANKING</p>
-                   <p className="text-[#ff6b00] font-black text-xl italic">#01</p>
+                   <p className="text-[#ff6b00] font-black text-xl italic">#{String(alunoData?.ranking || 0).padStart(2, '0')}</p>
                  </div>
               </div>
             </div>
