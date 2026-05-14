@@ -121,175 +121,178 @@ export default function Usuarios() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'admin':
-        return <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full flex items-center gap-1 w-fit"><Shield className="w-3 h-3" /> Administrador</span>;
+        return <span className="px-3 py-1 bg-red-500 text-white border-2 border-black text-[9px] font-black uppercase tracking-widest shadow-[2px_2px_0_#000] flex items-center gap-1 w-fit"><Shield className="w-3 h-3" /> MESTRE_ADM</span>;
       case 'professor':
-        return <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full flex items-center gap-1 w-fit"><UserIcon className="w-3 h-3" /> Professor</span>;
+        return <span className="px-3 py-1 bg-[#ff6b00] text-white border-2 border-black text-[9px] font-black uppercase tracking-widest shadow-[2px_2px_0_#000] flex items-center gap-1 w-fit"><UserIcon className="w-3 h-3" /> PROFESSOR</span>;
       case 'secretaria':
-        return <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full flex items-center gap-1 w-fit"><Users className="w-3 h-3" /> Secretaria</span>;
+        return <span className="px-3 py-1 bg-[#feccba] text-black border-2 border-black text-[9px] font-black uppercase tracking-widest shadow-[2px_2px_0_#000] flex items-center gap-1 w-fit"><Users className="w-3 h-3" /> SECRETARIA</span>;
       case 'aluno':
-        return <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full flex items-center gap-1 w-fit"><UserIcon className="w-3 h-3" /> Aluno</span>;
+        return <span className="px-3 py-1 bg-[#25d366] text-white border-2 border-black text-[9px] font-black uppercase tracking-widest shadow-[2px_2px_0_#000] flex items-center gap-1 w-fit"><UserIcon className="w-3 h-3" /> APRENDIZ</span>;
       default:
-        return <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-bold rounded-full w-fit">{role}</span>;
+        return <span className="px-3 py-1 bg-white text-black border-2 border-black text-[9px] font-black uppercase tracking-widest shadow-[2px_2px_0_#000] w-fit">{role}</span>;
     }
   };
 
   if (isLoading) {
-    return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-slate-400" /></div>;
+    return <div className="p-8 flex justify-center bg-[#1a0f0a] h-screen items-center"><Loader2 className="w-8 h-8 animate-spin text-[#ff6b00]" /></div>;
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto w-full">
-      <div className="flex justify-between items-center mb-8">
+    <div className="flex flex-col flex-1 animate-in fade-in duration-500 bg-[#1a0f0a] h-screen overflow-hidden">
+      <header className="h-24 px-8 bg-[#feccba] border-b-4 border-black flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <Shield className="w-8 h-8 text-blue-600" />
-            Acessos e Usuários
+          <h1 className="text-2xl font-black text-black uppercase italic italic tracking-tighter flex items-center gap-3">
+            <Shield className="w-8 h-8 text-[#ff6b00]" />
+            Acessos & Usuários
           </h1>
-          <p className="text-slate-500 mt-1">Gerencie quem tem acesso ao sistema e suas permissões (Professores, Administradores, etc).</p>
+          <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Gerencie permissões e acessos ao sistema.</p>
         </div>
         <button
           onClick={() => openModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-semibold shadow-sm shadow-blue-600/20 transition-all"
+          className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
         >
-          <Plus className="w-5 h-5" />
-          Novo Usuário
+          <Plus className="w-5 h-5" /> NOVO_USUÁRIO
         </button>
-      </div>
+      </header>
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="p-4 font-semibold text-sm text-slate-600">Nome</th>
-                <th className="p-4 font-semibold text-sm text-slate-600">E-mail (Login)</th>
-                <th className="p-4 font-semibold text-sm text-slate-600">Permissão</th>
-                <th className="p-4 font-semibold text-sm text-slate-600 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usuarios.map(usuario => (
-                <tr key={usuario.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="p-4 font-medium text-slate-800">{usuario.nome}</td>
-                  <td className="p-4 text-slate-600">{usuario.email}</td>
-                  <td className="p-4">{getRoleBadge(usuario.role)}</td>
-                  <td className="p-4 text-right space-x-2">
-                    <button
-                      onClick={() => openModal(usuario)}
-                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Editar"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(usuario.id)}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Deletar"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+      <div className="p-8 flex-1 overflow-auto">
+        <div className="bg-[#fff8f6] border-4 border-black shadow-[8px_8px_0_#000] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#feccba] border-b-4 border-black">
+                  <th className="p-4 font-black text-xs text-black uppercase italic italic">NOME</th>
+                  <th className="p-4 font-black text-xs text-black uppercase italic italic">E-MAIL_LOGIN</th>
+                  <th className="p-4 font-black text-xs text-black uppercase italic italic">PERMISSÃO</th>
+                  <th className="p-4 font-black text-xs text-black uppercase italic italic text-right">AÇÕES</th>
                 </tr>
-              ))}
-              {usuarios.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-500">
-                    Nenhum usuário cadastrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100">
-              <h2 className="text-xl font-bold text-slate-800">
-                {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
-              </h2>
-              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Nome Completo</label>
-                <input
-                  type="text"
-                  required
-                  value={nome}
-                  onChange={e => setNome(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  placeholder="Ex: João Professor"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">E-mail (Login)</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  placeholder="joao@escola.com.br"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo de Permissão</label>
-                <select
-                  value={role}
-                  onChange={e => setRole(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                >
-                  <option value="admin">Administrador (Acesso Total)</option>
-                  <option value="professor">Professor (Portal do Professor)</option>
-                  <option value="secretaria">Secretaria (Gestão)</option>
-                  <option value="aluno">Aluno (Portal do Aluno)</option>
-                </select>
-                <p className="text-xs text-slate-500 mt-1">Isso define quais telas ele poderá acessar.</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Senha {editingUser && '(Deixe em branco para não alterar)'}
-                </label>
-                <input
-                  type="text"
-                  required={!editingUser}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                  placeholder="Nova senha..."
-                />
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm shadow-blue-600/20 flex items-center gap-2 transition-colors disabled:opacity-70"
-                >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Salvar
-                </button>
-              </div>
-            </form>
+              </thead>
+              <tbody className="divide-y-2 divide-black/5">
+                {usuarios.map(usuario => (
+                  <tr key={usuario.id} className="hover:bg-black/5 transition-colors">
+                    <td className="p-4 font-black text-black uppercase text-sm">{usuario.nome}</td>
+                    <td className="p-4 font-black text-[#8e7164] text-xs uppercase">{usuario.email}</td>
+                    <td className="p-4">{getRoleBadge(usuario.role)}</td>
+                    <td className="p-4 text-right space-x-2">
+                      <button
+                        onClick={() => openModal(usuario)}
+                        className="p-2 border-2 border-black bg-white text-black shadow-[2px_2px_0_#000] hover:translate-y-[-1px] active:translate-y-0 active:shadow-none transition-all"
+                        title="Editar"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(usuario.id)}
+                        className="p-2 border-2 border-black bg-white text-red-500 shadow-[2px_2px_0_#000] hover:translate-y-[-1px] active:translate-y-0 active:shadow-none transition-all"
+                        title="Deletar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {usuarios.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-12 text-center text-[#8e7164] font-black uppercase italic italic">
+                      NENHUM_USUÁRIO_CADASTRADO
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+      </div>
+
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#fff8f6] border-8 border-black shadow-[12px_12px_0_#000] w-full max-w-md overflow-hidden relative"
+            >
+              <div className="absolute top-0 right-0 p-4">
+                 <button onClick={closeModal} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                    <X className="w-4 h-4" />
+                 </button>
+              </div>
+
+              <div className="p-8 border-b-4 border-black bg-[#feccba]">
+                <h2 className="text-xl font-black text-black uppercase italic italic flex items-center gap-2">
+                  <Shield className="w-6 h-6 text-[#ff6b00]" />
+                  {editingUser ? 'EDITAR_ACESSO' : 'NOVO_USUÁRIO'}
+                </h2>
+              </div>
+              
+              <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">NOME_COMPLETO</label>
+                  <input
+                    type="text"
+                    required
+                    value={nome}
+                    onChange={e => setNome(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border-4 border-black font-black uppercase italic italic text-sm focus:ring-0 outline-none"
+                    placeholder="JOÃO PROFESSOR"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">E-MAIL_DE_LOGIN</label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border-4 border-black font-black uppercase italic italic text-sm focus:ring-0 outline-none"
+                    placeholder="JOAO@ESCOLA.COM.BR"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">NÍVEL_DE_PERMISSÃO</label>
+                  <select
+                    value={role}
+                    onChange={e => setRole(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border-4 border-black font-black uppercase italic italic text-sm focus:ring-0 outline-none"
+                  >
+                    <option value="admin">ADMINISTRADOR (ACESSO TOTAL)</option>
+                    <option value="professor">PROFESSOR (PORTAL DO MESTRE)</option>
+                    <option value="secretaria">SECRETARIA (GESTÃO)</option>
+                    <option value="aluno">ALUNO (ÁREA DO ALUNO)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">
+                    SENHA {editingUser && '(DEIXE EM BRANCO PARA NÃO ALTERAR)'}
+                  </label>
+                  <input
+                    type="text"
+                    required={!editingUser}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border-4 border-black font-black uppercase italic italic text-sm focus:ring-0 outline-none"
+                    placeholder="DIGITE A SENHA..."
+                  />
+                </div>
+
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                    {editingUser ? 'ATUALIZAR_DADOS' : 'CRIAR_ACESSO'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
     </div>
   );
 }
