@@ -1171,24 +1171,28 @@ async function startServer() {
             // Força busca pelo e-mail do admin ou do teste
             const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
 
-            const { data: aluno } = await supabase
+            const { data: aluno, error: errMe } = await supabase
                 .from('alunos')
                 .select('*, matriculas(*, cursos(nome))')
                 .ilike('email', searchEmail)
                 .order('id', { foreignTable: 'matriculas', ascending: false })
                 .maybeSingle();
 
+            if (errMe) throw new Error(`Supabase Me Error: ${errMe.message}`);
+
             if (!aluno) {
-                const { data: fallback } = await supabase.from('alunos').select('*, matriculas(*, cursos(nome))').eq('id', 3).order('id', { foreignTable: 'matriculas', ascending: false }).maybeSingle();
+                const { data: fallback, error: errFb } = await supabase.from('alunos').select('*, matriculas(*, cursos(nome))').eq('id', 3).order('id', { foreignTable: 'matriculas', ascending: false }).maybeSingle();
+                if (errFb) throw new Error(`Supabase Fallback Error: ${errFb.message}`);
+                
                 if (fallback) {
-                    const activeCourse = fallback.matriculas?.find((m: any) => m.status === 'ativa')?.cursos?.nome || 'STUDENT';
+                    const activeCourse = (fallback.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
                     return res.json({ ...fallback, ranking: 1, curso_ativo: activeCourse });
                 }
                 return res.status(404).json({ error: 'Nenhum dado encontrado' });
             }
 
             const activeCourse = (aluno.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
-            res.json({ ...aluno, ranking: 1, curso_ativo: activeCourse });
+            return res.json({ ...aluno, ranking: 1, curso_ativo: activeCourse });
         } catch (err: any) {
             res.status(500).json({ error: err.message });
         }
