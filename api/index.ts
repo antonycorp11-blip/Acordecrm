@@ -1128,7 +1128,7 @@ async function startServer() {
             const { email } = req.user;
             const { data: aluno, error } = await supabase
                 .from('alunos')
-                .select('*, matriculas(*), conquistas(*)')
+                .select('*, matriculas(*, cursos(nome)), conquistas(*)')
                 .eq('email', email)
                 .single();
 
