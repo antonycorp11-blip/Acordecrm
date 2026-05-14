@@ -492,10 +492,11 @@ async function startServer() {
             
             console.log(`[ALUNO_UPDATE_API] ID: ${studentId}`, { nome, curso_id });
 
-            // 1. Atualizar Aluno (Whitelist rigorosa)
+            // 1. Capturar e-mail antigo para sincronização
+            const { data: oldAluno } = await supabase.from('alunos').select('email').eq('id', studentId).single();
+
+            // 2. Atualizar Aluno (Whitelist rigorosa)
             const updateFields: any = { nome, email, telefone, cpf, endereco, responsavel_nome, responsavel_telefone };
-            
-            // Remover campos undefined
             Object.keys(updateFields).forEach(key => updateFields[key] === undefined && delete updateFields[key]);
 
             const { error: aluError } = await supabase.from('alunos')
@@ -507,14 +508,17 @@ async function startServer() {
                 return res.status(500).json({ error: aluError.message, stage: 'aluno_table' });
             }
 
-            // 1.1 Sincronizar com a tabela de usuários (para refletir na Área do Aluno)
-            if (nome || email) {
-                const { data: currentAluno } = await supabase.from('alunos').select('email, nome').eq('id', studentId).single();
-                if (currentAluno) {
-                    await supabase.from('usuarios')
-                        .update({ nome: currentAluno.nome, email: currentAluno.email })
-                        .eq('email', currentAluno.email);
-                }
+            // 3. Sincronizar com a tabela de usuários (para refletir na Área do Aluno)
+            if (oldAluno?.email && (nome || email)) {
+                console.log(`[SYNC_USUARIOS] Sincronizando login de ${oldAluno.email}`);
+                const { error: userError } = await supabase.from('usuarios')
+                    .update({ 
+                        nome: nome || undefined, 
+                        email: email || undefined 
+                    })
+                    .eq('email', oldAluno.email);
+                
+                if (userError) console.error('[SYNC_USUARIOS_ERROR]:', userError);
             }
 
             // 2. Atualizar Curso na Matrícula (se fornecido)

@@ -139,7 +139,7 @@ export default function AreaAluno() {
           <div className="px-4 py-5 space-y-4">
 
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000]">
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-2">&gt;&gt; BEM_VINDO_PLAYER_ONE</p>
+              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-2">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_{new Date().toLocaleTimeString()}</p>
               <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 break-words">
                 {alunoData?.nome || user?.nome || 'CARREGANDO...'}
               </h2>
