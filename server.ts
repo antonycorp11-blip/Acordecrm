@@ -320,6 +320,35 @@ async function startServer() {
     });
 
     // --- ALUNOS & CURSOS ENDPOINTS ---
+    app.get('/api/alunos/me', async (req: any, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('alunos')
+                .select('*, matriculas(*, cursos(nome))')
+                .eq('email', req.user.email)
+                .single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/alunos/me/photo', upload.single('photo'), async (req: any, res) => {
+        if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        try {
+            // No mundo real, subiria para S3/Supabase Storage. 
+            // Para simplicidade agora, usamos o sistema local de arquivos (multer já salvou).
+            const photoUrl = `/uploads/${req.file.filename}`;
+            
+            const { error } = await supabase
+                .from('alunos')
+                .update({ foto_url: photoUrl })
+                .eq('email', req.user.email);
+            
+            if (error) throw error;
+            res.json({ foto_url: photoUrl });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
     app.get('/api/alunos/:id', async (req, res) => {
         try {
             const { data, error } = await supabase.from('alunos').select('*').eq('id', req.params.id).single();
