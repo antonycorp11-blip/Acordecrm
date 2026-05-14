@@ -421,7 +421,11 @@ async function startServer() {
 
     app.get('/api/alunos/:id', async (req, res) => {
         try {
-            const { data, error } = await supabase.from('alunos').select('*').eq('id', req.params.id).single();
+            const { data, error } = await supabase
+                .from('alunos')
+                .select('*, matriculas(*, cursos(nome))')
+                .eq('id', req.params.id)
+                .single();
             if (error) throw error;
             res.json(data);
         } catch (error: any) { res.status(500).json({ error: error.message }); }

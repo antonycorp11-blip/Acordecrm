@@ -402,10 +402,10 @@ export default function AlunoPerfil() {
         const updateRes = await fetch(`/api/alunos/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ avatar_url: json.url })
+          body: JSON.stringify({ foto_url: json.url })
         });
         if (updateRes.ok) {
-          setAluno({ ...aluno, avatar_url: json.url });
+          setAluno({ ...aluno, foto_url: json.url });
           toast.success('Foto atualizada!');
         }
       }
@@ -538,8 +538,8 @@ export default function AlunoPerfil() {
         <div className="flex flex-col md:flex-row md:items-center gap-8">
           <label className="w-32 h-32 bg-[#feccba] border-4 border-black shadow-[4px_4px_0_#000] flex items-center justify-center text-black text-5xl font-black relative overflow-hidden group cursor-pointer shrink-0">
             {uploadingAvatar && <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center text-white text-[10px] font-bold">...</div>}
-            {aluno.avatar_url ? (
-               <img src={aluno.avatar_url} alt="Avatar" className="w-full h-full object-cover z-10" />
+            {aluno.foto_url ? (
+               <img src={aluno.foto_url} alt="Avatar" className="w-full h-full object-cover z-10" />
             ) : (
                (aluno.nome || '?').charAt(0).toUpperCase()
             )}
@@ -557,6 +557,7 @@ export default function AlunoPerfil() {
             <div className="flex flex-wrap items-center gap-4 text-[#8e7164] text-[10px] font-black uppercase tracking-widest">
                <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-black" /> {aluno.email || 'NO_MAIL'}</span>
                <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-black" /> {aluno.telefone || 'NO_PHONE'}</span>
+               <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5 text-black" /> {aluno.matriculas?.[0]?.cursos?.nome || 'SEM_CURSO'}</span>
                <div className="bg-black text-white px-3 py-1 border border-black flex items-center gap-2">
                   SALDO: {agenda.filter(a => a.status?.toLowerCase() === 'pendente').length} AULAS
                </div>

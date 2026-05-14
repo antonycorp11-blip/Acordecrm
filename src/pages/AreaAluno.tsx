@@ -108,8 +108,9 @@ export default function AreaAluno() {
                   </div>
                 )}
               </div>
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity">
                 <Camera className="w-4 h-4 text-white" />
+                <span className="text-[6px] text-white font-black mt-1">FOTO</span>
               </div>
               <input 
                 id="photo-input" 
