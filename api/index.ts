@@ -732,7 +732,10 @@ async function startServer() {
 
     app.post('/api/professores', async (req, res) => {
         try {
-            const { data, error } = await supabase.from('professores').insert([req.body]).select().single();
+            const body = { ...req.body };
+            if (body.email === '') body.email = null;
+
+            const { data, error } = await supabase.from('professores').insert([body]).select().single();
             if (error) {
                 console.error('Erro Supabase (Professor):', error);
                 return res.status(error.code === '23505' ? 409 : 500).json({ 
@@ -749,8 +752,11 @@ async function startServer() {
 
     app.put('/api/professores/:id', async (req, res) => {
         try {
+            const body = { ...req.body };
+            if (body.email === '') body.email = null;
+
             const { data, error } = await supabase.from('professores')
-                .update(req.body)
+                .update(body)
                 .eq('id', req.params.id)
                 .select()
                 .single();

@@ -302,8 +302,7 @@ export default function Professores() {
                           <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">E-MAIL_PROFISSIONAL</label>
                           <input 
                             type="email"
-                            required
-                            placeholder="OBRIGATÓRIO E ÚNICO"
+                            placeholder="OPCIONAL"
                             className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none placeholder:text-black/10"
                             value={formData.email}
                             onChange={(e) => setFormData({...formData, email: e.target.value})}
