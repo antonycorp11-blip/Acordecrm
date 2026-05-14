@@ -91,6 +91,7 @@ export default function AreaAluno() {
       {/* TOP BAR — Stitch style */}
       <header className="flex items-center justify-between px-6 py-4 shrink-0 bg-[#feccba] border-b-8 border-black">
         <div className="flex items-center gap-3">
+          <div className="relative group cursor-pointer" onClick={() => document.getElementById('photo-input')?.click()}>
             <div className="w-12 h-12 rounded-none border-4 border-black overflow-hidden bg-[#ff6b00] shadow-[4px_4px_0_#000]">
               {alunoData?.foto_url ? (
                 <img src={alunoData.foto_url} alt="Profile" className="w-full h-full object-cover" />

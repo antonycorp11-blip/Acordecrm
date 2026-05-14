@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Users, Plus, Pencil, Trash2, Shield, User as UserIcon, Loader2, Save, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Usuario {
   id: number;
@@ -293,6 +294,7 @@ export default function Usuarios() {
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
     </div>
   );
 }
