@@ -132,7 +132,7 @@ export function Sidebar() {
           )}
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          {!isCollapsed && <span>Sair (v1.6)</span>}
+          {!isCollapsed && <span>Sair (v1.7)</span>}
         </button>
       </div>
     </div>

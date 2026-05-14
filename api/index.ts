@@ -495,7 +495,7 @@ async function startServer() {
             // 1. Atualizar Aluno (Whitelist rigorosa)
             const updateFields: any = { nome, email, telefone, cpf, endereco, responsavel_nome, responsavel_telefone };
             
-            // Remover campos undefined para não sobrescrever com null acidentalmente
+            // Remover campos undefined
             Object.keys(updateFields).forEach(key => updateFields[key] === undefined && delete updateFields[key]);
 
             const { error: aluError } = await supabase.from('alunos')
@@ -505,6 +505,16 @@ async function startServer() {
             if (aluError) {
                 console.error('[API_ALUNO_UPDATE_ERROR]:', aluError);
                 return res.status(500).json({ error: aluError.message, stage: 'aluno_table' });
+            }
+
+            // 1.1 Sincronizar com a tabela de usuários (para refletir na Área do Aluno)
+            if (nome || email) {
+                const { data: currentAluno } = await supabase.from('alunos').select('email, nome').eq('id', studentId).single();
+                if (currentAluno) {
+                    await supabase.from('usuarios')
+                        .update({ nome: currentAluno.nome, email: currentAluno.email })
+                        .eq('email', currentAluno.email);
+                }
             }
 
             // 2. Atualizar Curso na Matrícula (se fornecido)
@@ -1176,11 +1186,12 @@ async function startServer() {
                 .from('alunos')
                 .select('*, matriculas(*, cursos(nome))')
                 .ilike('email', searchEmail)
+                .order('id', { foreignTable: 'matriculas', ascending: false })
                 .maybeSingle();
 
             if (!aluno) {
                 // Tenta pegar o ID 3 diretamente se não achar por e-mail
-                const { data: fallback } = await supabase.from('alunos').select('*, matriculas(*, cursos(nome))').eq('id', 3).maybeSingle();
+                const { data: fallback } = await supabase.from('alunos').select('*, matriculas(*, cursos(nome))').eq('id', 3).order('id', { foreignTable: 'matriculas', ascending: false }).maybeSingle();
                 if (fallback) return res.json({ ...fallback, ranking: 1 });
                 return res.status(404).json({ error: 'Nenhum dado encontrado' });
             }

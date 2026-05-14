@@ -23,8 +23,8 @@ export default function AreaAluno() {
     const headers = { Authorization: `Bearer ${token}` };
 
     Promise.all([
-      fetch('/api/alunos/me', { headers }).then(r => r.ok ? r.json() : null),
-      fetch('/api/agenda', { headers }).then(r => r.ok ? r.json() : [])
+      fetch(`/api/alunos/me?t=${Date.now()}`, { headers }).then(r => r.ok ? r.json() : null),
+      fetch(`/api/agenda?t=${Date.now()}`, { headers }).then(r => r.ok ? r.json() : [])
     ]).then(([me, agenda]) => {
       setAlunoData(me);
       
