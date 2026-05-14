@@ -1187,7 +1187,7 @@ async function startServer() {
                 return res.status(404).json({ error: 'Nenhum dado encontrado' });
             }
 
-            const activeCourse = aluno.matriculas?.find((m: any) => m.status === 'ativa')?.cursos?.nome || 'STUDENT';
+            const activeCourse = (aluno.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
             res.json({ ...aluno, ranking: 1, curso_ativo: activeCourse });
         } catch (err: any) {
             res.status(500).json({ error: err.message });

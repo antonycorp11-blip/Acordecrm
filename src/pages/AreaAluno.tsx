@@ -14,6 +14,8 @@ export default function AreaAluno() {
   const xp = alunoData?.xp || 0;
   const xpMax = 1000; // Exemplo de escala de nível
   const nivel = Math.floor(xp / 100) + 1;
+  const cursoNome = alunoData?.curso_ativo || 'STUDENT';
+  const classe = `${cursoNome.toUpperCase()}_TRAINEE`;
   const xpPct = Math.min(100, ((xp % 100) / 100) * 100);
 
   useEffect(() => {
