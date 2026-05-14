@@ -179,22 +179,22 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
       <motion.main 
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-[98vw] max-w-[1800px] h-[95vh] bg-[#1A1A1A] border-4 border-white rounded-none flex flex-col shadow-hard-white relative z-10 retro-font text-white"
+        className="w-[98vw] max-w-[1800px] h-[95vh] bg-[#fff8f6] border-8 border-black rounded-none flex flex-col shadow-[12px_12px_0_#000] relative z-10 retro-font text-black"
       >
         {/* Header Section */}
-        <div className="flex justify-between items-center p-4 border-b-4 border-white shrink-0 bg-[#1A1A1A]">
+        <div className="flex justify-between items-center p-6 border-b-8 border-black shrink-0 bg-[#feccba]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#FF8A00] border-2 border-black flex items-center justify-center text-xl shadow-hard">
+            <div className="w-12 h-12 bg-[#ff6b00] border-4 border-black flex items-center justify-center text-xl shadow-[4px_4px_0_#000]">
               👤
             </div>
             <div>
-              <h1 className="text-xl font-bold uppercase tracking-tighter">Matrícula</h1>
-              <p className="text-[#FF8A00] text-[8px] uppercase tracking-widest">&gt;&gt; NOVO ALUNO</p>
+              <h1 className="text-2xl font-black uppercase italic italic tracking-tighter text-black">Matrícula_de_Membro</h1>
+              <p className="text-[#8e7164] text-[10px] font-black uppercase tracking-widest">&gt;&gt; NOVO_ALUNO_NA_ESCOLA</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="bg-red-600 border-2 border-black p-1 hover:bg-red-500 shadow-hard transition-all active:translate-y-1"
+            className="bg-black text-white p-2 border-4 border-white shadow-[4px_4px_0_#000] hover:bg-red-500 transition-all active:translate-y-1 active:shadow-none"
           >
             <X className="w-6 h-6" />
           </button>
@@ -521,19 +521,19 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
         </div>
 
         {/* Footer Actions */}
-        <footer className="p-4 border-t-4 border-white flex justify-end items-center gap-4 bg-[#1A1A1A] shrink-0">
+        <footer className="p-6 border-t-8 border-black flex justify-end items-center gap-6 bg-[#feccba] shrink-0">
           <button 
             onClick={onClose}
-            className="px-6 py-2 text-[10px] font-bold uppercase hover:underline decoration-[#FF8A00] decoration-2"
+            className="text-xs font-black uppercase text-black hover:underline tracking-widest"
           >
-            Cancelar
+            CANCELAR_OPERAÇÃO
           </button>
           <button 
             disabled={loading || !formData.horario || !formData.pacote_id}
             onClick={handleSubmit}
-            className="px-8 py-3 bg-[#FF8A00] text-black font-bold uppercase border-2 border-black shadow-hard hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all flex items-center gap-2 disabled:opacity-50 text-[11px]"
+            className="px-10 py-4 bg-[#ff6b00] text-white font-black uppercase border-4 border-black shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 disabled:opacity-50 text-xs"
           >
-            {loading ? 'Sincronizando...' : <><span>💾</span> Matricular</>}
+            {loading ? 'SINCRONIZANDO...' : <><span>💾</span> EFETUAR_MATRÍCULA</>}
           </button>
         </footer>
       </motion.main>
