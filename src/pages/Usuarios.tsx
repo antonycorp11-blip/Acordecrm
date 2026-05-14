@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Users, Plus, Pencil, Trash2, Shield, User as UserIcon, Loader2, Save, X, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
