@@ -43,7 +43,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder', {
   global: {
     headers: {
-      'x-backend-secret': 'studio-acorde-secret-key-2024'
+      'x-backend-secret': 'studio-acorde-secret-key-2024',
+      'x-api-version': 'v1.6'
     }
   }
 });
@@ -362,7 +363,11 @@ async function startServer() {
     // --- ALUNOS & CURSOS ENDPOINTS ---
     app.get('/api/alunos/:id', async (req, res) => {
         try {
-            const { data, error } = await supabase.from('alunos').select('*').eq('id', req.params.id).single();
+            const { data, error } = await supabase
+                .from('alunos')
+                .select('*, matriculas(*, cursos(nome))')
+                .eq('id', req.params.id)
+                .single();
             if (error) throw error;
             res.json(data);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
@@ -478,10 +483,47 @@ async function startServer() {
 
     app.patch('/api/alunos/:id', async (req, res) => {
         try {
-            const { data, error } = await supabase.from('alunos').update(req.body).eq('id', req.params.id).select().single();
-            if (error) throw error;
-            res.json(data);
-        } catch (error: any) { res.status(500).json({ error: error.message }); }
+            const studentId = req.params.id;
+            const { 
+                nome, email, telefone, cpf, endereco, 
+                responsavel_nome, responsavel_telefone, 
+                curso_id 
+            } = req.body;
+            
+            console.log(`[ALUNO_UPDATE_API] ID: ${studentId}`, { nome, curso_id });
+
+            // 1. Atualizar Aluno (Whitelist rigorosa)
+            const updateFields: any = { nome, email, telefone, cpf, endereco, responsavel_nome, responsavel_telefone };
+            
+            // Remover campos undefined para não sobrescrever com null acidentalmente
+            Object.keys(updateFields).forEach(key => updateFields[key] === undefined && delete updateFields[key]);
+
+            const { error: aluError } = await supabase.from('alunos')
+                .update(updateFields)
+                .eq('id', studentId);
+            
+            if (aluError) {
+                console.error('[API_ALUNO_UPDATE_ERROR]:', aluError);
+                return res.status(500).json({ error: aluError.message, stage: 'aluno_table' });
+            }
+
+            // 2. Atualizar Curso na Matrícula (se fornecido)
+            if (curso_id && !isNaN(Number(curso_id))) {
+                const { error: matError } = await supabase.from('matriculas')
+                    .update({ curso_id: Number(curso_id) })
+                    .eq('aluno_id', studentId)
+                    .eq('status', 'ativa');
+                
+                if (matError) {
+                    console.error('[API_MATRICULA_UPDATE_ERROR]:', matError);
+                }
+            }
+
+            res.json({ success: true, version: '1.6' });
+        } catch (error: any) {
+            console.error('[API_FATAL_ERROR]:', error);
+            res.status(500).json({ error: error.message, stage: 'fatal' });
+        }
     });
 
     app.delete('/api/cursos/:id', async (req, res) => {
