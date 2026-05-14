@@ -733,9 +733,18 @@ async function startServer() {
     app.post('/api/professores', async (req, res) => {
         try {
             const { data, error } = await supabase.from('professores').insert([req.body]).select().single();
-            if (error) throw error;
+            if (error) {
+                console.error('Erro Supabase (Professor):', error);
+                return res.status(error.code === '23505' ? 409 : 500).json({ 
+                    error: 'Erro ao salvar professor', 
+                    message: error.message,
+                    details: error.details
+                });
+            }
             res.json(data);
-        } catch (error) { res.status(500).json({ error: 'Erro ao salvar professor' }); }
+        } catch (error: any) { 
+            res.status(500).json({ error: 'Erro ao salvar professor', message: error.message }); 
+        }
     });
 
     app.put('/api/professores/:id', async (req, res) => {

@@ -88,7 +88,13 @@ export default function Professores() {
       setEditingId(null);
     } else {
       const errData = await res.json().catch(() => ({}));
-      alert('Erro ao salvar professor: ' + (errData.message || res.statusText));
+      const msg = errData.message || errData.error || res.statusText;
+      
+      if (res.status === 409) {
+        alert('ERRO: Este e-mail já está cadastrado para outro professor.');
+      } else {
+        alert('Erro ao salvar professor: ' + msg);
+      }
     }
   };
 
@@ -296,7 +302,9 @@ export default function Professores() {
                           <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">E-MAIL_PROFISSIONAL</label>
                           <input 
                             type="email"
-                            className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                            required
+                            placeholder="OBRIGATÓRIO E ÚNICO"
+                            className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none placeholder:text-black/10"
                             value={formData.email}
                             onChange={(e) => setFormData({...formData, email: e.target.value})}
                           />
