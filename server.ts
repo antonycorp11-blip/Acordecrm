@@ -541,53 +541,45 @@ async function startServer() {
 
     app.patch('/api/alunos/:id', async (req, res) => {
         try {
-            // Whitelist de campos permitidos para atualização na tabela 'alunos'
-            const allowedFields = [
-                'nome', 'email', 'telefone', 'cpf', 'endereco', 
-                'responsavel_nome', 'responsavel_telefone', 'responsavel_cpf',
-                'data_nascimento', 'status', 'foto_url'
-            ];
+            const studentId = req.params.id;
+            const { 
+                nome, email, telefone, cpf, endereco, 
+                responsavel_nome, responsavel_telefone, 
+                curso_id 
+            } = req.body;
             
-            const updateData: any = {};
-            allowedFields.forEach(field => {
-                if (req.body[field] !== undefined) {
-                    // Evitar strings vazias em colunas de data/número
-                    if (field === 'data_nascimento' && req.body[field] === '') {
-                        updateData[field] = null;
-                    } else {
-                        updateData[field] = req.body[field];
-                    }
-                }
-            });
+            console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id });
 
-            console.log(`[PATCH /api/alunos/${req.params.id}] Campos para update:`, Object.keys(updateData));
-
-            // Atualizar dados do aluno
-            const { data, error } = await supabase
-                .from('alunos')
-                .update(updateData)
-                .eq('id', req.params.id)
-                .select();
-                
-            if (error) {
-                console.error('[ERRO SUPABASE ALUNOS]:', error);
-                throw error;
+            // 1. Atualizar Aluno (campos básicos)
+            const { error: aluError } = await supabase.from('alunos')
+                .update({ 
+                    nome, email, telefone, cpf, endereco, 
+                    responsavel_nome, responsavel_telefone 
+                })
+                .eq('id', studentId);
+            
+            if (aluError) {
+                console.error('[ALUNO_UPDATE_ERROR]:', aluError);
+                return res.status(500).json({ error: aluError.message, stage: 'aluno' });
             }
 
-            // Atualizar curso se fornecido
-            if (req.body.curso_id) {
-                console.log(`[PATCH /api/alunos/${req.params.id}] Atualizando curso para:`, req.body.curso_id);
+            // 2. Atualizar Curso na Matrícula Ativa (se fornecido)
+            if (curso_id && !isNaN(Number(curso_id))) {
                 const { error: matError } = await supabase.from('matriculas')
-                    .update({ curso_id: Number(req.body.curso_id) })
-                    .eq('aluno_id', req.params.id)
+                    .update({ curso_id: Number(curso_id) })
+                    .eq('aluno_id', studentId)
                     .eq('status', 'ativa');
-                if (matError) console.error('[ERRO SUPABASE MATRICULAS]:', matError);
+                
+                if (matError) {
+                    console.error('[MATRICULA_UPDATE_ERROR]:', matError);
+                    // Não travamos o fluxo principal se apenas a matrícula falhar
+                }
             }
 
-            res.json(data?.[0] || { success: true });
-        } catch (error: any) { 
-            console.error('[ERRO FATAL PATCH ALUNOS]:', error);
-            res.status(500).json({ error: error.message }); 
+            res.json({ success: true });
+        } catch (error: any) {
+            console.error('[FATAL_ALUNO_UPDATE]:', error);
+            res.status(500).json({ error: error.message, stack: error.stack });
         }
     });
 
