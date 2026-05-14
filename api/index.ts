@@ -1125,40 +1125,40 @@ async function startServer() {
 
     app.get('/api/alunos/me', async (req: any, res) => {
         try {
-            const { email } = req.user;
+            const userEmail = (req.user?.email || '').trim().toLowerCase();
             
-            // Tenta buscar o aluno pelo email (case-insensitive)
+            // 1. Tenta buscar pelo email exato
             let { data: aluno } = await supabase
                 .from('alunos')
                 .select('*, matriculas(*, cursos(nome)), conquistas(*)')
-                .ilike('email', email)
+                .ilike('email', userEmail)
                 .maybeSingle();
 
-            // Se for o admin e não tiver cadastro de aluno, usamos o aluno de teste
-            if (!aluno && email.toLowerCase() === 'aquilles1213@gmail.com') {
-                const { data: testAluno } = await supabase
+            // 2. Fallback para Admin ou caso específico de teste
+            if (!aluno && (userEmail === 'aquilles1213@gmail.com' || userEmail === 'teste@teste.com')) {
+                const { data: fallback } = await supabase
                     .from('alunos')
                     .select('*, matriculas(*, cursos(nome)), conquistas(*)')
-                    .eq('email', 'teste@teste.com')
+                    .eq('id', 3) // O aluno de teste que confirmamos existir
                     .maybeSingle();
-                aluno = testAluno;
+                aluno = fallback;
             }
 
-            // Se ainda não achou (ex: outro admin logado), pega o primeiro aluno só pra não quebrar a tela
-            if (!aluno) {
-                const { data: firstAluno } = await supabase
+            // 3. Fallback de segurança (pega qualquer aluno se for admin)
+            if (!aluno && userEmail === 'aquilles1213@gmail.com') {
+                const { data: first } = await supabase
                     .from('alunos')
                     .select('*, matriculas(*, cursos(nome)), conquistas(*)')
                     .limit(1)
                     .maybeSingle();
-                aluno = firstAluno;
+                aluno = first;
             }
 
             if (!aluno) {
-                return res.status(404).json({ error: 'Nenhum aluno cadastrado no sistema' });
+                return res.status(404).json({ error: 'Aluno não localizado' });
             }
 
-            // Calcular Ranking
+            // Ranking
             const { count } = await supabase
                 .from('alunos')
                 .select('*', { count: 'exact', head: true })
