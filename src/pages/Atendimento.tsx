@@ -14,7 +14,9 @@ import {
   ChevronRight, 
   MoreVertical, 
   X, 
-  Check
+  Check,
+  Save,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
