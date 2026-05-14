@@ -67,19 +67,28 @@ export default function Professores() {
     const method = editingId ? 'PATCH' : 'POST';
     const url = editingId ? `/api/professores/${editingId}` : '/api/professores';
     
+    // Converte array de especialidades para string antes de enviar
+    const payload = {
+      ...formData,
+      especialidades: formData.especialidades.join(',')
+    };
+    
     const res = await fetch(url, {
       method,
       headers: { 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(formData),
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
       setIsModalOpen(false);
       fetchData();
       setFormData({ nome: '', email: '', telefone: '', especialidades: [], instrumentos: '', cor_agenda: '#f97316', status: 'ativo' });
       setEditingId(null);
+    } else {
+      const errData = await res.json().catch(() => ({}));
+      alert('Erro ao salvar professor: ' + (errData.message || res.statusText));
     }
   };
 
@@ -255,99 +264,113 @@ export default function Professores() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-8"
+              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-xl"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900">Novo Professor</h2>
-                <button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
+              <div className="absolute top-0 right-0 p-4">
+                 <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                    <X className="w-4 h-4" />
+                 </button>
               </div>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                 <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Nome Completo</label>
-                   <input 
-                     required
-                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                     value={formData.nome}
-                     onChange={(e) => setFormData({...formData, nome: e.target.value})}
-                   />
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">E-mail</label>
-                      <input 
-                        type="email"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">WhatsApp</label>
-                      <input 
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={formData.telefone}
-                        onChange={(e) => setFormData({...formData, telefone: e.target.value})}
-                      />
-                    </div>
-                 </div>
-                 <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Instrumentos que leciona</label>
-                   <input 
-                     placeholder="Ex: Violão, Teclado, Canto"
-                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                     value={formData.instrumentos}
-                     onChange={(e) => setFormData({...formData, instrumentos: e.target.value})}
-                   />
-                 </div>
-                 <div className="space-y-3">
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Especialidades (Cursos)</label>
-                   <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
-                     {cursos.map(curso => {
-                       const isSelected = formData.especialidades.includes(curso.nome);
-                       return (
-                         <button
-                           key={curso.id}
-                           type="button"
-                           onClick={() => toggleEspecialidade(curso.nome)}
-                           className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2 group ${
-                             isSelected 
-                               ? 'bg-primary/10 border-primary shadow-sm' 
-                               : 'bg-white border-slate-200 hover:border-primary/50'
-                           }`}
-                         >
-                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                             isSelected ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-primary/20'
-                           }`}>
-                             <Music className="w-4 h-4" />
-                           </div>
-                           <span className={`text-[11px] font-bold ${isSelected ? 'text-primary' : 'text-slate-600'}`}>
-                             {curso.nome}
-                           </span>
-                         </button>
-                       );
-                     })}
-                   </div>
-                   {cursos.length === 0 && (
-                     <p className="text-[10px] font-bold text-slate-400 italic">Nenhum curso cadastrado. Cadastre cursos primeiro.</p>
-                   )}
-                 </div>
-                 <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Cor na Agenda</label>
-                    <div className="flex items-center gap-3">
+
+              <div className="mb-8">
+                <h2 className="text-xl font-black text-black uppercase italic italic flex items-center gap-2">
+                   <Users className="w-6 h-6 text-[#ff6b00]" /> {editingId ? 'EDITAR_MESTRE' : 'NOVO_PROFESSOR'}
+                </h2>
+                <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-4">
+                     <div>
+                       <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO</label>
                        <input 
-                         type="color"
-                         className="w-10 h-10 rounded-lg cursor-pointer"
-                         value={formData.cor_agenda}
-                         onChange={(e) => setFormData({...formData, cor_agenda: e.target.value})}
+                         required
+                         className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                         value={formData.nome}
+                         onChange={(e) => setFormData({...formData, nome: e.target.value})}
                        />
-                       <span className="text-xs font-bold text-slate-500">{formData.cor_agenda}</span>
-                    </div>
+                     </div>
+                     <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">E-MAIL_PROFISSIONAL</label>
+                          <input 
+                            type="email"
+                            className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                            value={formData.email}
+                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
+                          <input 
+                            className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                            value={formData.telefone}
+                            onChange={(e) => setFormData({...formData, telefone: e.target.value})}
+                          />
+                        </div>
+                     </div>
+                     <div>
+                       <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">COR_IDENTIFICAÇÃO</label>
+                       <div className="flex items-center gap-3">
+                          <input 
+                            type="color"
+                            className="w-12 h-12 border-4 border-black cursor-pointer shadow-[2px_2px_0_#000]"
+                            value={formData.cor_agenda}
+                            onChange={(e) => setFormData({...formData, cor_agenda: e.target.value})}
+                          />
+                          <span className="text-[10px] font-black text-black/40 uppercase font-mono">{formData.cor_agenda}</span>
+                       </div>
+                     </div>
+                   </div>
+
+                   <div className="space-y-4">
+                     <div>
+                       <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">INSTRUMENTOS_QUE_LECIONA</label>
+                       <input 
+                         placeholder="Ex: VIOLÃO, TECLADO..."
+                         className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none placeholder:text-black/10"
+                         value={formData.instrumentos}
+                         onChange={(e) => setFormData({...formData, instrumentos: e.target.value})}
+                       />
+                     </div>
+
+                     <div className="space-y-2">
+                       <label className="text-[10px] font-black text-black uppercase tracking-widest block">ESPECIALIDADES_CURSOS</label>
+                       <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar p-2 bg-[#feccba]/20 border-2 border-black/10">
+                         {cursos.map(curso => {
+                           const isSelected = formData.especialidades.includes(curso.nome);
+                           return (
+                             <button
+                               key={curso.id}
+                               type="button"
+                               onClick={() => toggleEspecialidade(curso.nome)}
+                               className={`p-2 border-2 text-left transition-all flex items-center gap-2 group ${
+                                 isSelected 
+                                   ? 'bg-[#ff6b00] border-black text-white shadow-[2px_2px_0_#000] translate-y-[-1px]' 
+                                   : 'bg-white border-black/10 text-black/40 hover:border-black'
+                               }`}
+                             >
+                               <Music className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-black/10'}`} />
+                               <span className="text-[9px] font-black uppercase tracking-tighter truncate">
+                                 {curso.nome}
+                               </span>
+                             </button>
+                           );
+                         })}
+                       </div>
+                       {cursos.length === 0 && (
+                         <p className="text-[8px] font-black text-[#8e7164] uppercase animate-pulse italic">Nenhum curso cadastrado...</p>
+                       )}
+                     </div>
+                   </div>
                  </div>
+                 
                  <button 
                    type="submit"
-                   className="w-full bg-primary text-white py-4 rounded-2xl font-black shadow-lg shadow-primary/30 mt-4 active:scale-95 transition-all flex items-center justify-center gap-2"
+                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
                  >
-                   <Save className="w-5 h-5" /> Salvar Professor
+                   <Save className="w-5 h-5" /> SALVAR_PROFESSOR
                  </button>
               </form>
             </motion.div>
