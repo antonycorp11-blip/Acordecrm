@@ -104,19 +104,19 @@ export default function Conquistas() {
 
   return (
     <div className="flex flex-col flex-1 animate-in fade-in duration-500 bg-[#1a0f0a] h-screen overflow-hidden">
-      <header className="h-24 px-8 bg-[#feccba] border-b-4 border-black flex items-center justify-between shrink-0">
+      <header className="px-8 py-6 bg-[#feccba] border-b-8 border-black flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-black text-black uppercase italic italic tracking-tighter flex items-center gap-2">
+          <h1 className="text-2xl font-black text-black uppercase italic italic tracking-tighter flex items-center gap-3">
             <Trophy className="w-8 h-8 text-[#ff6b00]" />
-            Conquistas & Medalhas
+            Achievements_&_Medalhas
           </h1>
-          <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Crie e gerencie as medalhas dos alunos pelo desempenho na escola.</p>
+          <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">&gt;&gt; GESTÃO_DE_GAMIFICAÇÃO</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
+          className="bg-[#ff6b00] text-white px-8 py-4 border-4 border-black font-black uppercase text-xs shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-3 transition-all italic italic"
         >
-          <Plus className="w-4 h-4" /> NOVA_CONQUISTA
+          <Plus className="w-5 h-5" /> NOVA_CONQUISTA
         </button>
       </header>
 
