@@ -150,12 +150,50 @@ async function startServer() {
                 return res.status(401).json({ message: 'Credenciais inválidas' });
             }
 
-            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
             res.json({ token, user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
-        } catch (error: any) { 
-            console.error('Login error:', error);
-            res.status(500).json({ error: 'Erro interno no servidor: ' + error.message }); 
-        }
+        } catch (error) { res.status(500).json({ error: 'Erro no login' }); }
+    });
+
+    app.get('/api/auth/check-student', async (req, res) => {
+        try {
+            const { email } = req.query;
+            if (!email) return res.status(400).json({ error: 'Email não fornecido' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            if (!aluno) return res.json({ exists: false });
+
+            const { data: usuario } = await supabase.from('usuarios').select('id').eq('email', email).single();
+            
+            res.json({ 
+                exists: true, 
+                needsSetup: !usuario,
+                alunoId: aluno.id,
+                nome: aluno.nome
+            });
+        } catch (error) { res.status(500).json({ error: 'Erro ao verificar aluno' }); }
+    });
+
+    app.post('/api/auth/setup-password', async (req, res) => {
+        try {
+            const { email, senha } = req.body;
+            if (!email || !senha) return res.status(400).json({ error: 'Dados incompletos' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            const hashed = bcrypt.hashSync(senha, 10);
+            const { data: newUser, error: errU } = await supabase.from('usuarios').insert([{
+                nome: aluno.nome,
+                email,
+                senha: hashed,
+                senha_plana: senha,
+                role: 'aluno'
+            }]).select().single();
+
+            if (errU) throw errU;
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
     // Auth (Register)
@@ -322,14 +360,46 @@ async function startServer() {
     // --- ALUNOS & CURSOS ENDPOINTS ---
     app.get('/api/alunos/me', async (req: any, res) => {
         try {
-            const { data, error } = await supabase
+            // 1. Buscar o aluno logado (usando ilike para ser case-insensitive)
+            const { data: aluno, error } = await supabase
                 .from('alunos')
                 .select('*, matriculas(*, cursos(nome))')
-                .eq('email', req.user.email)
+                .ilike('email', req.user.email)
                 .single();
-            if (error) throw error;
-            res.json(data);
-        } catch (error: any) { res.status(500).json({ error: error.message }); }
+            
+            if (error || !aluno) {
+                console.error('Aluno não encontrado para email:', req.user.email);
+                return res.status(404).json({ error: 'Aluno não encontrado' });
+            }
+
+            // 2. Calcular Ranking e XP real (baseado em conquistas)
+            const { data: allAlunos } = await supabase.from('alunos').select('id, xp');
+            const { data: progresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)');
+            
+            const rankingList = (allAlunos || []).map(al => {
+                const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
+                const xpCalculado = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
+                // O XP total é a soma do XP base + conquistas
+                return { id: al.id, xp: (al.xp || 0) + xpCalculado };
+            }).sort((a, b) => b.xp - a.xp);
+
+            const myEntry = rankingList.find(r => r.id === aluno.id);
+            const myRank = rankingList.findIndex(r => r.id === aluno.id) + 1;
+            const myXp = myEntry ? myEntry.xp : (aluno.xp || 0);
+
+            res.json({
+                ...aluno,
+                ranking: myRank,
+                xp: myXp,
+                conquistas: progresso?.filter(p => p.aluno_id === aluno.id).map(p => ({
+                    ...p.conquista,
+                    data_conquista: p.created_at
+                })) || []
+            });
+        } catch (error: any) { 
+            console.error('Erro em /api/alunos/me:', error);
+            res.status(500).json({ error: error.message }); 
+        }
     });
 
     app.post('/api/alunos/me/photo', upload.single('photo'), async (req: any, res) => {

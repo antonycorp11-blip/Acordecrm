@@ -14,7 +14,8 @@ export default function AreaAluno() {
   const xp = alunoData?.xp || 0;
   const xpMax = 1000; // Exemplo de escala de nível
   const nivel = Math.floor(xp / 100) + 1;
-  const classe = alunoData?.instrumento ? `${alunoData.instrumento.toUpperCase()}_TRAINEE` : 'MASTER_IN_TRAINING';
+  const cursoNome = alunoData?.matriculas?.[0]?.cursos?.nome || 'STUDENT';
+  const classe = `${cursoNome.toUpperCase()}_TRAINEE`;
   const xpPct = Math.min(100, ((xp % 100) / 100) * 100);
 
   useEffect(() => {
@@ -134,18 +135,17 @@ export default function AreaAluno() {
         <div className="flex-1 overflow-auto pb-24 scrollbar-hide">
           <div className="px-4 py-5 space-y-4">
 
-            {/* Welcome Card */}
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000]">
               <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-2">&gt;&gt; BEM_VINDO_PLAYER_ONE</p>
               <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 break-words">
-                {alunoData?.nome || 'TESTE_FORÇADO_FRONTEND'}
+                {alunoData?.nome || user?.nome || 'CARREGANDO...'}
               </h2>
               
               <div className="grid grid-cols-2 gap-3">
                  <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
                    <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">INSTRUMENTO</p>
                    <p className="text-black font-black text-[10px] uppercase italic tracking-tighter truncate">
-                     {alunoData?.matriculas?.[0]?.cursos?.nome || 'NÃO_MATRICULADO'}
+                     {alunoData?.matriculas?.[0]?.cursos?.nome || (alunoData ? 'NÃO_MATRICULADO' : '...')}
                    </p>
                  </div>
                  <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
@@ -187,6 +187,33 @@ export default function AreaAluno() {
                 <p className="text-[#8e7164] font-black text-[10px] uppercase italic">&gt;&gt; NENHUMA_AULA_AGENDADA</p>
               </div>
             )}
+
+            {/* Conquistas (Badges) */}
+            <div className="pt-2">
+              <div className="flex items-center gap-3 mb-4">
+                <h3 className="text-white font-black text-xs uppercase tracking-widest">CONQUISTAS_PLAYER</h3>
+                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+                {alunoData?.conquistas?.map((c: any, i: number) => (
+                  <div key={i} className="flex-shrink-0 w-16 h-16 bg-[#261812] border-4 border-black relative group shadow-[4px_4px_0_#000]">
+                    {c.icone_url ? (
+                      <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[#ff6b00]">
+                         <Trophy className="w-6 h-6" />
+                      </div>
+                    )}
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#ff6b00] border-2 border-black rounded-full"></div>
+                  </div>
+                ))}
+                {(!alunoData?.conquistas || alunoData.conquistas.length === 0) && (
+                  <div className="flex-1 text-center py-4 bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
+                    <p className="text-[#8e7164] font-black text-[8px] uppercase tracking-tighter">Nenhuma conquista desbloqueada</p>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Menu Grid */}
             <div className="grid grid-cols-2 gap-3">

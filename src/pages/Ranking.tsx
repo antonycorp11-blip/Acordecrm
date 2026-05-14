@@ -152,9 +152,13 @@ export default function Ranking() {
                         {/* Achievements */}
                         <p className="text-[#ff6b00] font-black text-[10px] uppercase tracking-widest mb-3">CONQUISTAS_DESBLOQUEADAS</p>
                         <div className="flex gap-3 mb-6">
-                          {(mockRanking[0].conquistas?.slice(0, 4) || []).map((_: any, i: number) => (
-                            <div key={i} className="w-14 h-14 rounded border-2 border-[#7b5647] flex items-center justify-center text-[#7b5647]" style={{ background: '#ffeae1' }}>
-                              {achievementIcons[i % 4]}
+                          {(mockRanking[0].conquistas?.slice(0, 4) || []).map((c: any, i: number) => (
+                            <div key={i} className="w-14 h-14 rounded border-2 border-[#7b5647] flex items-center justify-center text-[#7b5647] overflow-hidden bg-[#ffeae1]">
+                              {c.icone_url ? (
+                                <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-2" />
+                              ) : (
+                                achievementIcons[i % 4]
+                              )}
                             </div>
                           ))}
                           {(!mockRanking[0].conquistas || mockRanking[0].conquistas.length === 0) && (
@@ -186,12 +190,16 @@ export default function Ranking() {
                         </div>
                         <div>
                           <h4 className="font-black text-[#261812] text-lg uppercase leading-tight truncate max-w-[120px]">{aluno.nome}</h4>
-                          <span className="text-[#8e7164] font-black text-[10px] uppercase">LEVEL_{Math.floor(aluno.xp / 200)}</span>
+                          <span className="text-[#8e7164] font-black text-[10px] uppercase">LEVEL_{Math.floor(aluno.xp / 100) + 1}</span>
                           <span className="ml-2 text-[#7b5647] font-black text-[10px] uppercase">{getInstrumento(aluno)}</span>
                           <div className="flex gap-2 mt-3">
-                            {(aluno.conquistas?.slice(0, 3) || []).map((_: any, j: number) => (
-                              <div key={j} className="w-8 h-8 rounded border border-[#7b5647] flex items-center justify-center text-[#8e7164]" style={{ background: '#ffeae1' }}>
-                                {achievementIcons[j % 4] && React.cloneElement(achievementIcons[j % 4] as React.ReactElement, { className: 'w-4 h-4' })}
+                            {(aluno.conquistas?.slice(0, 3) || []).map((c: any, j: number) => (
+                              <div key={j} className="w-8 h-8 rounded border border-[#7b5647] flex items-center justify-center text-[#8e7164] overflow-hidden bg-[#ffeae1]">
+                                {c.icone_url ? (
+                                  <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-1" />
+                                ) : (
+                                  achievementIcons[j % 4] && React.cloneElement(achievementIcons[j % 4] as React.ReactElement, { className: 'w-4 h-4' })
+                                )}
                               </div>
                             ))}
                           </div>
