@@ -73,19 +73,20 @@ export default function Ranking() {
       }} />
 
       {/* TOP BAR */}
-      <header className="relative z-10 flex items-center gap-4 px-6 py-4 border-b-2 border-[#3d2d26] shrink-0" style={{ background: '#1a0a05' }}>
+      <header className="relative z-10 flex items-center gap-6 px-8 py-6 border-b-8 border-black shrink-0 bg-[#feccba]">
         <div className="flex-1">
-          <h1 className="text-[#ff6b00] font-black text-xl tracking-widest uppercase">BEAT_LAB_CRM</h1>
+          <h1 className="text-black font-black text-2xl tracking-tighter uppercase italic italic">Ranking_Geral</h1>
+          <p className="text-[#8e7164] text-[10px] font-black uppercase tracking-widest">&gt;&gt; TEMPORADA_ATUAL_04</p>
         </div>
-        <div className="flex items-center gap-2 border-2 border-[#5a4136] rounded px-3 py-2 flex-1 max-w-sm" style={{ background: '#261812' }}>
-          <Search className="w-4 h-4 text-[#8e7164]" />
-          <input placeholder="BUSCAR_ALUNO..." className="bg-transparent text-sm text-[#fff8f6] placeholder:text-[#8e7164] outline-none flex-1 uppercase" style={{ fontFamily: "'Space Mono', monospace" }} />
+        <div className="flex items-center gap-2 border-4 border-black px-4 py-3 flex-1 max-w-sm bg-white shadow-[4px_4px_0_#000]">
+          <Search className="w-4 h-4 text-black" />
+          <input placeholder="FILTRAR_PLAYER..." className="bg-transparent text-sm text-black placeholder:text-[#8e7164] outline-none flex-1 uppercase font-black italic italic" />
         </div>
-        <div className="flex items-center gap-3">
-          <button className="text-[#8e7164] hover:text-[#ff6b00]"><Bell className="w-5 h-5" /></button>
-          <span className="text-[#ff6b00] font-black text-xs uppercase tracking-widest">CERTIFICATE</span>
-          <div className="w-9 h-9 rounded-full border-2 border-[#ff6b00] bg-[#261812] flex items-center justify-center text-[#ff6b00] font-black text-sm">
-            {(user?.nome || 'A').charAt(0).toUpperCase()}
+        <div className="flex items-center gap-6">
+          <button className="text-black hover:text-[#ff6b00] transition-colors"><Bell className="w-7 h-7" /></button>
+          <div className="flex items-center gap-3 bg-black text-white px-4 py-2 border-2 border-white shadow-[4px_4px_0_#000]">
+            <Trophy className="w-5 h-5 text-[#ff6b00]" />
+            <span className="font-black text-xs uppercase tracking-widest">HALL_DA_FAMA</span>
           </div>
         </div>
       </header>
@@ -93,31 +94,26 @@ export default function Ranking() {
       {/* CONTENT */}
       <div className="relative z-10 flex-1 overflow-auto px-8 py-6">
 
-        {/* Season + Title + View Toggle */}
-        <div className="flex items-end justify-between mb-6">
+        {/* Controls Section */}
+        <div className="flex items-end justify-between mb-10">
           <div>
-            <div className="inline-block border-2 border-[#5a4136] rounded px-3 py-1 mb-3">
-              <span className="text-[#ff6b00] font-black text-[10px] uppercase tracking-widest">TEMPORADA_04</span>
-            </div>
-            <h2 className="font-black text-white uppercase" style={{ fontSize: '3rem', lineHeight: 1, letterSpacing: '-1px' }}>
-              HALL_DA_FAMA
+            <h2 className="font-black text-white uppercase italic italic leading-none tracking-tighter" style={{ fontSize: '4.5rem' }}>
+              LEADERBOARD
             </h2>
           </div>
 
-          <div className="flex items-center rounded overflow-hidden" style={{ border: '3px solid #5a4136' }}>
+          <div className="flex items-center bg-black p-1 border-4 border-white shadow-[6px_6px_0_#000]">
             <button
               onClick={() => setViewMode('cards')}
-              className="flex items-center gap-2 px-5 py-3 font-black text-xs uppercase tracking-widest transition-all"
-              style={{ background: viewMode === 'cards' ? '#261812' : 'transparent', color: viewMode === 'cards' ? '#fff8f6' : '#8e7164' }}
+              className={`flex items-center gap-2 px-6 py-3 font-black text-xs uppercase tracking-widest transition-all ${viewMode === 'cards' ? 'bg-[#ff6b00] text-white' : 'text-[#8e7164] hover:text-white'}`}
             >
-              <LayoutGrid className="w-4 h-4" /> CARDS
+              <LayoutGrid className="w-4 h-4" /> GRID_VIEW
             </button>
             <button
               onClick={() => setViewMode('lista')}
-              className="flex items-center gap-2 px-5 py-3 font-black text-xs uppercase tracking-widest transition-all"
-              style={{ background: viewMode === 'lista' ? '#ff6b00' : 'transparent', color: viewMode === 'lista' ? '#fff' : '#8e7164', borderLeft: '2px solid #5a4136' }}
+              className={`flex items-center gap-2 px-6 py-3 font-black text-xs uppercase tracking-widest transition-all ${viewMode === 'lista' ? 'bg-[#ff6b00] text-white' : 'text-[#8e7164] hover:text-white'}`}
             >
-              <List className="w-4 h-4" /> LISTA
+              <List className="w-4 h-4" /> LIST_VIEW
             </button>
           </div>
         </div>
@@ -294,32 +290,53 @@ export default function Ranking() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <div className="rounded-lg p-8 w-full max-w-md" style={{ background: '#fff8f6', border: '4px solid #261812', boxShadow: '8px 8px 0 #000', fontFamily: "'Space Mono', monospace" }}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-[#261812] font-black text-lg uppercase tracking-widest">Atribuir Conquista</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-[#7b5647] hover:text-[#ff6b00]"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleAssign} className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#fff8f6] border-8 border-black w-full max-w-md shadow-[12px_12px_0_#000] flex flex-col"
+          >
+            <header className="p-6 border-b-8 border-black flex items-center justify-between bg-[#feccba]">
+              <div className="flex items-center gap-3">
+                <div className="bg-[#ff6b00] p-2 border-4 border-black shadow-[4px_4px_0_#000]"><Trophy className="w-6 h-6 text-white" /></div>
+                <div>
+                  <h2 className="text-xl font-black text-black uppercase italic italic tracking-tighter">Atribuir_Conquista</h2>
+                  <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">&gt;&gt; NOVO_ENTRY</p>
+                </div>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"><X className="w-6 h-6" /></button>
+            </header>
+
+            <form onSubmit={handleAssign} className="p-8 space-y-6">
               <div>
-                <label className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest mb-1 block">Aluno</label>
-                <select required className="retro-input w-full px-4 py-3 rounded text-sm" value={assignData.aluno_id} onChange={e => setAssignData({ ...assignData, aluno_id: e.target.value })}>
-                  <option value="">Selecione um aluno...</option>
+                <label className="text-[10px] font-black text-black uppercase tracking-widest mb-2 block">SELECIONAR_PLAYER</label>
+                <select 
+                  required 
+                  className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 outline-none" 
+                  value={assignData.aluno_id} 
+                  onChange={e => setAssignData({ ...assignData, aluno_id: e.target.value })}
+                >
+                  <option value="">PLAYER_LIST...</option>
                   {alunosList.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest mb-1 block">Conquista</label>
-                <select required className="retro-input w-full px-4 py-3 rounded text-sm" value={assignData.conquista_id} onChange={e => setAssignData({ ...assignData, conquista_id: e.target.value })}>
-                  <option value="">Selecione...</option>
+                <label className="text-[10px] font-black text-black uppercase tracking-widest mb-2 block">ESCOLHER_ACHIEVEMENT</label>
+                <select 
+                  required 
+                  className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 outline-none" 
+                  value={assignData.conquista_id} 
+                  onChange={e => setAssignData({ ...assignData, conquista_id: e.target.value })}
+                >
+                  <option value="">ACHIEVEMENTS...</option>
                   {conquistasList.map(c => <option key={c.id} value={c.id}>{c.nome} (+{c.pontos} XP)</option>)}
                 </select>
               </div>
-              <button type="submit" className="w-full py-4 rounded font-black text-white uppercase tracking-widest pressable-btn" style={{ background: '#ff6b00', border: '2px solid #261812' }}>
-                <Save className="w-4 h-4 inline mr-2" />Atribuir
+              <button type="submit" className="w-full py-5 bg-[#ff6b00] text-white font-black uppercase italic italic border-4 border-black shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3">
+                <Save className="w-5 h-5" /> ATRIBUIR_PONTOS
               </button>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>
