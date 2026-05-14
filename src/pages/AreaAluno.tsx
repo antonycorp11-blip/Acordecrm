@@ -118,7 +118,7 @@ export default function AreaAluno() {
                 onChange={handlePhotoUpload} 
               />
             </div>
-            <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB</h1>
+            <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB <span className="text-[8px] text-[#ff6b00]">v1.0.2</span></h1>
           </div>
           <div className="flex items-center gap-4">
             <button className="text-black hover:text-[#ff6b00] transition-colors">
@@ -138,7 +138,7 @@ export default function AreaAluno() {
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000]">
               <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-2">&gt;&gt; BEM_VINDO_PLAYER_ONE</p>
               <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 break-words">
-                {alunoData?.nome || 'NOME_INDISPONÍVEL'}
+                {alunoData?.nome || 'TESTE_FORÇADO_FRONTEND'}
               </h2>
               
               <div className="grid grid-cols-2 gap-3">
