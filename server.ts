@@ -541,22 +541,26 @@ async function startServer() {
 
     app.patch('/api/alunos/:id', async (req, res) => {
         try {
-            const { curso_id, ...alunoData } = req.body;
+            const { curso_id, matriculas, aulas, aulas_restantes, ...alunoData } = req.body;
             
-            // Atualizar dados do aluno
+            // Atualizar dados do aluno (apenas campos que existem na tabela)
             const { data, error } = await supabase.from('alunos').update(alunoData).eq('id', req.params.id).select().single();
             if (error) throw error;
 
             // Se curso_id foi enviado, atualizar a matrícula ativa
             if (curso_id) {
-                await supabase.from('matriculas')
+                const { error: matError } = await supabase.from('matriculas')
                     .update({ curso_id })
                     .eq('aluno_id', req.params.id)
                     .eq('status', 'ativa');
+                if (matError) console.error('Erro ao atualizar curso na matrícula:', matError);
             }
 
             res.json(data);
-        } catch (error: any) { res.status(500).json({ error: error.message }); }
+        } catch (error: any) { 
+            console.error('Erro no PATCH /api/alunos:', error);
+            res.status(500).json({ error: error.message }); 
+        }
     });
 
     app.delete('/api/cursos/:id', async (req, res) => {
