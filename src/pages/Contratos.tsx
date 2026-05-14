@@ -14,7 +14,8 @@ import {
   Save,
   Trash2,
   Edit3,
-  Music
+  Music,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -195,29 +196,41 @@ export default function Contratos() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
             {/* Seletor de Aluno e Configuração */}
             <div className="space-y-6 overflow-y-auto pr-4 custom-scrollbar">
-              <div className="glass-card p-6">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">1. Selecione o Aluno</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
+            {/* Seletor de Aluno e Configuração */}
+            <div className="space-y-6 overflow-y-auto pr-4 custom-scrollbar">
+              <div className="bg-[#fff8f6] border-4 border-black p-6 shadow-[6px_6px_0_#000]">
+                <h3 className="text-[10px] font-black text-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                   <CheckCircle2 className="w-4 h-4 text-[#ff6b00]" /> 1. SELECIONE_O_ALUNO
+                </h3>
                 <select 
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20"
+                  className="w-full px-4 py-3 bg-white border-4 border-black text-xs font-black uppercase italic italic focus:ring-0 outline-none"
                   onChange={(e) => setSelectedAluno(alunos.find(a => a.id === Number(e.target.value)))}
                 >
-                  <option value="">Selecione um aluno matriculado...</option>
+                  <option value="">BUSCAR_ALUNO_MATRICULADO...</option>
                   {alunos.map(aluno => <option key={aluno.id} value={aluno.id}>{aluno.nome}</option>)}
                 </select>
               </div>
 
-              <div className="glass-card p-6">
+              <div className="bg-[#fff8f6] border-4 border-black p-6 shadow-[6px_6px_0_#000]">
                 <div className="flex items-center justify-between mb-4">
-                   <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">2. Cláusulas do Contrato</h3>
-                   <button onClick={() => setClauses([...clauses, 'Nova cláusula personalizada...'])} className="text-primary text-[10px] font-black uppercase hover:underline">Adicionar Cláusula</button>
+                   <h3 className="text-[10px] font-black text-black uppercase tracking-widest flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-[#ff6b00]" /> 2. CLÁUSULAS_DO_CONTRATO
+                   </h3>
+                   <button 
+                     onClick={() => setClauses([...clauses, 'NOVA CLÁUSULA PERSONALIZADA...'])} 
+                     className="bg-black text-white px-2 py-1 border-2 border-white text-[8px] font-black uppercase shadow-[2px_2px_0_#000] active:translate-y-1 active:shadow-none"
+                   >
+                     + ADD_ITEM
+                   </button>
                 </div>
                 <div className="space-y-3">
                   {clauses.map((clause, index) => (
-                    <div key={index} className="group relative bg-slate-50 border border-slate-200 p-4 rounded-xl hover:border-primary/30 transition-all">
+                    <div key={index} className="group relative bg-white border-2 border-black p-4 shadow-[4px_4px_0_#000] hover:translate-y-[-1px] transition-all">
                       {editingClause === index ? (
                         <textarea 
                           autoFocus
-                          className="w-full bg-white border border-primary/20 p-2 rounded-lg text-xs font-medium focus:outline-none"
+                          className="w-full bg-[#feccba]/20 border-2 border-black p-2 text-[10px] font-black uppercase italic italic focus:outline-none min-h-[80px]"
                           value={clause}
                           onChange={(e) => {
                             const newClauses = [...clauses];
@@ -228,11 +241,11 @@ export default function Contratos() {
                         />
                       ) : (
                         <div className="flex items-start gap-3">
-                          <span className="bg-slate-200 text-slate-500 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0">{index + 1}</span>
-                          <p className="text-xs text-slate-600 font-medium leading-relaxed flex-1">{clause}</p>
+                          <span className="bg-black text-white w-5 h-5 border-2 border-white flex items-center justify-center text-[9px] font-black shrink-0 shadow-[2px_2px_0_#000]">{index + 1}</span>
+                          <p className="text-[10px] text-black font-black uppercase italic italic leading-relaxed flex-1">{clause}</p>
                           <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button onClick={() => setEditingClause(index)} className="p-1 hover:bg-primary/10 rounded text-primary"><Edit3 className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => setClauses(clauses.filter((_, i) => i !== index))} className="p-1 hover:bg-red-50 rounded text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setEditingClause(index)} className="p-1 bg-[#ff6b00] border-2 border-black text-white"><Edit3 className="w-3 h-3" /></button>
+                            <button onClick={() => setClauses(clauses.filter((_, i) => i !== index))} className="p-1 bg-red-500 border-2 border-black text-white"><Trash2 className="w-3 h-3" /></button>
                           </div>
                         </div>
                       )}
@@ -244,9 +257,9 @@ export default function Contratos() {
               <button 
                 onClick={handlePrint}
                 disabled={!selectedAluno}
-                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-xl mt-4 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <Printer className="w-5 h-5" /> Visualizar e Gerar PDF
+                <Printer className="w-5 h-5" /> VISUALIZAR_E_IMPRIMIR_PDF
               </button>
             </div>
 
@@ -310,31 +323,40 @@ export default function Contratos() {
       {/* Modal Novo Plano */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-8"
+              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-xl"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900">Novo Plano / Pacote</h2>
-                <button onClick={() => setIsModalOpen(false)}><Trash2 className="w-5 h-5 text-slate-400" /></button>
+              <div className="absolute top-0 right-0 p-4">
+                 <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                    <X className="w-4 h-4" />
+                 </button>
               </div>
-              <form onSubmit={handleCreatePacote} className="space-y-4">
+
+              <div className="mb-8 border-b-4 border-black pb-4">
+                <h2 className="text-xl font-black text-black uppercase italic italic flex items-center gap-2">
+                   <Package className="w-6 h-6 text-[#ff6b00]" /> NOVO_PLANO_DE_ENSINO
+                </h2>
+              </div>
+
+              <form onSubmit={handleCreatePacote} className="space-y-6">
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Nome do Plano</label>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_DO_PLANO</label>
                     <input 
                       required
-                      placeholder="Ex: Piano Individual Gold"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                      placeholder="EX: PIANO INDIVIDUAL GOLD"
+                      className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 outline-none placeholder:text-black/10"
                       value={newPacote.nome}
                       onChange={(e) => setNewPacote({...newPacote, nome: e.target.value})}
                     />
                   </div>
+                  
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Cursos Inclusos</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest block">CURSOS_INCLUSOS</label>
+                    <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar p-2 bg-black/5 border-2 border-black">
                       {cursos.map(curso => {
                         const isSelected = newPacote.curso_ids.includes(curso.id);
                         return (
@@ -347,76 +369,66 @@ export default function Contratos() {
                                 : [...newPacote.curso_ids, curso.id];
                               setNewPacote({ ...newPacote, curso_ids: ids });
                             }}
-                            className={`p-2 rounded-xl border text-left transition-all flex items-center gap-2 ${
-                              isSelected ? 'bg-primary/10 border-primary' : 'bg-white border-slate-200'
+                            className={`p-2 border-2 text-left transition-all flex items-center gap-2 ${
+                              isSelected ? 'bg-[#ff6b00] border-black text-white shadow-[2px_2px_0_#000]' : 'bg-white border-black/10 text-black/40 hover:border-black'
                             }`}
                           >
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isSelected ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'}`}>
-                              <Music className="w-3 h-3" />
-                            </div>
-                            <span className={`text-[10px] font-bold ${isSelected ? 'text-primary' : 'text-slate-600'}`}>{curso.nome}</span>
+                            <Music className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-black/10'}`} />
+                            <span className="text-[9px] font-black uppercase truncate">{curso.nome}</span>
                           </button>
                         );
                       })}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Total de Aulas</label>
-                      <input 
-                        type="number"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={newPacote.total_aulas}
-                        onChange={(e) => setNewPacote({...newPacote, total_aulas: Number(e.target.value)})}
-                      />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">TOTAL_DE_AULAS</label>
+                        <input 
+                          type="number"
+                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black focus:ring-0 outline-none"
+                          value={newPacote.total_aulas}
+                          onChange={(e) => setNewPacote({...newPacote, total_aulas: Number(e.target.value)})}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">AULAS_/_SEMANA</label>
+                        <input 
+                          type="number"
+                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black focus:ring-0 outline-none"
+                          value={newPacote.aulas_por_semana}
+                          onChange={(e) => setNewPacote({...newPacote, aulas_por_semana: Number(e.target.value)})}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">DURAÇÃO_(MIN)</label>
+                        <input 
+                          type="number"
+                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black focus:ring-0 outline-none"
+                          value={newPacote.duracao_aula_minutos}
+                          onChange={(e) => setNewPacote({...newPacote, duracao_aula_minutos: Number(e.target.value)})}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">VALOR_MENSAL_(R$)</label>
+                        <input 
+                          type="number"
+                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black focus:ring-0 outline-none"
+                          value={newPacote.valor_mensal}
+                          onChange={(e) => setNewPacote({...newPacote, valor_mensal: Number(e.target.value)})}
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Aulas / Semana</label>
-                      <input 
-                        type="number"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={newPacote.aulas_por_semana}
-                        onChange={(e) => setNewPacote({...newPacote, aulas_por_semana: Number(e.target.value)})}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Duração (Min)</label>
-                      <input 
-                        type="number"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={newPacote.duracao_aula_minutos}
-                        onChange={(e) => setNewPacote({...newPacote, duracao_aula_minutos: Number(e.target.value)})}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Valor Mensal (R$)</label>
-                      <input 
-                        type="number"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={newPacote.valor_mensal}
-                        onChange={(e) => setNewPacote({...newPacote, valor_mensal: Number(e.target.value)})}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Desconto (R$)</label>
-                      <input 
-                        type="number"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
-                        value={newPacote.desconto_automatico}
-                        onChange={(e) => setNewPacote({...newPacote, desconto_automatico: Number(e.target.value)})}
-                      />
-                    </div>
-                  </div>
+
                   <button 
                     type="submit"
-                    className="w-full bg-primary text-white py-4 rounded-2xl font-black shadow-lg shadow-primary/30 mt-4 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
                   >
-                    <Save className="w-5 h-5" /> Salvar Plano
+                    <Save className="w-5 h-5" /> SALVAR_PLANO
                   </button>
               </form>
             </motion.div>
