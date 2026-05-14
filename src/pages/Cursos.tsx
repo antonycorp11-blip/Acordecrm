@@ -132,45 +132,54 @@ export default function Cursos() {
 
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-8"
+              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-md"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-black text-slate-900">Novo Curso</h2>
-                <button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
+              <div className="absolute top-0 right-0 p-4">
+                 <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                    <X className="w-4 h-4" />
+                 </button>
               </div>
-              <form onSubmit={handleSubmit} className="space-y-4">
+
+              <div className="mb-8">
+                <h2 className="text-xl font-black text-black uppercase italic italic flex items-center gap-2">
+                   <Music className="w-6 h-6 text-[#ff6b00]" /> NOVO_CURSO_MUSICAL
+                </h2>
+                <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
                  <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Nome do Instrumento/Curso</label>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_DA_MODALIDADE</label>
                    <input 
                      required
-                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium"
-                     placeholder="Ex: Piano Clássico, Guitarra Rock"
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none placeholder:text-black/10"
+                     placeholder="EX: PIANO CLÁSSICO, GUITARRA ROCK"
                      value={formData.nome}
                      onChange={(e) => setFormData({...formData, nome: e.target.value})}
                    />
                  </div>
                  <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Descrição Curta</label>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">DESCRIÇÃO_TÉCNICA</label>
                    <textarea 
-                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium min-h-[100px]"
-                     placeholder="Sobre o que é o curso..."
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none min-h-[100px] placeholder:text-black/10"
+                     placeholder="SOBRE O QUE É O CURSO..."
                      value={formData.descricao}
                      onChange={(e) => setFormData({...formData, descricao: e.target.value})}
                    />
                  </div>
                  <div>
-                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Valor Base da Mensalidade</label>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">VALOR_BASE_MENSAL_(R$)</label>
                    <div className="relative">
-                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                     <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-black" />
                      <input 
                        required
                        type="number"
-                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium"
+                       className="w-full pl-12 pr-4 py-3 bg-white border-4 border-black text-sm font-black focus:ring-0 focus:outline-none"
                        placeholder="0,00"
                        value={formData.valor_base}
                        onChange={(e) => setFormData({...formData, valor_base: e.target.value})}
@@ -179,9 +188,9 @@ export default function Cursos() {
                  </div>
                  <button 
                    type="submit"
-                   className="w-full bg-primary text-white py-4 rounded-2xl font-black shadow-lg shadow-primary/30 mt-4 active:scale-95 transition-all flex items-center justify-center gap-2"
+                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
                  >
-                   <Save className="w-5 h-5" /> Salvar Curso
+                   <Save className="w-5 h-5" /> SALVAR_CURSO
                  </button>
               </form>
             </motion.div>
