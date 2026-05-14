@@ -59,35 +59,38 @@ export function DisponibilidadeModal({ prof, onClose, onSave }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden p-8 max-h-[90vh] flex flex-col"
+        className="bg-[#fff8f6] w-full max-w-4xl border-8 border-black shadow-[12px_12px_0_#000] overflow-hidden flex flex-col max-h-[90vh]"
       >
-        <div className="flex justify-between items-center mb-6 shrink-0">
-          <div>
-            <h2 className="text-xl font-black text-slate-900">Disponibilidade - {prof.nome}</h2>
-            <p className="text-sm font-medium text-slate-500">Clique nos blocos para marcar os horários disponíveis.</p>
+        <header className="p-6 border-b-8 border-black flex items-center justify-between bg-[#feccba] shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#ff6b00] p-2 border-4 border-black shadow-[4px_4px_0_#000]"><Clock className="w-6 h-6 text-white" /></div>
+            <div>
+              <h2 className="text-xl font-black text-black uppercase italic italic tracking-tighter">Grade_Disponibilidade</h2>
+              <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">&gt;&gt; PROFESSOR: {prof.nome}</p>
+            </div>
           </div>
-          <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
-        </div>
+          <button onClick={onClose} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"><X className="w-6 h-6" /></button>
+        </header>
 
-        <div className="flex-1 overflow-auto custom-scrollbar border rounded-xl border-slate-200">
-          <div className="min-w-max">
-             <div className="flex sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
-               <div className="w-24 border-r border-slate-200 sticky left-0 bg-slate-50"></div>
+        <div className="flex-1 overflow-auto custom-scrollbar p-6 bg-black/5">
+          <div className="bg-white border-4 border-black shadow-[6px_6px_0_#000] min-w-max">
+             <div className="flex sticky top-0 z-10 bg-[#feccba] border-b-4 border-black">
+               <div className="w-24 border-r-4 border-black sticky left-0 bg-[#feccba]"></div>
                {HORARIOS.map(time => (
-                 <div key={time} className="w-16 h-8 border-r border-slate-200 flex items-center justify-center">
-                   <span className="text-[10px] font-black text-slate-500">{time}</span>
+                 <div key={time} className="w-16 h-10 border-r-2 border-black/20 flex items-center justify-center">
+                   <span className="text-[9px] font-black text-black uppercase">{time}</span>
                  </div>
                ))}
              </div>
              {DIAS.map(dia => (
-               <div key={dia} className="flex border-b border-slate-200">
-                 <div className="w-24 h-10 border-r border-slate-200 sticky left-0 bg-slate-50 flex items-center justify-center px-2">
-                   <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">{dia}</span>
+               <div key={dia} className="flex border-b-2 border-black/10 last:border-b-0">
+                 <div className="w-24 h-12 border-r-4 border-black sticky left-0 bg-[#ffeae1] flex items-center justify-center px-2">
+                   <span className="text-[9px] font-black text-black uppercase tracking-wider italic italic">{dia}</span>
                  </div>
                  {HORARIOS.map(time => {
                    const key = `${dia}-${time}`;
@@ -96,8 +99,8 @@ export function DisponibilidadeModal({ prof, onClose, onSave }: Props) {
                      <button
                        key={key}
                        onClick={() => toggle(dia, time)}
-                       className={`w-16 h-10 border-r border-slate-200 transition-colors ${
-                         isSelected ? 'bg-primary/20 hover:bg-primary/30' : 'bg-white hover:bg-slate-100'
+                       className={`w-16 h-12 border-r-2 border-black/10 transition-all ${
+                         isSelected ? 'bg-[#ff6b00] shadow-inner' : 'bg-white hover:bg-[#feccba]/20'
                        }`}
                      />
                    );
@@ -107,12 +110,12 @@ export function DisponibilidadeModal({ prof, onClose, onSave }: Props) {
           </div>
         </div>
 
-        <div className="shrink-0 mt-6 flex justify-end">
+        <div className="shrink-0 p-6 border-t-8 border-black bg-[#feccba] flex justify-end">
           <button 
             onClick={handleSave}
-            className="bg-primary text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-primary/30 active:scale-95 transition-all flex items-center gap-2"
+            className="bg-[#ff6b00] text-white px-10 py-4 border-4 border-black font-black uppercase italic italic shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-3"
           >
-            <Save className="w-5 h-5" /> Salvar
+            <Save className="w-5 h-5" /> SALVAR_CONFIGURAÇÃO
           </button>
         </div>
       </motion.div>
