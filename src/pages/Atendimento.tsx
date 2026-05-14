@@ -573,59 +573,79 @@ export default function Atendimento() {
       {/* Modal de Aula Experimental (Calendário) */}
       <AnimatePresence>
         {isExpModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white w-full max-w-[90vw] h-[95vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              className="bg-[#fff8f6] border-8 border-black w-full max-w-[95vw] h-[95vh] relative overflow-hidden flex flex-col shadow-[12px_12px_0_#000]"
             >
-              <header className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <header className="p-6 border-b-8 border-black flex items-center justify-between bg-[#feccba] shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="bg-blue-500/10 p-2 rounded-xl"><Calendar className="text-blue-500 w-5 h-5" /></div>
+                  <div className="bg-[#ff6b00] p-3 border-4 border-black text-white shadow-[4px_4px_0_#000]"><Calendar className="w-6 h-6" /></div>
                   <div>
-                    <h2 className="text-lg font-black text-slate-900">Agendar Aula Experimental</h2>
-                    <p className="text-xs text-slate-500 font-medium">Lead: {selectedLead?.nome}</p>
+                    <h2 className="text-xl font-black text-black uppercase italic italic tracking-tighter">Agendamento_de_Experimental</h2>
+                    <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">LEAD: {selectedLead?.nome}</p>
                   </div>
                 </div>
-                <button onClick={() => setIsExpModalOpen(false)}><X className="w-5 h-5 text-slate-400" /></button>
+                <button onClick={() => setIsExpModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"><X className="w-6 h-6" /></button>
               </header>
 
               <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
-                <form onSubmit={handleScheduleExp} className="w-full lg:w-[350px] border-r border-slate-100 p-8 overflow-y-auto space-y-8 bg-slate-50/30">
-                   <div className="space-y-4">
+                <div className="w-full lg:w-[380px] border-r-8 border-black p-8 overflow-y-auto space-y-8 bg-[#fff8f6]">
+                   <div className="space-y-6">
                      <div>
-                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Professor</label>
-                       <select required className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm" value={expData.professor_id} onChange={(e) => setExpData({...expData, professor_id: e.target.value})}>
-                         <option value="">Selecione...</option>
+                       <label className="text-[10px] font-black text-black uppercase tracking-widest mb-2 block">SELECIONE_O_PROFESSOR</label>
+                       <select 
+                         required 
+                         className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 outline-none" 
+                         value={expData.professor_id} 
+                         onChange={(e) => setExpData({...expData, professor_id: e.target.value})}
+                       >
+                         <option value="">BUSCAR_PROFESSOR...</option>
                          {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                        </select>
                      </div>
-                     {expData.horario && (
-                       <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
-                         <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Horário Selecionado</p>
-                         <p className="text-sm font-bold text-slate-900">{expData.data}, {expData.horario.substring(0, 5)}</p>
-                       </div>
-                     )}
+                     
+                     <AnimatePresence>
+                       {expData.horario && (
+                         <motion.div 
+                           initial={{ opacity: 0, x: -20 }}
+                           animate={{ opacity: 1, x: 0 }}
+                           className="bg-[#ff6b00] border-4 border-black p-6 shadow-[6px_6px_0_#000] text-white"
+                         >
+                           <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">HORÁRIO_SELECIONADO</p>
+                           <p className="text-lg font-black uppercase italic italic">{expData.data} @ {expData.horario.substring(0, 5)}</p>
+                         </motion.div>
+                       )}
+                     </AnimatePresence>
+
+                     <div className="p-4 bg-black/5 border-4 border-dashed border-black/20 rounded-none">
+                        <p className="text-[9px] font-black text-[#8e7164] uppercase leading-relaxed">
+                          DICA: CLIQUE EM UM ESPAÇO VAZIO NO CALENDÁRIO À DIREITA PARA DEFINIR O HORÁRIO DA AULA.
+                        </p>
+                     </div>
                    </div>
-                </form>
-                <div className="flex-1 p-8 bg-slate-100/50 flex flex-col">
-                   <WeeklyCalendar 
-                     mode="select" 
-                     selectedSlot={{ data: expData.data, horario: expData.horario }}
-                     onSelectSlot={(data, horario, sala_id) => setExpData({...expData, data, horario, sala_id})} 
-                   />
+                </div>
+                <div className="flex-1 p-4 bg-[#1a0f0a]/5 flex flex-col overflow-hidden">
+                   <div className="bg-white border-4 border-black h-full shadow-[8px_8px_0_#000] overflow-hidden">
+                     <WeeklyCalendar 
+                       mode="select" 
+                       selectedSlot={{ data: expData.data, horario: expData.horario }}
+                       onSelectSlot={(data, horario, sala_id) => setExpData({...expData, data, horario, sala_id})} 
+                     />
+                   </div>
                 </div>
               </div>
               
-              <footer className="p-6 border-t border-slate-100 bg-white flex items-center justify-end gap-3 shadow-lg">
-                <button onClick={() => setIsExpModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 text-sm">Cancelar</button>
+              <footer className="p-6 border-t-8 border-black bg-[#feccba] flex items-center justify-end gap-6 shrink-0">
+                <button onClick={() => setIsExpModalOpen(false)} className="text-xs font-black uppercase text-black hover:underline tracking-widest">CANCELAR_OPERAÇÃO</button>
                 <button 
-                  disabled={!expData.horario}
+                  disabled={!expData.horario || !expData.professor_id}
                   onClick={handleScheduleExp}
-                  className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-black shadow-lg shadow-blue-300 text-sm active:scale-95 transition-all disabled:opacity-50"
+                  className="bg-[#ff6b00] text-white px-10 py-4 border-4 border-black font-black uppercase text-xs shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 disabled:opacity-50"
                 >
-                  Confirmar Agendamento
+                  <Save className="w-5 h-5" /> CONFIRMAR_AGENDAMENTO
                 </button>
               </footer>
             </motion.div>
