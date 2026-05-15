@@ -305,8 +305,8 @@ export default function Migracao() {
                           ...prev,
                           valor_parcela: valorNum || prev.valor_parcela,
                           responsavel_nome: student.responsavel_nome || '',
-                          responsavel_telefone: '',
-                          responsavel_cpf: ''
+                          responsavel_telefone: student.responsavel_telefone || '',
+                          responsavel_cpf: student.responsavel_cpf || ''
                         }));
                       }}
                       className={`p-4 border-4 cursor-pointer transition-all flex items-center justify-between group ${
