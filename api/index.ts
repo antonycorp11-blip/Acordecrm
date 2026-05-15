@@ -752,6 +752,165 @@ async function startServer() {
         }
     });
 
+    // Migração (Sala de Espera)
+    app.get('/api/migracao/alunos', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('migracao_alunos')
+                .select('*')
+                .eq('status', 'pendente')
+                .order('nome');
+            
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/migracao/batch', async (req, res) => {
+        try {
+            const { students } = req.body;
+            const { error } = await supabase.from('migracao_alunos').insert(students);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/alunos/migracao', async (req, res) => {
+        const { migracao_id, ...studentData } = req.body;
+        try {
+            const { 
+                nome, email, telefone, cpf, endereco, 
+                data_nascimento, responsavel_nome, responsavel_telefone, responsavel_cpf,
+                curso_id, professor_id, dia_semana, horario, pacote_id,
+                aulas_restantes, reposicoes, faturas_pendentes, fatura_mes_atraso,
+                valor_parcela, dia_vencimento
+            } = req.body;
+
+            // 1. Criar Aluno
+            const { data: aluno, error: errA } = await supabase.from('alunos').insert([{ 
+                nome, email, telefone, cpf, endereco,
+                data_nascimento: data_nascimento || null,
+                responsavel_nome: responsavel_nome || null,
+                responsavel_telefone: responsavel_telefone || null,
+                responsavel_cpf: responsavel_cpf || null,
+                status: 'ativo'
+            }]).select().single();
+            if (errA) throw errA;
+
+            // 2. Criar Matrícula
+            const diasMap: { [key: string]: number } = { 'domingo': 0, 'segunda': 1, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sabado': 6 };
+            const diaIndex = typeof dia_semana === 'string' ? (diasMap[dia_semana.toLowerCase()] ?? 1) : dia_semana;
+
+            const { data: matricula, error: errM } = await supabase.from('matriculas').insert([{
+                aluno_id: aluno.id, 
+                curso_id, 
+                professor_id, 
+                dia_semana: diaIndex,
+                horario, 
+                pacote_id,
+                dia_vencimento: dia_vencimento || 10,
+                valor_parcela: valor_parcela || 0,
+                data_inicio: new Date().toISOString().split('T')[0]
+            }]).select().single();
+            if (errM) {
+                await supabase.from('alunos').delete().eq('id', aluno.id);
+                throw errM;
+            }
+
+            // 3. Criar Aulas Restantes
+            if (aulas_restantes > 0) {
+                const aulasToInsert = [];
+                let currentAulaDate = new Date();
+                const targetDay = diaIndex;
+                const currentDay = currentAulaDate.getDay();
+                let diff = targetDay - currentDay;
+                if (diff <= 0) diff += 7;
+                currentAulaDate.setDate(currentAulaDate.getDate() + diff);
+
+                for (let i = 0; i < aulas_restantes; i++) {
+                    while (isHoliday(currentAulaDate)) {
+                        currentAulaDate.setDate(currentAulaDate.getDate() + 7);
+                    }
+                    aulasToInsert.push({
+                        aluno_id: aluno.id,
+                        matricula_id: matricula.id,
+                        professor_id,
+                        curso_id,
+                        data: currentAulaDate.toISOString().split('T')[0],
+                        horario,
+                        status: 'pendente',
+                        tipo: 'regular'
+                    });
+                    currentAulaDate.setDate(currentAulaDate.getDate() + 7);
+                }
+                await supabase.from('aulas').insert(aulasToInsert);
+            }
+
+            // 4. Criar Reposições
+            if (reposicoes > 0) {
+                const reposToInsert = [];
+                for (let i = 0; i < reposicoes; i++) {
+                    reposToInsert.push({
+                        aluno_id: aluno.id,
+                        matricula_id: matricula.id,
+                        professor_id,
+                        curso_id,
+                        data: '2099-12-31',
+                        horario: '00:00',
+                        status: 'pendente',
+                        tipo: 'reposicao'
+                    });
+                }
+                await supabase.from('aulas').insert(reposToInsert);
+            }
+
+            // 5. Criar Faturas
+            const pagamentosToInsert = [];
+            const now = new Date();
+            
+            pagamentosToInsert.push({
+                aluno_id: aluno.id,
+                matricula_id: matricula.id,
+                valor: valor_parcela,
+                data_vencimento: new Date(now.getFullYear(), now.getMonth(), dia_vencimento || 10).toISOString().split('T')[0],
+                status: fatura_mes_atraso ? 'atrasado' : 'pendente',
+                tipo_receita: 'mensalidade',
+                referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`
+            });
+
+            for (let i = 1; i <= faturas_pendentes; i++) {
+                const prevDate = new Date(now.getFullYear(), now.getMonth() - i, dia_vencimento || 10);
+                pagamentosToInsert.push({
+                    aluno_id: aluno.id,
+                    matricula_id: matricula.id,
+                    valor: valor_parcela,
+                    data_vencimento: prevDate.toISOString().split('T')[0],
+                    status: 'atrasado',
+                    tipo_receita: 'mensalidade',
+                    referencia_mes_ano: `${(prevDate.getMonth() + 1).toString().padStart(2, '0')}/${prevDate.getFullYear()}`
+                });
+            }
+
+            if (pagamentosToInsert.length > 0) {
+                await supabase.from('pagamentos').insert(pagamentosToInsert);
+            }
+
+            // 6. Marcar como concluído na sala de espera
+            if (migracao_id) {
+                await supabase.from('migracao_alunos').update({ status: 'concluido' }).eq('id', migracao_id);
+            }
+
+            res.json({ success: true, id: aluno.id });
+        } catch (error: any) { 
+            console.error('Migration error:', error);
+            res.status(500).json({ error: error.message || 'Erro na migração' }); 
+        }
+    });
+
     // Cursos
     app.get('/api/cursos', async (req, res) => {
         const { data } = await supabase.from('cursos').select('*').order('nome');
