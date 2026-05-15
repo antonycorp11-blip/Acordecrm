@@ -907,6 +907,26 @@ async function startServer() {
                     referencia_mes_ano: `${(prevDate.getMonth() + 1).toString().padStart(2, '0')}/${prevDate.getFullYear()}`
                 });
             }
+            
+            // 5.2. Criar parcelas futuras (Restantes) até completar o total_parcelas
+            const parcelasCriadas = 1 + (Number(faturas_pendentes) || 0);
+            const parcelasRestantes = (Number(total_parcelas) || 12) - parcelasCriadas;
+
+            if (parcelasRestantes > 0) {
+                for (let i = 1; i <= parcelasRestantes; i++) {
+                    const nextDate = new Date(now.getFullYear(), now.getMonth() + i, dia_vencimento || 10);
+                    pagamentosToInsert.push({
+                        aluno_id: aluno.id,
+                        matricula_id: matricula.id,
+                        valor: valor_parcela,
+                        valor_com_desconto: valor_desconto || null,
+                        data_vencimento: nextDate.toISOString().split('T')[0],
+                        status: 'pendente',
+                        tipo_receita: 'mensalidade',
+                        referencia_mes_ano: `${(nextDate.getMonth() + 1).toString().padStart(2, '0')}/${nextDate.getFullYear()}`
+                    });
+                }
+            }
 
             if (pagamentosToInsert.length > 0) {
                 await supabase.from('pagamentos').insert(pagamentosToInsert);
