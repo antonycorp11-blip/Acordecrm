@@ -20,6 +20,7 @@ const adminItems = [
   { icon: Briefcase, label: 'Professores', path: '/professores' },
   { icon: BookOpen, label: 'Cursos', path: '/cursos' },
   { icon: FileText, label: 'Contratos', path: '/contratos' },
+  { icon: RefreshCcw, label: 'Migração', path: '/migracao' },
   { icon: Trophy, label: 'Conquistas', path: '/conquistas' },
   { icon: Trophy, label: 'Ranking', path: '/ranking' },
   { icon: UserCheck, label: 'Portal Prof', path: '/area-professor', hideFor: ['admin'] },

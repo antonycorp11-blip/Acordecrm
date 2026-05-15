@@ -18,6 +18,7 @@ import Ranking from './pages/Ranking';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Usuarios from './pages/Usuarios';
+import Migracao from './pages/Migracao';
 
 import { Toaster } from 'sonner';
 
@@ -89,6 +90,7 @@ export default function App() {
                       <Route path="/conquistas" element={<Conquistas />} />
                       <Route path="/ranking" element={<Ranking />} />
                       <Route path="/usuarios" element={<Usuarios />} />
+                      <Route path="/migracao" element={<Migracao />} />
                     </Routes>
                   </MainLayout>
                 } />
