@@ -798,15 +798,17 @@ async function startServer() {
                 nome, email, telefone, cpf, endereco, 
                 data_nascimento, responsavel_nome, responsavel_telefone, responsavel_cpf,
                 curso_id, professor_id, dia_semana, horario, pacote_id,
-                aulas_restantes: Number(aulas_restantes), 
-                reposicoes: Number(reposicoes), 
-                faturas_pendentes: Number(faturas_pendentes), 
-                fatura_mes_atraso,
-                valor_parcela: Number(valor_parcela), 
-                valor_desconto: Number(valor_desconto), 
-                dia_vencimento: Number(dia_vencimento), 
-                total_parcelas: Number(total_parcelas)
+                aulas_restantes, reposicoes, faturas_pendentes, fatura_mes_atraso,
+                valor_parcela, valor_desconto, dia_vencimento, total_parcelas
             } = req.body;
+
+            const nAulas = Number(aulas_restantes);
+            const nRepos = Number(reposicoes);
+            const nFaturas = Number(faturas_pendentes);
+            const nValor = Number(valor_parcela);
+            const nDesconto = Number(valor_desconto);
+            const nDiaVenc = Number(dia_vencimento);
+            const nTotalParcelas = Number(total_parcelas);
 
             // 1. Criar Aluno
             let dataNascFormatada = data_nascimento || null;
@@ -841,10 +843,10 @@ async function startServer() {
                 dia_semana: diaIndex,
                 horario, 
                 pacote_id,
-                dia_vencimento: dia_vencimento || 10,
-                valor_parcela: valor_parcela || 0,
-                valor_com_desconto: valor_desconto || null,
-                total_parcelas: total_parcelas || 12,
+                dia_vencimento: nDiaVenc || 10,
+                valor_parcela: nValor || 0,
+                valor_com_desconto: nDesconto || null,
+                total_parcelas: nTotalParcelas || 12,
                 data_inicio: new Date().toISOString().split('T')[0]
             }]).select().single();
             if (errM) {
@@ -853,7 +855,7 @@ async function startServer() {
             }
 
             // 3. Criar Aulas Restantes
-            if (aulas_restantes > 0) {
+            if (nAulas > 0) {
                 const aulasToInsert = [];
                 let currentAulaDate = new Date();
                 const targetDay = diaIndex;
@@ -862,7 +864,7 @@ async function startServer() {
                 if (diff <= 0) diff += 7;
                 currentAulaDate.setDate(currentAulaDate.getDate() + diff);
 
-                for (let i = 0; i < aulas_restantes; i++) {
+                for (let i = 0; i < nAulas; i++) {
                     while (isHoliday(currentAulaDate)) {
                         currentAulaDate.setDate(currentAulaDate.getDate() + 7);
                     }
@@ -882,9 +884,9 @@ async function startServer() {
             }
 
             // 4. Criar Reposições
-            if (reposicoes > 0) {
+            if (nRepos > 0) {
                 const reposToInsert = [];
-                for (let i = 0; i < reposicoes; i++) {
+                for (let i = 0; i < nRepos; i++) {
                     reposToInsert.push({
                         aluno_id: aluno.id,
                         matricula_id: matricula.id,
@@ -902,15 +904,15 @@ async function startServer() {
             // 5. Geração de Pagamentos (Financeiro)
             const pagamentosToInsert = [];
             const now = new Date();
-            const vencimentoMesAtual = new Date(now.getFullYear(), now.getMonth(), dia_vencimento || 10);
+            const vencimentoMesAtual = new Date(now.getFullYear(), now.getMonth(), nDiaVenc || 10);
             
             // 5.1. Parcela do Mês Atual (Apenas se estiver em atraso ou ainda não paga)
             if (fatura_mes_atraso) {
                 pagamentosToInsert.push({
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
-                    valor: valor_parcela,
-                    valor_com_desconto: valor_desconto || null,
+                    valor: nValor,
+                    valor_com_desconto: nDesconto || null,
                     data_vencimento: vencimentoMesAtual.toISOString().split('T')[0],
                     status: (vencimentoMesAtual < now) ? 'atrasado' : 'pendente',
                     tipo_receita: 'mensalidade',
@@ -919,15 +921,14 @@ async function startServer() {
             }
 
             // 5.2. Parcelas Restantes (Futuras - A partir do mês que vem)
-            const parcelasRestantes = Number(faturas_pendentes) || 0;
-            if (parcelasRestantes > 0) {
-                for (let i = 1; i <= parcelasRestantes; i++) {
-                    const nextDate = new Date(now.getFullYear(), now.getMonth() + i, dia_vencimento || 10);
+            if (nFaturas > 0) {
+                for (let i = 1; i <= nFaturas; i++) {
+                    const nextDate = new Date(now.getFullYear(), now.getMonth() + i, nDiaVenc || 10);
                     pagamentosToInsert.push({
                         aluno_id: aluno.id,
                         matricula_id: matricula.id,
-                        valor: valor_parcela,
-                        valor_com_desconto: valor_desconto || null,
+                        valor: nValor,
+                        valor_com_desconto: nDesconto || null,
                         data_vencimento: nextDate.toISOString().split('T')[0],
                         status: 'pendente',
                         tipo_receita: 'mensalidade',
