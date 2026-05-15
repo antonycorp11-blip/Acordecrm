@@ -876,42 +876,27 @@ async function startServer() {
                 await supabase.from('aulas').insert(reposToInsert);
             }
 
-            // 5. Criar Faturas
+            // 5. Geração de Pagamentos (Financeiro)
             const pagamentosToInsert = [];
             const now = new Date();
             const vencimentoMesAtual = new Date(now.getFullYear(), now.getMonth(), dia_vencimento || 10);
             
-            pagamentosToInsert.push({
-                aluno_id: aluno.id,
-                matricula_id: matricula.id,
-                valor: valor_parcela,
-                valor_com_desconto: valor_desconto || null,
-                data_vencimento: vencimentoMesAtual.toISOString().split('T')[0],
-                status: (fatura_mes_atraso && vencimentoMesAtual < now) ? 'atrasado' : 'pendente',
-                tipo_receita: 'mensalidade',
-                referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`
-            });
-
-            // Se o usuário pediu 11 parcelas totais, e já criamos 1 (a do mês atual), faltam 10.
-            // O loop deve gerar EXATAMENTE faturas_pendentes extras.
-            for (let i = 1; i <= faturas_pendentes; i++) {
-                const prevDate = new Date(now.getFullYear(), now.getMonth() - i, dia_vencimento || 10);
+            // 5.1. Parcela do Mês Atual (Apenas se estiver em atraso ou ainda não paga)
+            if (fatura_mes_atraso) {
                 pagamentosToInsert.push({
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
                     valor: valor_parcela,
                     valor_com_desconto: valor_desconto || null,
-                    data_vencimento: prevDate.toISOString().split('T')[0],
-                    status: prevDate < now ? 'atrasado' : 'pendente',
+                    data_vencimento: vencimentoMesAtual.toISOString().split('T')[0],
+                    status: (vencimentoMesAtual < now) ? 'atrasado' : 'pendente',
                     tipo_receita: 'mensalidade',
-                    referencia_mes_ano: `${(prevDate.getMonth() + 1).toString().padStart(2, '0')}/${prevDate.getFullYear()}`
+                    referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`
                 });
             }
-            
-            // 5.2. Criar parcelas futuras (Restantes) até completar o total_parcelas
-            const parcelasCriadas = 1 + (Number(faturas_pendentes) || 0);
-            const parcelasRestantes = (Number(total_parcelas) || 12) - parcelasCriadas;
 
+            // 5.2. Parcelas Restantes (Futuras - A partir do mês que vem)
+            const parcelasRestantes = Number(faturas_pendentes) || 0;
             if (parcelasRestantes > 0) {
                 for (let i = 1; i <= parcelasRestantes; i++) {
                     const nextDate = new Date(now.getFullYear(), now.getMonth() + i, dia_vencimento || 10);

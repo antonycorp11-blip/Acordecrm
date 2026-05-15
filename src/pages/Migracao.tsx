@@ -620,8 +620,8 @@ export default function Migracao() {
                             <div className="flex items-center gap-3 bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
                               <CreditCard className="w-6 h-6 text-[#ff6b00]" />
                               <div className="flex-1">
-                              <p className="text-[10px] font-black text-black uppercase tracking-widest">FATURAS PENDENTES</p>
-                              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest">Meses anteriores que o aluno ainda não pagou</p>
+                              <p className="text-[10px] font-black text-black uppercase tracking-widest">PARCELAS RESTANTES</p>
+                              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest">A partir do mês que vem</p>
                             </div>
                             <input 
                               type="number"
