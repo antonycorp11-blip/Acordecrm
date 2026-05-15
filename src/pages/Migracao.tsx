@@ -57,14 +57,16 @@ export default function Migracao() {
     horario: '14:00',
     pacote_id: '',
     aulas_restantes: 4,
-    reposicoes: 0,
-    faturas_pendentes: 0,
+    reposicoes: '',
+    faturas_pendentes: '',
     fatura_mes_atraso: false,
-    valor_parcela: 0,
+    valor_parcela: '',
     dia_vencimento: 10,
+    valor_desconto: '',
     responsavel_nome: '',
     responsavel_telefone: '',
-    responsavel_cpf: ''
+    responsavel_cpf: '',
+    total_parcelas: 12
   });
 
   const calculateAge = (dob: string) => {
@@ -182,7 +184,9 @@ export default function Migracao() {
         reposicoes: Number(formData.reposicoes),
         faturas_pendentes: Number(formData.faturas_pendentes),
         valor_parcela: Number(formData.valor_parcela),
-        dia_vencimento: Number(formData.dia_vencimento)
+        dia_vencimento: Number(formData.dia_vencimento),
+        total_parcelas: Number(formData.total_parcelas),
+        valor_desconto: Number(formData.valor_desconto) || null
       };
 
       const res = await fetch('/api/alunos/migracao', {
@@ -531,8 +535,9 @@ export default function Migracao() {
                                 <input 
                                   type="number"
                                   className="w-full bg-transparent border-none font-black text-lg focus:outline-none"
+                                  placeholder="0"
                                   value={formData.aulas_restantes}
-                                  onChange={e => setFormData({...formData, aulas_restantes: Number(e.target.value)})}
+                                  onChange={e => setFormData({...formData, aulas_restantes: e.target.value})}
                                 />
                               </div>
                             </div>
@@ -543,8 +548,9 @@ export default function Migracao() {
                                 <input 
                                   type="number"
                                   className="w-full bg-transparent border-none font-black text-lg focus:outline-none"
+                                  placeholder="0"
                                   value={formData.reposicoes}
-                                  onChange={e => setFormData({...formData, reposicoes: Number(e.target.value)})}
+                                  onChange={e => setFormData({...formData, reposicoes: e.target.value})}
                                 />
                               </div>
                             </div>
@@ -571,25 +577,40 @@ export default function Migracao() {
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-black text-black uppercase tracking-widest block">VALOR PARCELA</label>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs">R$</span>
-                                <input 
-                                  type="number"
-                                  className="w-full pl-10 pr-4 py-3 bg-white border-4 border-black font-black text-xs focus:outline-none"
-                                  value={formData.valor_parcela}
-                                  onChange={e => setFormData({...formData, valor_parcela: Number(e.target.value)})}
-                                />
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black text-black uppercase tracking-widest block">VALOR PARCELA</label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs">R$</span>
+                                  <input 
+                                    type="number"
+                                    className="w-full pl-10 pr-4 py-3 bg-white border-4 border-black font-black text-xs focus:outline-none"
+                                    placeholder="0.00"
+                                    value={formData.valor_parcela}
+                                    onChange={e => setFormData({...formData, valor_parcela: e.target.value})}
+                                  />
+                                </div>
                               </div>
-                            </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black text-black uppercase tracking-widest block">VALOR C/ DESCONTO</label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs">R$</span>
+                                  <input 
+                                    type="number"
+                                    className="w-full pl-10 pr-4 py-3 bg-white border-4 border-black font-black text-xs focus:outline-none"
+                                    placeholder="0.00"
+                                    value={formData.valor_desconto}
+                                    onChange={e => setFormData({...formData, valor_desconto: e.target.value})}
+                                  />
+                                </div>
+                              </div>
                             <div className="space-y-2">
                               <label className="text-[10px] font-black text-black uppercase tracking-widest block">DIA VENC.</label>
                               <input 
                                 type="number"
                                 className="w-full p-3 bg-white border-4 border-black font-black text-xs focus:outline-none"
+                                placeholder="10"
                                 value={formData.dia_vencimento}
-                                onChange={e => setFormData({...formData, dia_vencimento: Number(e.target.value)})}
+                                onChange={e => setFormData({...formData, dia_vencimento: e.target.value})}
                               />
                             </div>
                           </div>
@@ -598,14 +619,29 @@ export default function Migracao() {
                             <div className="flex items-center gap-3 bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
                               <CreditCard className="w-6 h-6 text-[#ff6b00]" />
                               <div className="flex-1">
-                                <p className="text-[10px] font-black text-black uppercase tracking-widest">FATURAS PENDENTES</p>
-                                <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest">Meses anteriores que o aluno ainda não pagou</p>
+                              <p className="text-[10px] font-black text-black uppercase tracking-widest">FATURAS PENDENTES</p>
+                              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest">Meses anteriores que o aluno ainda não pagou</p>
+                            </div>
+                            <input 
+                              type="number"
+                              className="w-12 bg-transparent border-b-2 border-black font-black text-center focus:outline-none"
+                              placeholder="0"
+                              value={formData.faturas_pendentes}
+                              onChange={e => setFormData({...formData, faturas_pendentes: e.target.value})}
+                            />
+                            </div>
+
+                            <div className="flex items-center gap-3 bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+                              <FileText className="w-6 h-6 text-[#ff6b00]" />
+                              <div className="flex-1">
+                                <p className="text-[10px] font-black text-black uppercase tracking-widest">TOTAL DE PARCELAS</p>
+                                <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest">Duração total do contrato (ex: 12 meses)</p>
                               </div>
                               <input 
                                 type="number"
                                 className="w-12 bg-transparent border-b-2 border-black font-black text-center focus:outline-none"
-                                value={formData.faturas_pendentes}
-                                onChange={e => setFormData({...formData, faturas_pendentes: Number(e.target.value)})}
+                                value={formData.total_parcelas}
+                                onChange={e => setFormData({...formData, total_parcelas: e.target.value})}
                               />
                             </div>
 

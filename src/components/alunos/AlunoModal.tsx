@@ -36,10 +36,11 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     horario: '',
     sala_id: undefined as number | undefined,
     pacote_id: '',
-    valor_parcela: 0,
+    valor_parcela: '' as string | number,
+    valor_com_desconto: '' as string | number,
     data_primeira_parcela: new Date().toISOString().split('T')[0],
-    dia_vencimento: 10,
-    total_parcelas: 12,
+    dia_vencimento: '10' as string | number,
+    total_parcelas: '12' as string | number,
     is_emusys_legacy: false,
     emusys_original_aulas: 48,
     emusys_aulas_feitas: 0,
@@ -329,11 +330,39 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                     >
                       <div className="flex justify-between items-center">
                         <span className="text-[9px] font-bold">{pacote.nome.toUpperCase()}</span>
-                        <span className="text-[10px] font-black">R$ {pacote.valor_mensal}</span>
+                        <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-black">R$ {pacote.valor_mensal}</span>
+                            {pacote.valor_pontualidade && (
+                                <span className="text-[7px] text-green-700 font-bold">R$ {pacote.valor_pontualidade} (DESC)</span>
+                            )}
+                        </div>
                       </div>
                     </button>
                   ))}
                 </div>
+                {formData.pacote_id && (
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="bg-white border border-black p-2">
+                            <label className="block text-[7px] font-bold uppercase">Valor Cheio (R$)</label>
+                            <input 
+                                type="number" 
+                                className="w-full bg-transparent border-none text-[10px] font-black outline-none" 
+                                value={formData.valor_parcela}
+                                onChange={(e) => setFormData({...formData, valor_parcela: e.target.value})}
+                            />
+                        </div>
+                        <div className="bg-white border border-black p-2">
+                            <label className="block text-[7px] font-bold uppercase text-green-700">Valor c/ Desconto (R$)</label>
+                            <input 
+                                type="number" 
+                                className="w-full bg-transparent border-none text-[10px] font-black outline-none" 
+                                value={formData.valor_com_desconto}
+                                onChange={(e) => setFormData({...formData, valor_com_desconto: e.target.value})}
+                                placeholder="---"
+                            />
+                        </div>
+                    </div>
+                )}
               </div>
 
               {/* Legacy Migration */}
@@ -355,7 +384,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                       </div>
                       <div>
                         <label className="text-[7px] font-bold uppercase">Feitas</label>
-                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_aulas_feitas} onChange={(e) => setFormData({...formData, emusys_aulas_feitas: Number(e.target.value)})} />
+                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_aulas_feitas} onChange={(e) => setFormData({...formData, emusys_aulas_feitas: e.target.value})} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -372,7 +401,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                       </div>
                       <div>
                         <label className="text-[7px] font-bold uppercase">Pagas</label>
-                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_parcelas_pagas} onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: Number(e.target.value)})} />
+                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_parcelas_pagas} onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: e.target.value})} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -383,7 +412,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                           step="0.01"
                           className="w-full bg-white border border-black px-1 py-1 text-[10px]" 
                           value={formData.valor_parcela} 
-                          onChange={(e) => setFormData({...formData, valor_parcela: Number(e.target.value)})} 
+                          onChange={(e) => setFormData({...formData, valor_parcela: e.target.value})} 
                         />
                       </div>
                       <div>

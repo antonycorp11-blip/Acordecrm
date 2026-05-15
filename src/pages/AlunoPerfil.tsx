@@ -181,8 +181,17 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState('');
   const [saving, setSaving] = useState(false);
-  const [baixaModal, setBaixaModal] = useState<{ id: number | null, open: boolean }>({ id: null, open: false });
-  const [baixaMetodo, setBaixaMetodo] = useState('dinheiro');
+  const [baixaModal, setBaixaModal] = useState<{ id: number | null, open: boolean, valor: number, valor_desconto?: number, vencimento: string }>({ id: null, open: false, valor: 0, vencimento: '' });
+  const [baixaMetodo, setBaixaMetodo] = useState('pix');
+  const [valorFinal, setValorFinal] = useState(0);
+
+  const isEligibleForDiscount = (vencimento: string) => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const venc = new Date(vencimento + 'T12:00:00');
+    venc.setHours(0,0,0,0);
+    return today <= venc;
+  };
 
   const handleBaixa = async () => {
     if (!baixaModal.id) return;
@@ -194,7 +203,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       }, 
-      body: JSON.stringify({ metodo_pagamento: baixaMetodo }) 
+      body: JSON.stringify({ metodo_pagamento: baixaMetodo, valor_pago: valorFinal }) 
     });
     setSaving(false);
     setBaixaModal({ id: null, open: false });
@@ -274,7 +283,12 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
                   </td>
                   <td className="px-6 py-4 text-right">
                     {fat.status !== 'pago' ? (
-                      <Button onClick={() => setBaixaModal({ id: fat.id, open: true })}>DAR BAIXA</Button>
+                      <Button onClick={() => {
+                        const eligible = isEligibleForDiscount(fat.data_vencimento);
+                        const suggested = (eligible && fat.valor_com_desconto) ? Number(fat.valor_com_desconto) : Number(fat.valor);
+                        setBaixaModal({ id: fat.id, open: true, valor: Number(fat.valor), valor_desconto: fat.valor_com_desconto, vencimento: fat.data_vencimento });
+                        setValorFinal(suggested);
+                      }}>DAR BAIXA</Button>
                     ) : (
                       <Badge color="bege">QUITADO</Badge>
                     )}
@@ -296,21 +310,43 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
                 <button onClick={() => setBaixaModal({ id: null, open: false })}><X className="w-6 h-6" /></button>
               </div>
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-black uppercase block tracking-widest">Método de Pagamento</label>
-                <select 
-                  value={baixaMetodo} 
-                  onChange={e => setBaixaMetodo(e.target.value)} 
-                  className="w-full bg-white border-4 border-black p-4 font-black text-sm text-black outline-none"
-                >
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="pix">PIX</option>
-                  <option value="cartao_credito">Cartão de Crédito</option>
-                  <option value="cartao_debito">Cartão de Débito</option>
-                  <option value="transferencia">Transferência</option>
-                </select>
+                <div className="p-3 bg-gray-50 border-2 border-black">
+                   <p className="text-[8px] font-black uppercase text-[#8e7164]">Valor Original: R$ {baixaModal.valor.toFixed(2)}</p>
+                   {baixaModal.valor_desconto && (
+                       <p className={`text-[8px] font-black uppercase ${isEligibleForDiscount(baixaModal.vencimento) ? 'text-green-600' : 'text-red-600'}`}>
+                           Valor c/ Desconto: R$ {Number(baixaModal.valor_desconto).toFixed(2)}
+                           {isEligibleForDiscount(baixaModal.vencimento) ? ' (DISPONÍVEL)' : ' (VENCIDO)'}
+                       </p>
+                   )}
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-[9px] font-black text-black uppercase block tracking-widest">Valor Recebido (R$)</label>
+                    <input 
+                        type="number"
+                        className="w-full bg-white border-4 border-black p-3 font-black text-lg text-black outline-none"
+                        value={valorFinal}
+                        onChange={e => setValorFinal(Number(e.target.value))}
+                    />
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-[9px] font-black text-black uppercase block tracking-widest">Método de Pagamento</label>
+                    <select 
+                    value={baixaMetodo} 
+                    onChange={e => setBaixaMetodo(e.target.value)} 
+                    className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black outline-none"
+                    >
+                    <option value="pix">PIX</option>
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="cartao_credito">Cartão de Crédito</option>
+                    <option value="cartao_debito">Cartão de Débito</option>
+                    <option value="transferencia">Transferência</option>
+                    </select>
+                </div>
               </div>
               <div className="flex gap-3 pt-4">
-                <Button variant="secondary" className="flex-1" onClick={() => setBaixaModal({ id: null, open: false })}>CANCELAR</Button>
+                <Button variant="secondary" className="flex-1" onClick={() => setBaixaModal({ ...baixaModal, open: false })}>CANCELAR</Button>
                 <Button className="flex-1" onClick={handleBaixa} disabled={saving}>CONFIRMAR</Button>
               </div>
             </Card>
@@ -419,13 +455,29 @@ export default function AlunoPerfil() {
   const handleSaveEdit = async () => {
     const token = localStorage.getItem('acorde_token');
     try {
+      // 1. Atualizar Matrícula (valores financeiros)
+      const { valor_parcela, valor_com_desconto, dia_vencimento, ...alunoData } = editFormData;
+      
+      const { error: errM } = await supabase.from('matriculas')
+        .update({ 
+          valor_parcela: valor_parcela ? Number(valor_parcela) : undefined,
+          valor_com_desconto: valor_com_desconto ? Number(valor_com_desconto) : undefined,
+          dia_vencimento: dia_vencimento ? Number(dia_vencimento) : undefined
+        })
+        .eq('aluno_id', aluno.id)
+        .eq('status', 'ativa');
+
+      if (errM) throw errM;
+
+      // 2. Atualizar Aluno
       const res = await fetch(`/api/alunos/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(editFormData)
+        body: JSON.stringify(alunoData)
       });
+
       if (res.ok) {
-        setAluno({ ...aluno, ...editFormData });
+        setAluno({ ...aluno, ...editFormData, matriculas: [{ ...aluno.matriculas?.[0], valor_parcela, valor_com_desconto, dia_vencimento }] });
         setIsEditModalOpen(false);
         toast.success('Perfil atualizado!');
       }
@@ -572,7 +624,14 @@ export default function AlunoPerfil() {
               <FileText className="w-4 h-4 mr-2" /> GERAR_CONTRATO
             </Button>
             <Button variant="secondary" onClick={() => {
-              setEditFormData({ ...aluno, curso_id: aluno.matriculas?.[0]?.curso_id });
+              const m = aluno.matriculas?.[0];
+              setEditFormData({ 
+                ...aluno, 
+                curso_id: m?.curso_id,
+                valor_parcela: m?.valor_parcela || '',
+                valor_com_desconto: m?.valor_com_desconto || '',
+                dia_vencimento: m?.dia_vencimento || ''
+              });
               setIsEditModalOpen(true);
             }}>
               <Edit className="w-4 h-4 mr-2" /> EDITAR_PERFIL
@@ -618,6 +677,14 @@ export default function AlunoPerfil() {
                         <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">ENDEREÇO_COMPLETO</p>
                         <p className="font-black text-black text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-[#ff6b00]" /> {aluno.endereco || 'NÃO_INF'}</p>
                       </div>
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">VALOR_MENSALIDADE</p>
+                        <p className="font-black text-black text-sm italic">R$ {aluno.matriculas?.[0]?.valor_parcela || '0,00'}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-[#ff6b00] uppercase tracking-widest">VALOR_PONTUALIDADE (C/ DESCONTO)</p>
+                        <p className="font-black text-black text-sm italic">R$ {aluno.matriculas?.[0]?.valor_com_desconto || '---'}</p>
+                      </div>
                    </div>
                 </Card>
 
@@ -630,6 +697,10 @@ export default function AlunoPerfil() {
                         <div className="space-y-1">
                           <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">NOME_RESP</p>
                           <p className="font-black text-black text-sm">{aluno.responsavel_nome || '---'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">CPF_RESP</p>
+                          <p className="font-black text-black text-sm">{aluno.responsavel_cpf || '---'}</p>
                         </div>
                         <div className="space-y-1">
                           <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">TEL_RESP</p>
@@ -791,7 +862,11 @@ export default function AlunoPerfil() {
                      { label: 'CPF', key: 'cpf' },
                      { label: 'ENDEREÇO', key: 'endereco', colSpan: true },
                      { label: 'NOME_RESPONSÁVEL', key: 'responsavel_nome' },
+                     { label: 'CPF_RESPONSÁVEL', key: 'responsavel_cpf' },
                      { label: 'TEL_RESPONSÁVEL', key: 'responsavel_telefone' },
+                     { label: 'VALOR_MENSALIDADE', key: 'valor_parcela' },
+                     { label: 'VALOR_PONTUALIDADE', key: 'valor_com_desconto' },
+                     { label: 'DIA_VENCIMENTO', key: 'dia_vencimento' },
                    ].map(field => (
                      <div key={field.key} className={field.colSpan ? 'md:col-span-2' : ''}>
                         <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">{field.label}</label>

@@ -631,7 +631,7 @@ async function startServer() {
             const { 
                 nome, email, telefone, cpf, endereco, curso_id, professor_id, 
                 dia_semana, horario, sala_id, pacote_id, 
-                data_primeira_parcela, dia_vencimento, valor_parcela, total_parcelas,
+                data_primeira_parcela, dia_vencimento, valor_parcela, valor_com_desconto, total_parcelas,
                 is_emusys_legacy, emusys_original_aulas, emusys_aulas_feitas, emusys_original_parcelas, emusys_parcelas_pagas, emusys_data_ultima_aula
             } = req.body;
 
@@ -657,6 +657,7 @@ async function startServer() {
                 data_primeira_parcela: data_primeira_parcela || null,
                 dia_vencimento,
                 valor_parcela,
+                valor_com_desconto,
                 total_parcelas,
                 data_inicio: dia_semana || null,
                 is_emusys_legacy: is_emusys_legacy || false,
@@ -726,6 +727,7 @@ async function startServer() {
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
                     valor: valor_parcela,
+                    valor_com_desconto: valor_com_desconto || null,
                     data_vencimento: currentVencimento.toISOString().split('T')[0],
                     status: 'pendente',
                     tipo_receita: 'mensalidade',
@@ -787,7 +789,7 @@ async function startServer() {
                 data_nascimento, responsavel_nome, responsavel_telefone, responsavel_cpf,
                 curso_id, professor_id, dia_semana, horario, pacote_id,
                 aulas_restantes, reposicoes, faturas_pendentes, fatura_mes_atraso,
-                valor_parcela, dia_vencimento
+                valor_parcela, valor_desconto, dia_vencimento, total_parcelas
             } = req.body;
 
             // 1. Criar Aluno
@@ -814,6 +816,8 @@ async function startServer() {
                 pacote_id,
                 dia_vencimento: dia_vencimento || 10,
                 valor_parcela: valor_parcela || 0,
+                valor_com_desconto: valor_desconto || null,
+                total_parcelas: total_parcelas || 12,
                 data_inicio: new Date().toISOString().split('T')[0]
             }]).select().single();
             if (errM) {
@@ -871,25 +875,30 @@ async function startServer() {
             // 5. Criar Faturas
             const pagamentosToInsert = [];
             const now = new Date();
+            const vencimentoMesAtual = new Date(now.getFullYear(), now.getMonth(), dia_vencimento || 10);
             
             pagamentosToInsert.push({
                 aluno_id: aluno.id,
                 matricula_id: matricula.id,
                 valor: valor_parcela,
-                data_vencimento: new Date(now.getFullYear(), now.getMonth(), dia_vencimento || 10).toISOString().split('T')[0],
-                status: fatura_mes_atraso ? 'atrasado' : 'pendente',
+                valor_com_desconto: valor_desconto || null,
+                data_vencimento: vencimentoMesAtual.toISOString().split('T')[0],
+                status: (fatura_mes_atraso && vencimentoMesAtual < now) ? 'atrasado' : 'pendente',
                 tipo_receita: 'mensalidade',
                 referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`
             });
 
+            // Se o usuário pediu 11 parcelas totais, e já criamos 1 (a do mês atual), faltam 10.
+            // O loop deve gerar EXATAMENTE faturas_pendentes extras.
             for (let i = 1; i <= faturas_pendentes; i++) {
                 const prevDate = new Date(now.getFullYear(), now.getMonth() - i, dia_vencimento || 10);
                 pagamentosToInsert.push({
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
                     valor: valor_parcela,
+                    valor_com_desconto: valor_desconto || null,
                     data_vencimento: prevDate.toISOString().split('T')[0],
-                    status: 'atrasado',
+                    status: prevDate < now ? 'atrasado' : 'pendente',
                     tipo_receita: 'mensalidade',
                     referencia_mes_ano: `${(prevDate.getMonth() + 1).toString().padStart(2, '0')}/${prevDate.getFullYear()}`
                 });
@@ -1081,10 +1090,15 @@ async function startServer() {
     app.patch('/api/pagamentos/:id/baixa', async (req, res) => {
         try {
             const { id } = req.params;
-            const { metodo_pagamento } = req.body;
+            const { metodo_pagamento, valor_pago } = req.body;
             const today = new Date().toISOString().split('T')[0];
             const { data, error } = await supabase.from('pagamentos')
-                .update({ status: 'pago', data_pagamento: today, metodo_pagamento: metodo_pagamento || 'dinheiro' })
+                .update({ 
+                    status: 'pago', 
+                    data_pagamento: today, 
+                    metodo_pagamento: metodo_pagamento || 'dinheiro',
+                    valor_pago: valor_pago || null
+                })
                 .eq('id', id).select().single();
             if (error) throw error;
             res.json(data);
