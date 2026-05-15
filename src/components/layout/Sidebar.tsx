@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Music, CreditCard, Settings, LogOut, Trophy,
-  Briefcase, BookOpen, FileText, MessageCircle, UserCheck, ChevronLeft, ChevronRight
+  Briefcase, BookOpen, FileText, MessageCircle, UserCheck, ChevronLeft, ChevronRight, RefreshCcw
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '@/src/lib/utils';
