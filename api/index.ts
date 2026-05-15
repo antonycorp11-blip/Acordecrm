@@ -636,11 +636,19 @@ async function startServer() {
             } = req.body;
 
             // 1. Criar Aluno
+            let dataNascFormatada = req.body.data_nascimento || null;
+            if (dataNascFormatada && dataNascFormatada.includes('/')) {
+                const parts = dataNascFormatada.split('/');
+                if (parts.length === 3) {
+                    dataNascFormatada = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                }
+            }
+
             const { data: aluno, error: errA } = await supabase.from('alunos').insert([{ 
                 nome, 
                 email: email && email.trim() !== '' ? email : null,
                 telefone, cpf, endereco,
-                data_nascimento: req.body.data_nascimento || null,
+                data_nascimento: dataNascFormatada,
                 responsavel_nome: req.body.responsavel_nome || null,
                 responsavel_telefone: req.body.responsavel_telefone || null,
                 responsavel_cpf: req.body.responsavel_cpf || null
@@ -795,11 +803,20 @@ async function startServer() {
             } = req.body;
 
             // 1. Criar Aluno
+            let dataNascFormatada = data_nascimento || null;
+            if (dataNascFormatada && dataNascFormatada.includes('/')) {
+                const parts = dataNascFormatada.split('/');
+                if (parts.length === 3) {
+                    // Assume DD/MM/YYYY
+                    dataNascFormatada = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                }
+            }
+
             const { data: aluno, error: errA } = await supabase.from('alunos').insert([{ 
                 nome, 
                 email: email && email.trim() !== '' ? email : null,
                 telefone, cpf, endereco,
-                data_nascimento: data_nascimento || null,
+                data_nascimento: dataNascFormatada,
                 responsavel_nome: responsavel_nome || null,
                 responsavel_telefone: responsavel_telefone || null,
                 responsavel_cpf: responsavel_cpf || null,
