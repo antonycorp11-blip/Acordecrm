@@ -17,7 +17,8 @@ import {
   Phone,
   Mail,
   MapPin,
-  Calendar
+  Calendar,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
