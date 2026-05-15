@@ -798,8 +798,14 @@ async function startServer() {
                 nome, email, telefone, cpf, endereco, 
                 data_nascimento, responsavel_nome, responsavel_telefone, responsavel_cpf,
                 curso_id, professor_id, dia_semana, horario, pacote_id,
-                aulas_restantes, reposicoes, faturas_pendentes, fatura_mes_atraso,
-                valor_parcela, valor_desconto, dia_vencimento, total_parcelas
+                aulas_restantes: Number(aulas_restantes), 
+                reposicoes: Number(reposicoes), 
+                faturas_pendentes: Number(faturas_pendentes), 
+                fatura_mes_atraso,
+                valor_parcela: Number(valor_parcela), 
+                valor_desconto: Number(valor_desconto), 
+                dia_vencimento: Number(dia_vencimento), 
+                total_parcelas: Number(total_parcelas)
             } = req.body;
 
             // 1. Criar Aluno

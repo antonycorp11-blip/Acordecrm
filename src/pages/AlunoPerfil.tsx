@@ -714,10 +714,10 @@ export default function AlunoPerfil() {
               <div className="space-y-8">
                  <Card className="bg-black text-white border-white">
                     <h3 className="text-[9px] font-black uppercase tracking-widest text-[#ff6b00] mb-4">PRÓXIMA_AULA</h3>
-                    {agenda.filter(a => new Date(a.data) >= new Date()).length > 0 ? (
+                    {agenda.filter(a => new Date(a.data) >= new Date() && !a.data.includes('2099')).length > 0 ? (
                       <div>
-                        <p className="text-3xl font-black italic italic tracking-tighter uppercase">{format(new Date(agenda.find(a => new Date(a.data) >= new Date()).data), "dd/MM")}</p>
-                        <p className="font-black text-[#feccba] mt-1 flex items-center gap-2"><Clock className="w-4 h-4" /> {agenda.find(a => new Date(a.data) >= new Date()).horario.substring(0, 5)}</p>
+                        <p className="text-3xl font-black italic italic tracking-tighter uppercase">{format(new Date(agenda.find(a => new Date(a.data) >= new Date() && !a.data.includes('2099')).data), "dd/MM")}</p>
+                        <p className="font-black text-[#feccba] mt-1 flex items-center gap-2"><Clock className="w-4 h-4" /> {agenda.find(a => new Date(a.data) >= new Date() && !a.data.includes('2099')).horario.substring(0, 5)}</p>
                       </div>
                     ) : (
                       <p className="font-black text-white/40 uppercase text-xs">SEM_AGENDAMENTO</p>
@@ -741,6 +741,7 @@ export default function AlunoPerfil() {
                     <thead className="bg-[#feccba] border-b-2 border-black">
                       <tr>
                         <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">DATA</th>
+                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">TIPO</th>
                         <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">HORA</th>
                         <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">PROFESSOR</th>
                         <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">STATUS</th>
@@ -749,9 +750,16 @@ export default function AlunoPerfil() {
                     </thead>
                     <tbody className="divide-y-2 divide-[#e2bfb0]">
                       {agenda.map(aula => (
-                        <tr key={aula.id} className="hover:bg-[#ffeae1]">
-                          <td className="px-6 py-4 font-black text-black uppercase text-sm">{format(new Date(aula.data), 'dd/MM/yyyy')}</td>
-                          <td className="px-6 py-4 font-black text-[#8e7164]">{aula.horario.substring(0, 5)}</td>
+                        <tr key={aula.id} className={`hover:bg-[#ffeae1] ${aula.tipo === 'reposicao' ? 'bg-orange-50/50' : ''}`}>
+                          <td className="px-6 py-4 font-black text-black uppercase text-sm">
+                            {aula.data?.includes('2099') ? 'A DEFINIR' : format(new Date(aula.data), 'dd/MM/yyyy')}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`text-[8px] font-black uppercase px-2 py-1 border-2 ${aula.tipo === 'reposicao' ? 'bg-orange-500 text-white border-black' : 'bg-black text-white border-black'}`}>
+                              {aula.tipo || 'regular'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 font-black text-[#8e7164]">{aula.horario?.includes('00:00') && aula.data?.includes('2099') ? '--:--' : aula.horario?.substring(0, 5)}</td>
                           <td className="px-6 py-4 font-black text-black uppercase text-[10px]">{aula.professor_nome}</td>
                           <td className="px-6 py-4">
                              <Badge color={

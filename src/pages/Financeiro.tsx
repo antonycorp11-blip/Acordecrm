@@ -192,6 +192,9 @@ export default function Financeiro() {
              <button onClick={() => setShowExtraModal(true)} className="bg-[#FF8A00] text-black border-4 border-black p-3 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
                <Plus className="w-4 h-4" /> Entrada Extra
              </button>
+             <button onClick={() => alert('Mural da Vergonha em construção! Aqui aparecerão os devedores de multas.')} className="bg-[#FF0000] text-white border-4 border-black p-3 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
+               <Shield className="w-4 h-4" /> Mural da Vergonha
+             </button>
           </div>
         </div>
       </header>
