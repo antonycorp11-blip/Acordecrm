@@ -161,6 +161,41 @@ class DrumSynth {
 
 const synth = new DrumSynth();
 
+// Helper para pegar os dias da semana atual (Segunda a Domingo)
+const getWeekDays = () => {
+  const today = new Date();
+  const currentDay = today.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+  // Ajusta para que Segunda-feira seja o primeiro dia da semana (índice 0)
+  const distance = currentDay === 0 ? -6 : 1 - currentDay;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + distance);
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + i);
+    days.push(day);
+  }
+  return days;
+};
+
+// Helper para obter a data local de uma aula no formato yyyy-MM-dd de forma robusta
+const getAulaLocalDateStr = (aula: any) => {
+  if (!aula || !aula.data) return '';
+  if (typeof aula.data === 'string') {
+    return aula.data.substring(0, 10);
+  }
+  try {
+    const d = new Date(aula.data);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  } catch (e) {
+    return '';
+  }
+};
+
 export default function AreaProfessor() {
   const { logout } = useAuth();
   const [professorData, setProfessorData] = useState<any>(null);
@@ -201,6 +236,7 @@ export default function AreaProfessor() {
   const [agendaCompleta, setAgendaCompleta] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAgendaStatus, setFilterAgendaStatus] = useState<'todas' | 'pendente' | 'realizada' | 'falta_aluno'>('todas');
+  const [selectedWeekDay, setSelectedWeekDay] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   // Estados Ricos do Musiclass compartilhados
   const [mcChords, setMcChords] = useState<any[]>([]);
@@ -291,7 +327,7 @@ export default function AreaProfessor() {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       // Filtra aulas do dia
       const hojeAulas = (Array.isArray(agenda) ? agenda : [])
-        .filter((a: any) => a.data === todayStr)
+        .filter((a: any) => getAulaLocalDateStr(a) === todayStr)
         .sort((a: any, b: any) => (a.horario || '').localeCompare(b.horario || ''));
         
       setAulasHoje(hojeAulas);
@@ -1514,6 +1550,66 @@ export default function AreaProfessor() {
 
             {activeProfessorTab === 'agenda' && (
               <div className="space-y-4 animate-fade-in">
+                {/* Calendário Semanal 8-Bit */}
+                <div className="bg-[#261812] border-4 border-black p-3 shadow-[6px_6px_0_#000]">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-white font-black text-[9px] uppercase tracking-widest flex items-center gap-1">
+                      📅 PLANEJAMENTO SEMANAL
+                    </h4>
+                    <span className="text-[#ff6b00] font-black text-[8px] uppercase">
+                      Semana Atual
+                    </span>
+                  </div>
+                  
+                  {/* Grid de 7 dias */}
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {getWeekDays().map((day) => {
+                      const dayStr = format(day, 'yyyy-MM-dd');
+                      const isSelected = selectedWeekDay === dayStr;
+                      const isToday = format(new Date(), 'yyyy-MM-dd') === dayStr;
+                      
+                      const labelDia = format(day, 'EEE', { locale: ptBR }).toUpperCase().substring(0, 3);
+                      const numDia = format(day, 'dd');
+                      
+                      // Contagem de aulas para este dia específico
+                      const numAulas = agendaCompleta.filter(
+                        (aula: any) => getAulaLocalDateStr(aula) === dayStr
+                      ).length;
+                      
+                      return (
+                        <button
+                          key={dayStr}
+                          type="button"
+                          onClick={() => setSelectedWeekDay(dayStr)}
+                          className={`flex flex-col items-center justify-between p-1.5 border-2 transition-all active:translate-y-[1px] relative ${
+                            isSelected
+                              ? 'bg-[#ff6b00] border-white text-white shadow-[2px_2px_0_#000] z-10'
+                              : isToday
+                              ? 'bg-[#402a20] border-[#ff6b00] text-[#feccba]'
+                              : 'bg-[#1a0f0a] border-black text-stone-400 hover:bg-[#261812]'
+                          }`}
+                        >
+                          {/* Badge de quantidade de aulas */}
+                          {numAulas > 0 && (
+                            <span className={`absolute -top-1.5 -right-1 px-1 min-w-[12px] h-3 text-[7px] font-black rounded-full border border-black flex items-center justify-center leading-none ${
+                              isSelected ? 'bg-white text-black' : 'bg-[#ff6b00] text-white'
+                            }`}>
+                              {numAulas}
+                            </span>
+                          )}
+                          
+                          <span className="text-[7px] font-black tracking-tighter uppercase leading-none">
+                            {labelDia}
+                          </span>
+                          <span className="text-xs font-black italic mt-1 leading-none">
+                            {numDia}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Filtros de Status */}
                 <div className="flex border-4 border-black bg-black p-1 gap-1 overflow-x-auto scrollbar-hide">
                   {([
@@ -1537,17 +1633,31 @@ export default function AreaProfessor() {
                   ))}
                 </div>
 
-                {/* Lista de Aulas */}
+                {/* Lista de Aulas do Dia Selecionado */}
                 <div className="space-y-3">
-                  {agendaCompleta
-                    .filter((aula: any) => {
+                  {(() => {
+                    const aulasDoDia = agendaCompleta.filter((aula: any) => {
+                      const bateDia = getAulaLocalDateStr(aula) === selectedWeekDay;
+                      if (!bateDia) return false;
+                      
                       if (filterAgendaStatus === 'todas') return true;
                       if (filterAgendaStatus === 'pendente') return aula.status !== 'realizada' && aula.status !== 'falta_aluno' && aula.status !== 'ausente';
                       if (filterAgendaStatus === 'realizada') return aula.status === 'realizada';
                       if (filterAgendaStatus === 'falta_aluno') return aula.status === 'falta_aluno' || aula.status === 'ausente';
                       return true;
-                    })
-                    .map((aula: any) => {
+                    });
+
+                    if (aulasDoDia.length === 0) {
+                      return (
+                        <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
+                          <p className="text-[#8e7164] font-black text-[9px] uppercase italic">
+                            &gt;&gt; NENHUMA AULA PARA ESTE DIA OU FILTRO
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return aulasDoDia.map((aula: any) => {
                       const isConcluida = aula.status === 'realizada';
                       const isFalta = aula.status === 'falta_aluno' || aula.status === 'ausente';
                       const isPendente = !isConcluida && !isFalta;
@@ -1557,7 +1667,7 @@ export default function AreaProfessor() {
                       try {
                         const dateParts = aula.data.split('-');
                         const d = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
-                        formattedDate = format(d, "dd/MM/yyyy (EEE)", { locale: ptBR }).toUpperCase();
+                        formattedDate = format(d, "dd/MM (EEE)", { locale: ptBR }).toUpperCase();
                       } catch (e) {}
 
                       return (
@@ -1614,16 +1724,8 @@ export default function AreaProfessor() {
                           </div>
                         </div>
                       );
-                    })
-                  }
-                  
-                  {agendaCompleta.length === 0 && (
-                    <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
-                      <p className="text-[#8e7164] font-black text-[10px] uppercase italic">
-                        &gt;&gt; NENHUMA AULA CADASTRADA NA AGENDA
-                      </p>
-                    </div>
-                  )}
+                    });
+                  })()}
                 </div>
               </div>
             )}
