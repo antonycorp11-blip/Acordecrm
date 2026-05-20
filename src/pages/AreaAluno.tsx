@@ -5,6 +5,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+// Tradução de notas científicas para cifras em português brasileiro
+const translateNote = (note: string): string => {
+  const map: Record<string, string> = {
+    'C': 'Dó', 'C#': 'Dó#', 'Db': 'Réb',
+    'D': 'Ré', 'D#': 'Ré#', 'Eb': 'Mib',
+    'E': 'Mi',
+    'F': 'Fá', 'F#': 'Fá#', 'Gb': 'Solb',
+    'G': 'Sol', 'G#': 'Sol#', 'Ab': 'Láb',
+    'A': 'Lá', 'A#': 'Lá#', 'Bb': 'Sib',
+    'B': 'Si'
+  };
+  const baseNote = note.replace(/\d+$/, '');
+  return map[baseNote] || baseNote;
+};
+
 export default function AreaAluno() {
   const { user, logout } = useAuth();
   const [alunoData, setAlunoData] = useState<any>(null);
@@ -301,18 +316,23 @@ export default function AreaAluno() {
                                 🎸 ACORDES PRÁTICOS SUGERIDOS ({richData.chords.length}):
                               </span>
                               <div className="flex gap-2 overflow-x-auto py-1 scrollbar-thin">
-                                {richData.chords.map((ch: any, idx: number) => (
-                                  <div key={idx} className="shrink-0 scale-95 origin-top-left">
-                                    <ChordVisualizer
-                                      instrument={currentInstrument}
-                                      chordNotes={ch.notes}
-                                      root={ch.root}
-                                      type={ch.typeId}
-                                      ext={ch.extId}
-                                      bass={ch.bass}
-                                    />
-                                  </div>
-                                ))}
+                                {richData.chords.map((ch: any, idx: number) => {
+                                  const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
+                                  return (
+                                    <div key={idx} className={`shrink-0 scale-95 origin-top-left ${isTeclado ? 'w-[270px]' : 'w-[160px]'}`}>
+                                      <ChordVisualizer
+                                        instrument={ch.instrument || currentInstrument}
+                                        chordNotes={ch.notes || []}
+                                        root={ch.root}
+                                        type={ch.typeId}
+                                        ext={ch.extId}
+                                        bass={ch.bass}
+                                        notesWithIndices={ch.notesWithIndices}
+                                        isCustom={ch.isCustom}
+                                      />
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
@@ -436,7 +456,7 @@ export default function AreaAluno() {
                                   <div className="flex flex-wrap gap-1">
                                     {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
                                       <div key={nIdx} className="bg-[#261812] text-[#feccba] border border-black px-1.5 py-0.5 text-[8px] font-black uppercase">
-                                        {note}
+                                        {translateNote(note)}
                                       </div>
                                     ))}
                                   </div>

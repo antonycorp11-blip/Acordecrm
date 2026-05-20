@@ -353,6 +353,8 @@ export default function AreaProfessor() {
   const [isPlayingDrum, setIsPlayingDrum] = useState(false);
   const [drumIntervalId, setDrumIntervalId] = useState<any>(null);
   const [drumCurrentStep, setDrumCurrentStep] = useState(0);
+  // Cursor de passo ativo no sequenciador (0-15) — ao clicar num pad MPC, grava no cursor e avança
+  const [selectedBeatStep, setSelectedBeatStep] = useState(0);
 
   // Estados para adicionar exercícios
   const [exTitle, setExTitle] = useState('');
@@ -508,7 +510,10 @@ export default function AreaProfessor() {
         extId: selExt,
         bass: selBass,
         notes: notesWithBass,
-        isCustom: false
+        isCustom: false,
+        // Salva o instrumento de criação para renderizar o diagrama correto no preview/PDF
+        instrument: mcPlaygroundInstrument,
+        group: currentGroupName
       }]);
     }
   };
@@ -636,7 +641,8 @@ export default function AreaProfessor() {
       };
       
       setMediaRecorder(recorder);
-      recorder.start();
+      // start(1000): chunks são emitidos a cada 1s para garantir integridade do Blob no macOS/Safari
+      recorder.start(1000);
       setIsRecording(true);
     } catch (err) {
       console.error('Erro ao acessar microfone:', err);
@@ -839,7 +845,9 @@ export default function AreaProfessor() {
         setNewAulaMidias([]);
         loadData();
       } else {
-        alert('Erro ao registrar aula avulsa.');
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData.error || errData.message || 'Erro desconhecido no servidor.';
+        alert(`❌ Erro ao registrar aula:\n${errMsg}`);
       }
     } catch (err) {
       console.error(err);
@@ -1858,8 +1866,11 @@ export default function AreaProfessor() {
             {/* BATERIA VIRTUAL RETRO 8-BIT */}
             <div className="border-4 border-black p-4 bg-[#261812] text-white shadow-[4px_4px_0_#000] space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[8px] font-black uppercase tracking-widest text-[#feccba]">🔊 PAD DE BATERIA RETRO (TOQUE PARA OUVIR)</span>
-                <span className="text-[7px] text-[#ff6b00] font-black animate-pulse">8-BIT SYNTH ACTIVE</span>
+                <span className="text-[8px] font-black uppercase tracking-widest text-[#feccba]">🔊 PAD DE BATERIA RETRO (TOQUE PARA GRAVAR)</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[7px] text-[#facc15] font-black">CURSOR: PASSO {selectedBeatStep + 1}/16</span>
+                  <span className="text-[7px] text-[#ff6b00] font-black animate-pulse">8-BIT SYNTH ACTIVE</span>
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
@@ -1874,7 +1885,14 @@ export default function AreaProfessor() {
                       key={pad.label}
                       type="button"
                       onClick={() => {
+                        // 1. Tocar o som sintetizado
                         pad.action();
+                        // 2. Gravar reativamente no passo do cursor
+                        const updated = newDrumMatrix.map(r => [...r]);
+                        updated[pad.row][selectedBeatStep] = true;
+                        setNewDrumMatrix(updated);
+                        // 3. Avançar o cursor para o próximo passo automaticamente
+                        setSelectedBeatStep(prev => (prev + 1) % 16);
                       }}
                       className={`relative flex flex-col items-center justify-center p-3 border-4 border-black text-white font-black uppercase transition-all transform hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_#000] cursor-pointer ${pad.color} shadow-[3px_3px_0_#000] rounded-none`}
                     >
@@ -1914,7 +1932,16 @@ export default function AreaProfessor() {
             </div>
 
             <div className="overflow-x-auto">
-              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block mb-1">GRADE DE BATERIA — 4 INSTRUMENTOS × 16 PASSOS</span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[7px] font-black text-black/50 uppercase tracking-widest">GRADE DE BATERIA — 4 INSTRUMENTOS × 16 PASSOS</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBeatStep(0)}
+                  className="text-[6px] font-black text-[#ff6b00] border border-[#ff6b00] px-1.5 py-0.5 hover:bg-[#ff6b00] hover:text-white transition-colors"
+                >
+                  RESETAR CURSOR
+                </button>
+              </div>
               <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '380px' }}>
                 {[
                   { label: '🔊 Bumbo', row: 0, color: 'border-red-500' },
@@ -1926,11 +1953,14 @@ export default function AreaProfessor() {
                     <div className="flex items-center bg-[#261812] text-white font-black text-[7px] border border-black px-1.5 whitespace-nowrap min-w-[70px]">{label}</div>
                     {Array.from({ length: 16 }).map((_, beat) => {
                       const isActiveStep = drumCurrentStep === beat && isPlayingDrum;
+                      const isCursorStep = selectedBeatStep === beat && !isPlayingDrum;
                       return (
                         <button
                           key={beat}
                           type="button"
                           onClick={() => {
+                            // Clicar na grade: move cursor + toggle a batida
+                            setSelectedBeatStep(beat);
                             const updated = newDrumMatrix.map(r => [...r]);
                             updated[row][beat] = !updated[row][beat];
                             setNewDrumMatrix(updated);
@@ -1941,6 +1971,8 @@ export default function AreaProfessor() {
                               : 'bg-[#1a0a05] hover:bg-[#261812] border-black/35'
                           } ${beat % 4 === 0 ? 'border-l-2 border-l-[#ff6b00]/50' : ''} ${
                             isActiveStep ? 'border-2 border-white' : ''
+                          } ${
+                            isCursorStep ? 'ring-2 ring-yellow-400 ring-inset shadow-[0_0_6px_#facc15] scale-105' : ''
                           }`}
                         >
                           {newDrumMatrix[row]?.[beat] && <span className="text-white font-black text-[9px]">X</span>}
@@ -3261,18 +3293,23 @@ export default function AreaProfessor() {
                         GRUPO: {groupName}
                       </div>
                       <div className="flex flex-wrap gap-4">
-                        {(chords as any[]).map((ch, idx) => (
-                          <div key={idx} className="border-2 border-black p-1 bg-white">
-                            <ChordVisualizer
-                              instrument={mcPlaygroundInstrument}
-                              chordNotes={ch.notes}
-                              root={ch.root}
-                              type={ch.typeId}
-                              ext={ch.extId}
-                              bass={ch.bass}
-                            />
-                          </div>
-                        ))}
+                        {(chords as any[]).map((ch, idx) => {
+                          const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
+                          return (
+                            <div key={idx} className={`border-2 border-black p-1 bg-white ${isTeclado ? 'w-[280px] sm:w-[340px]' : 'w-[160px]'}`}>
+                              <ChordVisualizer
+                                instrument={ch.instrument || mcPlaygroundInstrument}
+                                chordNotes={ch.notes || []}
+                                root={ch.root}
+                                type={ch.typeId}
+                                ext={ch.extId}
+                                bass={ch.bass}
+                                notesWithIndices={ch.notesWithIndices}
+                                isCustom={ch.isCustom}
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

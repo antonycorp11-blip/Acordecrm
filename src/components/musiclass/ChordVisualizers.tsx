@@ -120,13 +120,29 @@ export const KeyboardVisualizer: React.FC<{
     }
   }
 
-  const isHighlighted = (absIdx: number) => {
+  // Calcula os absIndex exatos para cada nota do acorde, uma vez por nota
+  // Isso evita duplicatas em oitavas superiores (ex: Dó acendendo em 0 e 12)
+  const highlightedAbsIndices = React.useMemo(() => {
     if (isCustom && notesWithIndices) {
-      return notesWithIndices.includes(absIdx);
+      return new Set<number>(notesWithIndices);
     }
-    const normalizedAbsIdx = ((absIdx % 12) + 12) % 12;
-    const noteName = CHROMATIC_SCALE[normalizedAbsIdx];
-    return chordNotes.includes(noteName);
+    const result = new Set<number>();
+    // Para cada nota do acorde, encontra o PRIMEIRO absIndex disponível no teclado visível
+    const allVisibleKeys = [...whiteKeysInView, ...blackKeysToRender.map(bk => bk.absIndex)].sort((a, b) => a - b);
+    const notesLeft = new Set(chordNotes);
+    for (const absIdx of allVisibleKeys) {
+      const normalized = ((absIdx % 12) + 12) % 12;
+      const noteName = CHROMATIC_SCALE[normalized];
+      if (notesLeft.has(noteName)) {
+        result.add(absIdx);
+        notesLeft.delete(noteName); // Cada nota acende apenas uma vez
+      }
+    }
+    return result;
+  }, [isCustom, notesWithIndices, chordNotes, whiteKeysInView, blackKeysToRender]);
+
+  const isHighlighted = (absIdx: number) => {
+    return highlightedAbsIndices.has(absIdx);
   };
 
   const getNoteName = (absIdx: number) => {

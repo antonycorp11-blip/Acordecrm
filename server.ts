@@ -580,38 +580,43 @@ async function startServer() {
                 return res.status(500).json({ error: aluError.message, stage: 'aluno' });
             }
 
-            // 2. Atualizar Curso na Matrícula Ativa (se fornecido)
-            if (curso_id && !isNaN(Number(curso_id))) {
-                const matUpdate: any = { curso_id: Number(curso_id) };
-                if (dia_semana !== undefined && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
-                if (horario !== undefined) matUpdate.horario = horario;
+            // 2. Atualizar Curso e Dia/Horário na Matrícula (com fallback resiliente)
+            const matUpdate: any = {};
+            if (curso_id && !isNaN(Number(curso_id))) matUpdate.curso_id = Number(curso_id);
+            if (dia_semana !== undefined && dia_semana !== '' && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
+            if (horario !== undefined && horario !== '') matUpdate.horario = horario;
 
-                const { error: matError } = await supabase.from('matriculas')
-                    .update(matUpdate)
-                    .eq('aluno_id', studentId)
-                    .eq('status', 'ativa');
+            if (Object.keys(matUpdate).length > 0) {
+                console.log(`[MATRICULA_UPDATE] Tentando atualizar matrícula ativa do aluno ${studentId}:`, matUpdate);
                 
-                if (matError) {
-                    console.error('[MATRICULA_UPDATE_ERROR]:', matError);
-                }
-            } else if ((dia_semana !== undefined && !isNaN(Number(dia_semana))) || horario !== undefined) {
-                // Atualizar só dia/horário sem mudar curso
-                const matUpdate: any = {};
-                if (dia_semana !== undefined && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
-                if (horario !== undefined) matUpdate.horario = horario;
-
-                const { error: matError } = await supabase.from('matriculas')
+                // Primeiro: tenta atualizar matrícula com status 'ativa'
+                const { data: matResult, error: matErrorAtiva } = await supabase.from('matriculas')
                     .update(matUpdate)
                     .eq('aluno_id', studentId)
-                    .eq('status', 'ativa');
-
-                if (matError) {
-                    console.error('[MATRICULA_HORARIO_UPDATE_ERROR]:', matError);
-                    return res.status(500).json({ error: matError.message, stage: 'matricula' });
+                    .eq('status', 'ativa')
+                    .select('id');
+                
+                if (matErrorAtiva) {
+                    console.error('[MATRICULA_UPDATE_ATIVA_ERROR]:', matErrorAtiva);
                 }
 
-                // Reagendar as aulas futuras pendentes para o novo dia/horário
-                if (dia_semana !== undefined && !isNaN(Number(dia_semana))) {
+                // Fallback: se não atualizou nenhuma linha (matrícula sem status='ativa'), atualiza qualquer matrícula do aluno
+                if (!matResult || matResult.length === 0) {
+                    console.log(`[MATRICULA_UPDATE] Fallback: nenhuma matrícula ativa encontrada, atualizando última matrícula do aluno.`);
+                    const { error: matErrorFallback } = await supabase.from('matriculas')
+                        .update(matUpdate)
+                        .eq('aluno_id', studentId)
+                        .order('criado_em', { ascending: false })
+                        .limit(1);
+                    
+                    if (matErrorFallback) {
+                        console.error('[MATRICULA_UPDATE_FALLBACK_ERROR]:', matErrorFallback);
+                        return res.status(500).json({ error: matErrorFallback.message, stage: 'matricula_fallback' });
+                    }
+                }
+
+                // Reagendar aulas futuras pendentes se o dia da semana mudou
+                if (matUpdate.dia_semana !== undefined) {
                     const hoje = new Date().toISOString().split('T')[0];
                     const { data: aulasFuturas } = await supabase.from('aulas')
                         .select('id, data')
@@ -620,7 +625,7 @@ async function startServer() {
                         .gte('data', hoje);
 
                     if (aulasFuturas && aulasFuturas.length > 0) {
-                        const novoDia = Number(dia_semana); // 0=Dom, 1=Seg ... 6=Sab
+                        const novoDia = Number(matUpdate.dia_semana);
                         for (const aula of aulasFuturas) {
                             const dataAtual = new Date(aula.data + 'T12:00:00');
                             const diaAtual = dataAtual.getDay();
@@ -630,18 +635,20 @@ async function startServer() {
                             novaData.setDate(novaData.getDate() + diff);
                             const novaDataStr = novaData.toISOString().split('T')[0];
                             const updateAula: any = { data: novaDataStr };
-                            if (horario !== undefined) updateAula.horario = horario;
+                            if (matUpdate.horario) updateAula.horario = matUpdate.horario;
                             await supabase.from('aulas').update(updateAula).eq('id', aula.id);
                         }
+                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas para dia ${novoDia}.`);
                     }
-                } else if (horario !== undefined) {
+                } else if (matUpdate.horario) {
                     // Só mudou o horário, manter os dias
                     const hoje = new Date().toISOString().split('T')[0];
                     await supabase.from('aulas')
-                        .update({ horario })
+                        .update({ horario: matUpdate.horario })
                         .eq('aluno_id', studentId)
                         .eq('status', 'pendente')
                         .gte('data', hoje);
+                    console.log(`[HORARIO_UPDATE] Horário atualizado para aulas futuras pendentes do aluno ${studentId}.`);
                 }
             }
 
@@ -677,12 +684,24 @@ async function startServer() {
                 return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
             }
 
+            // Calcular horario_fim de forma segura, evitando NaN:00
+            const calcHorarioFim = (h: string | undefined, hFim: string | undefined): string => {
+                if (hFim && hFim !== 'undefined' && !hFim.includes('NaN')) return hFim;
+                if (!h || h === 'undefined') return '13:00';
+                const parts = h.split(':');
+                const hNum = parseInt(parts[0], 10);
+                const mNum = parseInt(parts[1] || '0', 10);
+                if (isNaN(hNum)) return '13:00';
+                const newH = (hNum + 1) % 24;
+                return `${String(newH).padStart(2, '0')}:${String(mNum).padStart(2, '0')}`;
+            };
+
             const newAula = {
                 aluno_id,
                 professor_id: prof.id,
                 data,
-                horario,
-                horario_fim: horario_fim || `${parseInt(horario) + 1}:00`,
+                horario: horario || '12:00',
+                horario_fim: calcHorarioFim(horario, horario_fim),
                 curso_nome: curso_nome || 'Música',
                 status: status || 'realizada',
                 conteudo: conteudo || '',

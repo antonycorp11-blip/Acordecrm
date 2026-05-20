@@ -420,31 +420,32 @@ export default function AlunoPerfil() {
     setFrequencia(res.filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente'));
   };
 
+  const fetchData = async () => {
+    const token = localStorage.getItem('acorde_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
+    setLoading(true);
+    try {
+      const [alunoData, aData, fData, mData, cData] = await Promise.all([
+        fetch(`/api/alunos/${id}`, { headers }).then(res => res.ok ? res.json() : null),
+        fetch(`/api/alunos/${id}/agenda`, { headers }).then(res => res.ok ? res.json() : []),
+        fetch(`/api/alunos/${id}/financeiro`, { headers }).then(res => res.ok ? res.json() : []),
+        fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : []),
+        fetch(`/api/cursos`, { headers }).then(res => res.ok ? res.json() : [])
+      ]);
+      
+      setAluno(alunoData);
+      setAgenda(Array.isArray(aData) ? aData : []);
+      setFinanceiro(Array.isArray(fData) ? fData : []);
+      setMateriais(Array.isArray(mData) ? mData : []);
+      setCursos(Array.isArray(cData) ? cData : []);
+      setFrequencia((Array.isArray(aData) ? aData : []).filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente'));
+    } catch (err) {
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      const token = localStorage.getItem('acorde_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-      setLoading(true);
-      try {
-        const [alunoData, aData, fData, mData, cData] = await Promise.all([
-          fetch(`/api/alunos/${id}`, { headers }).then(res => res.ok ? res.json() : null),
-          fetch(`/api/alunos/${id}/agenda`, { headers }).then(res => res.ok ? res.json() : []),
-          fetch(`/api/alunos/${id}/financeiro`, { headers }).then(res => res.ok ? res.json() : []),
-          fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : []),
-          fetch(`/api/cursos`, { headers }).then(res => res.ok ? res.json() : [])
-        ]);
-        
-        setAluno(alunoData);
-        setAgenda(Array.isArray(aData) ? aData : []);
-        setFinanceiro(Array.isArray(fData) ? fData : []);
-        setMateriais(Array.isArray(mData) ? mData : []);
-        setCursos(Array.isArray(cData) ? cData : []);
-        setFrequencia((Array.isArray(aData) ? aData : []).filter((a: any) => new Date(a.data + 'T23:59:59') < new Date() || a.status !== 'pendente'));
-      } catch (err) {
-        console.error(err);
-      }
-      setLoading(false);
-    };
     fetchData();
   }, [id]);
 
@@ -489,23 +490,13 @@ export default function AlunoPerfil() {
       });
 
       if (res.ok) {
-        const { valor_parcela, valor_com_desconto, dia_vencimento, dia_semana, horario } = editFormData;
-        setAluno({ 
-          ...aluno, 
-          ...editFormData, 
-          matriculas: [
-            { 
-              ...(aluno.matriculas?.[0] || {}), 
-              valor_parcela: valor_parcela ? Number(valor_parcela) : undefined, 
-              valor_com_desconto: valor_com_desconto ? Number(valor_com_desconto) : undefined, 
-              dia_vencimento: dia_vencimento ? Number(dia_vencimento) : undefined,
-              dia_semana: dia_semana !== undefined && dia_semana !== '' ? Number(dia_semana) : undefined,
-              horario: horario || undefined
-            }
-          ] 
-        });
         setIsEditModalOpen(false);
-        toast.success('Perfil atualizado!');
+        toast.success('Perfil atualizado! Recarregando dados...');
+        // Recarregar todos os dados (aluno + agenda) imediatamente após salvar
+        await fetchData();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(`Erro ao salvar: ${errData.error || 'Tente novamente.'}`);
       }
     } catch (err) { console.error(err); }
   };
