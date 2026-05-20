@@ -252,7 +252,10 @@ export default function AreaAluno() {
                     }
                   } catch {}
 
-                  const currentInstrument = alunoData?.curso_ativo || aula.curso_nome || 'Piano';
+                  // Detecta o instrumento pelo curso do aluno para renderizar o diagrama correto
+                  const cursoNomeAula = alunoData?.matriculas?.[0]?.cursos?.nome || alunoData?.curso_ativo || aula.cursos?.nome || aula.curso_nome || '';
+                  const isCursoTeclado = /teclado|piano|keyboard/i.test(cursoNomeAula);
+                  const currentInstrument = isCursoTeclado ? 'Teclado' : (cursoNomeAula || 'Piano');
 
                   return (
                     <div key={aula.id} className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] space-y-3 font-['Space_Mono']">

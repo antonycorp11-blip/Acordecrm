@@ -1510,12 +1510,24 @@ async function startServer() {
             console.log(`[AGENDA] Request params: start=${start}, end=${end}`);
 
             let filterProfId = req.query.professor_id as string;
+            let filterAlunoId: string | null = null;
+
             if (req.user && req.user.role === 'professor') {
                 const { data: prof } = await supabase.from('professores').select('id').ilike('email', req.user.email).single();
                 if (prof) {
                     filterProfId = String(prof.id);
                 } else {
                     filterProfId = '-1'; // Forçar retorno vazio caso professor não seja encontrado
+                }
+            } else if (req.user && req.user.role === 'aluno') {
+                // ALUNO: filtrar somente as aulas do aluno logado
+                const { data: aluno } = await supabase.from('alunos').select('id').ilike('email', req.user.email).maybeSingle();
+                if (aluno) {
+                    filterAlunoId = String(aluno.id);
+                    console.log(`[AGENDA] Aluno logado: id=${filterAlunoId}, email=${req.user.email}`);
+                } else {
+                    console.warn(`[AGENDA] Aluno não encontrado para email: ${req.user.email}`);
+                    filterAlunoId = '-1'; // Forçar retorno vazio
                 }
             }
 
@@ -1527,6 +1539,7 @@ async function startServer() {
             if (start) query = query.gte('data', start);
             if (end) query = query.lte('data', end);
             if (filterProfId) query = query.eq('professor_id', filterProfId);
+            if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
 
             const { data: aulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
