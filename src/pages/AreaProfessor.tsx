@@ -212,6 +212,20 @@ class DrumSynth {
 
 const synth = new DrumSynth();
 
+const translateNote = (note: string): string => {
+  const map: Record<string, string> = {
+    'C': 'Dó', 'C#': 'Dó#', 'Db': 'Réb',
+    'D': 'Ré', 'D#': 'Ré#', 'Eb': 'Mib',
+    'E': 'Mi',
+    'F': 'Fá', 'F#': 'Fá#', 'Gb': 'Solb',
+    'G': 'Sol', 'G#': 'Sol#', 'Ab': 'Láb',
+    'A': 'Lá', 'A#': 'Lá#', 'Bb': 'Sib',
+    'B': 'Si'
+  };
+  const baseNote = note.replace(/\d+$/, '');
+  return map[baseNote] || baseNote;
+};
+
 // Helper para pegar os dias da semana atual (Segunda a Domingo)
 const getWeekDays = () => {
   const today = new Date();
@@ -305,6 +319,17 @@ export default function AreaProfessor() {
   const [newMelodyNotes, setNewMelodyNotes] = useState<string[]>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedBeatTablatura, setSelectedBeatTablatura] = useState<{ strIdx: number, beat: number } | null>(null);
+
+  // Estados para montadores de acordes personalizados v2
+  const [isKeyboardCustomModalOpen, setIsKeyboardCustomModalOpen] = useState(false);
+  const [customTecladoName, setCustomTecladoName] = useState('C');
+  const [customTecladoActiveKeys, setCustomTecladoActiveKeys] = useState<number[]>([]);
+
+  const [isGuitarCustomModalOpen, setIsGuitarCustomModalOpen] = useState(false);
+  const [customGuitarName, setCustomGuitarName] = useState('C');
+  const [customGuitarStrings, setCustomGuitarStrings] = useState<{ fret: number | null, finger: number | null }[]>(
+    Array(6).fill(null).map(() => ({ fret: 0, finger: null }))
+  );
   
   // Estados para seleção de acorde
   const [selRoot, setSelRoot] = useState('C');
@@ -1007,62 +1032,151 @@ export default function AreaProfessor() {
               🎸 HARMÔNICOS E ACORDES PARA {currentInstrument.toUpperCase()}
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[8px] font-black text-black uppercase tracking-widest">TOM / TÔNICA</label>
-                <select
-                  value={selRoot}
-                  onChange={(e) => setSelRoot(e.target.value)}
-                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
-                >
-                  {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[8px] font-black text-black uppercase tracking-widest">TIPO / TRÍADE</label>
-                <select
-                  value={selType}
-                  onChange={(e) => setSelType(e.target.value)}
-                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
-                >
-                  {CHORD_TYPES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* Seletor de Grupo/Seção de Acorde */}
-            <div className="bg-[#feccba]/20 border-2 border-black p-3 space-y-2">
-              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block">SEÇÃO OU GRUPO DO ACORDE</span>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="EX: REFRÃO, INTRO, PONTE"
-                  className="flex-1 px-2 py-1 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/20 focus:outline-none"
-                  value={currentGroupName}
-                  onChange={(e) => setCurrentGroupName(e.target.value)}
-                />
-                <div className="flex gap-1">
-                  {['INTRO', 'VERSO', 'REFRÃO', 'PONTE'].map(grp => (
+            {/* Seletor de Grupo/Seção de Acorde com Destaque Premium */}
+            <div className="bg-[#feccba]/20 border-4 border-black p-3.5 space-y-2.5 shadow-[4px_4px_0_#000]">
+              <span className="text-[8px] font-black text-black uppercase tracking-widest block">SEÇÃO OU GRUPO DO ACORDE (ATIVO: {currentGroupName || 'GERAL'})</span>
+              <div className="flex flex-wrap gap-1.5">
+                {['INTRO', 'VERSO', 'REFRÃO', 'PONTE', 'SOLO', 'OUTRO'].map(grp => {
+                  const isActive = currentGroupName === grp;
+                  return (
                     <button
                       key={grp}
                       type="button"
                       onClick={() => setCurrentGroupName(grp)}
-                      className="px-2 py-1 bg-black text-white border border-black font-black text-[7px] uppercase"
+                      className={`px-3 py-1.5 border-2 border-black font-black text-[8px] uppercase tracking-wider transition-all ${
+                        isActive
+                          ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
+                          : 'bg-white text-black hover:bg-stone-100'
+                      }`}
                     >
                       {grp}
                     </button>
-                  ))}
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const g = prompt("Digite o nome da nova seção/grupo (ex: REFRÃO 2, PONTE B):");
+                    if (g) setCurrentGroupName(g.toUpperCase());
+                  }}
+                  className="px-3 py-1.5 bg-black text-white border-2 border-black font-black text-[8px] uppercase tracking-wider hover:bg-stone-800 shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                >
+                  + PERSONALIZADA
+                </button>
+              </div>
+            </div>
+
+            {/* Nova Interface com Cards de 12 Notas */}
+            <div className="border-4 border-black bg-white p-4 space-y-4 shadow-[4px_4px_0_#000]">
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-2">1. SELECIONE A TÔNICA (TOM FUNDAMENTAL)</label>
+                <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
+                  {[
+                    { cifra: 'C', nome: 'Dó' },
+                    { cifra: 'C#', nome: 'Dó#' },
+                    { cifra: 'D', nome: 'Ré' },
+                    { cifra: 'D#', nome: 'Ré#' },
+                    { cifra: 'E', nome: 'Mi' },
+                    { cifra: 'F', nome: 'Fá' },
+                    { cifra: 'F#', nome: 'Fá#' },
+                    { cifra: 'G', nome: 'Sol' },
+                    { cifra: 'G#', nome: 'Sol#' },
+                    { cifra: 'A', nome: 'Lá' },
+                    { cifra: 'A#', nome: 'Lá#' },
+                    { cifra: 'B', nome: 'Si' }
+                  ].map(t => {
+                    const isActive = selRoot === t.cifra;
+                    return (
+                      <button
+                        key={t.cifra}
+                        type="button"
+                        onClick={() => setSelRoot(t.cifra)}
+                        className={`p-2.5 border-2 border-black flex flex-col items-center justify-center transition-all ${
+                          isActive
+                            ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px] border-4'
+                            : 'bg-[#fff8f6] text-black hover:border-black/70'
+                        }`}
+                      >
+                        <span className="text-sm font-black tracking-tighter">{t.cifra}</span>
+                        <span className="text-[7px] font-bold opacity-80 uppercase">{t.nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Qualidade do Acorde (Tríades) */}
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-2">2. SELECIONE A QUALIDADE (TRÍADE)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'maj', name: 'Maior' },
+                    { id: 'min', name: 'Menor' },
+                    { id: 'dim', name: 'Diminuto' },
+                    { id: 'aug', name: 'Aumentado' },
+                    { id: 'sus2', name: 'Sus2' },
+                    { id: 'sus4', name: 'Sus4' },
+                    { id: 'm7b5', name: 'm7(b5)' }
+                  ].map(t => {
+                    const isActive = selType === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelType(t.id)}
+                        className={`px-3 py-2 border-2 border-black font-black text-[9px] uppercase tracking-wider transition-all ${
+                          isActive
+                            ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
+                            : 'bg-stone-50 text-black hover:bg-stone-100'
+                        }`}
+                      >
+                        {t.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Extensão / Tensão */}
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-2">3. ADICIONE UMA TENSÃO (EXTENSÃO)</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'none', name: 'Nenhuma' },
+                    { id: '7', name: '7ª' },
+                    { id: 'maj7', name: 'maj7 (7M)' },
+                    { id: '9', name: '9ª' },
+                    { id: 'add9', name: 'add9' },
+                    { id: '6', name: '6ª' }
+                  ].map(e => {
+                    const isActive = selExt === e.id;
+                    return (
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => setSelExt(e.id)}
+                        className={`px-3 py-2 border-2 border-black font-black text-[9px] uppercase tracking-wider transition-all ${
+                          isActive
+                            ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
+                            : 'bg-stone-50 text-black hover:bg-stone-100'
+                        }`}
+                      >
+                        {e.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            <div className="bg-black/5 border-2 border-black p-2.5 space-y-2">
-              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block text-center">TIPO DE INSTRUMENTO PARA EXIBIÇÃO</span>
+            {/* Tipo de Instrumento de Visualização */}
+            <div className="bg-black/5 border-2 border-black p-3 space-y-2">
+              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block text-center">MUDAR INSTRUMENTO DE PREVIEW EM TELA</span>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setMcPlaygroundInstrument('Violão')}
-                  className={`flex-1 py-1.5 border border-black font-black text-[9px] uppercase tracking-wider transition-all ${
+                  className={`flex-1 py-2 border border-black font-black text-[9px] uppercase tracking-wider transition-all ${
                     mcPlaygroundInstrument === 'Violão' || mcPlaygroundInstrument === 'Guitarra'
                       ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
                       : 'bg-white text-black/50 hover:bg-stone-100'
@@ -1073,7 +1187,7 @@ export default function AreaProfessor() {
                 <button
                   type="button"
                   onClick={() => setMcPlaygroundInstrument('Teclado')}
-                  className={`flex-1 py-1.5 border border-black font-black text-[9px] uppercase tracking-wider transition-all ${
+                  className={`flex-1 py-2 border border-black font-black text-[9px] uppercase tracking-wider transition-all ${
                     mcPlaygroundInstrument === 'Teclado' || mcPlaygroundInstrument === 'Piano'
                       ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
                       : 'bg-white text-black/50 hover:bg-stone-100'
@@ -1084,32 +1198,52 @@ export default function AreaProfessor() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const chordData = MusicEngine.generateChord(selRoot, selType, selExt);
-                if (chordData) {
-                  const notes = chordData.notes;
-                  const notesWithBass = selBass !== 'none' ? [selBass, ...notes.filter(n => n !== selBass)] : notes;
-                  setMcChords(prev => [...prev, {
-                    root: selRoot,
-                    typeId: selType,
-                    extId: selExt,
-                    bass: selBass,
-                    notes: notesWithBass,
-                    group: currentGroupName || 'GERAL',
-                    isCustom: false
-                  }]);
-                }
-              }}
-              className="w-full py-2.5 bg-[#ff6b00] text-white border-4 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
-            >
-              <PlusCircle className="w-4 h-4" /> ADICIONAR ACORDE AO ALUNO
-            </button>
+            {/* Ações: Adicionar Acorde Regular & Abrir Montadores Customizados */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const chordData = MusicEngine.generateChord(selRoot, selType, selExt);
+                  if (chordData) {
+                    const notes = chordData.notes;
+                    const notesWithBass = selBass !== 'none' ? [selBass, ...notes.filter(n => n !== selBass)] : notes;
+                    setMcChords(prev => [...prev, {
+                      root: selRoot,
+                      typeId: selType,
+                      extId: selExt,
+                      bass: selBass,
+                      notes: notesWithBass,
+                      group: currentGroupName || 'GERAL',
+                      isCustom: false
+                    }]);
+                  }
+                }}
+                className="py-3 bg-black text-[#ff6b00] border-4 border-black font-black text-xs uppercase shadow-[4px_4px_0_#ff6b00] hover:text-white active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5"
+              >
+                <PlusCircle className="w-4 h-4" /> ADICIONAR ACORDE RÁPIDO
+              </button>
 
+              <button
+                type="button"
+                onClick={() => setIsKeyboardCustomModalOpen(true)}
+                className="py-3 bg-[#261812] text-[#feccba] border-4 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] hover:bg-black active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5"
+              >
+                🎹 MONTAR NO TECLADO
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsGuitarCustomModalOpen(true)}
+                className="py-3 bg-[#261812] text-[#feccba] border-4 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] hover:bg-black active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5"
+              >
+                🎸 MONTAR NO VIOLÃO
+              </button>
+            </div>
+
+            {/* Listagem de acordes da aula agrupados por seção */}
             {mcChords.length > 0 && (
-              <div className="space-y-4">
-                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-2">ACORDES NA AULA ({mcChords.length})</label>
+              <div className="space-y-5 pt-4">
+                <label className="text-[9px] font-black text-black uppercase tracking-widest block">ACORDES ADICIONADOS NA AULA ({mcChords.length})</label>
                 {Object.entries(
                   mcChords.reduce((groups: Record<string, any[]>, chord) => {
                     const groupName = chord.group || 'GERAL';
@@ -1118,29 +1252,31 @@ export default function AreaProfessor() {
                     return groups;
                   }, {})
                 ).map(([groupName, chords]) => (
-                  <div key={groupName} className="border-4 border-black bg-black/5 p-3.5 space-y-2.5 relative">
-                    <div className="bg-black text-[#ff6b00] px-2 py-0.5 border border-black text-[8px] font-black uppercase tracking-widest inline-block absolute -top-3 left-2 shadow-[2px_2px_0_#000]">
-                      🎸 GRUPO: {groupName}
+                  <div key={groupName} className="border-4 border-black bg-black/5 p-4.5 space-y-3 relative shadow-[4px_4px_0_#000]">
+                    <div className="bg-[#261812] text-white px-3 py-1 border-2 border-black text-[9px] font-black uppercase tracking-widest inline-block absolute -top-3.5 left-3 shadow-[2px_2px_0_#000]">
+                      🎸 SEÇÃO: {groupName}
                     </div>
-                    <div className="flex gap-2 overflow-x-auto py-1 scrollbar-thin">
+                    <div className="flex gap-3.5 overflow-x-auto py-2.5 scrollbar-thin">
                       {(chords as any[]).map((ch, idx) => {
                         const globalIdx = mcChords.findIndex(c => c === ch);
                         return (
-                          <div key={idx} className="relative group shrink-0 mt-1">
+                          <div key={idx} className="relative group shrink-0 mt-2.5">
                             <ChordVisualizer
-                              instrument={mcPlaygroundInstrument}
-                              chordNotes={ch.notes}
+                              instrument={ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument}
+                              chordNotes={ch.notes || []}
                               root={ch.root}
                               type={ch.typeId}
                               ext={ch.extId}
                               bass={ch.bass}
+                              notesWithIndices={ch.notesWithIndices}
+                              isCustom={ch.isCustom}
                             />
                             <button
                               type="button"
                               onClick={() => setMcChords(prev => prev.filter((_, i) => i !== globalIdx))}
-                              className="absolute top-1 right-1 bg-black text-white p-1 rounded-none border border-white hover:bg-red-500"
+                              className="absolute top-1 right-1 bg-black text-white p-1 rounded-none border border-white hover:bg-red-500 transition-colors shadow-[2px_2px_0_rgba(0,0,0,0.5)] z-45"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         );
@@ -1148,6 +1284,337 @@ export default function AreaProfessor() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Modal do Teclado Customizado */}
+            {isKeyboardCustomModalOpen && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
+                <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-w-xl font-['Space_Mono'] text-black transition-all">
+                  <button
+                    type="button"
+                    onClick={() => setIsKeyboardCustomModalOpen(false)}
+                    className="absolute top-4 right-4 bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all font-black text-xs"
+                  >
+                    ✖
+                  </button>
+
+                  <h3 className="text-lg font-black uppercase italic tracking-tighter mb-4 text-[#ff6b00] border-b-4 border-black pb-2 flex items-center gap-1.5">
+                    <span>🎹</span> MONTAR NO TECLADO PERSONALIZADO
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest block mb-1">NOME DO ACORDE PERSONALIZADO</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: C7M(9), G7M(sus4), etc."
+                        className="w-full p-2.5 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/30 focus:outline-none focus:bg-[#fff8f6]"
+                        value={customTecladoName}
+                        onChange={(e) => setCustomTecladoName(e.target.value)}
+                      />
+                    </div>
+
+                    <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block text-center">
+                      CLIQUE NAS TECLAS ABAIXO PARA MARCAR AS NOTAS E OUVIR O SINTETIZADOR RETRÔ
+                    </span>
+
+                    <div className="relative flex h-36 border-4 border-black bg-black p-1 select-none shadow-[6px_6px_0_#000] w-full max-w-[480px] mx-auto overflow-hidden">
+                      <div className="relative flex w-full h-full">
+                        {/* Teclas Brancas */}
+                        {[
+                          { absIdx: 0, label: 'Dó' },
+                          { absIdx: 2, label: 'Ré' },
+                          { absIdx: 4, label: 'Mi' },
+                          { absIdx: 5, label: 'Fá' },
+                          { absIdx: 7, label: 'Sol' },
+                          { absIdx: 9, label: 'Lá' },
+                          { absIdx: 11, label: 'Si' },
+                          { absIdx: 12, label: 'Dó' },
+                          { absIdx: 14, label: 'Ré' },
+                          { absIdx: 16, label: 'Mi' }
+                        ].map((k, i) => {
+                          const isActive = customTecladoActiveKeys.includes(k.absIdx);
+                          const keyWidth = 10;
+                          const left = i * keyWidth;
+                          return (
+                            <button
+                              key={k.absIdx}
+                              type="button"
+                              onClick={() => {
+                                const noteMap: Record<number, string> = { 0: 'C4', 2: 'D4', 4: 'E4', 5: 'F4', 7: 'G4', 9: 'A4', 11: 'B4', 12: 'C5', 14: 'D5', 16: 'E5' };
+                                melodySynth.playNoteByName(noteMap[k.absIdx]);
+                                if (isActive) {
+                                  setCustomTecladoActiveKeys(prev => prev.filter(x => x !== k.absIdx));
+                                } else {
+                                  setCustomTecladoActiveKeys(prev => [...prev, k.absIdx]);
+                                }
+                              }}
+                              style={{ left: `${left}%`, width: `${keyWidth}%` }}
+                              className={`absolute bottom-0 h-full border border-black flex flex-col justify-end pb-3 items-center font-black text-[8px] text-black transition-all ${
+                                isActive
+                                  ? 'bg-[#ff6b00] text-white shadow-[inset_0_3px_6px_rgba(0,0,0,0.5)] border-b-4'
+                                  : 'bg-white hover:bg-stone-100'
+                              }`}
+                            >
+                              {k.label}
+                            </button>
+                          );
+                        })}
+
+                        {/* Teclas Pretas */}
+                        {[
+                          { absIdx: 1, label: 'Dó#', left: 1 * 10 - 3 },
+                          { absIdx: 3, label: 'Ré#', left: 2 * 10 - 3 },
+                          { absIdx: 6, label: 'Fá#', left: 4 * 10 - 3 },
+                          { absIdx: 8, label: 'Sol#', left: 5 * 10 - 3 },
+                          { absIdx: 10, label: 'Lá#', left: 6 * 10 - 3 },
+                          { absIdx: 13, label: 'Dó#', left: 8 * 10 - 3 },
+                          { absIdx: 15, label: 'Ré#', left: 9 * 10 - 3 }
+                        ].map((k) => {
+                          const isActive = customTecladoActiveKeys.includes(k.absIdx);
+                          return (
+                            <button
+                              key={k.absIdx}
+                              type="button"
+                              onClick={() => {
+                                const noteMap: Record<number, string> = { 1: 'C#4', 3: 'D#4', 6: 'F#4', 8: 'G#4', 10: 'A#4', 13: 'C#5', 15: 'D#5' };
+                                melodySynth.playNoteByName(noteMap[k.absIdx]);
+                                if (isActive) {
+                                  setCustomTecladoActiveKeys(prev => prev.filter(x => x !== k.absIdx));
+                                } else {
+                                  setCustomTecladoActiveKeys(prev => [...prev, k.absIdx]);
+                                }
+                              }}
+                              style={{ left: `${k.left}%`, width: '6%' }}
+                              className={`absolute top-0 h-[60%] border border-white flex flex-col justify-end pb-2 items-center font-black text-[7px] text-white z-10 transition-all ${
+                                isActive
+                                  ? 'bg-[#ff6b00] shadow-[inset_0_3px_6px_rgba(0,0,0,0.5)] border-b-2'
+                                  : 'bg-black hover:bg-stone-900'
+                              }`}
+                            >
+                              {k.label.replace('#', '♯')}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!customTecladoName.trim()) {
+                            alert('Por favor, dê um nome para o acorde.');
+                            return;
+                          }
+                          if (customTecladoActiveKeys.length === 0) {
+                            alert('Por favor, selecione ao menos uma nota no teclado.');
+                            return;
+                          }
+
+                          const chromaticScale = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                          const chordNotes = customTecladoActiveKeys.map(idx => {
+                            const normalized = ((idx % 12) + 12) % 12;
+                            return chromaticScale[normalized];
+                          });
+
+                          setMcChords(prev => [...prev, {
+                            root: customTecladoName.toUpperCase(),
+                            typeId: 'custom',
+                            extId: 'none',
+                            bass: 'none',
+                            notes: chordNotes,
+                            notesWithIndices: [...customTecladoActiveKeys],
+                            group: currentGroupName || 'GERAL',
+                            isCustom: true,
+                            instrument: 'Teclado'
+                          }]);
+
+                          setIsKeyboardCustomModalOpen(false);
+                          setCustomTecladoActiveKeys([]);
+                          setCustomTecladoName('C');
+                        }}
+                        className="flex-1 py-3 bg-[#ff6b00] text-white border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-1"
+                      >
+                        💾 SALVAR ACORDE TECLADO
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCustomTecladoActiveKeys([])}
+                        className="py-3 px-4 bg-red-600 text-white border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                      >
+                        RESET
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal do Violão Customizado */}
+            {isGuitarCustomModalOpen && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
+                <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-w-xl font-['Space_Mono'] text-black transition-all">
+                  <button
+                    type="button"
+                    onClick={() => setIsGuitarCustomModalOpen(false)}
+                    className="absolute top-4 right-4 bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all font-black text-xs"
+                  >
+                    ✖
+                  </button>
+
+                  <h3 className="text-lg font-black uppercase italic tracking-tighter mb-4 text-[#ff6b00] border-b-4 border-black pb-2 flex items-center gap-1.5">
+                    <span>🎸</span> MONTAR NO VIOLÃO PERSONALIZADO
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest block mb-1">NOME DO ACORDE PERSONALIZADO</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: D/F#, G7(9), C9, etc."
+                        className="w-full p-2.5 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/30 focus:outline-none focus:bg-[#fff8f6]"
+                        value={customGuitarName}
+                        onChange={(e) => setCustomGuitarName(e.target.value)}
+                      />
+                    </div>
+
+                    <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block text-center">
+                      CLIQUE NO TRASTE PARA PRESSIONAR E CIRCULE OS DEDOS (1 A 4), OU USE SOLTA/ABAFADA
+                    </span>
+
+                    <div className="border-4 border-black bg-[#261812] p-3 space-y-2.5 shadow-[4px_4px_0_#000]">
+                      {[
+                        { idx: 5, label: 'e (Mi agudo)' },
+                        { idx: 4, label: 'B (Si)' },
+                        { idx: 3, label: 'G (Sol)' },
+                        { idx: 2, label: 'D (Ré)' },
+                        { idx: 1, label: 'A (Lá)' },
+                        { idx: 0, label: 'E (Mi grave)' }
+                      ].map((str) => {
+                        const state = customGuitarStrings[str.idx] || { fret: 0, finger: null };
+                        return (
+                          <div key={str.idx} className="flex items-center gap-2 bg-[#fff8f6] border-2 border-black p-2 shadow-[2px_2px_0_#000]">
+                            <span className="w-16 font-black text-[9px] text-[#261812] uppercase tracking-wider shrink-0">{str.label}</span>
+                            
+                            <div className="flex gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...customGuitarStrings];
+                                  updated[str.idx] = { fret: 0, finger: null };
+                                  setCustomGuitarStrings(updated);
+                                }}
+                                className={`px-1.5 py-0.5 border-2 text-[8px] font-black transition-all ${
+                                  state.fret === 0
+                                    ? 'bg-emerald-500 text-white border-black'
+                                    : 'bg-white text-black/50 border-black/30'
+                                }`}
+                              >
+                                SOLTA
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...customGuitarStrings];
+                                  updated[str.idx] = { fret: null, finger: null };
+                                  setCustomGuitarStrings(updated);
+                                }}
+                                className={`px-1.5 py-0.5 border-2 text-[8px] font-black transition-all ${
+                                  state.fret === null
+                                    ? 'bg-red-500 text-white border-black'
+                                    : 'bg-white text-black/50 border-black/30'
+                                }`}
+                              >
+                                ABAFADA
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-1 flex-1 justify-around">
+                              {[1, 2, 3, 4, 5].map((f) => {
+                                const isSelected = state.fret === f;
+                                return (
+                                  <button
+                                    key={f}
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...customGuitarStrings];
+                                      if (isSelected) {
+                                        const curFinger = state.finger || 1;
+                                        if (curFinger < 4) {
+                                          updated[str.idx] = { fret: f, finger: curFinger + 1 };
+                                        } else {
+                                          updated[str.idx] = { fret: null, finger: null };
+                                        }
+                                      } else {
+                                        updated[str.idx] = { fret: f, finger: 1 };
+                                      }
+                                      setCustomGuitarStrings(updated);
+                                    }}
+                                    className={`w-7 h-7 rounded-none border-2 text-[9px] font-black flex items-center justify-center transition-all ${
+                                      isSelected
+                                        ? 'bg-[#ff6b00] text-white border-black shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]'
+                                        : 'bg-stone-100 text-black/40 border-black/20 hover:border-black/50'
+                                    }`}
+                                  >
+                                    {isSelected ? `D${state.finger || 1}` : `T${f}`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex gap-3 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!customGuitarName.trim()) {
+                            alert('Por favor, dê um nome para o acorde.');
+                            return;
+                          }
+
+                          const tripletos: number[] = [];
+                          for (let s = 0; s < 6; s++) {
+                            const state = customGuitarStrings[s];
+                            if (state && state.fret !== null) {
+                              tripletos.push(s + 1, state.fret, state.finger || 0);
+                            }
+                          }
+
+                          setMcChords(prev => [...prev, {
+                            root: customGuitarName.toUpperCase(),
+                            typeId: 'custom',
+                            extId: 'none',
+                            bass: 'none',
+                            notes: [],
+                            notesWithIndices: tripletos,
+                            group: currentGroupName || 'GERAL',
+                            isCustom: true,
+                            instrument: 'Violão'
+                          }]);
+
+                          setIsGuitarCustomModalOpen(false);
+                          setCustomGuitarStrings(Array(6).fill(null).map(() => ({ fret: 0, finger: null })));
+                          setCustomGuitarName('C');
+                        }}
+                        className="flex-1 py-3 bg-[#ff6b00] text-white border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-1"
+                      >
+                        💾 SALVAR ACORDE VIOLÃO
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCustomGuitarStrings(Array(6).fill(null).map(() => ({ fret: 0, finger: null })))}
+                        className="py-3 px-4 bg-red-600 text-white border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                      >
+                        RESET
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1388,6 +1855,41 @@ export default function AreaProfessor() {
               🥁 SEQUENCIADOR DE BATERIA RÍTMICA
             </div>
 
+            {/* BATERIA VIRTUAL RETRO 8-BIT */}
+            <div className="border-4 border-black p-4 bg-[#261812] text-white shadow-[4px_4px_0_#000] space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[8px] font-black uppercase tracking-widest text-[#feccba]">🔊 PAD DE BATERIA RETRO (TOQUE PARA OUVIR)</span>
+                <span className="text-[7px] text-[#ff6b00] font-black animate-pulse">8-BIT SYNTH ACTIVE</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { label: 'BUMBO (KICK)', emoji: '🔊', color: 'bg-red-600 hover:bg-red-500 shadow-red-950', action: () => synth.playKick(0), row: 0 },
+                  { label: 'CAIXA (SNARE)', emoji: '🥁', color: 'bg-blue-600 hover:bg-blue-500 shadow-blue-950', action: () => synth.playSnare(0), row: 1 },
+                  { label: 'CHIMBAL (HI-HAT)', emoji: '🔔', color: 'bg-yellow-500 hover:bg-yellow-400 shadow-yellow-900', action: () => synth.playHihat(0), row: 2 },
+                  { label: 'RIMSHOT (RIM)', emoji: '🔈', color: 'bg-green-600 hover:bg-green-500 shadow-green-950', action: () => synth.playRimshot(0), row: 3 }
+                ].map((pad) => {
+                  const activeStepsCount = newDrumMatrix[pad.row]?.filter(Boolean).length || 0;
+                  return (
+                    <button
+                      key={pad.label}
+                      type="button"
+                      onClick={() => {
+                        pad.action();
+                      }}
+                      className={`relative flex flex-col items-center justify-center p-3 border-4 border-black text-white font-black uppercase transition-all transform hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_#000] cursor-pointer ${pad.color} shadow-[3px_3px_0_#000] rounded-none`}
+                    >
+                      <span className="text-xl mb-1 filter drop-shadow-[0_2px_0_rgba(0,0,0,1)]">{pad.emoji}</span>
+                      <span className="text-[8px] tracking-wider text-center leading-tight mb-1">{pad.label}</span>
+                      <div className="flex gap-1 items-center mt-1 bg-black/40 px-1 py-0.5 border border-black/30">
+                        <span className="text-[6px] font-black text-[#feccba]">{activeStepsCount} ATIVOS</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-1">NOME DA BATIDA</label>
@@ -1560,7 +2062,7 @@ export default function AreaProfessor() {
                               : 'bg-white hover:bg-stone-100'
                           }`}
                         >
-                          {note}
+                          {translateNote(note)}
                         </button>
                       );
                     })}
@@ -1594,7 +2096,7 @@ export default function AreaProfessor() {
                               : 'bg-black hover:bg-stone-900'
                           }`}
                         >
-                          {note.replace('#', '♯')}
+                          {translateNote(note)}
                         </button>
                       );
                     })}
@@ -1609,7 +2111,7 @@ export default function AreaProfessor() {
                 <div className="bg-black/40 p-2.5 min-h-[40px] flex flex-wrap gap-1.5 border border-black font-black text-[10px] uppercase text-[#ff6b00] tracking-wider">
                   {newMelodyNotes.length > 0 ? (
                     newMelodyNotes.map((note, i) => (
-                      <span key={i} className="bg-[#ff6b00] text-white px-1.5 py-0.5 border border-black text-[8px]">{note}</span>
+                      <span key={i} className="bg-[#ff6b00] text-white px-1.5 py-0.5 border border-black text-[8px]">{translateNote(note)}</span>
                     ))
                   ) : (
                     <span className="text-[#feccba]/40 italic text-[8px] uppercase">Nenhuma nota digitada. Toque nas teclas do piano acima...</span>
@@ -1682,7 +2184,7 @@ export default function AreaProfessor() {
                     <div>
                       <p className="text-[9px] font-black uppercase">{mel.name}</p>
                       <p className="text-[7px] font-mono text-black/60 uppercase tracking-widest mt-1">
-                        {mel.notes?.join(' ')}
+                        {mel.notes?.map(translateNote).join(' ')}
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -2850,7 +3352,7 @@ export default function AreaProfessor() {
                     {mcMelody.map((mel, idx) => (
                       <div key={idx} className="border-4 border-black p-4 bg-white space-y-1">
                         <p className="text-[10px] font-black uppercase text-[#ff6b00]">{mel.name}</p>
-                        <p className="text-xs font-mono font-black text-black tracking-widest uppercase">{mel.notes?.join(' ')}</p>
+                        <p className="text-xs font-mono font-black text-black tracking-widest uppercase">{mel.notes?.map(translateNote).join(' ')}</p>
                       </div>
                     ))}
                   </div>

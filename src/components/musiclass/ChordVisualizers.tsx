@@ -87,6 +87,15 @@ export const KeyboardVisualizer: React.FC<{
   const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const WHITE_KEYS_COUNT = 10; 
 
+  const translateNote = (note: string) => {
+    const map: Record<string, string> = {
+      'C': 'Dó', 'C#': 'Dó#', 'Db': 'Réb', 'D': 'Ré', 'D#': 'Ré#', 'Eb': 'Mib',
+      'E': 'Mi', 'F': 'Fá', 'F#': 'Fá#', 'Gb': 'Solb', 'G': 'Sol', 'G#': 'Sol#',
+      'Ab': 'Láb', 'A': 'Lá', 'A#': 'Lá#', 'Bb': 'Sib', 'B': 'Si'
+    };
+    return map[note] || note;
+  };
+
   const isWhiteKey = (absIdx: number) => {
     const normalized = ((absIdx % 12) + 12) % 12;
     return [0, 2, 4, 5, 7, 9, 11].includes(normalized);
@@ -131,20 +140,20 @@ export const KeyboardVisualizer: React.FC<{
   const fullChordName = isCustom ? root : `${root}${displayType}${displayExt}${displayBass}`;
 
   return (
-    <div className="flex flex-col bg-[#fff8f6] border-4 border-black shadow-[4px_4px_0_#000] w-full max-w-[280px] mx-auto font-['Space_Mono'] overflow-hidden">
+    <div className="flex flex-col bg-[#fff8f6] border-4 border-black shadow-[6px_6px_0_#000] w-full max-w-[480px] mx-auto font-['Space_Mono'] overflow-hidden">
       {/* Header do Acorde */}
-      <div className="bg-[#261812] py-2 px-3 flex justify-between items-center border-b-4 border-black">
-        <h5 className="text-xs font-black text-[#ff6b00] uppercase leading-none">{fullChordName}</h5>
-        <div className="flex gap-1.5">
+      <div className="bg-[#261812] py-2.5 px-4 flex justify-between items-center border-b-4 border-black">
+        <h5 className="text-sm font-black text-[#ff6b00] uppercase leading-none">{fullChordName}</h5>
+        <div className="flex gap-2">
           {chordNotes.map((n, i) => (
-            <span key={i} className="text-[8px] font-black text-white/80 uppercase">{n}</span>
+            <span key={i} className="text-[9px] font-black text-white/95 bg-black/40 px-1.5 py-0.5 border border-white/10 uppercase">{translateNote(n)}</span>
           ))}
         </div>
       </div>
 
-      <div className="p-3 bg-[#feccba]/20 flex justify-center">
-        <div className="relative w-full bg-[#1a0a05] rounded-none p-1.5 border-4 border-black shadow-inner">
-          <div className="relative h-20 w-full flex bg-[#261812] rounded-none pt-0.5 overflow-visible">
+      <div className="p-4 bg-[#feccba]/20 flex justify-center">
+        <div className="relative w-full bg-[#1a0a05] rounded-none p-2 border-4 border-black shadow-inner">
+          <div className="relative h-32 w-full flex bg-[#261812] rounded-none pt-0.5 overflow-visible">
             {/* White Keys */}
             {whiteKeysInView.map((absIdx, i) => {
               const active = isHighlighted(absIdx);
@@ -154,12 +163,12 @@ export const KeyboardVisualizer: React.FC<{
                   key={`w-${i}`}
                   style={{ width: `${100 / WHITE_KEYS_COUNT}%` }}
                   className={`h-full border-r-2 border-black relative transition-all rounded-none ${
-                    active ? 'bg-[#ff6b00]' : 'bg-white'
+                    active ? 'bg-[#ff6b00]' : 'bg-white hover:bg-stone-50'
                   }`}
                 >
                   {active && (
-                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-black flex items-center justify-center border border-white">
-                      <span className="text-[6px] font-black text-white uppercase">{noteName}</span>
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-black flex items-center justify-center border-2 border-white shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                      <span className="text-[7px] font-black text-white uppercase">{translateNote(noteName)}</span>
                     </div>
                   )}
                 </div>
@@ -176,14 +185,14 @@ export const KeyboardVisualizer: React.FC<{
               return (
                 <div
                   key={`b-${bk.absIndex}`}
-                  className={`absolute top-0 h-[60%] w-[6.5%] -ml-[3.25%] z-30 flex items-end justify-center pb-1 rounded-none shadow-md transition-all ${
-                    active ? 'bg-[#ff6b00] border-b-2 border-black' : 'bg-black'
+                  className={`absolute top-0 h-[60%] w-[7%] -ml-[3.5%] z-30 flex items-end justify-center pb-2 rounded-none shadow-md transition-all ${
+                    active ? 'bg-[#ff6b00] border-b-2 border-black' : 'bg-black hover:bg-stone-900'
                   }`}
                   style={{ left: `${left}%` }}
                 >
                   {active && (
-                    <div className="w-2.5 h-2.5 rounded-full bg-white flex items-center justify-center border border-black shadow-sm">
-                      <span className="text-[5px] font-black text-black leading-none uppercase">{noteName}</span>
+                    <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center border-2 border-black shadow-sm">
+                      <span className="text-[6px] font-black text-black leading-none uppercase">{translateNote(noteName)}</span>
                     </div>
                   )}
                 </div>

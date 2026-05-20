@@ -514,32 +514,24 @@ export default function AlunoPerfil() {
     setRescheduling(true);
     const token = localStorage.getItem('acorde_token');
     try {
-      if (rescheduleModal.type === 'emergencial' && rescheduleModal.aulaId) {
-        await fetch(`/api/agenda/${rescheduleModal.aulaId}`, {
+      if (rescheduleModal.aulaId) {
+        const res = await fetch(`/api/agenda/${rescheduleModal.aulaId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ data: rescheduleModal.data, horario: rescheduleModal.horario })
         });
-      } else {
-        const today = new Date().toISOString().split('T')[0];
-        const futuras = agenda.filter(a => a.status === 'pendente' && a.data >= today);
-        for (const aula of futuras) {
-           await fetch(`/api/agenda/${aula.id}`, {
-             method: 'PATCH',
-             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-             body: JSON.stringify({ data: aula.data, horario: rescheduleModal.horario })
-           });
+        if (res.ok) {
+          toast.success('Aula remarcada com sucesso!');
+        } else {
+          toast.error('Erro ao remarcar aula.');
         }
-        await fetch(`/api/alunos/${id}`, {
-           method: 'PATCH',
-           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-           body: JSON.stringify({ horario: rescheduleModal.horario })
-        });
       }
       fetchAgenda();
       setRescheduleModal({ ...rescheduleModal, open: false });
-      toast.success('Aulas remarcadas!');
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao remarcar aula.');
+    }
     setRescheduling(false);
   };
 
@@ -770,9 +762,6 @@ export default function AlunoPerfil() {
               <Card className="p-0 overflow-hidden">
                 <div className="p-4 bg-black flex flex-wrap items-center justify-between gap-4">
                    <h3 className="font-black text-white text-[10px] uppercase tracking-widest">Cronograma de Aulas</h3>
-                   <Button variant="primary" onClick={() => setRescheduleModal({ open: true, aulaId: null, type: 'permanente', data: '', horario: '' })}>
-                     MUDAR_HORÁRIO_PERMANENTE
-                   </Button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -997,11 +986,6 @@ export default function AlunoPerfil() {
                      ))}
                    </select>
                 </div>
-                {rescheduleModal.type === 'permanente' && (
-                  <div className="bg-[#feccba] border-2 border-black p-3 text-[9px] font-black text-black uppercase">
-                    Atenção: Isso alterará todas as aulas futuras deste aluno.
-                  </div>
-                )}
               </div>
               <div className="flex gap-4 mt-8">
                 <Button variant="secondary" className="flex-1" onClick={() => setRescheduleModal({ ...rescheduleModal, open: false })}>CANCELAR</Button>
