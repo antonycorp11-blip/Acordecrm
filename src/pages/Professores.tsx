@@ -30,7 +30,8 @@ export default function Professores() {
     especialidades: [] as string[],
     instrumentos: '',
     cor_agenda: '#f97316',
-    status: 'ativo'
+    status: 'ativo',
+    valor_aula: 0.00
   });
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -84,7 +85,7 @@ export default function Professores() {
     if (res.ok) {
       setIsModalOpen(false);
       fetchData();
-      setFormData({ nome: '', email: '', telefone: '', especialidades: [], instrumentos: '', cor_agenda: '#f97316', status: 'ativo' });
+      setFormData({ nome: '', email: '', telefone: '', especialidades: [], instrumentos: '', cor_agenda: '#f97316', status: 'ativo', valor_aula: 0.00 });
       setEditingId(null);
     } else {
       const errData = await res.json().catch(() => ({}));
@@ -106,7 +107,8 @@ export default function Professores() {
       especialidades: p.especialidades ? p.especialidades.split(',').map((e: string) => e.trim()).filter(Boolean) : [],
       instrumentos: p.instrumentos || '',
       cor_agenda: p.cor_agenda || '#f97316',
-      status: p.status || 'ativo'
+      status: p.status || 'ativo',
+      valor_aula: Number(p.valor_aula) || 0.00
     });
     setEditingId(p.id);
     setIsModalOpen(true);
@@ -245,6 +247,17 @@ export default function Professores() {
                      ))}
                    </div>
                 </div>
+                
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t-2 border-black/10">
+                  <div>
+                    <p className="text-[7px] font-black text-[#8e7164] uppercase tracking-widest">VALOR/AULA</p>
+                    <p className="text-xs font-black text-black">R$ {Number(p.valor_aula || 0).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[7px] font-black text-[#8e7164] uppercase tracking-widest">SALDO</p>
+                    <p className="text-xs font-black text-[#ff6b00]">R$ {Number(p.saldo || 0).toFixed(2)}</p>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-6 pt-4 border-t-2 border-black/5 flex items-center justify-between">
@@ -317,18 +330,30 @@ export default function Professores() {
                           />
                         </div>
                      </div>
-                     <div>
-                       <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">COR_IDENTIFICAÇÃO</label>
-                       <div className="flex items-center gap-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">COR_IDENTIFICAÇÃO</label>
+                          <div className="flex items-center gap-3">
+                             <input 
+                               type="color"
+                               className="w-12 h-12 border-4 border-black cursor-pointer shadow-[2px_2px_0_#000]"
+                               value={formData.cor_agenda}
+                               onChange={(e) => setFormData({...formData, cor_agenda: e.target.value})}
+                             />
+                             <span className="text-[10px] font-black text-black/40 uppercase font-mono">{formData.cor_agenda}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">VALOR/AULA (R$)</label>
                           <input 
-                            type="color"
-                            className="w-12 h-12 border-4 border-black cursor-pointer shadow-[2px_2px_0_#000]"
-                            value={formData.cor_agenda}
-                            onChange={(e) => setFormData({...formData, cor_agenda: e.target.value})}
+                            type="number"
+                            step="0.01"
+                            className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black focus:ring-0 focus:outline-none"
+                            value={formData.valor_aula}
+                            onChange={(e) => setFormData({...formData, valor_aula: Number(e.target.value) || 0})}
                           />
-                          <span className="text-[10px] font-black text-black/40 uppercase font-mono">{formData.cor_agenda}</span>
-                       </div>
-                     </div>
+                        </div>
+                      </div>
                    </div>
 
                    <div className="space-y-4">

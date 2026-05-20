@@ -8,6 +8,7 @@ export default function AreaAluno() {
   const { user, logout } = useAuth();
   const [alunoData, setAlunoData] = useState<any>(null);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
+  const [aulasRealizadas, setAulasRealizadas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dados dinâmicos do aluno
@@ -40,11 +41,16 @@ export default function AreaAluno() {
           const futureAulas = allAulas
             .filter((a: any) => {
               const aulaDate = new Date(`${a.data}T${a.horario || '00:00:00'}`);
-              return aulaDate >= now;
+              return aulaDate >= now && a.status !== 'realizada';
             })
             .sort((a: any, b: any) => new Date(`${a.data}T${a.horario}`).getTime() - new Date(`${b.data}T${b.horario}`).getTime());
 
+          const pastAulas = allAulas
+            .filter((a: any) => a.status === 'realizada')
+            .sort((a: any, b: any) => new Date(`${b.data}T${b.horario}`).getTime() - new Date(`${a.data}T${a.horario}`).getTime());
+
           setAulasHoje(futureAulas);
+          setAulasRealizadas(pastAulas);
         }
       })
       .catch(console.error)
@@ -156,7 +162,7 @@ export default function AreaAluno() {
               <div className="grid grid-cols-2 gap-3">
                  <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
                    <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">INSTRUMENTO</p>
-                    <span className="text-white font-black italic uppercase">
+                    <span className="text-black font-black italic uppercase text-xs">
                       {alunoData?.curso_ativo || 'STUDENT'}
                     </span>
                  </div>
@@ -199,6 +205,87 @@ export default function AreaAluno() {
                 <p className="text-[#8e7164] font-black text-[10px] uppercase italic">&gt;&gt; NENHUMA_AULA_AGENDADA</p>
               </div>
             )}
+
+            {/* Diário de Evolução (Musiclass feedbacks) */}
+            <div className="pt-2">
+              <div className="flex items-center gap-3 mb-4">
+                <h3 className="text-white font-black text-xs uppercase tracking-widest">DIÁRIO_DE_EVOLUÇÃO</h3>
+                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+              </div>
+              
+              <div className="space-y-4">
+                {aulasRealizadas.map((aula: any) => {
+                  let midiasList: any[] = [];
+                  try {
+                    if (typeof aula.midias === 'string') {
+                      midiasList = JSON.parse(aula.midias);
+                    } else if (Array.isArray(aula.midias)) {
+                      midiasList = aula.midias;
+                    }
+                  } catch {}
+
+                  return (
+                    <div key={aula.id} className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider">
+                            {format(new Date(aula.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR }).toUpperCase()}
+                          </p>
+                          <h4 className="text-black font-black text-sm uppercase italic">
+                            AULA DE {aula.curso_nome || 'MÚSICA'}
+                          </h4>
+                        </div>
+                        <span className="bg-[#ffd700] text-black border-2 border-black font-black text-[8px] px-2 py-0.5 shadow-[2px_2px_0_#000]">
+                          +{aula.xp_ganho || 50} XP ⚡
+                        </span>
+                      </div>
+
+                      {/* Conteúdo Trabalhado */}
+                      <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
+                        <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
+                        <p className="text-black text-[10px] font-bold uppercase">{aula.conteudo || 'Nenhum conteúdo registrado'}</p>
+                      </div>
+
+                      {/* Tarefa de casa / Desafio */}
+                      <div className="bg-black/5 border-2 border-black/10 p-2.5">
+                        <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1 flex items-center gap-1">
+                          ⚔️ BOSS QUEST / DESAFIO:
+                        </span>
+                        <p className="text-black text-[10px] font-bold uppercase italic">{aula.tarefa_casa || 'Treinar repertório livre'}</p>
+                      </div>
+
+                      {/* Links e mídias de apoio */}
+                      {midiasList.length > 0 && (
+                        <div>
+                          <span className="text-[8px] font-black text-black/50 uppercase block mb-1 font-mono">LINKS &amp; ANEXOS DE APOIO:</span>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {midiasList.map((mid, mIdx) => (
+                              <a
+                                key={mIdx}
+                                href={mid.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-white border-2 border-black text-[8px] font-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-none transition-all"
+                              >
+                                🔗 {mid.titulo}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {aulasRealizadas.length === 0 && (
+                  <div className="p-6 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
+                    <p className="text-[#8e7164] font-black text-[8px] uppercase tracking-tighter">
+                      NENHUM REGISTRO DE AULA CONCLUÍDO AINDA.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Conquistas (Badges) */}
             <div className="pt-2">
@@ -257,7 +344,7 @@ export default function AreaAluno() {
                          <div className="h-full bg-[#ff6b00]" style={{ width: `${missao.progresso || 0}%` }}></div>
                       </div>
                     </div>
-                    <span className="text-[#ff6b00] font-black text-[9px]">+{missao.xp}XP</span>
+                    <span className="text-[#ff6b00] font-black text-[9px] bg-black border border-black px-1">+{missao.xp}XP</span>
                   </div>
                 ))}
               </div>

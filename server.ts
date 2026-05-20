@@ -593,18 +593,60 @@ async function startServer() {
 
     app.patch('/api/aulas/:id/status', async (req, res) => {
         try {
-            const { status, type } = req.body;
+            const { status, type, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
             const table = type === 'experimental' ? 'aulas_experimentais' : 'aulas';
             
-            const { data, error } = await supabase.from(table).update({ status }).eq('id', req.params.id).select().single();
+            // Buscar aula antes do update para ver o status e o professor anterior
+            const { data: aulaAntiga } = await supabase.from(table).select('status, professor_id').eq('id', req.params.id).single();
+            
+            const updatePayload: any = { status };
+            if (conteudo !== undefined) updatePayload.conteudo = conteudo;
+            if (tarefa_casa !== undefined) updatePayload.tarefa_casa = tarefa_casa;
+            if (midias !== undefined) updatePayload.midias = midias;
+            if (xp_ganho !== undefined) updatePayload.xp_ganho = xp_ganho;
+            
+            const { data, error } = await supabase.from(table).update(updatePayload).eq('id', req.params.id).select().single();
             if (error) throw error;
+
+            // Lógica de Saldo de Professor por Presença/Falta
+            if (aulaAntiga && aulaAntiga.professor_id) {
+                const { data: prof } = await supabase.from('professores').select('valor_aula, saldo').eq('id', aulaAntiga.professor_id).single();
+                if (prof) {
+                    const valorAula = Number(prof.valor_aula) || 0;
+                    let difSaldo = 0;
+                    
+                    const eraAtiva = ['realizada', 'falta_aluno'].includes(aulaAntiga.status);
+                    const ehAtiva = ['realizada', 'falta_aluno'].includes(status);
+                    
+                    if (!eraAtiva && ehAtiva) {
+                        difSaldo = valorAula;
+                    } else if (eraAtiva && !ehAtiva) {
+                        difSaldo = -valorAula;
+                    }
+                    
+                    if (difSaldo !== 0) {
+                        const novoSaldo = (Number(prof.saldo) || 0) + difSaldo;
+                        await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', aulaAntiga.professor_id);
+                    }
+                }
+            }
+
+            // Lógica de conceder XP para o aluno quando a aula é realizada
+            if (status === 'realizada' && table === 'aulas' && data?.aluno_id) {
+                const xpDado = Number(xp_ganho) || Number(data.xp_ganho) || 50;
+                const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', data.aluno_id).single();
+                if (aluno) {
+                    const novoXp = (Number(aluno.xp) || 0) + xpDado;
+                    await supabase.from('alunos').update({ xp: novoXp }).eq('id', data.aluno_id);
+                }
+            }
 
             // Automação para Lead
             if (type === 'experimental' && status === 'realizada' && data?.lead_id) {
                 await supabase.from('leads').update({ status: 'experimental_concluida' }).eq('id', data.lead_id);
             }
 
-            res.json({ success: true });
+            res.json({ success: true, data });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
@@ -967,6 +1009,24 @@ async function startServer() {
     });
 
     // Professores
+    app.get('/api/professores/me', async (req, res) => {
+        try {
+            if (!req.user) {
+                return res.status(401).json({ error: 'Não autorizado' });
+            }
+            const { data: prof, error } = await supabase.from('professores')
+                .select('*')
+                .eq('email', req.user.email)
+                .maybeSingle();
+            
+            if (error) throw error;
+            if (!prof) {
+                return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
+            }
+            res.json(prof);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
     app.get('/api/professores', async (req, res) => {
         const { data } = await supabase.from('professores').select('*').order('nome');
         // Filter out duplicates by nome
@@ -983,6 +1043,18 @@ async function startServer() {
     });
 
     app.put('/api/professores/:id', async (req, res) => {
+        try {
+            const { data, error } = await supabase.from('professores')
+                .update(req.body)
+                .eq('id', req.params.id)
+                .select()
+                .single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error) { res.status(500).json({ error: 'Erro ao atualizar professor' }); }
+    });
+
+    app.patch('/api/professores/:id', async (req, res) => {
         try {
             const { data, error } = await supabase.from('professores')
                 .update(req.body)
@@ -1267,27 +1339,36 @@ async function startServer() {
             
             console.log(`[AGENDA] Request params: start=${start}, end=${end}`);
 
+            let filterProfId = req.query.professor_id as string;
+            if (req.user && req.user.role === 'professor') {
+                const { data: prof } = await supabase.from('professores').select('id').eq('email', req.user.email).single();
+                if (prof) {
+                    filterProfId = String(prof.id);
+                } else {
+                    filterProfId = '-1'; // Forçar retorno vazio caso professor não seja encontrado
+                }
+            }
+
             let query = supabase.from('aulas')
-                .select('id, data, horario, status, professor_id, aluno_id, alunos!inner(nome, status), professores(nome), cursos(nome)')
+                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos!inner(nome, status), professores(nome), cursos(nome)')
                 .eq('alunos.status', 'ativo')
                 .order('data', { ascending: true });
             
             if (start) query = query.gte('data', start);
             if (end) query = query.lte('data', end);
+            if (filterProfId) query = query.eq('professor_id', filterProfId);
 
             const { data: aulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
             
             console.log(`[AGENDA] Retornadas ${aulas?.length || 0} aulas regulares`);
-            if (aulas && aulas.length > 0) {
-                console.log(`[AGENDA] Primeira aula retornada: ${aulas[0].data}`);
-            }
 
             let expQuery = supabase.from('aulas_experimentais')
                 .select('id, data, horario, status, professor_id, lead_id, leads(nome), professores(nome)');
                 
             if (start) expQuery = expQuery.gte('data', start);
             if (end) expQuery = expQuery.lte('data', end);
+            if (filterProfId) expQuery = expQuery.eq('professor_id', filterProfId);
 
             const { data: experimentais, error: errE } = await expQuery;
 
