@@ -487,19 +487,24 @@ async function startServer() {
             const { 
                 nome, email, telefone, cpf, endereco, 
                 responsavel_nome, responsavel_telefone, 
-                curso_id, valor_parcela, valor_com_desconto, dia_vencimento
+                curso_id, dia_semana, horario,
+                valor_parcela, valor_com_desconto, dia_vencimento
             } = req.body;
             
-            console.log(`[ALUNO_UPDATE_API] ID: ${studentId}`, { nome, curso_id });
+            console.log(`[ALUNO_UPDATE_API] ID: ${studentId}`, { nome, curso_id, dia_semana, horario });
 
-            // 1. Capturar dados atuais
+            // 1. Capturar dados atuais (e-mail antigo)
             const { data: oldAluno } = await supabase.from('alunos').select('email').eq('id', Number(studentId)).single();
 
-            // 2. Atualizar Aluno
+            // 2. Atualizar Aluno (campos básicos)
             const updateFields: any = { nome, email, telefone, cpf, endereco, responsavel_nome, responsavel_telefone };
             Object.keys(updateFields).forEach(key => updateFields[key] === undefined && delete updateFields[key]);
 
-            await supabase.from('alunos').update(updateFields).eq('id', Number(studentId));
+            const { error: aluError } = await supabase.from('alunos').update(updateFields).eq('id', Number(studentId));
+            if (aluError) {
+                console.error('[ALUNO_UPDATE_ERROR]:', aluError);
+                return res.status(500).json({ error: aluError.message, stage: 'aluno' });
+            }
 
             // 3. Sincronizar Login (Usuários)
             if (oldAluno?.email && (nome || email)) {
@@ -508,18 +513,108 @@ async function startServer() {
                     .eq('email', oldAluno.email);
             }
 
-            // 4. Atualizar Matrícula Ativa
-            const matriculaUpdate: any = {};
-            if (curso_id) matriculaUpdate.curso_id = Number(curso_id);
-            if (valor_parcela !== undefined) matriculaUpdate.valor_parcela = valor_parcela === null || valor_parcela === '' ? null : Number(valor_parcela);
-            if (valor_com_desconto !== undefined) matriculaUpdate.valor_com_desconto = valor_com_desconto === null || valor_com_desconto === '' ? null : Number(valor_com_desconto);
-            if (dia_vencimento !== undefined) matriculaUpdate.dia_vencimento = dia_vencimento === null || dia_vencimento === '' ? null : Number(dia_vencimento);
+            // 4. Atualizar Matrícula Ativa (com busca robusta de ID)
+            const matUpdate: any = {};
+            if (curso_id && !isNaN(Number(curso_id))) matUpdate.curso_id = Number(curso_id);
+            if (dia_semana !== undefined && dia_semana !== '' && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
+            if (horario !== undefined && horario !== '') matUpdate.horario = horario;
+            if (valor_parcela !== undefined) matUpdate.valor_parcela = valor_parcela === null || valor_parcela === '' ? null : Number(valor_parcela);
+            if (valor_com_desconto !== undefined) matUpdate.valor_com_desconto = valor_com_desconto === null || valor_com_desconto === '' ? null : Number(valor_com_desconto);
+            if (dia_vencimento !== undefined) matUpdate.dia_vencimento = dia_vencimento === null || dia_vencimento === '' ? null : Number(dia_vencimento);
 
-            if (Object.keys(matriculaUpdate).length > 0) {
-                await supabase.from('matriculas')
-                    .update(matriculaUpdate)
-                    .eq('aluno_id', Number(studentId))
-                    .eq('status', 'ativa');
+            console.log(`[MATRICULA_UPDATE] Aluno ${studentId}, payload:`, matUpdate);
+
+            if (Object.keys(matUpdate).length > 0) {
+                // PASSO 1: Buscar a matrícula ativa (ou qualquer matrícula) do aluno via SELECT
+                let matriculaId: string | null = null;
+                
+                const { data: matAtiva } = await supabase
+                    .from('matriculas')
+                    .select('id')
+                    .eq('aluno_id', studentId)
+                    .eq('status', 'ativa')
+                    .order('id', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (matAtiva) {
+                    matriculaId = matAtiva.id;
+                    console.log(`[MATRICULA_UPDATE] Matrícula ativa encontrada: id=${matriculaId}`);
+                } else {
+                    // Fallback: qualquer matrícula do aluno (a mais recente)
+                    const { data: matQualquer } = await supabase
+                        .from('matriculas')
+                        .select('id')
+                        .eq('aluno_id', studentId)
+                        .order('id', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (matQualquer) {
+                        matriculaId = matQualquer.id;
+                        console.log(`[MATRICULA_UPDATE] Fallback - usando matrícula id=${matriculaId}`);
+                    }
+                }
+
+                // PASSO 2: Atualizar por ID
+                if (matriculaId) {
+                    const { error: matError } = await supabase
+                        .from('matriculas')
+                        .update(matUpdate)
+                        .eq('id', matriculaId);
+
+                    if (matError) {
+                        console.error('[MATRICULA_UPDATE_ERROR]:', matError);
+                        return res.status(500).json({ error: matError.message, stage: 'matricula' });
+                    }
+                    console.log(`[MATRICULA_UPDATE] Sucesso! Matrícula ${matriculaId} atualizada com:`, matUpdate);
+                } else {
+                    console.warn(`[MATRICULA_UPDATE] Nenhuma matrícula encontrada para aluno ${studentId}`);
+                }
+
+                // PASSO 3: Reagendar aulas futuras pendentes se o dia da semana mudou
+                if (matUpdate.dia_semana !== undefined) {
+                    const hoje = new Date().toISOString().split('T')[0];
+                    const { data: aulasFuturas } = await supabase.from('aulas')
+                        .select('id, data')
+                        .eq('aluno_id', studentId)
+                        .eq('status', 'pendente')
+                        .gte('data', hoje);
+
+                    if (aulasFuturas && aulasFuturas.length > 0) {
+                        const novoDia = Number(matUpdate.dia_semana);
+                        for (const aula of aulasFuturas) {
+                            const dataAtual = new Date(aula.data + 'T12:00:00');
+                            const diaAtual = dataAtual.getDay();
+                            
+                            const updateAula: any = {};
+                            
+                            let diff = novoDia - diaAtual;
+                            if (diff !== 0) {
+                                // Move a aula para o novo dia dentro da mesma semana
+                                const novaData = new Date(dataAtual);
+                                novaData.setDate(novaData.getDate() + diff);
+                                updateAula.data = novaData.toISOString().split('T')[0];
+                            }
+
+                            if (matUpdate.horario) updateAula.horario = matUpdate.horario;
+                            
+                            if (Object.keys(updateAula).length > 0) {
+                                await supabase.from('aulas').update(updateAula).eq('id', aula.id);
+                            }
+                        }
+                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas/atualizadas para dia ${matUpdate.dia_semana}.`);
+                    }
+                } else if (matUpdate.horario) {
+                    // Só mudou o horário, manter os dias das aulas
+                    const hoje = new Date().toISOString().split('T')[0];
+                    await supabase.from('aulas')
+                        .update({ horario: matUpdate.horario })
+                        .eq('aluno_id', studentId)
+                        .eq('status', 'pendente')
+                        .gte('data', hoje);
+                    console.log(`[HORARIO_UPDATE] Horário atualizado para aulas futuras do aluno ${studentId}.`);
+                }
             }
 
             return res.json({ success: true, message: 'Dados sincronizados com sucesso' });
@@ -1439,12 +1534,24 @@ async function startServer() {
             console.log(`[AGENDA] Request params: start=${start}, end=${end}`);
 
             let filterProfId = req.query.professor_id as string;
+            let filterAlunoId: string | null = null;
+
             if (req.user && req.user.role === 'professor') {
                 const { data: prof } = await supabase.from('professores').select('id').ilike('email', req.user.email).single();
                 if (prof) {
                     filterProfId = String(prof.id);
                 } else {
                     filterProfId = '-1'; // Forçar retorno vazio caso professor não seja encontrado
+                }
+            } else if (req.user && req.user.role === 'aluno') {
+                // ALUNO: filtrar somente as aulas do aluno logado
+                const { data: aluno } = await supabase.from('alunos').select('id').ilike('email', req.user.email).maybeSingle();
+                if (aluno) {
+                    filterAlunoId = String(aluno.id);
+                    console.log(`[AGENDA] Aluno logado: id=${filterAlunoId}, email=${req.user.email}`);
+                } else {
+                    console.warn(`[AGENDA] Aluno não encontrado para email: ${req.user.email}`);
+                    filterAlunoId = '-1'; // Forçar retorno vazio
                 }
             }
 
@@ -1456,6 +1563,7 @@ async function startServer() {
             if (start) query = query.gte('data', start);
             if (end) query = query.lte('data', end);
             if (filterProfId) query = query.eq('professor_id', filterProfId);
+            if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
 
             const { data: aulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
