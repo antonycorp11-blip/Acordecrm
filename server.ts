@@ -580,42 +580,64 @@ async function startServer() {
                 return res.status(500).json({ error: aluError.message, stage: 'aluno' });
             }
 
-            // 2. Atualizar Curso e Dia/Horário na Matrícula (com fallback resiliente)
+            // 2. Atualizar Curso e Dia/Horário na Matrícula
             const matUpdate: any = {};
             if (curso_id && !isNaN(Number(curso_id))) matUpdate.curso_id = Number(curso_id);
             if (dia_semana !== undefined && dia_semana !== '' && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
             if (horario !== undefined && horario !== '') matUpdate.horario = horario;
 
+            console.log(`[MATRICULA_UPDATE] Aluno ${studentId}, payload:`, matUpdate);
+
             if (Object.keys(matUpdate).length > 0) {
-                console.log(`[MATRICULA_UPDATE] Tentando atualizar matrícula ativa do aluno ${studentId}:`, matUpdate);
+                // PASSO 1: Buscar a matrícula ativa (ou qualquer matrícula) do aluno via SELECT
+                let matriculaId: string | null = null;
                 
-                // Primeiro: tenta atualizar matrícula com status 'ativa'
-                const { data: matResult, error: matErrorAtiva } = await supabase.from('matriculas')
-                    .update(matUpdate)
+                // Tenta primeiro matrículas com status 'ativa'
+                const { data: matAtiva } = await supabase
+                    .from('matriculas')
+                    .select('id')
                     .eq('aluno_id', studentId)
                     .eq('status', 'ativa')
-                    .select('id');
-                
-                if (matErrorAtiva) {
-                    console.error('[MATRICULA_UPDATE_ATIVA_ERROR]:', matErrorAtiva);
-                }
+                    .order('id', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
 
-                // Fallback: se não atualizou nenhuma linha (matrícula sem status='ativa'), atualiza qualquer matrícula do aluno
-                if (!matResult || matResult.length === 0) {
-                    console.log(`[MATRICULA_UPDATE] Fallback: nenhuma matrícula ativa encontrada, atualizando última matrícula do aluno.`);
-                    const { error: matErrorFallback } = await supabase.from('matriculas')
-                        .update(matUpdate)
+                if (matAtiva) {
+                    matriculaId = matAtiva.id;
+                    console.log(`[MATRICULA_UPDATE] Matrícula ativa encontrada: id=${matriculaId}`);
+                } else {
+                    // Fallback: qualquer matrícula do aluno (a mais recente)
+                    const { data: matQualquer } = await supabase
+                        .from('matriculas')
+                        .select('id')
                         .eq('aluno_id', studentId)
-                        .order('criado_em', { ascending: false })
-                        .limit(1);
-                    
-                    if (matErrorFallback) {
-                        console.error('[MATRICULA_UPDATE_FALLBACK_ERROR]:', matErrorFallback);
-                        return res.status(500).json({ error: matErrorFallback.message, stage: 'matricula_fallback' });
+                        .order('id', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (matQualquer) {
+                        matriculaId = matQualquer.id;
+                        console.log(`[MATRICULA_UPDATE] Fallback - usando matrícula id=${matriculaId}`);
                     }
                 }
 
-                // Reagendar aulas futuras pendentes se o dia da semana mudou
+                // PASSO 2: Atualizar por ID (funciona corretamente no Supabase)
+                if (matriculaId) {
+                    const { error: matError } = await supabase
+                        .from('matriculas')
+                        .update(matUpdate)
+                        .eq('id', matriculaId);
+
+                    if (matError) {
+                        console.error('[MATRICULA_UPDATE_ERROR]:', matError);
+                        return res.status(500).json({ error: matError.message, stage: 'matricula' });
+                    }
+                    console.log(`[MATRICULA_UPDATE] Sucesso! Matrícula ${matriculaId} atualizada com:`, matUpdate);
+                } else {
+                    console.warn(`[MATRICULA_UPDATE] Nenhuma matrícula encontrada para aluno ${studentId}`);
+                }
+
+                // PASSO 3: Reagendar aulas futuras pendentes se o dia da semana mudou
                 if (matUpdate.dia_semana !== undefined) {
                     const hoje = new Date().toISOString().split('T')[0];
                     const { data: aulasFuturas } = await supabase.from('aulas')
@@ -638,17 +660,17 @@ async function startServer() {
                             if (matUpdate.horario) updateAula.horario = matUpdate.horario;
                             await supabase.from('aulas').update(updateAula).eq('id', aula.id);
                         }
-                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas para dia ${novoDia}.`);
+                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas para dia ${matUpdate.dia_semana}.`);
                     }
                 } else if (matUpdate.horario) {
-                    // Só mudou o horário, manter os dias
+                    // Só mudou o horário, manter os dias das aulas
                     const hoje = new Date().toISOString().split('T')[0];
                     await supabase.from('aulas')
                         .update({ horario: matUpdate.horario })
                         .eq('aluno_id', studentId)
                         .eq('status', 'pendente')
                         .gte('data', hoje);
-                    console.log(`[HORARIO_UPDATE] Horário atualizado para aulas futuras pendentes do aluno ${studentId}.`);
+                    console.log(`[HORARIO_UPDATE] Horário atualizado para aulas futuras do aluno ${studentId}.`);
                 }
             }
 
