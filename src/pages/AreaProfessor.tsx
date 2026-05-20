@@ -28,13 +28,14 @@ export default function AreaProfessor() {
   const { logout } = useAuth();
   const [professorData, setProfessorData] = useState<any>(null);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
+  const [alunosList, setAlunosList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Modal de registro de aula (Musiclass)
+  // Modal de registro de aula existente (Musiclass)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAula, setSelectedAula] = useState<any>(null);
   
-  // Estados do formulário de aula
+  // Estados do formulário de aula existente
   const [statusAula, setStatusAula] = useState('realizada');
   const [conteudo, setConteudo] = useState('');
   const [tarefaCasa, setTarefaCasa] = useState('');
@@ -42,6 +43,20 @@ export default function AreaProfessor() {
   const [midias, setMidias] = useState<{ titulo: string; url: string }[]>([]);
   const [linkTitulo, setLinkTitulo] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+
+  // Modal de criação de aula avulsa (Musiclass)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newAulaAlunoId, setNewAulaAlunoId] = useState('');
+  const [newAulaData, setNewAulaData] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [newAulaHorario, setNewAulaHorario] = useState(format(new Date(), 'HH:mm'));
+  const [newAulaCurso, setNewAulaCurso] = useState('Piano');
+  const [newAulaStatus, setNewAulaStatus] = useState('realizada');
+  const [newAulaConteudo, setNewAulaConteudo] = useState('');
+  const [newAulaTarefa, setNewAulaTarefa] = useState('');
+  const [newAulaXp, setNewAulaXp] = useState(50);
+  const [newAulaMidias, setNewAulaMidias] = useState<{ titulo: string; url: string }[]>([]);
+  const [newLinkTitulo, setNewLinkTitulo] = useState('');
+  const [newLinkUrl, setNewLinkUrl] = useState('');
 
   const xp = professorData?.xp || 8450;
   const xpMax = 10000;
@@ -61,10 +76,18 @@ export default function AreaProfessor() {
     
     Promise.all([
       fetch('/api/professores/me', { headers }).then(r => r.ok ? r.json() : null),
-      fetch('/api/agenda', { headers }).then(r => r.ok ? r.json() : [])
-    ]).then(([me, agenda]) => {
+      fetch('/api/agenda', { headers }).then(r => r.ok ? r.json() : []),
+      fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : [])
+    ]).then(([me, agenda, alunos]) => {
       if (me) {
         setProfessorData(me);
+      }
+      if (alunos) {
+        // Filtra e ordena alunos arquivados ou ativos
+        const sortedAlunos = Array.isArray(alunos) 
+          ? alunos.filter((a: any) => a.status !== 'arquivado').sort((a: any, b: any) => (a.nome || '').localeCompare(b.nome || '')) 
+          : [];
+        setAlunosList(sortedAlunos);
       }
       
       const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -90,7 +113,6 @@ export default function AreaProfessor() {
     setTarefaCasa(aula.tarefa_casa || '');
     setXpGanho(Number(aula.xp_ganho) || 50);
     
-    // Processamento seguro de mídias salvas
     try {
       if (typeof aula.midias === 'string') {
         setMidias(JSON.parse(aula.midias));
@@ -150,6 +172,63 @@ export default function AreaProfessor() {
     }
   };
 
+  // Funções para criar nova aula avulsa do zero
+  const handleAddNewLink = () => {
+    if (!newLinkTitulo || !newLinkUrl) return;
+    setNewAulaMidias(prev => [...prev, { titulo: newLinkTitulo, url: newLinkUrl }]);
+    setNewLinkTitulo('');
+    setNewLinkUrl('');
+  };
+
+  const handleRemoveNewLink = (idx: number) => {
+    setNewAulaMidias(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const criarNovaAulaAvulsa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAulaAlunoId) {
+      alert('Por favor, selecione um aluno.');
+      return;
+    }
+    
+    const token = localStorage.getItem('acorde_token');
+    try {
+      const res = await fetch('/api/aulas', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`, 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          aluno_id: newAulaAlunoId,
+          data: newAulaData,
+          horario: newAulaHorario,
+          curso_nome: newAulaCurso,
+          status: newAulaStatus,
+          conteudo: newAulaConteudo,
+          tarefa_casa: newAulaTarefa,
+          midias: newAulaMidias,
+          xp_ganho: newAulaXp
+        })
+      });
+      
+      if (res.ok) {
+        setIsCreateModalOpen(false);
+        // Limpar os campos do formulário
+        setNewAulaAlunoId('');
+        setNewAulaConteudo('');
+        setNewAulaTarefa('');
+        setNewAulaMidias([]);
+        loadData();
+      } else {
+        alert('Erro ao registrar aula avulsa.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro de conexão ao criar aula.');
+    }
+  };
+
   if (loading) return (
     <div className="flex h-screen items-center justify-center bg-[#1a0a05] text-[#ff6b00] font-black uppercase tracking-widest animate-pulse font-mono">
       CONECTANDO AO MUSIC_HUB...
@@ -170,7 +249,7 @@ export default function AreaProfessor() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-none border-4 border-black overflow-hidden bg-[#ff6b00] shadow-[4px_4px_0_#000]">
               <div className="w-full h-full flex items-center justify-center text-white font-black text-lg">
-                {(professorData?.nome || user?.nome || 'P').charAt(0).toUpperCase()}
+                {(professorData?.nome || 'P').charAt(0).toUpperCase()}
               </div>
             </div>
             <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB</h1>
@@ -196,8 +275,8 @@ export default function AreaProfessor() {
               </div>
               
               <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-1">&gt;&gt; INSTRUCTOR_STATS</p>
-              <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 truncate">
-                {professorData?.nome || user?.nome || 'INSTRUTOR'}
+              <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 truncate text-ellipsis overflow-hidden">
+                {professorData?.nome || 'INSTRUTOR'}
               </h2>
               
               <div className="space-y-3 mb-5">
@@ -242,6 +321,16 @@ export default function AreaProfessor() {
                   SALDO REAL ⚡
                 </div>
               </div>
+            </div>
+
+            {/* Criar Aula Avulsa - Musiclass Fiel */}
+            <div className="p-1">
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="w-full bg-[#ff6b00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 hover:bg-[#ff8c3a]"
+              >
+                ⚔️ REGISTRAR NOVA AULA MUSICLASS
+              </button>
             </div>
 
             {/* Agenda do Dia */}
@@ -289,7 +378,7 @@ export default function AreaProfessor() {
                           <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
                             <Clock className="w-3 h-3" /> {aula.horario?.substring(0, 5)}
                           </p>
-                          <h4 className="text-black font-black text-base uppercase italic leading-none my-1 truncate">
+                          <h4 className="text-black font-black text-base uppercase italic leading-none my-1 truncate text-ellipsis overflow-hidden">
                             {aula.nome || aula.aluno_nome || 'ALUNO NÃO VINCULADO'}
                           </h4>
                           <p className="text-black/50 font-black text-[8px] uppercase">
@@ -358,7 +447,241 @@ export default function AreaProfessor() {
         </nav>
       </div>
 
-      {/* MUSICLASS: MODAL DE CRIAÇÃO / REGISTRO DE AULA */}
+      {/* MUSICLASS: MODAL DE CRIAÇÃO DE NOVA AULA AVULSA */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-w-md max-h-[90vh] overflow-y-auto font-['Space_Mono']">
+            
+            {/* Fechar botão */}
+            <div className="absolute top-4 right-4">
+              <button 
+                onClick={() => setIsCreateModalOpen(false)} 
+                className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <span className="font-black bg-[#ff6b00] text-white text-[8px] px-2 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
+                MUSICLASS CREATOR
+              </span>
+              <h2 className="text-xl font-black text-black uppercase italic tracking-tighter mt-3">
+                REGISTRAR NOVA AULA
+              </h2>
+              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider">
+                Crie e registre um novo diário de aula do zero
+              </p>
+            </div>
+
+            <form onSubmit={criarNovaAulaAvulsa} className="space-y-4">
+              
+              {/* Seleção de Aluno */}
+              <div>
+                <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">ALUNO</label>
+                <select
+                  required
+                  className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase focus:outline-none"
+                  value={newAulaAlunoId}
+                  onChange={(e) => {
+                    const aid = e.target.value;
+                    setNewAulaAlunoId(aid);
+                    const sel = alunosList.find(a => a.id === aid);
+                    if (sel && sel.curso_ativo) {
+                      setNewAulaCurso(sel.curso_ativo);
+                    }
+                  }}
+                >
+                  <option value="">-- SELECIONE O ALUNO --</option>
+                  {alunosList.map((al: any) => (
+                    <option key={al.id} value={al.id}>
+                      {al.nome} {al.curso_ativo ? `(${al.curso_ativo.toUpperCase()})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Data e Horário */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">DATA</label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full p-2.5 bg-white border-4 border-black text-xs font-black focus:outline-none"
+                    value={newAulaData}
+                    onChange={(e) => setNewAulaData(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">HORÁRIO</label>
+                  <input
+                    type="time"
+                    required
+                    className="w-full p-2.5 bg-white border-4 border-black text-xs font-black focus:outline-none"
+                    value={newAulaHorario}
+                    onChange={(e) => setNewAulaHorario(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Curso/Instrumento */}
+              <div>
+                <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">CURSO / INSTRUMENTO</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="EX: PIANO, TECLADO, VIOLÃO"
+                  className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                  value={newAulaCurso}
+                  onChange={(e) => setNewAulaCurso(e.target.value)}
+                />
+              </div>
+
+              {/* Presença/Falta */}
+              <div>
+                <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">STATUS DA AULA</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewAulaStatus('realizada')}
+                    className={`py-3 px-4 border-4 border-black font-black text-xs uppercase transition-all flex items-center justify-center gap-2 ${
+                      newAulaStatus === 'realizada' 
+                        ? 'bg-emerald-500 text-white shadow-[4px_4px_0_#000] -translate-y-[2px]' 
+                        : 'bg-white text-black/50 hover:text-black'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> PRESENTE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewAulaStatus('falta_aluno')}
+                    className={`py-3 px-4 border-4 border-black font-black text-xs uppercase transition-all flex items-center justify-center gap-2 ${
+                      newAulaStatus === 'falta_aluno' 
+                        ? 'bg-red-500 text-white shadow-[4px_4px_0_#000] -translate-y-[2px]' 
+                        : 'bg-white text-black/50 hover:text-black'
+                    }`}
+                  >
+                    <XCircle className="w-4 h-4" /> FALTA DO ALUNO
+                  </button>
+                </div>
+              </div>
+
+              {newAulaStatus === 'realizada' && (
+                <>
+                  {/* Conteúdo Trabalhado */}
+                  <div>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">CONTEÚDO TRABALHADO</label>
+                    <textarea
+                      required={newAulaStatus === 'realizada'}
+                      placeholder="O que o aluno aprendeu nesta aula..."
+                      rows={3}
+                      className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                      value={newAulaConteudo}
+                      onChange={(e) => setNewAulaConteudo(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Tarefa de Casa */}
+                  <div>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">DESAFIO / TAREFA DE CASA</label>
+                    <textarea
+                      required={newAulaStatus === 'realizada'}
+                      placeholder="Exercícios práticos sugeridos para treinar..."
+                      rows={3}
+                      className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                      value={newAulaTarefa}
+                      onChange={(e) => setNewAulaTarefa(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Links e Mídias */}
+                  <div>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">MÍDIAS / LINKS DE APOIO</label>
+                    
+                    <div className="space-y-2 mb-3">
+                      {newAulaMidias.map((mid, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[9px] font-black uppercase text-black truncate">{mid.titulo}</p>
+                            <p className="text-[7px] font-mono text-black/60 truncate">{mid.url}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNewLink(idx)}
+                            className="text-red-500 hover:text-red-700 shrink-0 ml-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-2 border-black/10 p-3 bg-black/5 space-y-2">
+                      <input
+                        type="text"
+                        placeholder="NOME DO LINK (EX: PARTITURA)"
+                        className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/20 focus:outline-none"
+                        value={newLinkTitulo}
+                        onChange={(e) => setNewLinkTitulo(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          placeholder="URL (HTTPS://...)"
+                          className="flex-1 px-2 py-1.5 bg-white border-2 border-black text-[9px] font-mono placeholder:text-black/20 focus:outline-none"
+                          value={newLinkUrl}
+                          onChange={(e) => setNewLinkUrl(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddNewLink}
+                          className="bg-black text-white px-3 py-1.5 border-2 border-black font-black uppercase text-[9px] shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                        >
+                          ADD
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Concessão de XP */}
+                  <div>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">CONCEDER XP AO ALUNO</label>
+                    <div className="flex justify-between gap-2">
+                      {[50, 100, 150, 200].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setNewAulaXp(val)}
+                          className={`flex-1 py-2 border-2 border-black font-black text-xs transition-all ${
+                            newAulaXp === val
+                              ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
+                              : 'bg-white text-black/40 hover:border-black'
+                          }`}
+                        >
+                          +{val} XP
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Botão de Envio */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
+                >
+                  <CheckCircle2 className="w-5 h-5" /> ENVIAR E SALVAR AULA
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MUSICLASS: MODAL DE REGISTRO DE AULA EXISTENTE */}
       {isModalOpen && selectedAula && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
           <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-w-md max-h-[90vh] overflow-y-auto font-['Space_Mono']">
@@ -377,7 +700,7 @@ export default function AreaProfessor() {
               <span className="font-black bg-[#ff6b00] text-white text-[8px] px-2 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
                 MUSICLASS FEEDBACK
               </span>
-              <h2 className="text-xl font-black text-black uppercase italic tracking-tighter mt-3">
+              <h2 className="text-xl font-black text-black uppercase italic tracking-tighter mt-3 text-ellipsis overflow-hidden">
                 {selectedAula.nome || selectedAula.aluno_nome || 'REGISTRAR AULA'}
               </h2>
               <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider">
@@ -448,7 +771,6 @@ export default function AreaProfessor() {
                   <div>
                     <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">MÍDIAS / LINKS DE APOIO</label>
                     
-                    {/* Lista de Links Adicionados */}
                     <div className="space-y-2 mb-3">
                       {midias.map((mid, idx) => (
                         <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
@@ -467,7 +789,6 @@ export default function AreaProfessor() {
                       ))}
                     </div>
 
-                    {/* Formulário de adicionar Link */}
                     <div className="border-2 border-black/10 p-3 bg-black/5 space-y-2">
                       <input
                         type="text"

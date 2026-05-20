@@ -591,6 +591,59 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
+    app.post('/api/aulas', async (req, res) => {
+        try {
+            const { aluno_id, data, horario, horario_fim, curso_nome, status, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
+            
+            if (!req.user) {
+                return res.status(401).json({ error: 'Não autorizado' });
+            }
+            
+            const { data: prof, error: profErr } = await supabase.from('professores')
+                .select('*')
+                .eq('email', req.user.email)
+                .maybeSingle();
+                
+            if (profErr || !prof) {
+                return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
+            }
+
+            const newAula = {
+                aluno_id,
+                professor_id: prof.id,
+                data,
+                horario,
+                horario_fim: horario_fim || `${parseInt(horario) + 1}:00`,
+                curso_nome: curso_nome || 'Música',
+                status: status || 'realizada',
+                conteudo: conteudo || '',
+                tarefa_casa: tarefa_casa || '',
+                midias: midias || [],
+                xp_ganho: xp_ganho || 50
+            };
+
+            const { data: createdAula, error: createErr } = await supabase.from('aulas').insert([newAula]).select().single();
+            if (createErr) throw createErr;
+
+            if (newAula.status === 'realizada') {
+                const valorAula = Number(prof.valor_aula) || 0;
+                const novoSaldo = (Number(prof.saldo) || 0) + valorAula;
+                await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', prof.id);
+
+                const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', aluno_id).single();
+                if (aluno) {
+                    const novoXp = (Number(aluno.xp) || 0) + Number(newAula.xp_ganho);
+                    await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno_id);
+                }
+            }
+
+            res.json({ success: true, data: createdAula });
+        } catch (error: any) {
+            console.error('Erro ao criar aula:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.patch('/api/aulas/:id/status', async (req, res) => {
         try {
             const { status, type, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
