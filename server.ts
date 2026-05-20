@@ -651,16 +651,24 @@ async function startServer() {
                         for (const aula of aulasFuturas) {
                             const dataAtual = new Date(aula.data + 'T12:00:00');
                             const diaAtual = dataAtual.getDay();
+                            
+                            const updateAula: any = {};
+                            
                             let diff = novoDia - diaAtual;
-                            if (diff <= 0) diff += 7;
-                            const novaData = new Date(dataAtual);
-                            novaData.setDate(novaData.getDate() + diff);
-                            const novaDataStr = novaData.toISOString().split('T')[0];
-                            const updateAula: any = { data: novaDataStr };
+                            if (diff !== 0) {
+                                // Move a aula para o novo dia dentro da mesma semana
+                                const novaData = new Date(dataAtual);
+                                novaData.setDate(novaData.getDate() + diff);
+                                updateAula.data = novaData.toISOString().split('T')[0];
+                            }
+
                             if (matUpdate.horario) updateAula.horario = matUpdate.horario;
-                            await supabase.from('aulas').update(updateAula).eq('id', aula.id);
+                            
+                            if (Object.keys(updateAula).length > 0) {
+                                await supabase.from('aulas').update(updateAula).eq('id', aula.id);
+                            }
                         }
-                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas para dia ${matUpdate.dia_semana}.`);
+                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas/atualizadas para dia ${matUpdate.dia_semana}.`);
                     }
                 } else if (matUpdate.horario) {
                     // Só mudou o horário, manter os dias das aulas

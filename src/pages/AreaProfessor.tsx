@@ -1267,8 +1267,9 @@ export default function AreaProfessor() {
                     <div className="flex gap-3.5 overflow-x-auto py-2.5 scrollbar-thin">
                       {(chords as any[]).map((ch, idx) => {
                         const globalIdx = mcChords.findIndex(c => c === ch);
+                        const isTeclado = (ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument)?.toLowerCase().includes('teclado') || (ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument)?.toLowerCase().includes('piano');
                         return (
-                          <div key={idx} className="relative group shrink-0 mt-2.5">
+                          <div key={idx} className={`relative group shrink-0 mt-2.5 origin-top-left ${isTeclado ? 'w-[280px]' : 'w-[160px]'}`}>
                             <ChordVisualizer
                               instrument={ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument}
                               chordNotes={ch.notes || []}
