@@ -595,14 +595,19 @@ async function startServer() {
             const { status, type, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
             const table = type === 'experimental' ? 'aulas_experimentais' : 'aulas';
             
-            // Buscar aula antes do update para ver o status e o professor anterior
-            const { data: aulaAntiga } = await supabase.from(table).select('status, professor_id').eq('id', req.params.id).single();
+            // Buscar aula antes do update para ver o status, data e o professor anterior
+            const { data: aulaAntiga } = await supabase.from(table).select('status, data, professor_id').eq('id', req.params.id).single();
             
             const updatePayload: any = { status };
             if (conteudo !== undefined) updatePayload.conteudo = conteudo;
             if (tarefa_casa !== undefined) updatePayload.tarefa_casa = tarefa_casa;
             if (midias !== undefined) updatePayload.midias = midias;
             if (xp_ganho !== undefined) updatePayload.xp_ganho = xp_ganho;
+            
+            // Se for aula regular e a data antiga começar com 2099, ao dar presença (realizada/falta_aluno), joga para o dia de hoje
+            if (table === 'aulas' && aulaAntiga && aulaAntiga.data && aulaAntiga.data.startsWith('2099') && ['realizada', 'falta_aluno'].includes(status)) {
+                updatePayload.data = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+            }
             
             const { data, error } = await supabase.from(table).update(updatePayload).eq('id', req.params.id).select().single();
             if (error) throw error;

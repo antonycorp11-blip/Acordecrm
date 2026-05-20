@@ -54,7 +54,7 @@ export default function Ranking() {
     return 'STUDENT';
   };
 
-  const getInstrumento = (aluno: any) => aluno.instrumento || aluno.curso_nome || 'MÚSICA';
+  const getInstrumento = (aluno: any) => aluno.curso_ativo || aluno.instrumento || aluno.curso_nome || 'MÚSICA';
 
   const mockRanking = ranking;
 

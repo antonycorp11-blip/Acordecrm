@@ -489,7 +489,7 @@ export default function AlunoPerfil() {
       });
 
       if (res.ok) {
-        const { valor_parcela, valor_com_desconto, dia_vencimento } = editFormData;
+        const { valor_parcela, valor_com_desconto, dia_vencimento, dia_semana, horario } = editFormData;
         setAluno({ 
           ...aluno, 
           ...editFormData, 
@@ -498,7 +498,9 @@ export default function AlunoPerfil() {
               ...(aluno.matriculas?.[0] || {}), 
               valor_parcela: valor_parcela ? Number(valor_parcela) : undefined, 
               valor_com_desconto: valor_com_desconto ? Number(valor_com_desconto) : undefined, 
-              dia_vencimento: dia_vencimento ? Number(dia_vencimento) : undefined 
+              dia_vencimento: dia_vencimento ? Number(dia_vencimento) : undefined,
+              dia_semana: dia_semana !== undefined && dia_semana !== '' ? Number(dia_semana) : undefined,
+              horario: horario || undefined
             }
           ] 
         });
@@ -654,7 +656,9 @@ export default function AlunoPerfil() {
                 curso_id: m?.curso_id,
                 valor_parcela: m?.valor_parcela || '',
                 valor_com_desconto: m?.valor_com_desconto || '',
-                dia_vencimento: m?.dia_vencimento || ''
+                dia_vencimento: m?.dia_vencimento || '',
+                dia_semana: m?.dia_semana !== undefined && m?.dia_semana !== null ? m.dia_semana : '',
+                horario: m?.horario || ''
               });
               setIsEditModalOpen(true);
             }}>
@@ -933,6 +937,34 @@ export default function AlunoPerfil() {
                         ))}
                       </select>
                    </div>
+
+                    <div>
+                       <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">DIA_AULA_FIXO</label>
+                       <select 
+                         className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none"
+                         value={editFormData.dia_semana !== undefined && editFormData.dia_semana !== null ? editFormData.dia_semana : ''}
+                         onChange={e => setEditFormData({ ...editFormData, dia_semana: e.target.value !== '' ? parseInt(e.target.value, 10) : '' })}
+                       >
+                         <option value="">SELECIONE UM DIA</option>
+                         <option value="0">DOMINGO</option>
+                         <option value="1">SEGUNDA-FEIRA</option>
+                         <option value="2">TERÇA-FEIRA</option>
+                         <option value="3">QUARTA-FEIRA</option>
+                         <option value="4">QUINTA-FEIRA</option>
+                         <option value="5">SEXTA-FEIRA</option>
+                         <option value="6">SÁBADO</option>
+                       </select>
+                    </div>
+
+                    <div>
+                       <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">HORÁRIO_FIXO</label>
+                       <input 
+                         type="time"
+                         className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none" 
+                         value={editFormData.horario || ''}
+                         onChange={e => setEditFormData({ ...editFormData, horario: e.target.value })}
+                       />
+                    </div>
                 </div>
                 <div className="flex gap-4 mt-8">
                    <Button variant="secondary" className="flex-1" onClick={() => setIsEditModalOpen(false)}>CANCELAR</Button>

@@ -364,6 +364,86 @@ export default function AreaAluno() {
                               ))}
                             </div>
                           )}
+
+                          {/* TABLATURAS RENDERIZADAS */}
+                          {Array.isArray(richData.tablatures) && richData.tablatures.length > 0 && (
+                            <div className="bg-white border-2 border-black p-2 space-y-3">
+                              <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
+                                📝 TABLATURAS RECOMENDADAS ({richData.tablatures.length}):
+                              </span>
+                              {richData.tablatures.map((tab: any, idx: number) => (
+                                <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2">
+                                  <p className="text-[8px] font-black uppercase mb-1">{tab.name}</p>
+                                  <div className="overflow-x-auto scrollbar-thin">
+                                    <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
+                                      {['e','B','G','D','A','E'].map((str, strIdx) => (
+                                        <React.Fragment key={strIdx}>
+                                          <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-0.5 min-w-[14px]">{str}</div>
+                                          {Array.from({ length: 16 }).map((_, beat) => (
+                                            <div key={beat} className="h-5 flex items-center justify-center bg-white border border-black/20 text-[8px] font-black">
+                                              {tab.matrix?.[strIdx]?.[beat] || '-'}
+                                            </div>
+                                          ))}
+                                        </React.Fragment>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* BATERIAS RENDERIZADAS */}
+                          {Array.isArray(richData.drums) && richData.drums.length > 0 && (
+                            <div className="bg-white border-2 border-black p-2 space-y-3">
+                              <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
+                                🥁 SEQUÊNCIAS DE BATERIA ({richData.drums.length}):
+                              </span>
+                              {richData.drums.map((drum: any, idx: number) => (
+                                <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2">
+                                  <p className="text-[8px] font-black uppercase mb-1">{drum.name} {drum.bpm ? `• ${drum.bpm} BPM` : ''}</p>
+                                  <div className="overflow-x-auto scrollbar-thin">
+                                    <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
+                                      {['Chimbal', 'Caixa', 'Bumbo'].map((inst, instIdx) => (
+                                        <React.Fragment key={instIdx}>
+                                          <div className="flex items-center justify-start bg-[#261812] text-[#ff6b00] font-black text-[6px] border border-black px-1 min-w-[40px] truncate uppercase">{inst}</div>
+                                          {Array.from({ length: 16 }).map((_, beat) => {
+                                            const active = drum.matrix?.[instIdx]?.[beat];
+                                            return (
+                                              <div key={beat} className={`h-5 flex items-center justify-center border border-black/20 text-[8px] font-black ${active ? 'bg-[#ff6b00] text-white' : 'bg-white text-black/20'}`}>
+                                                {active ? 'X' : '-'}
+                                              </div>
+                                            );
+                                          })}
+                                        </React.Fragment>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* MELODIAS RENDERIZADAS */}
+                          {Array.isArray(richData.melody) && richData.melody.length > 0 && (
+                            <div className="bg-white border-2 border-black p-2 space-y-3">
+                              <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
+                                🎹 MELODIAS DE TREINO ({richData.melody.length}):
+                              </span>
+                              {richData.melody.map((mel: any, idx: number) => (
+                                <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2 space-y-1">
+                                  <p className="text-[8px] font-black uppercase mb-1">{mel.name}</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
+                                      <div key={nIdx} className="bg-[#261812] text-[#feccba] border border-black px-1.5 py-0.5 text-[8px] font-black uppercase">
+                                        {note}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -466,7 +546,7 @@ export default function AreaAluno() {
         </div>
 
         {/* BOTTOM NAV — Mobile */}
-        <nav className="absolute bottom-0 left-0 right-0 h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-40">
+        <nav className="fixed md:absolute bottom-0 left-0 right-0 md:left-auto md:right-auto md:w-full h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-50">
           {[
             { icon: Home, label: 'HOME', active: true },
             { icon: Trophy, label: 'RANK' },

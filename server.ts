@@ -562,10 +562,10 @@ async function startServer() {
             const { 
                 nome, email, telefone, cpf, endereco, 
                 responsavel_nome, responsavel_telefone, 
-                curso_id 
+                curso_id, dia_semana, horario
             } = req.body;
             
-            console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id });
+            console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id, dia_semana, horario });
 
             // 1. Atualizar Aluno (campos básicos)
             const { error: aluError } = await supabase.from('alunos')
@@ -582,14 +582,66 @@ async function startServer() {
 
             // 2. Atualizar Curso na Matrícula Ativa (se fornecido)
             if (curso_id && !isNaN(Number(curso_id))) {
+                const matUpdate: any = { curso_id: Number(curso_id) };
+                if (dia_semana !== undefined && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
+                if (horario !== undefined) matUpdate.horario = horario;
+
                 const { error: matError } = await supabase.from('matriculas')
-                    .update({ curso_id: Number(curso_id) })
+                    .update(matUpdate)
                     .eq('aluno_id', studentId)
                     .eq('status', 'ativa');
                 
                 if (matError) {
                     console.error('[MATRICULA_UPDATE_ERROR]:', matError);
-                    // Não travamos o fluxo principal se apenas a matrícula falhar
+                }
+            } else if ((dia_semana !== undefined && !isNaN(Number(dia_semana))) || horario !== undefined) {
+                // Atualizar só dia/horário sem mudar curso
+                const matUpdate: any = {};
+                if (dia_semana !== undefined && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
+                if (horario !== undefined) matUpdate.horario = horario;
+
+                const { error: matError } = await supabase.from('matriculas')
+                    .update(matUpdate)
+                    .eq('aluno_id', studentId)
+                    .eq('status', 'ativa');
+
+                if (matError) {
+                    console.error('[MATRICULA_HORARIO_UPDATE_ERROR]:', matError);
+                    return res.status(500).json({ error: matError.message, stage: 'matricula' });
+                }
+
+                // Reagendar as aulas futuras pendentes para o novo dia/horário
+                if (dia_semana !== undefined && !isNaN(Number(dia_semana))) {
+                    const hoje = new Date().toISOString().split('T')[0];
+                    const { data: aulasFuturas } = await supabase.from('aulas')
+                        .select('id, data')
+                        .eq('aluno_id', studentId)
+                        .eq('status', 'pendente')
+                        .gte('data', hoje);
+
+                    if (aulasFuturas && aulasFuturas.length > 0) {
+                        const novoDia = Number(dia_semana); // 0=Dom, 1=Seg ... 6=Sab
+                        for (const aula of aulasFuturas) {
+                            const dataAtual = new Date(aula.data + 'T12:00:00');
+                            const diaAtual = dataAtual.getDay();
+                            let diff = novoDia - diaAtual;
+                            if (diff <= 0) diff += 7;
+                            const novaData = new Date(dataAtual);
+                            novaData.setDate(novaData.getDate() + diff);
+                            const novaDataStr = novaData.toISOString().split('T')[0];
+                            const updateAula: any = { data: novaDataStr };
+                            if (horario !== undefined) updateAula.horario = horario;
+                            await supabase.from('aulas').update(updateAula).eq('id', aula.id);
+                        }
+                    }
+                } else if (horario !== undefined) {
+                    // Só mudou o horário, manter os dias
+                    const hoje = new Date().toISOString().split('T')[0];
+                    await supabase.from('aulas')
+                        .update({ horario })
+                        .eq('aluno_id', studentId)
+                        .eq('status', 'pendente')
+                        .gte('data', hoje);
                 }
             }
 
@@ -666,14 +718,19 @@ async function startServer() {
             const { status, type, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
             const table = type === 'experimental' ? 'aulas_experimentais' : 'aulas';
             
-            // Buscar aula antes do update para ver o status e o professor anterior
-            const { data: aulaAntiga } = await supabase.from(table).select('status, professor_id').eq('id', req.params.id).single();
+            // Buscar aula antes do update para ver o status, data e o professor anterior
+            const { data: aulaAntiga } = await supabase.from(table).select('status, data, professor_id').eq('id', req.params.id).single();
             
             const updatePayload: any = { status };
             if (conteudo !== undefined) updatePayload.conteudo = conteudo;
             if (tarefa_casa !== undefined) updatePayload.tarefa_casa = tarefa_casa;
             if (midias !== undefined) updatePayload.midias = midias;
             if (xp_ganho !== undefined) updatePayload.xp_ganho = xp_ganho;
+            
+            // Se for aula regular e a data antiga começar com 2099, ao dar presença (realizada/falta_aluno), joga para o dia de hoje
+            if (table === 'aulas' && aulaAntiga && aulaAntiga.data && aulaAntiga.data.startsWith('2099') && ['realizada', 'falta_aluno'].includes(status)) {
+                updatePayload.data = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+            }
             
             const { data, error } = await supabase.from(table).update(updatePayload).eq('id', req.params.id).select().single();
             if (error) throw error;
@@ -702,7 +759,9 @@ async function startServer() {
             }
 
             // Lógica de conceder XP para o aluno quando a aula é realizada
-            if (status === 'realizada' && table === 'aulas' && data?.aluno_id) {
+            // Só credita XP se a aula NÃO estava realizada antes (evita duplicação)
+            const jaEraRealizada = aulaAntiga?.status === 'realizada';
+            if (status === 'realizada' && !jaEraRealizada && table === 'aulas' && data?.aluno_id) {
                 const xpDado = Number(xp_ganho) || Number(data.xp_ganho) || 50;
                 const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', data.aluno_id).single();
                 if (aluno) {
@@ -1734,12 +1793,21 @@ async function startServer() {
 
     app.get('/api/gamificacao/ranking', async (req, res) => {
         try {
-            const { data: alunos } = await supabase.from('alunos').select('id, nome');
-            const { data: progresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)');
+            // Buscar alunos ativos (exclui arquivados e testes)
+            const { data: alunos } = await supabase
+                .from('alunos')
+                .select('id, nome, xp, curso_ativo')
+                .neq('status', 'arquivado');
+
+            const { data: progresso } = await supabase
+                .from('gamificacao_progresso')
+                .select('*, conquista:conquista_id(*)');
             
             const ranking = alunos?.map(al => {
                 const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
-                const xp = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
+                // XP unificado: XP de aulas realizadas + XP de conquistas manuais
+                const xpConquistas = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
+                const xpTotal = (Number(al.xp) || 0) + xpConquistas;
                 
                 const conquistasMap: any = {};
                 prog.forEach(p => {
@@ -1753,7 +1821,10 @@ async function startServer() {
                 return {
                     id: al.id,
                     nome: al.nome,
-                    xp,
+                    xp: xpTotal,
+                    xp_aulas: Number(al.xp) || 0,
+                    xp_conquistas: xpConquistas,
+                    curso_ativo: al.curso_ativo,
                     conquistas: Object.values(conquistasMap)
                 };
             }).sort((a, b) => b.xp - a.xp) || [];

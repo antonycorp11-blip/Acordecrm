@@ -34,6 +34,57 @@ import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musi
 import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordVisualizers';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 
+class MelodySynth {
+  private ctx: AudioContext | null = null;
+
+  private init() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+  }
+
+  playNote(frequency: number, duration = 0.4) {
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(frequency, this.ctx.currentTime);
+    
+    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+    
+    osc.start();
+    osc.stop(this.ctx.currentTime + duration);
+  }
+
+  playNoteByName(noteName: string) {
+    const note = noteName.slice(0, -1);
+    const octave = parseInt(noteName.slice(-1), 10) || 4;
+    
+    const baseFreqs: Record<string, number> = {
+      'C': 261.63, 'C#': 277.18, 'Db': 277.18, 'D': 293.66, 'D#': 311.13, 'Eb': 311.13, 
+      'E': 329.63, 'F': 349.23, 'F#': 369.99, 'Gb': 369.99, 'G': 392.00, 'G#': 415.30, 
+      'Ab': 415.30, 'A': 440.00, 'A#': 466.16, 'Bb': 466.16, 'B': 493.88
+    };
+    
+    const baseFreq = baseFreqs[note.toUpperCase()];
+    if (!baseFreq) return;
+    
+    const factor = Math.pow(2, octave - 4);
+    this.playNote(baseFreq * factor, 0.4);
+  }
+}
+
+const melodySynth = new MelodySynth();
+
 class DrumSynth {
   private ctx: AudioContext | null = null;
 
@@ -245,7 +296,15 @@ export default function AreaProfessor() {
   const [mcRecordings, setMcRecordings] = useState<any[]>([]);
   const [mcTablatures, setMcTablatures] = useState<any[]>([]);
   const [mcDrums, setMcDrums] = useState<any[]>([]);
-  const [mcActiveTab, setMcActiveTab] = useState<'geral' | 'acordes' | 'escalas' | 'tablatura' | 'bateria' | 'exercicios' | 'studio'>('geral');
+  const [mcMelody, setMcMelody] = useState<any[]>([]);
+  const [mcActiveTab, setMcActiveTab] = useState<'geral' | 'acordes' | 'escalas' | 'tablatura' | 'bateria' | 'exercicios' | 'studio' | 'melodia'>('geral');
+
+  // Novos estados do Musiclass v2
+  const [currentGroupName, setCurrentGroupName] = useState('INTRO');
+  const [newMelodyName, setNewMelodyName] = useState('SOLO PRINCIPAL');
+  const [newMelodyNotes, setNewMelodyNotes] = useState<string[]>([]);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [selectedBeatTablatura, setSelectedBeatTablatura] = useState<{ strIdx: number, beat: number } | null>(null);
   
   // Estados para seleção de acorde
   const [selRoot, setSelRoot] = useState('C');
@@ -354,6 +413,7 @@ export default function AreaProfessor() {
     let recordings: any[] = [];
     let tablatures: any[] = [];
     let drums: any[] = [];
+    let melody: any[] = [];
 
     try {
       if (aula.conteudo && aula.conteudo.trim().startsWith('{') && aula.conteudo.trim().endsWith('}')) {
@@ -367,6 +427,7 @@ export default function AreaProfessor() {
           recordings = richData.recordings || [];
           tablatures = richData.tablatures || [];
           drums = richData.drums || [];
+          melody = richData.melody || [];
         }
       }
     } catch (e) {
@@ -381,6 +442,7 @@ export default function AreaProfessor() {
     setMcRecordings(recordings);
     setMcTablatures(tablatures);
     setMcDrums(drums);
+    setMcMelody(melody);
     setMcActiveTab('geral');
     
     try {
@@ -635,7 +697,8 @@ export default function AreaProfessor() {
       exercises: mcExercises,
       recordings: mcRecordings,
       tablatures: mcTablatures,
-      drums: mcDrums
+      drums: mcDrums,
+      melody: mcMelody
     });
 
     const token = localStorage.getItem('acorde_token');
@@ -693,6 +756,9 @@ export default function AreaProfessor() {
     setMcScales([]);
     setMcExercises([]);
     setMcRecordings([]);
+    setMcTablatures([]);
+    setMcDrums([]);
+    setMcMelody([]);
     setMcActiveTab('geral');
     
     setIsCreateModalOpen(true);
@@ -714,7 +780,8 @@ export default function AreaProfessor() {
       exercises: mcExercises,
       recordings: mcRecordings,
       tablatures: mcTablatures,
-      drums: mcDrums
+      drums: mcDrums,
+      melody: mcMelody
     });
 
     const token = localStorage.getItem('acorde_token');
@@ -787,7 +854,7 @@ export default function AreaProfessor() {
       <div className="space-y-4">
         {/* Navegação de Abas */}
         <div className="flex border-4 border-black bg-black p-1 gap-1 mb-4 overflow-x-auto scrollbar-hide">
-          {(['geral', 'acordes', 'escalas', 'tablatura', 'bateria', 'exercicios', 'studio'] as const).map((tab) => (
+          {(['geral', 'acordes', 'escalas', 'tablatura', 'bateria', 'melodia', 'exercicios', 'studio'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -803,6 +870,7 @@ export default function AreaProfessor() {
               {tab === 'escalas' && '🎼 ESCALAS'}
               {tab === 'tablatura' && '📝 TABLATURA'}
               {tab === 'bateria' && '🥁 BATERIA'}
+              {tab === 'melodia' && '🎹 MELODIA'}
               {tab === 'exercicios' && '⚔️ DESAFIOS'}
               {tab === 'studio' && '🎙️ STUDIO'}
             </button>
@@ -812,19 +880,31 @@ export default function AreaProfessor() {
         {/* Conteúdo da Aba Geral */}
         {mcActiveTab === 'geral' && (
           <div className="space-y-4 animate-fade-in">
-            {/* Tema da Aula */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] font-black text-black uppercase tracking-widest">CONTEÚDO TRABALHADO</label>
+            {/* Ações Rápidas */}
+            <div className="flex justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => handleGenerateAISuggestion(isAvulsa)}
+                disabled={isAILoading}
+                className="flex-1 bg-[#261812] text-white border-2 border-black py-1.5 text-[8px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px] disabled:opacity-50"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#ff6b00] animate-pulse" /> {isAILoading ? 'GERANDO...' : '💡 IA PEDAGÓGICA'}
+              </button>
+              
+              {!isAvulsa && (
                 <button
                   type="button"
-                  onClick={() => handleGenerateAISuggestion(isAvulsa)}
-                  disabled={isAILoading}
-                  className="bg-[#261812] text-white border-2 border-black px-2 py-0.5 text-[8px] font-black uppercase flex items-center gap-1 active:translate-y-[1px] disabled:opacity-50"
+                  onClick={() => setIsPreviewOpen(true)}
+                  className="flex-1 bg-[#ff6b00] text-white border-2 border-black py-1.5 text-[8px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px]"
                 >
-                  <Sparkles className="w-3 h-3 text-[#ff6b00] animate-pulse" /> {isAILoading ? 'GERANDO...' : '💡 IA PEDAGÓGICA'}
+                  <span>👁️</span> VISUALIZAR AULA (PDF)
                 </button>
-              </div>
+              )}
+            </div>
+
+            {/* Tema da Aula */}
+            <div>
+              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">CONTEÚDO TRABALHADO</label>
               <textarea
                 required
                 placeholder="O que o aluno aprendeu ou revisou nesta aula..."
@@ -950,27 +1030,29 @@ export default function AreaProfessor() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[8px] font-black text-black uppercase tracking-widest">TENSÃO / EXTENSÃO</label>
-                <select
-                  value={selExt}
-                  onChange={(e) => setSelExt(e.target.value)}
-                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
-                >
-                  {EXTENSIONS.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[8px] font-black text-black uppercase tracking-widest">BAIXO ALTERADO</label>
-                <select
-                  value={selBass}
-                  onChange={(e) => setSelBass(e.target.value)}
-                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
-                >
-                  <option value="none">PADRÃO</option>
-                  {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+            {/* Seletor de Grupo/Seção de Acorde */}
+            <div className="bg-[#feccba]/20 border-2 border-black p-3 space-y-2">
+              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block">SEÇÃO OU GRUPO DO ACORDE</span>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="EX: REFRÃO, INTRO, PONTE"
+                  className="flex-1 px-2 py-1 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/20 focus:outline-none"
+                  value={currentGroupName}
+                  onChange={(e) => setCurrentGroupName(e.target.value)}
+                />
+                <div className="flex gap-1">
+                  {['INTRO', 'VERSO', 'REFRÃO', 'PONTE'].map(grp => (
+                    <button
+                      key={grp}
+                      type="button"
+                      onClick={() => setCurrentGroupName(grp)}
+                      className="px-2 py-1 bg-black text-white border border-black font-black text-[7px] uppercase"
+                    >
+                      {grp}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1002,50 +1084,70 @@ export default function AreaProfessor() {
               </div>
             </div>
 
-            <div className="p-3 bg-black/5 border-2 border-black flex flex-col items-center">
-              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest mb-2">PRÉ-VISUALIZAÇÃO DE ACORDE</span>
-              <ChordVisualizer
-                instrument={mcPlaygroundInstrument}
-                chordNotes={MusicEngine.generateChord(selRoot, selType, selExt)?.notes || []}
-                root={selRoot}
-                type={selType}
-                ext={selExt}
-                bass={selBass}
-              />
-            </div>
-
             <button
               type="button"
-              onClick={handleAddChord}
+              onClick={() => {
+                const chordData = MusicEngine.generateChord(selRoot, selType, selExt);
+                if (chordData) {
+                  const notes = chordData.notes;
+                  const notesWithBass = selBass !== 'none' ? [selBass, ...notes.filter(n => n !== selBass)] : notes;
+                  setMcChords(prev => [...prev, {
+                    root: selRoot,
+                    typeId: selType,
+                    extId: selExt,
+                    bass: selBass,
+                    notes: notesWithBass,
+                    group: currentGroupName || 'GERAL',
+                    isCustom: false
+                  }]);
+                }
+              }}
               className="w-full py-2.5 bg-[#ff6b00] text-white border-4 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
             >
               <PlusCircle className="w-4 h-4" /> ADICIONAR ACORDE AO ALUNO
             </button>
 
             {mcChords.length > 0 && (
-              <div>
+              <div className="space-y-4">
                 <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-2">ACORDES NA AULA ({mcChords.length})</label>
-                <div className="flex gap-2 overflow-x-auto py-2 scrollbar-thin">
-                  {mcChords.map((ch, idx) => (
-                    <div key={idx} className="relative group shrink-0">
-                      <ChordVisualizer
-                        instrument={mcPlaygroundInstrument}
-                        chordNotes={ch.notes}
-                        root={ch.root}
-                        type={ch.typeId}
-                        ext={ch.extId}
-                        bass={ch.bass}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setMcChords(prev => prev.filter((_, i) => i !== idx))}
-                        className="absolute top-1 right-1 bg-black text-white p-1 rounded-none border border-white hover:bg-red-500"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                {Object.entries(
+                  mcChords.reduce((groups: Record<string, any[]>, chord) => {
+                    const groupName = chord.group || 'GERAL';
+                    if (!groups[groupName]) groups[groupName] = [];
+                    groups[groupName].push(chord);
+                    return groups;
+                  }, {})
+                ).map(([groupName, chords]) => (
+                  <div key={groupName} className="border-4 border-black bg-black/5 p-3.5 space-y-2.5 relative">
+                    <div className="bg-black text-[#ff6b00] px-2 py-0.5 border border-black text-[8px] font-black uppercase tracking-widest inline-block absolute -top-3 left-2 shadow-[2px_2px_0_#000]">
+                      🎸 GRUPO: {groupName}
                     </div>
-                  ))}
-                </div>
+                    <div className="flex gap-2 overflow-x-auto py-1 scrollbar-thin">
+                      {chords.map((ch, idx) => {
+                        const globalIdx = mcChords.findIndex(c => c === ch);
+                        return (
+                          <div key={idx} className="relative group shrink-0 mt-1">
+                            <ChordVisualizer
+                              instrument={mcPlaygroundInstrument}
+                              chordNotes={ch.notes}
+                              root={ch.root}
+                              type={ch.typeId}
+                              ext={ch.extId}
+                              bass={ch.bass}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setMcChords(prev => prev.filter((_, i) => i !== globalIdx))}
+                              className="absolute top-1 right-1 bg-black text-white p-1 rounded-none border border-white hover:bg-red-500"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -1078,17 +1180,6 @@ export default function AreaProfessor() {
                 >
                   {SCALES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-              </div>
-            </div>
-
-            <div className="p-3 bg-black/5 border-2 border-black">
-              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block text-center mb-2">NOTAS DA ESCALA</span>
-              <div className="flex justify-center gap-1.5 flex-wrap">
-                {(MusicEngine.generateScale(selScaleRoot, selScaleId) || []).map((note, idx) => (
-                  <span key={idx} className="bg-[#261812] text-[#feccba] border border-black font-black text-[10px] px-2 py-1 uppercase">
-                    {note}
-                  </span>
-                ))}
               </div>
             </div>
 
@@ -1127,10 +1218,10 @@ export default function AreaProfessor() {
         {mcActiveTab === 'tablatura' && (
           <div className="space-y-4 animate-fade-in font-mono text-xs">
             <div className="bg-[#261812] text-white p-3 border-4 border-black shadow-[4px_4px_0_#000] mb-2 text-center uppercase font-black text-[9px]">
-              📝 EDITOR DE TABLATURA INTERATIVA
+              📝 EDITOR DE TABLATURA INTERATIVA (DIGITAÇÃO RÁPIDA)
             </div>
 
-            <div className="border-2 border-black/10 p-3 bg-black/5 space-y-2">
+            <div className="border-2 border-black/10 p-3 bg-black/5 space-y-4">
               <div>
                 <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-1">NOME DO RIFF / MÚSICA</label>
                 <input
@@ -1142,29 +1233,106 @@ export default function AreaProfessor() {
                 />
               </div>
 
+              {/* GRADE INTERATIVA DE TABLATURA */}
               <div className="overflow-x-auto">
-                <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block mb-1">GRADE DE 6 CORDAS × 16 COMPASSOS</span>
+                <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block mb-1">GRADE DE 6 CORDAS × 16 COMPASSOS (CLIQUE NA CÉLULA E SELECIONE O TRASTE ABAIXO)</span>
                 <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '420px' }}>
                   {['e', 'B', 'G', 'D', 'A', 'E'].map((str, strIdx) => (
-                    <>
-                      <div key={`label-${strIdx}`} className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[8px] border border-black px-1 min-w-[18px]">{str}</div>
-                      {Array.from({ length: 16 }).map((_, beat) => (
-                        <input
-                          key={beat}
-                          type="text"
-                          maxLength={2}
-                          value={newTabMatrix[strIdx]?.[beat] || ''}
-                          onChange={(e) => {
-                            const updated = newTabMatrix.map(row => [...row]);
-                            updated[strIdx][beat] = e.target.value;
-                            setNewTabMatrix(updated);
-                          }}
-                          className="h-7 w-full text-center bg-white border border-black/30 text-[9px] font-black focus:outline-none focus:border-[#ff6b00] focus:bg-[#fff8f6]"
-                          placeholder="-"
-                        />
-                      ))}
-                    </>
+                    <React.Fragment key={strIdx}>
+                      <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[8px] border border-black px-1 min-w-[18px]">{str}</div>
+                      {Array.from({ length: 16 }).map((_, beat) => {
+                        const isSelected = selectedBeatTablatura?.strIdx === strIdx && selectedBeatTablatura?.beat === beat;
+                        return (
+                          <div
+                            key={beat}
+                            onClick={() => setSelectedBeatTablatura({ strIdx, beat })}
+                            className={`h-7 w-full flex items-center justify-center cursor-pointer font-black text-[9px] border transition-all ${
+                              isSelected
+                                ? 'bg-[#ff6b00] text-white border-2 border-black animate-pulse shadow-[0_0_8px_rgba(255,107,0,0.6)]'
+                                : 'bg-white text-black border-black/30 hover:bg-[#fff8f6]'
+                            }`}
+                          >
+                            {newTabMatrix[strIdx]?.[beat] || '-'}
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
                   ))}
+                </div>
+              </div>
+
+              {/* PAINEL DE DIGITAÇÃO RÁPIDA */}
+              <div className="border-2 border-black p-3 bg-[#feccba]/20 space-y-2">
+                <span className="text-[7px] font-black text-black/60 uppercase tracking-widest block text-center">
+                  PAINEL DE DIGITAÇÃO RÁPIDA (CELL: {selectedBeatTablatura ? `CORDA ${['e agudo', 'B', 'G', 'D', 'A', 'E grave'][selectedBeatTablatura.strIdx].toUpperCase()} | COMPASSO ${selectedBeatTablatura.beat + 1}` : 'NENHUMA SELECIONADA'})
+                </span>
+                
+                <div className="flex justify-center gap-1 flex-wrap">
+                  {['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'X', '-'].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => {
+                        if (!selectedBeatTablatura) {
+                          alert('Selecione uma célula na grade clicando nela primeiro.');
+                          return;
+                        }
+                        const { strIdx, beat } = selectedBeatTablatura;
+                        const updated = newTabMatrix.map(row => [...row]);
+                        updated[strIdx][beat] = val === '-' ? '' : val;
+                        setNewTabMatrix(updated);
+                        
+                        // Avança o beat automaticamente para a direita
+                        setSelectedBeatTablatura({
+                          strIdx,
+                          beat: (beat + 1) % 16
+                        });
+                      }}
+                      className="px-3.5 py-2 bg-[#261812] text-white border-2 border-black font-black text-xs hover:bg-[#ff6b00] active:translate-y-[1px] flex-shrink-0"
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedBeatTablatura) return;
+                      const { strIdx, beat } = selectedBeatTablatura;
+                      setSelectedBeatTablatura({
+                        strIdx,
+                        beat: (beat - 1 + 16) % 16
+                      });
+                    }}
+                    className="flex-1 py-1.5 bg-black text-white border border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                  >
+                    ◀ VOLTAR PASSO
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedBeatTablatura) return;
+                      const { strIdx, beat } = selectedBeatTablatura;
+                      setSelectedBeatTablatura({
+                        strIdx,
+                        beat: (beat + 1) % 16
+                      });
+                    }}
+                    className="flex-1 py-1.5 bg-black text-white border border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                  >
+                    AVANÇAR PASSO ▶
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewTabMatrix(Array(6).fill(null).map(() => Array(16).fill('')));
+                    }}
+                    className="flex-1 py-1.5 bg-red-600 text-white border border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                  >
+                    🗑️ LIMPAR GRADE
+                  </button>
                 </div>
               </div>
 
@@ -1195,14 +1363,14 @@ export default function AreaProfessor() {
                     <div className="overflow-x-auto">
                       <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
                         {['e','B','G','D','A','E'].map((str, strIdx) => (
-                          <>
-                            <div key={`rl-${strIdx}`} className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-0.5 min-w-[14px]">{str}</div>
+                          <React.Fragment key={strIdx}>
+                            <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-0.5 min-w-[14px]">{str}</div>
                             {Array.from({ length: 16 }).map((_, beat) => (
                               <div key={beat} className="h-5 flex items-center justify-center bg-white border border-black/20 text-[8px] font-black">
                                 {tab.matrix?.[strIdx]?.[beat] || '-'}
                               </div>
                             ))}
-                          </>
+                          </React.Fragment>
                         ))}
                       </div>
                     </div>
@@ -1217,7 +1385,7 @@ export default function AreaProfessor() {
         {mcActiveTab === 'bateria' && (
           <div className="space-y-4 animate-fade-in font-mono text-xs">
             <div className="bg-[#261812] text-white p-3 border-4 border-black shadow-[4px_4px_0_#000] mb-2 text-center uppercase font-black text-[9px]">
-              🥁 SEQUENCIADOR DE BATERIA
+              🥁 SEQUENCIADOR DE BATERIA RÍTMICA
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -1246,28 +1414,38 @@ export default function AreaProfessor() {
             <div className="overflow-x-auto">
               <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block mb-1">GRADE DE BATERIA — 4 INSTRUMENTOS × 16 PASSOS</span>
               <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '380px' }}>
-                {[{ label: '🔊 Bumbo', row: 0 }, { label: '🥁 Caixa', row: 1 }, { label: '🔔 Chimbal', row: 2 }, { label: '🔈 Rimshot', row: 3 }].map(({ label, row }) => (
-                  <>
-                    <div key={`dl-${row}`} className="flex items-center bg-[#261812] text-white font-black text-[7px] border border-black px-1 whitespace-nowrap">{label}</div>
-                    {Array.from({ length: 16 }).map((_, beat) => (
-                      <button
-                        key={beat}
-                        type="button"
-                        onClick={() => {
-                          const updated = newDrumMatrix.map(r => [...r]);
-                          updated[row][beat] = !updated[row][beat];
-                          setNewDrumMatrix(updated);
-                        }}
-                        className={`h-7 border border-black transition-all active:scale-95 ${
-                          newDrumMatrix[row]?.[beat]
-                            ? 'bg-[#ff6b00] shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]'
-                            : 'bg-[#1a0a05] hover:bg-[#261812]'
-                        } ${beat % 4 === 0 ? 'border-l-2 border-l-[#ff6b00]/40' : ''}`}
-                      >
-                        {newDrumMatrix[row]?.[beat] && <span className="text-white font-black text-[9px]">X</span>}
-                      </button>
-                    ))}
-                  </>
+                {[
+                  { label: '🔊 Bumbo', row: 0, color: 'border-red-500' },
+                  { label: '🥁 Caixa', row: 1, color: 'border-blue-500' },
+                  { label: '🔔 Chimbal', row: 2, color: 'border-yellow-500' },
+                  { label: '🔈 Rimshot', row: 3, color: 'border-green-500' }
+                ].map(({ label, row, color }) => (
+                  <React.Fragment key={row}>
+                    <div className="flex items-center bg-[#261812] text-white font-black text-[7px] border border-black px-1.5 whitespace-nowrap min-w-[70px]">{label}</div>
+                    {Array.from({ length: 16 }).map((_, beat) => {
+                      const isActiveStep = drumCurrentStep === beat && isPlayingDrum;
+                      return (
+                        <button
+                          key={beat}
+                          type="button"
+                          onClick={() => {
+                            const updated = newDrumMatrix.map(r => [...r]);
+                            updated[row][beat] = !updated[row][beat];
+                            setNewDrumMatrix(updated);
+                          }}
+                          className={`h-7 border transition-all active:scale-95 ${
+                            newDrumMatrix[row]?.[beat]
+                              ? 'bg-[#ff6b00] border-black shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]'
+                              : 'bg-[#1a0a05] hover:bg-[#261812] border-black/35'
+                          } ${beat % 4 === 0 ? 'border-l-2 border-l-[#ff6b00]/50' : ''} ${
+                            isActiveStep ? 'border-2 border-white' : ''
+                          }`}
+                        >
+                          {newDrumMatrix[row]?.[beat] && <span className="text-white font-black text-[9px]">X</span>}
+                        </button>
+                      );
+                    })}
+                  </React.Fragment>
                 ))}
               </div>
             </div>
@@ -1333,6 +1511,204 @@ export default function AreaProfessor() {
                       </button>
                     </div>
                     <DrumsVisualizer rhythmName={drum.name} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Conteúdo da Aba Melodia */}
+        {mcActiveTab === 'melodia' && (
+          <div className="space-y-4 animate-fade-in font-mono text-xs">
+            <div className="bg-[#261812] text-white p-3 border-4 border-black shadow-[4px_4px_0_#000] mb-2 text-center uppercase font-black text-[9px]">
+              🎹 MINI TECLADO VIRTUAL E CRIADOR DE MELODIAS (RETRO 8-BIT)
+            </div>
+
+            <div className="border-2 border-black p-3 bg-black/5 space-y-4">
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-1">NOME DA MELODIA</label>
+                <input
+                  type="text"
+                  placeholder="EX: SOLO PRINCIPAL"
+                  className="w-full px-2 py-1.5 bg-white border-2 border-black text-[10px] font-black uppercase placeholder:text-black/20 focus:outline-none"
+                  value={newMelodyName}
+                  onChange={(e) => setNewMelodyName(e.target.value)}
+                />
+              </div>
+
+              {/* MINI TECLADO VIRTUAL DE 2 OITAVAS */}
+              <div className="relative">
+                <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block mb-2 text-center">PIANO RETRO (TOQUE PARA OUVIR E DIGITAR)</span>
+                
+                <div className="relative flex h-36 border-4 border-black bg-black p-1 overflow-x-auto select-none rounded-none shadow-[4px_4px_0_#000]">
+                  <div className="relative flex" style={{ width: '560px' }}>
+                    {/* Teclas Brancas */}
+                    {['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5'].map((note) => {
+                      const isActive = newMelodyNotes[newMelodyNotes.length - 1] === note;
+                      return (
+                        <button
+                          key={note}
+                          type="button"
+                          onClick={() => {
+                            melodySynth.playNoteByName(note);
+                            setNewMelodyNotes(prev => [...prev, note]);
+                          }}
+                          className={`w-10 h-32 border border-black flex-shrink-0 flex flex-col justify-end pb-2 items-center font-black text-[8px] text-black transition-all ${
+                            isActive 
+                              ? 'bg-[#ff6b00] text-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]' 
+                              : 'bg-white hover:bg-stone-100'
+                          }`}
+                        >
+                          {note}
+                        </button>
+                      );
+                    })}
+
+                    {/* Teclas Pretas */}
+                    {[
+                      { note: 'C#4', left: 28 },
+                      { note: 'D#4', left: 68 },
+                      { note: 'F#4', left: 148 },
+                      { note: 'G#4', left: 188 },
+                      { note: 'A#4', left: 228 },
+                      { note: 'C#5', left: 308 },
+                      { note: 'D#5', left: 348 },
+                      { note: 'F#5', left: 428 },
+                      { note: 'G#5', left: 468 },
+                      { note: 'A#5', left: 508 }
+                    ].map(({ note, left }) => {
+                      const isActive = newMelodyNotes[newMelodyNotes.length - 1] === note;
+                      return (
+                        <button
+                          key={note}
+                          type="button"
+                          onClick={() => {
+                            melodySynth.playNoteByName(note);
+                            setNewMelodyNotes(prev => [...prev, note]);
+                          }}
+                          style={{ left: `${left}px` }}
+                          className={`absolute top-0 w-6 h-20 border border-white flex-shrink-0 flex flex-col justify-end pb-1.5 items-center font-black text-[7px] text-white z-10 transition-all ${
+                            isActive 
+                              ? 'bg-[#ff6b00] shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]' 
+                              : 'bg-black hover:bg-stone-900'
+                          }`}
+                        >
+                          {note.replace('#', '♯')}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Notas sequenciadas */}
+              <div className="bg-[#261812] text-white p-3 border-2 border-black space-y-2">
+                <span className="text-[7px] font-black text-[#feccba] uppercase tracking-widest block">MELODIA ATUAL ({newMelodyNotes.length} NOTAS)</span>
+                
+                <div className="bg-black/40 p-2.5 min-h-[40px] flex flex-wrap gap-1.5 border border-black font-black text-[10px] uppercase text-[#ff6b00] tracking-wider">
+                  {newMelodyNotes.length > 0 ? (
+                    newMelodyNotes.map((note, i) => (
+                      <span key={i} className="bg-[#ff6b00] text-white px-1.5 py-0.5 border border-black text-[8px]">{note}</span>
+                    ))
+                  ) : (
+                    <span className="text-[#feccba]/40 italic text-[8px] uppercase">Nenhuma nota digitada. Toque nas teclas do piano acima...</span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={newMelodyNotes.length === 0}
+                    onClick={() => {
+                      let time = 0;
+                      newMelodyNotes.forEach((note) => {
+                        setTimeout(() => {
+                          melodySynth.playNoteByName(note);
+                        }, time);
+                        time += 300;
+                      });
+                    }}
+                    className="flex-1 py-1.5 bg-emerald-500 text-white border-2 border-black font-black text-[9px] uppercase tracking-wider disabled:opacity-50 shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                  >
+                    🔊 PLAY PREVIEW
+                  </button>
+                  <button
+                    type="button"
+                    disabled={newMelodyNotes.length === 0}
+                    onClick={() => setNewMelodyNotes(prev => prev.slice(0, -1))}
+                    className="flex-1 py-1.5 bg-black text-white border-2 border-black font-black text-[9px] uppercase tracking-wider disabled:opacity-50 shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                  >
+                    ◀ APAGAR NOTA
+                  </button>
+                  <button
+                    type="button"
+                    disabled={newMelodyNotes.length === 0}
+                    onClick={() => setNewMelodyNotes([])}
+                    className="flex-1 py-1.5 bg-red-600 text-white border-2 border-black font-black text-[9px] uppercase tracking-wider disabled:opacity-50 shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                  >
+                    🗑️ LIMPAR TUDO
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!newMelodyName.trim() || newMelodyNotes.length === 0) {
+                    alert('Por favor, dê um nome e digite ao menos uma nota no piano.');
+                    return;
+                  }
+                  setMcMelody(prev => [...prev, {
+                    name: newMelodyName.toUpperCase(),
+                    notes: [...newMelodyNotes]
+                  }]);
+                  setNewMelodyNotes([]);
+                  setNewMelodyName('NOVA MELODIA / GUIA');
+                  alert('Melodia salva com sucesso na aula!');
+                }}
+                className="w-full py-2 bg-[#ff6b00] text-white border-4 border-black font-black text-[10px] uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
+              >
+                <PlusCircle className="w-4 h-4" /> REGISTRAR MELODIA NA AULA
+              </button>
+            </div>
+
+            {/* Listagem de Melodias Salvas */}
+            {mcMelody.length > 0 && (
+              <div className="space-y-3">
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">MELODIAS DA AULA ({mcMelody.length})</label>
+                {mcMelody.map((mel, idx) => (
+                  <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-3 relative overflow-hidden flex justify-between items-center">
+                    <div>
+                      <p className="text-[9px] font-black uppercase">{mel.name}</p>
+                      <p className="text-[7px] font-mono text-black/60 uppercase tracking-widest mt-1">
+                        {mel.notes?.join(' ')}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          let time = 0;
+                          mel.notes?.forEach((note: string) => {
+                            setTimeout(() => {
+                              melodySynth.playNoteByName(note);
+                            }, time);
+                            time += 300;
+                          });
+                        }}
+                        className="bg-black text-[#ff6b00] border-2 border-black text-[8px] font-black px-2 py-1 uppercase"
+                      >
+                        PLAY 🔊
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMcMelody(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1500,12 +1876,6 @@ export default function AreaProfessor() {
       </div>
     );
   };
-
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-[#1a0a05] text-[#ff6b00] font-black uppercase tracking-widest animate-pulse font-mono">
-      CONECTANDO AO MUSIC_HUB...
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-[#110804] flex items-center justify-center p-0 md:p-8 overflow-hidden font-['Space_Mono']">
@@ -2044,8 +2414,8 @@ export default function AreaProfessor() {
 
       {/* MUSICLASS: MODAL DE CRIAÇÃO DE NOVA AULA AVULSA */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-w-md max-h-[90vh] overflow-y-auto font-['Space_Mono']">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto font-['Space_Mono']">
+          <div className={`bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-h-[90vh] overflow-y-auto font-['Space_Mono'] transition-all duration-300 ${mcActiveTab === 'geral' ? 'max-w-md' : 'max-w-4xl'}`}>
             
             {/* Fechar botão */}
             <div className="absolute top-4 right-4">
@@ -2180,8 +2550,8 @@ export default function AreaProfessor() {
 
       {/* MUSICLASS: MODAL DE REGISTRO DE AULA EXISTENTE */}
       {isModalOpen && selectedAula && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-w-md max-h-[90vh] overflow-y-auto font-['Space_Mono']">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto font-['Space_Mono']">
+          <div className={`bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-h-[90vh] overflow-y-auto font-['Space_Mono'] transition-all duration-300 ${mcActiveTab === 'geral' ? 'max-w-md' : 'max-w-4xl'}`}>
             
             {/* Fechar botão */}
             <div className="absolute top-4 right-4">
@@ -2248,6 +2618,245 @@ export default function AreaProfessor() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE PRE-VISUALIZACAO E IMPRESSÃO (PDF) */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#fff8f6] border-8 border-black p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto font-['Space_Mono'] relative shadow-[12px_12px_0_#000] print-area">
+            <style>{`
+              @media print {
+                body * {
+                  visibility: hidden !important;
+                }
+                .print-area, .print-area * {
+                  visibility: visible !important;
+                }
+                .print-area {
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 100% !important;
+                  height: auto !important;
+                  overflow: visible !important;
+                  max-height: none !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  background: white !important;
+                }
+                @page {
+                  size: auto;
+                  margin: 10mm;
+                }
+              }
+            `}</style>
+
+            {/* Controles do modal (ocultos na impressão) */}
+            <div className="absolute top-4 right-4 flex gap-2 print:hidden">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="bg-emerald-500 text-white px-3 py-2 border-2 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
+              >
+                <span>⬇️</span> IMPRIMIR / PDF
+              </button>
+              <button 
+                type="button"
+                onClick={() => setIsPreviewOpen(false)} 
+                className="bg-black text-white p-2 border-2 border-black shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* CONTEÚDO PEDAGÓGICO */}
+            <div className="space-y-6 pt-4">
+              {/* Cabeçalho */}
+              <div className="border-b-4 border-black pb-4 text-center">
+                <span className="font-black bg-[#ff6b00] text-white text-[10px] px-3 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
+                  STUDIO ACORDE
+                </span>
+                <h1 className="text-2xl font-black text-black uppercase italic mt-4">
+                  DIÁRIO PEDAGÓGICO DE AULA
+                </h1>
+                <p className="text-xs font-black text-[#ff6b00] uppercase tracking-wider mt-1">
+                  Musiclass v2
+                </p>
+              </div>
+
+              {/* Informações Gerais */}
+              <div className="grid grid-cols-2 gap-4 border-4 border-black p-4 bg-white">
+                <div>
+                  <p className="text-[10px] font-black text-[#8e7164] uppercase">Aluno</p>
+                  <p className="text-sm font-black text-black uppercase">
+                    {isCreateModalOpen 
+                      ? (alunosList.find(a => a.id === newAulaAlunoId)?.nome || 'Não Selecionado')
+                      : (selectedAula?.nome || selectedAula?.aluno_nome || 'N/A')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-[#8e7164] uppercase">Curso / Instrumento</p>
+                  <p className="text-sm font-black text-black uppercase">
+                    {isCreateModalOpen ? newAulaCurso : (selectedAula?.curso_nome || 'Regular')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-[#8e7164] uppercase">Data</p>
+                  <p className="text-sm font-black text-black">
+                    {isCreateModalOpen 
+                      ? (newAulaData ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(newAulaData)) : '')
+                      : (selectedAula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(selectedAula.data)) : '')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-[#8e7164] uppercase">Horário</p>
+                  <p className="text-sm font-black text-black">
+                    {isCreateModalOpen ? newAulaHorario : (selectedAula?.horario?.substring(0, 5) || '')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Conteúdo Trabalhado */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
+                  📝 CONTEÚDO TRABALHADO
+                </h3>
+                <div className="border-4 border-black p-4 bg-white text-xs whitespace-pre-wrap font-bold uppercase text-black">
+                  {isCreateModalOpen ? newAulaConteudo : conteudo}
+                </div>
+              </div>
+
+              {/* Tarefa de Casa */}
+              <div className="space-y-2">
+                <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
+                  🎯 DESAFIO / TAREFA DE CASA
+                </h3>
+                <div className="border-4 border-black p-4 bg-white text-xs whitespace-pre-wrap font-bold uppercase text-[#ff6b00]">
+                  {isCreateModalOpen ? newAulaTarefa : tarefaCasa}
+                </div>
+              </div>
+
+              {/* Acordes */}
+              {mcChords.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
+                    🎸 ACORDES TRABALHADOS
+                  </h3>
+                  {Object.entries(
+                    mcChords.reduce((groups: Record<string, any[]>, chord) => {
+                      const groupName = chord.group || 'GERAL';
+                      if (!groups[groupName]) groups[groupName] = [];
+                      groups[groupName].push(chord);
+                      return groups;
+                    }, {})
+                  ).map(([groupName, chords]) => (
+                    <div key={groupName} className="border-4 border-black bg-white p-4 space-y-4">
+                      <div className="bg-black text-[#ff6b00] px-2 py-0.5 text-[8px] font-black uppercase tracking-widest inline-block">
+                        GRUPO: {groupName}
+                      </div>
+                      <div className="flex flex-wrap gap-4">
+                        {chords.map((ch, idx) => (
+                          <div key={idx} className="border-2 border-black p-1 bg-white">
+                            <ChordVisualizer
+                              instrument={mcPlaygroundInstrument}
+                              chordNotes={ch.notes}
+                              root={ch.root}
+                              type={ch.typeId}
+                              ext={ch.extId}
+                              bass={ch.bass}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Escalas */}
+              {mcScales.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
+                    🎼 ESCALAS E DIGITAÇÃO
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {mcScales.map((sc, idx) => (
+                      <div key={idx} className="border-4 border-black p-4 bg-white space-y-1">
+                        <p className="text-[10px] font-black uppercase text-[#ff6b00]">{sc.name}</p>
+                        <p className="text-xs font-black text-black tracking-widest">{sc.notes?.join(' - ')}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tablatura */}
+              {mcTablatures.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
+                    📝 TABLATURA
+                  </h3>
+                  {mcTablatures.map((tab, idx) => (
+                    <div key={idx} className="border-4 border-black p-4 bg-white space-y-2">
+                      <p className="text-[10px] font-black uppercase text-[#ff6b00]">{tab.name}</p>
+                      <div className="overflow-x-auto">
+                        <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
+                          {['e','B','G','D','A','E'].map((str, strIdx) => (
+                            <React.Fragment key={strIdx}>
+                              <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-1 min-w-[16px]">{str}</div>
+                              {Array.from({ length: 16 }).map((_, beat) => (
+                                <div key={beat} className="h-6 flex items-center justify-center bg-white border border-black/20 text-[10px] font-black">
+                                  {tab.matrix?.[strIdx]?.[beat] || '-'}
+                                </div>
+                              ))}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Bateria */}
+              {mcDrums.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
+                    🥁 RITMOS E BATERIA
+                  </h3>
+                  {mcDrums.map((drum, idx) => (
+                    <div key={idx} className="border-4 border-black p-4 bg-white space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[10px] font-black uppercase text-[#ff6b00]">{drum.name}</p>
+                        <span className="text-[9px] font-mono text-black font-black">{drum.bpm} BPM</span>
+                      </div>
+                      <DrumsVisualizer rhythmName={drum.name} />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Melodia */}
+              {mcMelody.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
+                    🎹 SEQUÊNCIA MELÓDICA
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {mcMelody.map((mel, idx) => (
+                      <div key={idx} className="border-4 border-black p-4 bg-white space-y-1">
+                        <p className="text-[10px] font-black uppercase text-[#ff6b00]">{mel.name}</p>
+                        <p className="text-xs font-mono font-black text-black tracking-widest uppercase">{mel.notes?.join(' ')}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
