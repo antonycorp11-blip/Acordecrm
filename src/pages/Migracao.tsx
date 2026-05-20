@@ -37,6 +37,25 @@ interface ExtractedStudent {
   [key: string]: any;
 }
 
+const initialFormData = {
+  curso_id: '',
+  professor_id: '',
+  dia_semana: 'segunda',
+  horario: '14:00',
+  pacote_id: '',
+  aulas_restantes: 4,
+  reposicoes: '',
+  faturas_pendentes: '',
+  fatura_mes_atraso: false,
+  valor_parcela: '',
+  dia_vencimento: 10,
+  valor_desconto: '',
+  responsavel_nome: '',
+  responsavel_telefone: '',
+  responsavel_cpf: '',
+  total_parcelas: 12
+};
+
 export default function Migracao() {
   const [file, setFile] = useState<File | null>(null);
   const [extractedStudents, setExtractedStudents] = useState<any[]>([]);
@@ -51,24 +70,7 @@ export default function Migracao() {
   const [pacotes, setPacotes] = useState<any[]>([]);
 
   // Migration form state
-  const [formData, setFormData] = useState({
-    curso_id: '',
-    professor_id: '',
-    dia_semana: 'segunda',
-    horario: '14:00',
-    pacote_id: '',
-    aulas_restantes: 4,
-    reposicoes: '',
-    faturas_pendentes: '',
-    fatura_mes_atraso: false,
-    valor_parcela: '',
-    dia_vencimento: 10,
-    valor_desconto: '',
-    responsavel_nome: '',
-    responsavel_telefone: '',
-    responsavel_cpf: '',
-    total_parcelas: 12
-  });
+  const [formData, setFormData] = useState(initialFormData);
 
   const calculateAge = (dob: string) => {
     if (!dob) return null;
@@ -203,6 +205,7 @@ export default function Migracao() {
 
       toast.success(`Matrícula de ${selectedStudent.nome} finalizada com sucesso!`);
       setSelectedStudent(null);
+      setFormData(initialFormData);
       fetchPending();
     } catch (err: any) {
       toast.error(err.message);
@@ -494,28 +497,48 @@ export default function Migracao() {
 
                           <div className="space-y-2">
                             <label className="text-[10px] font-black text-black uppercase tracking-widest block">PROFESSOR</label>
-                            <select 
-                              className="w-full p-3 bg-white border-4 border-black font-black text-xs uppercase italic focus:outline-none"
-                              value={formData.professor_id}
-                              onChange={e => setFormData({...formData, professor_id: e.target.value})}
-                            >
-                              <option value="">SELECIONE...</option>
-                              {professores.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                            </select>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {professores.map(p => {
+                                const isSelected = String(formData.professor_id) === String(p.id);
+                                return (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => setFormData({...formData, professor_id: p.id})}
+                                    className={`p-2 border-4 border-black font-black text-[10px] uppercase transition-all shadow-[3px_3px_0_#000] active:translate-y-0.5 active:shadow-none ${
+                                      isSelected ? 'bg-[#ff6b00] text-white shadow-none translate-y-0.5' : 'bg-white text-black hover:bg-[#ffeae1]'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 justify-center">
+                                      <div className="w-2.5 h-2.5 border border-black shadow-sm shrink-0" style={{ background: p.cor_agenda || '#ff6b00' }}></div>
+                                      <span className="truncate">{p.nome.split(' ')[0]}</span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <label className="text-[10px] font-black text-black uppercase tracking-widest block">DIA SEMANA</label>
-                              <select 
-                                className="w-full p-3 bg-white border-4 border-black font-black text-xs uppercase italic focus:outline-none"
-                                value={formData.dia_semana}
-                                onChange={e => setFormData({...formData, dia_semana: e.target.value})}
-                              >
-                                {['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(d => (
-                                  <option key={d} value={d}>{d.toUpperCase()}</option>
-                                ))}
-                              </select>
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(d => {
+                                  const isSelected = formData.dia_semana === d;
+                                  return (
+                                    <button
+                                      key={d}
+                                      type="button"
+                                      onClick={() => setFormData({...formData, dia_semana: d})}
+                                      className={`py-2 px-1 border-4 border-black font-black text-[9px] uppercase text-center transition-all shadow-[3px_3px_0_#000] active:translate-y-0.5 active:shadow-none ${
+                                        isSelected ? 'bg-black text-white shadow-none translate-y-0.5' : 'bg-white text-black hover:bg-[#ffeae1]'
+                                      }`}
+                                    >
+                                      {d === 'terca' ? 'TERÇA' : d.toUpperCase()}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
                             <div className="space-y-2">
                               <label className="text-[10px] font-black text-black uppercase tracking-widest block">HORÁRIO</label>

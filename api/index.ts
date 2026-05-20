@@ -836,6 +836,20 @@ async function startServer() {
             const diasMap: { [key: string]: number } = { 'domingo': 0, 'segunda': 1, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sabado': 6 };
             const diaIndex = typeof dia_semana === 'string' ? (diasMap[dia_semana.toLowerCase()] ?? 1) : dia_semana;
 
+            const spDate = new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"});
+            const now = new Date(spDate);
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const dataHojeLocal = `${yyyy}-${mm}-${dd}`;
+
+            const formatLocalDateString = (d: Date) => {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const dt = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${dt}`;
+            };
+
             const { data: matricula, error: errM } = await supabase.from('matriculas').insert([{
                 aluno_id: aluno.id, 
                 curso_id, 
@@ -847,7 +861,7 @@ async function startServer() {
                 valor_parcela: nValor || 0,
                 valor_com_desconto: nDesconto || null,
                 total_parcelas: nTotalParcelas || 12,
-                data_inicio: new Date().toISOString().split('T')[0]
+                data_inicio: dataHojeLocal
             }]).select().single();
             if (errM) {
                 await supabase.from('alunos').delete().eq('id', aluno.id);
@@ -857,7 +871,7 @@ async function startServer() {
             // 3. Criar Aulas Restantes
             if (nAulas > 0) {
                 const aulasToInsert = [];
-                let currentAulaDate = new Date();
+                let currentAulaDate = new Date(spDate);
                 const targetDay = diaIndex;
                 const currentDay = currentAulaDate.getDay();
                 let diff = targetDay - currentDay;
@@ -873,7 +887,7 @@ async function startServer() {
                         matricula_id: matricula.id,
                         professor_id,
                         curso_id,
-                        data: currentAulaDate.toISOString().split('T')[0],
+                        data: formatLocalDateString(currentAulaDate),
                         horario,
                         status: 'pendente',
                         tipo: 'regular'
@@ -903,7 +917,6 @@ async function startServer() {
 
             // 5. Geração de Pagamentos (Financeiro)
             const pagamentosToInsert = [];
-            const now = new Date();
             const vencimentoMesAtual = new Date(now.getFullYear(), now.getMonth(), nDiaVenc || 10);
             
             // 5.1. Parcela do Mês Atual (Apenas se estiver em atraso ou ainda não paga)
@@ -913,7 +926,7 @@ async function startServer() {
                     matricula_id: matricula.id,
                     valor: nValor,
                     valor_com_desconto: nDesconto || null,
-                    data_vencimento: vencimentoMesAtual.toISOString().split('T')[0],
+                    data_vencimento: formatLocalDateString(vencimentoMesAtual),
                     status: (vencimentoMesAtual < now) ? 'atrasado' : 'pendente',
                     tipo_receita: 'mensalidade',
                     referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`
@@ -929,7 +942,7 @@ async function startServer() {
                         matricula_id: matricula.id,
                         valor: nValor,
                         valor_com_desconto: nDesconto || null,
-                        data_vencimento: nextDate.toISOString().split('T')[0],
+                        data_vencimento: formatLocalDateString(nextDate),
                         status: 'pendente',
                         tipo_receita: 'mensalidade',
                         referencia_mes_ano: `${(nextDate.getMonth() + 1).toString().padStart(2, '0')}/${nextDate.getFullYear()}`

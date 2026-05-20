@@ -85,7 +85,7 @@ function ProgressTracker({ aulas, total }: { aulas: any[], total: number }) {
     return 'bg-[#e2bfb0]';
   };
 
-  const sortedAulas = [...aulas].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
+  const sortedAulas = [...aulas].sort((a, b) => new Date((a.data || '2099-12-31') + 'T12:00:00').getTime() - new Date((b.data || '2099-12-31') + 'T12:00:00').getTime());
 
   return (
     <Card className="mb-8">
@@ -111,7 +111,7 @@ function ProgressTracker({ aulas, total }: { aulas: any[], total: number }) {
               </div>
               {aula && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-[8px] font-black uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 z-50 pointer-events-none">
-                  {format(new Date(aula.data), 'dd/MM/yyyy')} - {status}
+                  {format(new Date((aula.data || '2099-12-31') + 'T12:00:00'), 'dd/MM/yyyy')} - {status}
                 </div>
               )}
             </div>
@@ -139,7 +139,7 @@ function FinanceiroTracker({ financeiro, total }: { financeiro: any[], total: nu
     return 'bg-[#e2bfb0]';
   };
 
-  const sortedFinanceiro = [...financeiro].sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
+  const sortedFinanceiro = [...financeiro].sort((a, b) => new Date((a.data_vencimento || '2099-12-31') + 'T12:00:00').getTime() - new Date((b.data_vencimento || '2099-12-31') + 'T12:00:00').getTime());
 
   return (
     <Card className="mb-8">
@@ -164,7 +164,7 @@ function FinanceiroTracker({ financeiro, total }: { financeiro: any[], total: nu
               </div>
               {fatura && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-[8px] font-black uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 z-50 pointer-events-none">
-                  {fatura.referencia_mes_ano || format(new Date(fatura.data_vencimento), 'MM/yyyy')} - {status}
+                  {fatura.referencia_mes_ano || format(new Date((fatura.data_vencimento || '2099-12-31') + 'T12:00:00'), 'MM/yyyy')} - {status}
                 </div>
               )}
             </div>
@@ -229,8 +229,8 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
     toast.success('Data de vencimento atualizada!');
   };
 
-  const pendentes = financeiro.filter(f => f.status !== 'pago').sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
-  const pagos = financeiro.filter(f => f.status === 'pago').sort((a, b) => new Date(b.data_vencimento).getTime() - new Date(a.data_vencimento).getTime());
+  const pendentes = financeiro.filter(f => f.status !== 'pago').sort((a, b) => new Date((a.data_vencimento || '2099-12-31') + 'T12:00:00').getTime() - new Date((b.data_vencimento || '2099-12-31') + 'T12:00:00').getTime());
+  const pagos = financeiro.filter(f => f.status === 'pago').sort((a, b) => new Date((b.data_vencimento || '2099-12-31') + 'T12:00:00').getTime() - new Date((a.data_vencimento || '2099-12-31') + 'T12:00:00').getTime());
   const sorted = [...pendentes, ...pagos];
 
   return (
@@ -671,7 +671,7 @@ export default function AlunoPerfil() {
                       </div>
                       <div className="space-y-1">
                         <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">NASCIMENTO</p>
-                        <p className="font-black text-black text-sm">{aluno.data_nascimento ? format(new Date(aluno.data_nascimento), 'dd/MM/yyyy') : 'NÃO_INF'}</p>
+                        <p className="font-black text-black text-sm">{aluno.data_nascimento ? format(new Date(aluno.data_nascimento + 'T12:00:00'), 'dd/MM/yyyy') : 'NÃO_INF'}</p>
                       </div>
                       <div className="sm:col-span-2 space-y-1">
                         <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest">ENDEREÇO_COMPLETO</p>
@@ -714,14 +714,24 @@ export default function AlunoPerfil() {
               <div className="space-y-8">
                  <Card className="bg-black text-white border-white">
                     <h3 className="text-[9px] font-black uppercase tracking-widest text-[#ff6b00] mb-4">PRÓXIMA_AULA</h3>
-                    {agenda.filter(a => new Date(a.data) >= new Date() && !a.data.includes('2099')).length > 0 ? (
-                      <div>
-                        <p className="text-3xl font-black italic italic tracking-tighter uppercase">{format(new Date(agenda.find(a => new Date(a.data) >= new Date() && !a.data.includes('2099')).data), "dd/MM")}</p>
-                        <p className="font-black text-[#feccba] mt-1 flex items-center gap-2"><Clock className="w-4 h-4" /> {agenda.find(a => new Date(a.data) >= new Date() && !a.data.includes('2099')).horario.substring(0, 5)}</p>
-                      </div>
-                    ) : (
-                      <p className="font-black text-white/40 uppercase text-xs">SEM_AGENDAMENTO</p>
-                    )}
+                    {(() => {
+                      const todayStr = new Date().toLocaleDateString('en-CA');
+                      const futuras = agenda.filter(a => (a.data || '') >= todayStr && !a.data?.includes('2099'));
+                      if (futuras.length > 0) {
+                        const prox = futuras[0];
+                        return (
+                          <div>
+                            <p className="text-3xl font-black italic tracking-tighter uppercase">
+                              {format(new Date(prox.data + 'T12:00:00'), "dd/MM")}
+                            </p>
+                            <p className="font-black text-[#feccba] mt-1 flex items-center gap-2">
+                              <Clock className="w-4 h-4" /> {prox.horario?.substring(0, 5)}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return <p className="font-black text-white/40 uppercase text-xs">SEM_AGENDAMENTO</p>;
+                    })()}
                  </Card>
               </div>
             </motion.div>
@@ -752,7 +762,7 @@ export default function AlunoPerfil() {
                       {agenda.map(aula => (
                         <tr key={aula.id} className={`hover:bg-[#ffeae1] ${aula.tipo === 'reposicao' ? 'bg-orange-50/50' : ''}`}>
                           <td className="px-6 py-4 font-black text-black uppercase text-sm">
-                            {aula.data?.includes('2099') ? 'A DEFINIR' : format(new Date(aula.data), 'dd/MM/yyyy')}
+                            {aula.data?.includes('2099') ? 'A DEFINIR' : format(new Date(aula.data + 'T12:00:00'), 'dd/MM/yyyy')}
                           </td>
                           <td className="px-6 py-4">
                             <span className={`text-[8px] font-black uppercase px-2 py-1 border-2 ${aula.tipo === 'reposicao' ? 'bg-orange-500 text-white border-black' : 'bg-black text-white border-black'}`}>
@@ -790,7 +800,7 @@ export default function AlunoPerfil() {
                    <Card key={aula.id} className="group hover:border-[#ff6b00] transition-colors relative overflow-hidden">
                      <div className="flex justify-between items-start mb-4">
                        <div>
-                         <p className="text-[8px] font-black text-[#8e7164] uppercase mb-1">{format(new Date(aula.data), 'EEEE, dd/MM', { locale: ptBR })}</p>
+                         <p className="text-[8px] font-black text-[#8e7164] uppercase mb-1">{format(new Date(aula.data + 'T12:00:00'), 'EEEE, dd/MM', { locale: ptBR })}</p>
                          <p className="font-black text-black uppercase italic">{aula.horario?.substring(0,5)} • {aula.professor_nome?.split(' ')[0]}</p>
                        </div>
                        <Badge color={

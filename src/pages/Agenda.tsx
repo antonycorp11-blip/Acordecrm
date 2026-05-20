@@ -33,7 +33,7 @@ export default function Agenda() {
   const fetchAulas = () => {
     const token = localStorage.getItem('acorde_token');
     const headers = { Authorization: `Bearer ${token}` };
-    const start = getDisplayDate(0).toISOString().split('T')[0];
+    const start = getDisplayDate(0).toLocaleDateString('en-CA');
     
     setLoading(true);
     Promise.all([
@@ -51,7 +51,7 @@ export default function Agenda() {
 
   // Map aula to grid position - simplificado para o dia atual exibido (ou lógica de semana se fosse o caso)
   const getAulaForProfHour = (profId: number, hour: string) => {
-    const targetDate = currentBaseDate.toISOString().split('T')[0];
+    const targetDate = currentBaseDate.toLocaleDateString('en-CA');
     return aulas.filter(a => {
       const h = (a.horario || '').substring(0, 5);
       const d = a.data ? a.data.split('T')[0] : '';
@@ -86,7 +86,7 @@ export default function Agenda() {
         body: JSON.stringify({ 
           professor_id: profId, 
           horario,
-          data: currentBaseDate.toISOString().split('T')[0]
+          data: currentBaseDate.toLocaleDateString('en-CA')
         })
       });
 

@@ -38,7 +38,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     pacote_id: '',
     valor_parcela: '' as string | number,
     valor_com_desconto: '' as string | number,
-    data_primeira_parcela: new Date().toISOString().split('T')[0],
+    data_primeira_parcela: new Date().toLocaleDateString('en-CA'),
     dia_vencimento: '10' as string | number,
     total_parcelas: '12' as string | number,
     is_emusys_legacy: false,
@@ -53,7 +53,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
   const calculateAge = (dateString: string) => {
     if (!dateString) return 0;
     const today = new Date();
-    const birthDate = new Date(dateString);
+    const birthDate = new Date(dateString + 'T12:00:00');
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
@@ -99,7 +99,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
       const token = localStorage.getItem('acorde_token');
       const headers = { Authorization: `Bearer ${token}` };
       setAgendaLoading(true);
-      const start = getDisplayDate(0).toISOString().split('T')[0];
+      const start = getDisplayDate(0).toLocaleDateString('en-CA');
       
       fetch(`/api/agenda?date=${start}`, { headers })
         .then(r => r.ok ? r.json() : [])
@@ -473,6 +473,33 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                   <button onClick={() => setSemanaOffset(0)} className="bg-[#FF8A00] text-black font-black text-[10px] px-4 py-1 border-2 border-black shadow-hard hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all">HOJE</button>
                 </div>
 
+                {/* Seletor Rápido de Dia da Semana */}
+                <div className="grid grid-cols-6 gap-1.5 mb-2.5">
+                  {['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(d => {
+                    const diasMap: { [key: string]: number } = { 'domingo': 0, 'segunda': 1, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sabado': 6 };
+                    const targetDay = diasMap[d];
+                    const today = new Date();
+                    const currentDay = today.getDay();
+                    let diff = targetDay - currentDay;
+                    if (diff < 0) diff += 7;
+                    
+                    const isSelected = getDisplayDate(0).getDay() === targetDay;
+                    
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setSemanaOffset(diff)}
+                        className={`py-1.5 border-2 border-black font-black text-[8px] sm:text-[9px] uppercase transition-all shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none ${
+                          isSelected ? 'bg-black text-white shadow-none translate-y-0.5' : 'bg-white text-black hover:bg-gray-100'
+                        }`}
+                      >
+                        {d === 'terca' ? 'TER' : d.substring(0, 3).toUpperCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {/* Schedule Table */}
                 <div className="flex-1 overflow-auto border border-black relative bg-gray-50">
                   {agendaLoading && (
@@ -499,7 +526,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                           {HOURS.map(h => {
                             const aulasNoHorario = getAulaForProfHour(prof.id, h);
                             const isOccupied = aulasNoHorario.length > 0;
-                            const isSelected = formData.professor_id === prof.id && formData.horario === `${h}:00` && formData.dia_semana === getDisplayDate(0).toISOString().split('T')[0];
+                            const isSelected = formData.professor_id === prof.id && formData.horario === `${h}:00` && formData.dia_semana === getDisplayDate(0).toLocaleDateString('en-CA');
                             
                             return (
                               <td 
@@ -510,7 +537,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                                       ...formData,
                                       professor_id: prof.id,
                                       horario: `${h}:00`,
-                                      dia_semana: getDisplayDate(0).toISOString().split('T')[0]
+                                      dia_semana: getDisplayDate(0).toLocaleDateString('en-CA')
                                     });
                                   }
                                 }}
