@@ -1790,6 +1790,23 @@ async function startServer() {
         res.json({ url });
     });
 
+    app.post('/api/upload', upload.single('file'), (req: any, res) => {
+        if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        try {
+            const ext = path.extname(req.file.originalname) || '';
+            const newFilename = `${req.file.filename}${ext}`;
+            const oldPath = req.file.path;
+            const newPath = path.join(path.dirname(oldPath), newFilename);
+            fs.renameSync(oldPath, newPath);
+            
+            const url = `/uploads/${newFilename}`;
+            res.json({ url });
+        } catch (error: any) {
+            console.error('Erro no upload genérico index:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.get('/api/gamificacao/ranking', async (req, res) => {
         try {
             const { data: alunos } = await supabase.from('alunos').select('id, nome');

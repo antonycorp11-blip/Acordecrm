@@ -1,13 +1,60 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Acorde CRM</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Studio Acorde - CRM</title>
+    
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Studio Acorde" />
+    
+    <!-- Links de ícones para iOS (Safari) e Android (Chrome) -->
+    <link rel="apple-touch-icon" href="/aluno-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/aluno-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/aluno-icon.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/aluno-icon.png" />
+    
+    <!-- Ícone PWA Geral -->
+    <link rel="icon" type="image/png" href="/aluno-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1a110d" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Script dinâmico para alterar o ícone do PWA com base na role logada (Aluno, Professor, Admin)
+      function updateDynamicPWAIcon() {
+        try {
+          const token = localStorage.getItem('acorde_token');
+          if (token) {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const role = payload?.role;
+            let iconUrl = '/aluno-icon.png';
+            if (role === 'professor') {
+              iconUrl = '/professor-icon.png';
+            } else if (role === 'admin') {
+              iconUrl = '/admin-icon.png';
+            }
+            
+            // Atualiza as tags apple-touch-icon e favicons
+            document.querySelectorAll("link[rel*='icon'], link[rel='apple-touch-icon']").forEach(link => {
+              link.href = iconUrl;
+            });
+          }
+        } catch (e) {
+          console.error("Erro ao definir ícone dinâmico do PWA:", e);
+        }
+      }
+      
+      // Executa imediatamente e no evento de storage
+      updateDynamicPWAIcon();
+      window.addEventListener('storage', updateDynamicPWAIcon);
+      // Checa a cada 2 segundos se o token mudou para atualização em tempo real
+      setInterval(updateDynamicPWAIcon, 2000);
+    </script>
   </body>
 </html>
 

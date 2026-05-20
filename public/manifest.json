@@ -1,0 +1,39 @@
+{
+  "short_name": "Studio Acorde",
+  "name": "Studio Acorde CRM",
+  "icons": [
+    {
+      "src": "/aluno-icon.png",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "/professor-icon.png",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/admin-icon.png",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#110804",
+  "theme_color": "#ff6b00",
+  "display": "standalone",
+  "orientation": "portrait"
+}

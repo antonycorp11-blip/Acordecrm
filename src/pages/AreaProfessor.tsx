@@ -18,11 +18,22 @@ import {
   Sparkles, 
   FileText, 
   Link2,
-  LogOut
+  LogOut,
+  Music,
+  Settings2,
+  Mic,
+  Volume2,
+  Square,
+  PenTool,
+  CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musicEngine';
+import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
+import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
+
 
 export default function AreaProfessor() {
   const { logout } = useAuth();
@@ -57,6 +68,35 @@ export default function AreaProfessor() {
   const [newAulaMidias, setNewAulaMidias] = useState<{ titulo: string; url: string }[]>([]);
   const [newLinkTitulo, setNewLinkTitulo] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
+
+  // Estados Ricos do Musiclass compartilhados
+  const [mcChords, setMcChords] = useState<any[]>([]);
+  const [mcScales, setMcScales] = useState<any[]>([]);
+  const [mcExercises, setMcExercises] = useState<any[]>([]);
+  const [mcRecordings, setMcRecordings] = useState<any[]>([]);
+  const [mcActiveTab, setMcActiveTab] = useState<'geral' | 'acordes' | 'escalas' | 'exercicios' | 'studio'>('geral');
+  
+  // Estados para seleção de acorde
+  const [selRoot, setSelRoot] = useState('C');
+  const [selType, setSelType] = useState('maj');
+  const [selExt, setSelExt] = useState('none');
+  const [selBass, setSelBass] = useState('none');
+  
+  // Estados para seleção de escala
+  const [selScaleRoot, setSelScaleRoot] = useState('C');
+  const [selScaleId, setSelScaleId] = useState('major');
+
+  // Estados para adicionar exercícios
+  const [exTitle, setExTitle] = useState('');
+  const [exDesc, setExDesc] = useState('');
+  const [exPoints, setExPoints] = useState(50);
+
+  // Estados de gravação de áudio e IA
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [studioLoading, setStudioLoading] = useState(false);
+  const [isAILoading, setIsAILoading] = useState(false);
+
 
   const xp = professorData?.xp || 8450;
   const xpMax = 10000;
@@ -109,9 +149,39 @@ export default function AreaProfessor() {
   const openRegistroModal = (aula: any) => {
     setSelectedAula(aula);
     setStatusAula(aula.status === 'realizada' || aula.status === 'pendente' ? 'realizada' : aula.status);
-    setConteudo(aula.conteudo || '');
-    setTarefaCasa(aula.tarefa_casa || '');
     setXpGanho(Number(aula.xp_ganho) || 50);
+    
+    // Tenta decodificar dados ricos do Musiclass de dentro de conteudo
+    let conteudoText = aula.conteudo || '';
+    let tarefaCasaText = aula.tarefa_casa || '';
+    let chords: any[] = [];
+    let scales: any[] = [];
+    let exercises: any[] = [];
+    let recordings: any[] = [];
+
+    try {
+      if (aula.conteudo && aula.conteudo.trim().startsWith('{') && aula.conteudo.trim().endsWith('}')) {
+        const richData = JSON.parse(aula.conteudo);
+        if (richData.isRich) {
+          conteudoText = richData.conteudoText || '';
+          tarefaCasaText = richData.tarefaCasaText || '';
+          chords = richData.chords || [];
+          scales = richData.scales || [];
+          exercises = richData.exercises || [];
+          recordings = richData.recordings || [];
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao ler JSON rico:', e);
+    }
+
+    setConteudo(conteudoText);
+    setTarefaCasa(tarefaCasaText);
+    setMcChords(chords);
+    setMcScales(scales);
+    setMcExercises(exercises);
+    setMcRecordings(recordings);
+    setMcActiveTab('geral');
     
     try {
       if (typeof aula.midias === 'string') {
@@ -139,10 +209,151 @@ export default function AreaProfessor() {
     setMidias(prev => prev.filter((_, i) => i !== idx));
   };
 
+  // Funções de Música e Estúdio do Musiclass
+  const handleAddChord = () => {
+    const chordData = MusicEngine.generateChord(selRoot, selType, selExt);
+    if (chordData) {
+      const notes = chordData.notes;
+      const notesWithBass = selBass !== 'none' ? [selBass, ...notes.filter(n => n !== selBass)] : notes;
+      setMcChords(prev => [...prev, {
+        root: selRoot,
+        typeId: selType,
+        extId: selExt,
+        bass: selBass,
+        notes: notesWithBass,
+        isCustom: false
+      }]);
+    }
+  };
+
+  const handleAddScale = () => {
+    const scaleNotes = MusicEngine.generateScale(selScaleRoot, selScaleId);
+    const scaleName = SCALES.find(s => s.id === selScaleId)?.name || 'Escala';
+    if (scaleNotes) {
+      setMcScales(prev => [...prev, {
+        root: selScaleRoot,
+        scaleId: selScaleId,
+        scaleName,
+        notes: scaleNotes
+      }]);
+    }
+  };
+
+  const handleAddExercise = () => {
+    if (!exTitle.trim()) return;
+    setMcExercises(prev => [...prev, {
+      title: exTitle.toUpperCase(),
+      description: exDesc.toUpperCase(),
+      points: exPoints
+    }]);
+    setExTitle('');
+    setExDesc('');
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/mp3' });
+        const file = new File([audioBlob], `gravacao_${Date.now()}.mp3`, { type: 'audio/mp3' });
+        await uploadStudioFile(file);
+      };
+      
+      setMediaRecorder(recorder);
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Erro ao acessar microfone:', err);
+      alert('Não foi possível acessar o microfone.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    }
+  };
+
+  const uploadStudioFile = async (file: File) => {
+    setStudioLoading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setMcRecordings(prev => [...prev, {
+          name: file.name.toUpperCase(),
+          url: data.url
+        }]);
+      } else {
+        alert('Erro ao enviar arquivo do estúdio.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro de conexão ao enviar arquivo.');
+    } finally {
+      setStudioLoading(false);
+    }
+  };
+
+  const handleGenerateAISuggestion = async (isAvulsa: boolean) => {
+    const currentObjective = isAvulsa ? newAulaConteudo : conteudo;
+    if (!currentObjective.trim()) {
+      alert('Por favor, descreva um breve tema/objetivo no conteúdo trabalhado antes de usar a IA.');
+      return;
+    }
+    
+    setIsAILoading(true);
+    try {
+      const selectedStudentObj = alunosList.find(a => a.id === (isAvulsa ? newAulaAlunoId : selectedAula?.aluno_id));
+      const instrument = selectedStudentObj?.curso_ativo || selectedAula?.curso_nome || 'Instrumento';
+      const level = selectedStudentObj?.nivel || 'Iniciante';
+      
+      const suggestion = await getPedagogicalSuggestion(instrument, level, currentObjective);
+      if (isAvulsa) {
+        setNewAulaConteudo(prev => prev + '\n\n' + suggestion);
+      } else {
+        setConteudo(prev => prev + '\n\n' + suggestion);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao gerar sugestão com IA.');
+    } finally {
+      setIsAILoading(false);
+    }
+  };
+
   const salvarDiarioAula = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAula) return;
     
+    const richContent = JSON.stringify({
+      isRich: true,
+      conteudoText: conteudo,
+      tarefaCasaText: tarefaCasa,
+      chords: mcChords,
+      scales: mcScales,
+      exercises: mcExercises,
+      recordings: mcRecordings
+    });
+
     const token = localStorage.getItem('acorde_token');
     try {
       const res = await fetch(`/api/aulas/${selectedAula.originalId || selectedAula.id}/status`, {
@@ -153,7 +364,7 @@ export default function AreaProfessor() {
         },
         body: JSON.stringify({
           status: statusAula,
-          conteudo,
+          conteudo: richContent,
           tarefa_casa: tarefaCasa,
           midias: midias,
           xp_ganho: xpGanho
@@ -172,6 +383,7 @@ export default function AreaProfessor() {
     }
   };
 
+
   // Funções para criar nova aula avulsa do zero
   const handleAddNewLink = () => {
     if (!newLinkTitulo || !newLinkUrl) return;
@@ -184,6 +396,24 @@ export default function AreaProfessor() {
     setNewAulaMidias(prev => prev.filter((_, i) => i !== idx));
   };
 
+  const openCreateModal = () => {
+    setNewAulaAlunoId('');
+    setNewAulaConteudo('');
+    setNewAulaTarefa('');
+    setNewAulaMidias([]);
+    setNewAulaXp(50);
+    setNewAulaStatus('realizada');
+    
+    // Limpar estados ricos
+    setMcChords([]);
+    setMcScales([]);
+    setMcExercises([]);
+    setMcRecordings([]);
+    setMcActiveTab('geral');
+    
+    setIsCreateModalOpen(true);
+  };
+
   const criarNovaAulaAvulsa = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAulaAlunoId) {
@@ -191,6 +421,16 @@ export default function AreaProfessor() {
       return;
     }
     
+    const richContent = JSON.stringify({
+      isRich: true,
+      conteudoText: newAulaConteudo,
+      tarefaCasaText: newAulaTarefa,
+      chords: mcChords,
+      scales: mcScales,
+      exercises: mcExercises,
+      recordings: mcRecordings
+    });
+
     const token = localStorage.getItem('acorde_token');
     try {
       const res = await fetch('/api/aulas', {
@@ -205,7 +445,7 @@ export default function AreaProfessor() {
           horario: newAulaHorario,
           curso_nome: newAulaCurso,
           status: newAulaStatus,
-          conteudo: newAulaConteudo,
+          conteudo: richContent,
           tarefa_casa: newAulaTarefa,
           midias: newAulaMidias,
           xp_ganho: newAulaXp
@@ -227,6 +467,505 @@ export default function AreaProfessor() {
       console.error(err);
       alert('Erro de conexão ao criar aula.');
     }
+  };
+
+  const renderMusiclassTabs = (isAvulsa: boolean) => {
+    const valConteudo = isAvulsa ? newAulaConteudo : conteudo;
+    const setValConteudo = isAvulsa ? setNewAulaConteudo : setConteudo;
+    const valTarefa = isAvulsa ? newAulaTarefa : tarefaCasa;
+    const setValTarefa = isAvulsa ? setNewAulaTarefa : setTarefaCasa;
+    const valXp = isAvulsa ? newAulaXp : xpGanho;
+    const setValXp = isAvulsa ? setNewAulaXp : setXpGanho;
+    const valMidias = isAvulsa ? newAulaMidias : midias;
+    const setValMidias = isAvulsa ? setNewAulaMidias : setMidias;
+    const valLinkTitulo = isAvulsa ? newLinkTitulo : linkTitulo;
+    const setValLinkTitulo = isAvulsa ? setNewLinkTitulo : setLinkTitulo;
+    const valLinkUrl = isAvulsa ? newLinkUrl : linkUrl;
+    const setValLinkUrl = isAvulsa ? setNewLinkUrl : setLinkUrl;
+    
+    const handleAddLinkLocal = () => {
+      if (!valLinkTitulo || !valLinkUrl) return;
+      setValMidias(prev => [...prev, { titulo: valLinkTitulo, url: valLinkUrl }]);
+      setValLinkTitulo('');
+      setValLinkUrl('');
+    };
+
+    const handleRemoveLinkLocal = (idx: number) => {
+      setValMidias(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const selectedStudentObj = alunosList.find(a => a.id === (isAvulsa ? newAulaAlunoId : selectedAula?.aluno_id));
+    const currentInstrument = selectedStudentObj?.curso_ativo || selectedAula?.curso_nome || newAulaCurso || 'Piano';
+
+    return (
+      <div className="space-y-4">
+        {/* Navegação de Abas */}
+        <div className="flex border-4 border-black bg-black p-1 gap-1 mb-4 overflow-x-auto scrollbar-hide">
+          {(['geral', 'acordes', 'escalas', 'exercicios', 'studio'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setMcActiveTab(tab)}
+              className={`flex-1 py-1.5 px-2 font-black text-[9px] uppercase tracking-wider text-center transition-all ${
+                mcActiveTab === tab
+                  ? 'bg-[#ff6b00] text-white'
+                  : 'bg-[#261812] text-[#feccba] hover:bg-stone-800'
+              }`}
+            >
+              {tab === 'geral' && '📌 GERAL'}
+              {tab === 'acordes' && '🎸 ACORDES'}
+              {tab === 'escalas' && '🎼 ESCALAS'}
+              {tab === 'exercicios' && '⚔️ DESAFIOS'}
+              {tab === 'studio' && '🎙️ STUDIO'}
+            </button>
+          ))}
+        </div>
+
+        {/* Conteúdo da Aba Geral */}
+        {mcActiveTab === 'geral' && (
+          <div className="space-y-4 animate-fade-in">
+            {/* Tema da Aula */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-black uppercase tracking-widest">CONTEÚDO TRABALHADO</label>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateAISuggestion(isAvulsa)}
+                  disabled={isAILoading}
+                  className="bg-[#261812] text-white border-2 border-black px-2 py-0.5 text-[8px] font-black uppercase flex items-center gap-1 active:translate-y-[1px] disabled:opacity-50"
+                >
+                  <Sparkles className="w-3 h-3 text-[#ff6b00] animate-pulse" /> {isAILoading ? 'GERANDO...' : '💡 IA PEDAGÓGICA'}
+                </button>
+              </div>
+              <textarea
+                required
+                placeholder="O que o aluno aprendeu ou revisou nesta aula..."
+                rows={3}
+                className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                value={valConteudo}
+                onChange={(e) => setValConteudo(e.target.value)}
+              />
+            </div>
+
+            {/* Tarefa de Casa */}
+            <div>
+              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">DESAFIO / TAREFA DE CASA</label>
+              <textarea
+                required
+                placeholder="Exercícios, músicas ou escalas que o aluno deve treinar..."
+                rows={3}
+                className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                value={valTarefa}
+                onChange={(e) => setValTarefa(e.target.value)}
+              />
+            </div>
+
+            {/* Links e Mídias */}
+            <div>
+              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">MÍDIAS / LINKS DE APOIO</label>
+              
+              <div className="space-y-2 mb-3 max-h-[120px] overflow-y-auto">
+                {valMidias.map((mid, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] font-black uppercase text-black truncate">{mid.titulo}</p>
+                      <p className="text-[7px] font-mono text-black/60 truncate">{mid.url}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLinkLocal(idx)}
+                      className="text-red-500 hover:text-red-700 shrink-0 ml-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-2 border-black/10 p-3 bg-black/5 space-y-2">
+                <input
+                  type="text"
+                  placeholder="NOME DO LINK (EX: PARTITURA)"
+                  className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/20 focus:outline-none"
+                  value={valLinkTitulo}
+                  onChange={(e) => setValLinkTitulo(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="URL (HTTPS://...)"
+                    className="flex-1 px-2 py-1.5 bg-white border-2 border-black text-[9px] font-mono placeholder:text-black/20 focus:outline-none"
+                    value={valLinkUrl}
+                    onChange={(e) => setValLinkUrl(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddLinkLocal}
+                    className="bg-black text-white px-3 py-1.5 border-2 border-black font-black uppercase text-[9px] shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                  >
+                    ADD
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Concessão de XP */}
+            <div>
+              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">CONCEDER XP AO ALUNO</label>
+              <div className="flex justify-between gap-2">
+                {[50, 100, 150, 200].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setValXp(val)}
+                    className={`flex-1 py-2 border-2 border-black font-black text-xs transition-all ${
+                      valXp === val
+                        ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
+                        : 'bg-white text-black/40 hover:border-black'
+                    }`}
+                  >
+                    +{val} XP
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Conteúdo da Aba Acordes */}
+        {mcActiveTab === 'acordes' && (
+          <div className="space-y-4 animate-fade-in font-mono text-xs">
+            <div className="bg-[#261812] text-white p-3 border-4 border-black shadow-[4px_4px_0_#000] mb-2 text-center uppercase font-black text-[9px]">
+              🎸 HARMÔNICOS E ACORDES PARA {currentInstrument.toUpperCase()}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">TOM / TÔNICA</label>
+                <select
+                  value={selRoot}
+                  onChange={(e) => setSelRoot(e.target.value)}
+                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
+                >
+                  {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">TIPO / TRÍADE</label>
+                <select
+                  value={selType}
+                  onChange={(e) => setSelType(e.target.value)}
+                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
+                >
+                  {CHORD_TYPES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">TENSÃO / EXTENSÃO</label>
+                <select
+                  value={selExt}
+                  onChange={(e) => setSelExt(e.target.value)}
+                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
+                >
+                  {EXTENSIONS.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">BAIXO ALTERADO</label>
+                <select
+                  value={selBass}
+                  onChange={(e) => setSelBass(e.target.value)}
+                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
+                >
+                  <option value="none">PADRÃO</option>
+                  {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-3 bg-black/5 border-2 border-black flex flex-col items-center">
+              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest mb-2">PRÉ-VISUALIZAÇÃO DE ACORDE</span>
+              <ChordVisualizer
+                instrument={currentInstrument}
+                chordNotes={MusicEngine.generateChord(selRoot, selType, selExt)?.notes || []}
+                root={selRoot}
+                type={selType}
+                ext={selExt}
+                bass={selBass}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddChord}
+              className="w-full py-2.5 bg-[#ff6b00] text-white border-4 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
+            >
+              <PlusCircle className="w-4 h-4" /> ADICIONAR ACORDE AO ALUNO
+            </button>
+
+            {mcChords.length > 0 && (
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-2">ACORDES NA AULA ({mcChords.length})</label>
+                <div className="flex gap-2 overflow-x-auto py-2 scrollbar-thin">
+                  {mcChords.map((ch, idx) => (
+                    <div key={idx} className="relative group shrink-0">
+                      <ChordVisualizer
+                        instrument={currentInstrument}
+                        chordNotes={ch.notes}
+                        root={ch.root}
+                        type={ch.typeId}
+                        ext={ch.extId}
+                        bass={ch.bass}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setMcChords(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 bg-black text-white p-1 rounded-none border border-white hover:bg-red-500"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Conteúdo da Aba Escalas */}
+        {mcActiveTab === 'escalas' && (
+          <div className="space-y-4 animate-fade-in font-mono text-xs">
+            <div className="bg-[#261812] text-white p-3 border-4 border-black shadow-[4px_4px_0_#000] mb-2 text-center uppercase font-black text-[9px]">
+              🎼 CAMPOS HARMÔNICOS E ESCALAS DE ESTUDO
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">ESCALA BASE</label>
+                <select
+                  value={selScaleRoot}
+                  onChange={(e) => setSelScaleRoot(e.target.value)}
+                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
+                >
+                  {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">TIPO DE ESCALA</label>
+                <select
+                  value={selScaleId}
+                  onChange={(e) => setSelScaleId(e.target.value)}
+                  className="w-full p-2 bg-white border-2 border-black font-black text-xs"
+                >
+                  {SCALES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-3 bg-black/5 border-2 border-black">
+              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block text-center mb-2">NOTAS DA ESCALA</span>
+              <div className="flex justify-center gap-1.5 flex-wrap">
+                {(MusicEngine.generateScale(selScaleRoot, selScaleId) || []).map((note, idx) => (
+                  <span key={idx} className="bg-[#261812] text-[#feccba] border border-black font-black text-[10px] px-2 py-1 uppercase">
+                    {note}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddScale}
+              className="w-full py-2.5 bg-[#ff6b00] text-white border-4 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
+            >
+              <PlusCircle className="w-4 h-4" /> REGISTRAR ESCALA NA AULA
+            </button>
+
+            {mcScales.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">ESCALAS REGISTRADAS</label>
+                {mcScales.map((sc, idx) => (
+                  <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2 flex justify-between items-center">
+                    <div>
+                      <p className="text-[9px] font-black uppercase">{sc.root} {sc.scaleName}</p>
+                      <p className="text-[7px] font-mono text-black/60 truncate uppercase">{sc.notes.join(' - ')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMcScales(prev => prev.filter((_, i) => i !== idx))}
+                      className="text-red-500 hover:text-red-700 font-mono"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Conteúdo da Aba Exercícios / Desafios */}
+        {mcActiveTab === 'exercicios' && (
+          <div className="space-y-4 animate-fade-in font-mono text-xs">
+            <div className="bg-[#261812] text-white p-3 border-4 border-black shadow-[4px_4px_0_#000] mb-2 text-center uppercase font-black text-[9px]">
+              ⚔️ BOSS QUESTS E DESAFIOS SEMANAIS
+            </div>
+
+            <div className="border-2 border-black/20 p-3 bg-black/5 space-y-2">
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-1">TÍTULO DA QUEST</label>
+                <input
+                  type="text"
+                  placeholder="EX: LIGADOS EM SOL MENOR"
+                  className="w-full px-2 py-1.5 bg-white border-2 border-black text-[10px] font-black uppercase placeholder:text-black/20 focus:outline-none"
+                  value={exTitle}
+                  onChange={(e) => setExTitle(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-1">DESCRIÇÃO DA TAREFA</label>
+                <textarea
+                  placeholder="Instruções para o aluno concluir a missão..."
+                  rows={2}
+                  className="w-full px-2 py-1.5 bg-white border-2 border-black text-[10px] font-black uppercase placeholder:text-black/20 focus:outline-none"
+                  value={exDesc}
+                  onChange={(e) => setExDesc(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-1">BÔNUS DE RECOMPENSA (XP)</label>
+                <select
+                  value={exPoints}
+                  onChange={(e) => setExPoints(Number(e.target.value))}
+                  className="w-full p-1.5 bg-white border-2 border-black font-black text-[10px]"
+                >
+                  <option value={50}>+50 XP BÔNUS</option>
+                  <option value={100}>+100 XP BÔNUS (MÉDIO)</option>
+                  <option value={200}>+200 XP BÔNUS (DIFÍCIL / BOSS)</option>
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddExercise}
+                className="w-full py-2 bg-black text-white border-2 border-black font-black text-[10px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
+              >
+                <PlusCircle className="w-3.5 h-3.5" /> ADICIONAR BOSS QUEST À AULA
+              </button>
+            </div>
+
+            {mcExercises.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">QUESTS DA AULA ({mcExercises.length})</label>
+                {mcExercises.map((ex, idx) => (
+                  <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2 flex justify-between items-center relative overflow-hidden">
+                    <div className="pr-8">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-[#ff6b00] text-white font-black text-[7px] px-1 border border-black uppercase shrink-0">⚔️ QUEST</span>
+                        <p className="text-[9px] font-black uppercase truncate">{ex.title}</p>
+                      </div>
+                      <p className="text-[7px] font-black text-black/60 truncate uppercase mt-0.5">{ex.description}</p>
+                      <span className="text-[7px] font-mono text-[#ff6b00] font-black block mt-0.5">RECOMPENSA: +{ex.points} XP 🏆</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMcExercises(prev => prev.filter((_, i) => i !== idx))}
+                      className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Conteúdo da Aba Studio */}
+        {mcActiveTab === 'studio' && (
+          <div className="space-y-4 animate-fade-in font-mono text-xs">
+            <div className="bg-[#261812] text-white p-3 border-4 border-black shadow-[4px_4px_0_#000] mb-2 text-center uppercase font-black text-[9px]">
+              🎙️ MUSICLASS STUDIO: GRAVAÇÃO E ÁUDIOS
+            </div>
+
+            <div className="border-4 border-black p-4 bg-[#261812] text-white space-y-4 text-center">
+              <span className="text-[8px] font-black text-[#ff6b00] uppercase tracking-widest block">GRAVADOR DE MICROFONE DO PROFESSOR</span>
+              
+              <div className="flex justify-center items-center gap-4 py-2">
+                {!isRecording ? (
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    className="w-12 h-12 bg-red-600 hover:bg-red-700 border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-[2px] active:shadow-none flex items-center justify-center text-white transition-all"
+                  >
+                    <Mic className="w-6 h-6 animate-pulse" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={stopRecording}
+                    className="w-12 h-12 bg-[#ff6b00] border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-[2px] active:shadow-none flex items-center justify-center text-black transition-all"
+                  >
+                    <Square className="w-6 h-6 animate-spin" />
+                  </button>
+                )}
+              </div>
+              <p className="text-[7px] text-[#feccba]/60 uppercase tracking-wider">
+                {!isRecording ? 'CLIQUE NO MICROFONE VERMELHO PARA GRAVAR GUIA DE ESTUDOS' : 'GRAVANDO ÁUDIO... CLIQUE NO QUADRADO PARA PARAR E SALVAR'}
+              </p>
+            </div>
+
+            <div className="border-2 border-black p-3 bg-black/5">
+              <label className="text-[8px] font-black text-black uppercase tracking-widest block mb-1">OU ENVIAR ARQUIVO DE ÁUDIO (.MP3, .WAV, .PNG)</label>
+              <input
+                type="file"
+                accept="audio/*,image/*"
+                disabled={studioLoading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    await uploadStudioFile(file);
+                  }
+                }}
+                className="w-full text-[9px] font-black text-black focus:outline-none file:mr-4 file:py-1.5 file:px-3 file:border-2 file:border-black file:text-[9px] file:font-black file:bg-[#ff6b00] file:text-white file:cursor-pointer"
+              />
+              {studioLoading && (
+                <span className="text-[7px] font-black text-[#ff6b00] uppercase tracking-widest mt-1 block animate-pulse">
+                  ENVIANDO ARQUIVO DE TREINO...
+                </span>
+              )}
+            </div>
+
+            {mcRecordings.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-[8px] font-black text-black uppercase tracking-widest">GUIAS DE ÁUDIO E TREINO NA AULA</label>
+                {mcRecordings.map((rec, idx) => (
+                  <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2 flex justify-between items-center relative overflow-hidden">
+                    <div className="pr-8 flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Volume2 className="w-4 h-4 text-[#ff6b00] shrink-0" />
+                        <p className="text-[9px] font-black uppercase truncate">{rec.name}</p>
+                      </div>
+                      <audio src={rec.url} controls className="h-6 w-full mt-1 border border-black/20" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMcRecordings(prev => prev.filter((_, i) => i !== idx))}
+                      className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) return (
@@ -326,7 +1065,7 @@ export default function AreaProfessor() {
             {/* Criar Aula Avulsa - Musiclass Fiel */}
             <div className="p-1">
               <button
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={openCreateModal}
                 className="w-full bg-[#ff6b00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 hover:bg-[#ff8c3a]"
               >
                 ⚔️ REGISTRAR NOVA AULA MUSICLASS
@@ -567,105 +1306,7 @@ export default function AreaProfessor() {
                 </div>
               </div>
 
-              {newAulaStatus === 'realizada' && (
-                <>
-                  {/* Conteúdo Trabalhado */}
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">CONTEÚDO TRABALHADO</label>
-                    <textarea
-                      required={newAulaStatus === 'realizada'}
-                      placeholder="O que o aluno aprendeu nesta aula..."
-                      rows={3}
-                      className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
-                      value={newAulaConteudo}
-                      onChange={(e) => setNewAulaConteudo(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Tarefa de Casa */}
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">DESAFIO / TAREFA DE CASA</label>
-                    <textarea
-                      required={newAulaStatus === 'realizada'}
-                      placeholder="Exercícios práticos sugeridos para treinar..."
-                      rows={3}
-                      className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
-                      value={newAulaTarefa}
-                      onChange={(e) => setNewAulaTarefa(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Links e Mídias */}
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">MÍDIAS / LINKS DE APOIO</label>
-                    
-                    <div className="space-y-2 mb-3">
-                      {newAulaMidias.map((mid, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[9px] font-black uppercase text-black truncate">{mid.titulo}</p>
-                            <p className="text-[7px] font-mono text-black/60 truncate">{mid.url}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveNewLink(idx)}
-                            className="text-red-500 hover:text-red-700 shrink-0 ml-2"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="border-2 border-black/10 p-3 bg-black/5 space-y-2">
-                      <input
-                        type="text"
-                        placeholder="NOME DO LINK (EX: PARTITURA)"
-                        className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/20 focus:outline-none"
-                        value={newLinkTitulo}
-                        onChange={(e) => setNewLinkTitulo(e.target.value)}
-                      />
-                      <div className="flex gap-2">
-                        <input
-                          type="url"
-                          placeholder="URL (HTTPS://...)"
-                          className="flex-1 px-2 py-1.5 bg-white border-2 border-black text-[9px] font-mono placeholder:text-black/20 focus:outline-none"
-                          value={newLinkUrl}
-                          onChange={(e) => setNewLinkUrl(e.target.value)}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddNewLink}
-                          className="bg-black text-white px-3 py-1.5 border-2 border-black font-black uppercase text-[9px] shadow-[2px_2px_0_#000] active:translate-y-[1px]"
-                        >
-                          ADD
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Concessão de XP */}
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">CONCEDER XP AO ALUNO</label>
-                    <div className="flex justify-between gap-2">
-                      {[50, 100, 150, 200].map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setNewAulaXp(val)}
-                          className={`flex-1 py-2 border-2 border-black font-black text-xs transition-all ${
-                            newAulaXp === val
-                              ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
-                              : 'bg-white text-black/40 hover:border-black'
-                          }`}
-                        >
-                          +{val} XP
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+              {newAulaStatus === 'realizada' && renderMusiclassTabs(true)}
 
               {/* Botão de Envio */}
               <div className="pt-2">
@@ -739,105 +1380,7 @@ export default function AreaProfessor() {
                 </div>
               </div>
 
-              {statusAula === 'realizada' && (
-                <>
-                  {/* Conteúdo Trabalhado */}
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">CONTEÚDO TRABALHADO</label>
-                    <textarea
-                      required
-                      placeholder="O que o aluno aprendeu ou revisou nesta aula..."
-                      rows={3}
-                      className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
-                      value={conteudo}
-                      onChange={(e) => setConteudo(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Tarefa de Casa */}
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">DESAFIO / TAREFA DE CASA</label>
-                    <textarea
-                      required
-                      placeholder="Exercícios, músicas ou escalas que o aluno deve treinar..."
-                      rows={3}
-                      className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
-                      value={tarefaCasa}
-                      onChange={(e) => setTarefaCasa(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Links e Mídias */}
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">MÍDIAS / LINKS DE APOIO</label>
-                    
-                    <div className="space-y-2 mb-3">
-                      {midias.map((mid, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[9px] font-black uppercase text-black truncate">{mid.titulo}</p>
-                            <p className="text-[7px] font-mono text-black/60 truncate">{mid.url}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLink(idx)}
-                            className="text-red-500 hover:text-red-700 shrink-0 ml-2"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="border-2 border-black/10 p-3 bg-black/5 space-y-2">
-                      <input
-                        type="text"
-                        placeholder="NOME DO LINK (EX: PARTITURA)"
-                        className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/20 focus:outline-none"
-                        value={linkTitulo}
-                        onChange={(e) => setLinkTitulo(e.target.value)}
-                      />
-                      <div className="flex gap-2">
-                        <input
-                          type="url"
-                          placeholder="URL (HTTPS://...)"
-                          className="flex-1 px-2 py-1.5 bg-white border-2 border-black text-[9px] font-mono placeholder:text-black/20 focus:outline-none"
-                          value={linkUrl}
-                          onChange={(e) => setLinkUrl(e.target.value)}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddLink}
-                          className="bg-black text-white px-3 py-1.5 border-2 border-black font-black uppercase text-[9px] shadow-[2px_2px_0_#000] active:translate-y-[1px]"
-                        >
-                          ADD
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Concessão de XP */}
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">CONCEDER XP AO ALUNO</label>
-                    <div className="flex justify-between gap-2">
-                      {[50, 100, 150, 200].map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setXpGanho(val)}
-                          className={`flex-1 py-2 border-2 border-black font-black text-xs transition-all ${
-                            xpGanho === val
-                              ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
-                              : 'bg-white text-black/40 hover:border-black'
-                          }`}
-                        >
-                          +{val} XP
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+              {statusAula === 'realizada' && renderMusiclassTabs(false)}
 
               {/* Botão de Envio */}
               <div className="pt-2">

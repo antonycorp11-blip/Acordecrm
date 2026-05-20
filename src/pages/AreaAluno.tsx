@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload } from 'lucide-react';
+import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2 } from 'lucide-react';
+import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -224,8 +225,22 @@ export default function AreaAluno() {
                     }
                   } catch {}
 
+                  let isRich = false;
+                  let richData: any = null;
+                  try {
+                    if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
+                      const parsed = JSON.parse(aula.conteudo);
+                      if (parsed && parsed.isRich) {
+                        isRich = true;
+                        richData = parsed;
+                      }
+                    }
+                  } catch {}
+
+                  const currentInstrument = alunoData?.curso_ativo || aula.curso_nome || 'Piano';
+
                   return (
-                    <div key={aula.id} className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] space-y-3">
+                    <div key={aula.id} className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] space-y-3 font-['Space_Mono']">
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider">
@@ -240,19 +255,117 @@ export default function AreaAluno() {
                         </span>
                       </div>
 
-                      {/* Conteúdo Trabalhado */}
-                      <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
-                        <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
-                        <p className="text-black text-[10px] font-bold uppercase">{aula.conteudo || 'Nenhum conteúdo registrado'}</p>
-                      </div>
+                      {!isRich ? (
+                        <>
+                          {/* Conteúdo Trabalhado */}
+                          <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
+                            <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
+                            <p className="text-black text-[10px] font-bold uppercase">{aula.conteudo || 'Nenhum conteúdo registrado'}</p>
+                          </div>
 
-                      {/* Tarefa de casa / Desafio */}
-                      <div className="bg-black/5 border-2 border-black/10 p-2.5">
-                        <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1 flex items-center gap-1">
-                          ⚔️ BOSS QUEST / DESAFIO:
-                        </span>
-                        <p className="text-black text-[10px] font-bold uppercase italic">{aula.tarefa_casa || 'Treinar repertório livre'}</p>
-                      </div>
+                          {/* Tarefa de casa / Desafio */}
+                          <div className="bg-black/5 border-2 border-black/10 p-2.5">
+                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1 flex items-center gap-1">
+                              ⚔️ BOSS QUEST / DESAFIO:
+                            </span>
+                            <p className="text-black text-[10px] font-bold uppercase italic">{aula.tarefa_casa || 'Treinar repertório livre'}</p>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* FICHA PEDAGÓGICA MUSICLASS */}
+                          <div className="bg-[#feccba]/20 border-2 border-black/20 p-2.5 relative overflow-hidden">
+                            <div className="absolute top-1 right-2 flex items-center gap-1">
+                              <span className="bg-black text-[#ff6b00] text-[6px] font-black px-1 border border-black uppercase">
+                                💡 MUSICLASS ROTEIRO
+                              </span>
+                            </div>
+                            <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
+                            <p className="text-black text-[10px] font-bold uppercase whitespace-pre-line">{richData.conteudoText || 'AULA INTERATIVA DE MÚSICA'}</p>
+                          </div>
+
+                          {/* TAREFA DE CASA / DESAFIO */}
+                          {richData.tarefaCasaText && (
+                            <div className="bg-black/5 border-2 border-black/20 p-2.5">
+                              <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">
+                                ⚔️ TAREFA DE CASA / DESAFIO DA SEMANA:
+                              </span>
+                              <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-line">{richData.tarefaCasaText}</p>
+                            </div>
+                          )}
+
+                          {/* ACORDES RENDERIZADOS */}
+                          {Array.isArray(richData.chords) && richData.chords.length > 0 && (
+                            <div className="bg-white border-2 border-black p-2">
+                              <span className="text-[7px] font-black text-[#8e7164] uppercase block mb-2 tracking-widest">
+                                🎸 ACORDES PRÁTICOS SUGERIDOS ({richData.chords.length}):
+                              </span>
+                              <div className="flex gap-2 overflow-x-auto py-1 scrollbar-thin">
+                                {richData.chords.map((ch: any, idx: number) => (
+                                  <div key={idx} className="shrink-0 scale-95 origin-top-left">
+                                    <ChordVisualizer
+                                      instrument={currentInstrument}
+                                      chordNotes={ch.notes}
+                                      root={ch.root}
+                                      type={ch.typeId}
+                                      ext={ch.extId}
+                                      bass={ch.bass}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ESCALAS RENDERIZADAS */}
+                          {Array.isArray(richData.scales) && richData.scales.length > 0 && (
+                            <div className="bg-white border-2 border-black p-2 space-y-1.5">
+                              <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest">
+                                🎼 CAMPOS HARMÔNICOS &amp; ESCALAS DE ESTUDO:
+                              </span>
+                              {richData.scales.map((sc: any, idx: number) => (
+                                <div key={idx} className="bg-[#261812] text-[#feccba] border border-black p-1.5">
+                                  <p className="text-[8px] font-black uppercase tracking-wider">{sc.root} {sc.scaleName}</p>
+                                  <p className="text-[7px] font-mono uppercase tracking-tighter mt-0.5 text-white/80">{sc.notes.join(' - ')}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* QUESTS INDIVIDUAIS DO ALUNO */}
+                          {Array.isArray(richData.exercises) && richData.exercises.length > 0 && (
+                            <div className="space-y-1.5">
+                              <span className="text-[7px] font-black text-black uppercase block tracking-widest">
+                                🏆 MISSÕES DE TREINO ADICIONAIS:
+                              </span>
+                              {richData.exercises.map((ex: any, idx: number) => (
+                                <div key={idx} className="bg-emerald-50 text-black border-2 border-emerald-500 p-2 relative overflow-hidden">
+                                  <span className="absolute right-2 top-2 bg-emerald-500 text-white font-black text-[6px] px-1">
+                                    +{ex.points} XP
+                                  </span>
+                                  <p className="text-[9px] font-black uppercase text-emerald-800">⚔️ {ex.title}</p>
+                                  <p className="text-[7px] font-black text-stone-600 uppercase mt-0.5">{ex.description}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* GRAVAÇÕES DE ÁUDIO DO ESTÚDIO */}
+                          {Array.isArray(richData.recordings) && richData.recordings.length > 0 && (
+                            <div className="bg-[#261812] text-white p-2 border-2 border-black space-y-2">
+                              <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest flex items-center gap-1">
+                                🎙️ GUIAS DE ÁUDIO DO PROFESSOR:
+                              </span>
+                              {richData.recordings.map((rec: any, idx: number) => (
+                                <div key={idx} className="bg-black/30 border border-white/10 p-1.5">
+                                  <p className="text-[7px] font-black uppercase truncate text-white">{rec.name}</p>
+                                  <audio src={rec.url} controls className="h-6 w-full mt-1 border border-white/20" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Links e mídias de apoio */}
                       {midiasList.length > 0 && (
