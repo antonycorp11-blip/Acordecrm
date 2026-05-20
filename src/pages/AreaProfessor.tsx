@@ -34,6 +34,132 @@ import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musi
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 
+class DrumSynth {
+  private ctx: AudioContext | null = null;
+
+  private init() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+  }
+
+  playKick(time: number) {
+    this.init();
+    if (!this.ctx) return;
+    
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.3);
+    
+    gain.gain.setValueAtTime(1, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+    
+    osc.start(time);
+    osc.stop(time + 0.3);
+  }
+
+  playSnare(time: number) {
+    this.init();
+    if (!this.ctx) return;
+    
+    const bufferSize = this.ctx.sampleRate * 0.2;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    
+    const noiseFilter = this.ctx.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = 1000;
+    
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.7, time);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+    
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(this.ctx.destination);
+    
+    const osc = this.ctx.createOscillator();
+    const oscGain = this.ctx.createGain();
+    
+    osc.connect(oscGain);
+    oscGain.connect(this.ctx.destination);
+    
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(180, time);
+    
+    oscGain.gain.setValueAtTime(0.5, time);
+    oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+    
+    noise.start(time);
+    noise.stop(time + 0.2);
+    osc.start(time);
+    osc.stop(time + 0.1);
+  }
+
+  playHihat(time: number) {
+    this.init();
+    if (!this.ctx) return;
+    
+    const bufferSize = this.ctx.sampleRate * 0.05;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 7000;
+    
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.3, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+    
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    
+    noise.start(time);
+    noise.stop(time + 0.05);
+  }
+
+  playRimshot(time: number) {
+    this.init();
+    if (!this.ctx) return;
+    
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, time);
+    osc.frequency.exponentialRampToValueAtTime(500, time + 0.08);
+    
+    gain.gain.setValueAtTime(0.5, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.08);
+    
+    osc.start(time);
+    osc.stop(time + 0.08);
+  }
+}
+
+const synth = new DrumSynth();
 
 export default function AreaProfessor() {
   const { logout } = useAuth();
@@ -69,22 +195,44 @@ export default function AreaProfessor() {
   const [newLinkTitulo, setNewLinkTitulo] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
+  // Estados de navegação e Modo Apresentação do Professor
+  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'alunos' | 'agenda' | 'perfil' | 'playground'>('home');
+  const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+  const [agendaCompleta, setAgendaCompleta] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterAgendaStatus, setFilterAgendaStatus] = useState<'todas' | 'pendente' | 'realizada' | 'falta_aluno'>('todas');
+
   // Estados Ricos do Musiclass compartilhados
   const [mcChords, setMcChords] = useState<any[]>([]);
   const [mcScales, setMcScales] = useState<any[]>([]);
   const [mcExercises, setMcExercises] = useState<any[]>([]);
   const [mcRecordings, setMcRecordings] = useState<any[]>([]);
-  const [mcActiveTab, setMcActiveTab] = useState<'geral' | 'acordes' | 'escalas' | 'exercicios' | 'studio'>('geral');
+  const [mcTablatures, setMcTablatures] = useState<any[]>([]);
+  const [mcDrums, setMcDrums] = useState<any[]>([]);
+  const [mcActiveTab, setMcActiveTab] = useState<'geral' | 'acordes' | 'escalas' | 'tablatura' | 'bateria' | 'exercicios' | 'studio'>('geral');
   
   // Estados para seleção de acorde
   const [selRoot, setSelRoot] = useState('C');
   const [selType, setSelType] = useState('maj');
   const [selExt, setSelExt] = useState('none');
   const [selBass, setSelBass] = useState('none');
+  const [mcPlaygroundInstrument, setMcPlaygroundInstrument] = useState<string>('Teclado');
   
   // Estados para seleção de escala
   const [selScaleRoot, setSelScaleRoot] = useState('C');
   const [selScaleId, setSelScaleId] = useState('major');
+
+  // Estados de Tablatura Interativa
+  const [newTabName, setNewTabName] = useState('RIFF PRINCIPAL');
+  const [newTabMatrix, setNewTabMatrix] = useState<string[][]>(Array(6).fill(null).map(() => Array(16).fill('')));
+
+  // Estados de Bateria Sequenciador
+  const [newDrumName, setNewDrumName] = useState('BATIDA ANOS 80');
+  const [newDrumBpm, setNewDrumBpm] = useState(120);
+  const [newDrumMatrix, setNewDrumMatrix] = useState<boolean[][]>(Array(4).fill(null).map(() => Array(16).fill(false)));
+  const [isPlayingDrum, setIsPlayingDrum] = useState(false);
+  const [drumIntervalId, setDrumIntervalId] = useState<any>(null);
+  const [drumCurrentStep, setDrumCurrentStep] = useState(0);
 
   // Estados para adicionar exercícios
   const [exTitle, setExTitle] = useState('');
@@ -130,6 +278,16 @@ export default function AreaProfessor() {
         setAlunosList(sortedAlunos);
       }
       
+      if (agenda) {
+        const sortedAgenda = (Array.isArray(agenda) ? agenda : [])
+          .sort((a: any, b: any) => {
+            const dateCompare = (b.data || '').localeCompare(a.data || '');
+            if (dateCompare !== 0) return dateCompare;
+            return (b.horario || '').localeCompare(a.horario || '');
+          });
+        setAgendaCompleta(sortedAgenda);
+      }
+      
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       // Filtra aulas do dia
       const hojeAulas = (Array.isArray(agenda) ? agenda : [])
@@ -158,6 +316,8 @@ export default function AreaProfessor() {
     let scales: any[] = [];
     let exercises: any[] = [];
     let recordings: any[] = [];
+    let tablatures: any[] = [];
+    let drums: any[] = [];
 
     try {
       if (aula.conteudo && aula.conteudo.trim().startsWith('{') && aula.conteudo.trim().endsWith('}')) {
@@ -169,6 +329,8 @@ export default function AreaProfessor() {
           scales = richData.scales || [];
           exercises = richData.exercises || [];
           recordings = richData.recordings || [];
+          tablatures = richData.tablatures || [];
+          drums = richData.drums || [];
         }
       }
     } catch (e) {
@@ -181,6 +343,8 @@ export default function AreaProfessor() {
     setMcScales(scales);
     setMcExercises(exercises);
     setMcRecordings(recordings);
+    setMcTablatures(tablatures);
+    setMcDrums(drums);
     setMcActiveTab('geral');
     
     try {
@@ -250,19 +414,101 @@ export default function AreaProfessor() {
     setExDesc('');
   };
 
+  // Funções da Bateria Eletrônica Musiclass
+  const togglePlayDrum = () => {
+    if (isPlayingDrum) {
+      if (drumIntervalId) {
+        clearInterval(drumIntervalId);
+      }
+      setIsPlayingDrum(false);
+      setDrumIntervalId(null);
+      setDrumCurrentStep(0);
+    } else {
+      setIsPlayingDrum(true);
+      let step = drumCurrentStep;
+      
+      const intervalTime = (60 / newDrumBpm) / 4 * 1000;
+      
+      const id = setInterval(() => {
+        // Toca as peças
+        // newDrumMatrix[0] -> Kick
+        // newDrumMatrix[1] -> Snare
+        // newDrumMatrix[2] -> Hihat
+        // newDrumMatrix[3] -> Rimshot
+        // Nota: as matrizes reativas usam cópias atuais, logo lemos o estado atualizado
+        setNewDrumMatrix(current => {
+          if (current[0][step]) synth.playKick(0);
+          if (current[1][step]) synth.playSnare(0);
+          if (current[2][step]) synth.playHihat(0);
+          if (current[3][step]) synth.playRimshot(0);
+          return current;
+        });
+        
+        setDrumCurrentStep(step);
+        step = (step + 1) % 16;
+      }, intervalTime);
+      
+      setDrumIntervalId(id);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (drumIntervalId) clearInterval(drumIntervalId);
+    };
+  }, [drumIntervalId]);
+
+  const handleAddDrum = () => {
+    if (!newDrumName.trim()) return;
+    setMcDrums(prev => [...prev, {
+      name: newDrumName.toUpperCase(),
+      bpm: newDrumBpm,
+      matrix: JSON.parse(JSON.stringify(newDrumMatrix))
+    }]);
+    setNewDrumMatrix(Array(4).fill(null).map(() => Array(16).fill(false)));
+    setNewDrumName('BATIDA DO RITMO');
+    alert('Bateria gravada com sucesso na aula!');
+  };
+
+  // Funções de Tablatura Musiclass
+  const handleAddTablature = () => {
+    if (!newTabName.trim()) return;
+    setMcTablatures(prev => [...prev, {
+      name: newTabName.toUpperCase(),
+      matrix: JSON.parse(JSON.stringify(newTabMatrix))
+    }]);
+    setNewTabMatrix(Array(6).fill(null).map(() => Array(16).fill('')));
+    setNewTabName('NOVO SOLO/RIFF');
+    alert('Tablatura registrada com sucesso na aula!');
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      
+      let options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options = { mimeType: 'audio/webm;codecs=opus' };
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options = { mimeType: 'audio/webm' };
+      } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+        options = { mimeType: 'audio/ogg' };
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options = { mimeType: 'audio/mp4' };
+      }
+
+      const recorder = new MediaRecorder(stream, options);
       const chunks: Blob[] = [];
       
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
+        if (e.data && e.data.size > 0) chunks.push(e.data);
       };
       
       recorder.onstop = async () => {
-        const audioBlob = new Blob(chunks, { type: 'audio/mp3' });
-        const file = new File([audioBlob], `gravacao_${Date.now()}.mp3`, { type: 'audio/mp3' });
+        const mime = recorder.mimeType || 'audio/webm';
+        const ext = mime.includes('mp4') ? 'm4a' : 'webm';
+        const audioBlob = new Blob(chunks, { type: mime });
+        const file = new File([audioBlob], `gravacao_${Date.now()}.${ext}`, { type: mime });
         await uploadStudioFile(file);
       };
       
@@ -271,7 +517,7 @@ export default function AreaProfessor() {
       setIsRecording(true);
     } catch (err) {
       console.error('Erro ao acessar microfone:', err);
-      alert('Não foi possível acessar o microfone.');
+      alert('Não foi possível acessar o microfone. Verifique se concedeu permissões de áudio no seu navegador.');
     }
   };
 
@@ -351,7 +597,9 @@ export default function AreaProfessor() {
       chords: mcChords,
       scales: mcScales,
       exercises: mcExercises,
-      recordings: mcRecordings
+      recordings: mcRecordings,
+      tablatures: mcTablatures,
+      drums: mcDrums
     });
 
     const token = localStorage.getItem('acorde_token');
@@ -428,7 +676,9 @@ export default function AreaProfessor() {
       chords: mcChords,
       scales: mcScales,
       exercises: mcExercises,
-      recordings: mcRecordings
+      recordings: mcRecordings,
+      tablatures: mcTablatures,
+      drums: mcDrums
     });
 
     const token = localStorage.getItem('acorde_token');
@@ -501,12 +751,12 @@ export default function AreaProfessor() {
       <div className="space-y-4">
         {/* Navegação de Abas */}
         <div className="flex border-4 border-black bg-black p-1 gap-1 mb-4 overflow-x-auto scrollbar-hide">
-          {(['geral', 'acordes', 'escalas', 'exercicios', 'studio'] as const).map((tab) => (
+          {(['geral', 'acordes', 'escalas', 'tablatura', 'bateria', 'exercicios', 'studio'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setMcActiveTab(tab)}
-              className={`flex-1 py-1.5 px-2 font-black text-[9px] uppercase tracking-wider text-center transition-all ${
+              className={`flex-1 py-1.5 px-2.5 font-black text-[8px] uppercase tracking-wider text-center transition-all shrink-0 ${
                 mcActiveTab === tab
                   ? 'bg-[#ff6b00] text-white'
                   : 'bg-[#261812] text-[#feccba] hover:bg-stone-800'
@@ -515,6 +765,8 @@ export default function AreaProfessor() {
               {tab === 'geral' && '📌 GERAL'}
               {tab === 'acordes' && '🎸 ACORDES'}
               {tab === 'escalas' && '🎼 ESCALAS'}
+              {tab === 'tablatura' && '📝 TABLATURA'}
+              {tab === 'bateria' && '🥁 BATERIA'}
               {tab === 'exercicios' && '⚔️ DESAFIOS'}
               {tab === 'studio' && '🎙️ STUDIO'}
             </button>
@@ -686,10 +938,38 @@ export default function AreaProfessor() {
               </div>
             </div>
 
+            <div className="bg-black/5 border-2 border-black p-2.5 space-y-2">
+              <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block text-center">TIPO DE INSTRUMENTO PARA EXIBIÇÃO</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMcPlaygroundInstrument('Violão')}
+                  className={`flex-1 py-1.5 border border-black font-black text-[9px] uppercase tracking-wider transition-all ${
+                    mcPlaygroundInstrument === 'Violão' || mcPlaygroundInstrument === 'Guitarra'
+                      ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
+                      : 'bg-white text-black/50 hover:bg-stone-100'
+                  }`}
+                >
+                  🎸 Violão / Guitarra
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMcPlaygroundInstrument('Teclado')}
+                  className={`flex-1 py-1.5 border border-black font-black text-[9px] uppercase tracking-wider transition-all ${
+                    mcPlaygroundInstrument === 'Teclado' || mcPlaygroundInstrument === 'Piano'
+                      ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
+                      : 'bg-white text-black/50 hover:bg-stone-100'
+                  }`}
+                >
+                  🎹 Teclado / Piano
+                </button>
+              </div>
+            </div>
+
             <div className="p-3 bg-black/5 border-2 border-black flex flex-col items-center">
               <span className="text-[7px] font-black text-black/50 uppercase tracking-widest mb-2">PRÉ-VISUALIZAÇÃO DE ACORDE</span>
               <ChordVisualizer
-                instrument={currentInstrument}
+                instrument={mcPlaygroundInstrument}
                 chordNotes={MusicEngine.generateChord(selRoot, selType, selExt)?.notes || []}
                 root={selRoot}
                 type={selType}
@@ -713,7 +993,7 @@ export default function AreaProfessor() {
                   {mcChords.map((ch, idx) => (
                     <div key={idx} className="relative group shrink-0">
                       <ChordVisualizer
-                        instrument={currentInstrument}
+                        instrument={mcPlaygroundInstrument}
                         chordNotes={ch.notes}
                         root={ch.root}
                         type={ch.typeId}
@@ -1006,164 +1286,414 @@ export default function AreaProfessor() {
         {/* SCROLL CONTENT */}
         <div className="flex-1 overflow-auto pb-24 scrollbar-hide">
           <div className="px-4 py-5 space-y-5">
-
-            {/* Resumo do Dia Card */}
-            <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] transform rotate-1">
-              <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[9px] uppercase border-l-4 border-b-4 border-black">
-                MASTER_INSTRUCTOR
-              </div>
-              
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-1">&gt;&gt; INSTRUCTOR_STATS</p>
-              <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 truncate text-ellipsis overflow-hidden">
-                {professorData?.nome || 'INSTRUTOR'}
-              </h2>
-              
-              <div className="space-y-3 mb-5">
-                <div className="flex justify-between items-center text-[10px] font-black text-black">
-                  <span>LEVEL {nivel}</span>
-                  <span>XP: {xp.toLocaleString()} / {xpMax.toLocaleString()}</span>
-                </div>
-                <div className="h-5 bg-black p-1 border-4 border-black overflow-hidden">
-                  <div className="h-full bg-[#ff6b00] transition-all duration-1000 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]" style={{ width: `${xpPct}%` }}></div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
-                  <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">AULAS HOJE</p>
-                  <span className="text-black font-black text-2xl italic leading-none">
-                    {String(aulasHoje.length).padStart(2, '0')}
-                  </span>
-                </div>
-                <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
-                  <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">XP ACUMULADO</p>
-                  <p className="text-[#ff6b00] font-black text-xl italic leading-none">+{xp} XP</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Widget de Saldo do Mestre */}
-            <div className="p-5 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000] transform -rotate-1">
-              <h3 className="text-white font-black text-[9px] uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span className="text-[#ff6b00]">💳</span> MEU SALDO DE REMUNERAÇÃO
-              </h3>
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-[#ff6b00] font-black text-3xl italic">
-                    R$ {Number(professorData?.saldo || 0).toFixed(2)}
-                  </p>
-                  <p className="text-white/60 font-bold text-[8px] uppercase tracking-widest mt-1">
-                    TAXA/AULA DEFINIDA: R$ {Number(professorData?.valor_aula || 0).toFixed(2)}
-                  </p>
-                </div>
-                <div className="bg-[#ff6b00] text-black font-black text-[8px] px-2 py-1 rounded border border-black animate-pulse">
-                  SALDO REAL ⚡
-                </div>
-              </div>
-            </div>
-
-            {/* Criar Aula Avulsa - Musiclass Fiel */}
-            <div className="p-1">
-              <button
-                onClick={openCreateModal}
-                className="w-full bg-[#ff6b00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 hover:bg-[#ff8c3a]"
-              >
-                ⚔️ REGISTRAR NOVA AULA MUSICLASS
-              </button>
-            </div>
-
-            {/* Agenda do Dia */}
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-black text-xs uppercase tracking-widest">AGENDA_DE_HOJE</h3>
-                <span className="bg-[#feccba] border-2 border-black text-black font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#000]">
-                  {todayMonth} {todayDay}
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                {aulasHoje.map((aula: any) => {
-                  const isConcluida = aula.status === 'realizada';
-                  const isFalta = aula.status === 'falta_aluno' || aula.status === 'ausente';
-                  const isPendente = !isConcluida && !isFalta;
+            {activeProfessorTab === 'home' && (
+              <>
+                {/* Resumo do Dia Card */}
+                <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] transform rotate-1">
+                  <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[9px] uppercase border-l-4 border-b-4 border-black">
+                    MASTER_INSTRUCTOR
+                  </div>
                   
-                  return (
-                    <div
-                      key={aula.id}
-                      className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all relative overflow-hidden"
-                    >
-                      {/* Status Badges */}
-                      {isConcluida && (
-                        <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
-                          CONCLUÍDA
-                        </div>
-                      )}
-                      {isFalta && (
-                        <div className="absolute top-0 right-0 px-3 py-1 bg-red-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
-                          FALTA
-                        </div>
-                      )}
-                      {isPendente && (
-                        <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black animate-pulse">
-                          AGUARDANDO
-                        </div>
-                      )}
+                  <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-1">&gt;&gt; INSTRUCTOR_STATS</p>
+                  <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 truncate text-ellipsis overflow-hidden">
+                    {professorData?.nome || 'INSTRUTOR'}
+                  </h2>
+                  
+                  <div className="space-y-3 mb-5">
+                    <div className="flex justify-between items-center text-[10px] font-black text-black">
+                      <span>LEVEL {nivel}</span>
+                      <span>XP: {xp.toLocaleString()} / {xpMax.toLocaleString()}</span>
+                    </div>
+                    <div className="h-5 bg-black p-1 border-4 border-black overflow-hidden">
+                      <div className="h-full bg-[#ff6b00] transition-all duration-1000 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]" style={{ width: `${xpPct}%` }}></div>
+                    </div>
+                  </div>
 
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-[#feccba] border-4 border-black text-black flex items-center justify-center shrink-0">
-                          <span className="font-black text-xl">♪</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
+                      <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">AULAS HOJE</p>
+                      <span className="text-black font-black text-2xl italic leading-none">
+                        {String(aulasHoje.length).padStart(2, '0')}
+                      </span>
+                    </div>
+                    <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
+                      <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">XP ACUMULADO</p>
+                      <p className="text-[#ff6b00] font-black text-xl italic leading-none">+{xp} XP</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Widget de Saldo do Mestre */}
+                <div className="p-5 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000] transform -rotate-1">
+                  <h3 className="text-white font-black text-[9px] uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <span className="text-[#ff6b00]">💳</span> MEU SALDO DE REMUNERAÇÃO
+                  </h3>
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-[#ff6b00] font-black text-3xl italic">
+                        R$ {Number(professorData?.saldo || 0).toFixed(2)}
+                      </p>
+                      <p className="text-white/60 font-bold text-[8px] uppercase tracking-widest mt-1">
+                        TAXA/AULA DEFINIDA: R$ {Number(professorData?.valor_aula || 0).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="bg-[#ff6b00] text-black font-black text-[8px] px-2 py-1 rounded border border-black animate-pulse">
+                      SALDO REAL ⚡
+                    </div>
+                  </div>
+                </div>
+
+                {/* Criar Aula Avulsa - Musiclass Fiel */}
+                <div className="p-1">
+                  <button
+                    onClick={openCreateModal}
+                    className="w-full bg-[#ff6b00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 hover:bg-[#ff8c3a]"
+                  >
+                    ⚔️ REGISTRAR NOVA AULA MUSICLASS
+                  </button>
+                </div>
+
+                {/* Agenda do Dia */}
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-white font-black text-xs uppercase tracking-widest">AGENDA_DE_HOJE</h3>
+                    <span className="bg-[#feccba] border-2 border-black text-black font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#000]">
+                      {todayMonth} {todayDay}
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {aulasHoje.map((aula: any) => {
+                      const isConcluida = aula.status === 'realizada';
+                      const isFalta = aula.status === 'falta_aluno' || aula.status === 'ausente';
+                      const isPendente = !isConcluida && !isFalta;
+                      
+                      return (
+                        <div
+                          key={aula.id}
+                          className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all relative overflow-hidden"
+                        >
+                          {/* Status Badges */}
+                          {isConcluida && (
+                            <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
+                              CONCLUÍDA
+                            </div>
+                          )}
+                          {isFalta && (
+                            <div className="absolute top-0 right-0 px-3 py-1 bg-red-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
+                              FALTA
+                            </div>
+                          )}
+                          {isPendente && (
+                            <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black animate-pulse">
+                              AGUARDANDO
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-[#feccba] border-4 border-black text-black flex items-center justify-center shrink-0">
+                              <span className="font-black text-xl">♪</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> {aula.horario?.substring(0, 5)}
+                              </p>
+                              <h4 className="text-black font-black text-base uppercase italic leading-none my-1 truncate text-ellipsis overflow-hidden">
+                                {aula.nome || aula.aluno_nome || 'ALUNO NÃO VINCULADO'}
+                              </h4>
+                              <p className="text-black/50 font-black text-[8px] uppercase">
+                                {aula.curso_nome || 'CURSO REGULAR'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Botão de Registro / Criação de Aula */}
+                          <div className="mt-4 border-t-2 border-black/10 pt-3 flex justify-between items-center">
+                            <span className="text-[8px] font-black text-black/40 uppercase">
+                              XP ALUNO: +{aula.xp_ganho || 50} XP
+                            </span>
+                            
+                            <button
+                              onClick={() => openRegistroModal(aula)}
+                              className="bg-[#ff6b00] text-white px-3 py-2 border-2 border-black font-black uppercase text-[8px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
+                            >
+                              <BookOpen className="w-3 h-3" /> 
+                              {isConcluida ? 'VER_DIARIO' : 'REGISTRAR_AULA'}
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {aula.horario?.substring(0, 5)}
-                          </p>
-                          <h4 className="text-black font-black text-base uppercase italic leading-none my-1 truncate text-ellipsis overflow-hidden">
-                            {aula.nome || aula.aluno_nome || 'ALUNO NÃO VINCULADO'}
-                          </h4>
-                          <p className="text-black/50 font-black text-[8px] uppercase">
-                            {aula.curso_nome || 'CURSO REGULAR'}
-                          </p>
+                      );
+                    })}
+
+                    {aulasHoje.length === 0 && (
+                      <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
+                        <p className="text-[#8e7164] font-black text-[10px] uppercase italic">
+                          &gt;&gt; NENHUMA_AULA_AGENDADA_HOJE
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Banner Decorativo */}
+                <div className="bg-[#feccba] border-8 border-black p-6 rounded-none text-center transform -rotate-1 shadow-[8px_8px_0_#000]">
+                  <div className="w-12 h-12 bg-black text-[#ff6b00] rounded-none border-4 border-black flex items-center justify-center mx-auto mb-3 shadow-[4px_4px_0_#000]">
+                    <Sparkles className="w-6 h-6 text-[#ff6b00]" />
+                  </div>
+                  <h3 className="font-black text-black text-sm uppercase italic">DIÁRIO MUSICLASS ⚡</h3>
+                  <p className="text-[#8e7164] font-bold text-[9px] uppercase tracking-wider mt-2">
+                    Envie feedbacks das aulas, crie desafios e anexe mídias na hora. Tudo vai direto para a Área do Aluno!
+                  </p>
+                </div>
+              </>
+            )}
+
+            {activeProfessorTab === 'alunos' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="bg-[#feccba] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+                  <h3 className="text-black font-black text-xs uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <span>🔍</span> BUSCAR ALUNO
+                  </h3>
+                  <input
+                    type="text"
+                    placeholder="DIGITE O NOME DO ALUNO..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/35 focus:outline-none"
+                  />
+                </div>
+                
+                <div className="space-y-4">
+                  {alunosList
+                    .filter(aluno => (aluno.nome || '').toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map(aluno => (
+                      <div key={aluno.id} className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative overflow-hidden">
+                        <div className="absolute top-0 right-0 px-2 py-0.5 bg-black text-[#feccba] font-black text-[7px] border-l-2 border-b-2 border-black uppercase">
+                          {aluno.curso_ativo || 'MÚSICA'}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 border-4 border-black bg-[#ff6b00] text-white font-black text-lg flex items-center justify-center shadow-[2px_2px_0_#000]">
+                            {aluno.nome.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h4 className="text-black font-black text-sm uppercase italic">{aluno.nome}</h4>
+                            <p className="text-[#8e7164] font-bold text-[7px] uppercase mt-0.5">
+                              XP: {aluno.xp || 0} • LEVEL {aluno.nivel || 1}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 pt-3 border-t-2 border-black/10 flex justify-between items-center">
+                          <span className="text-[7px] font-mono text-[#8e7164] uppercase truncate max-w-[150px]">
+                            {aluno.email}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setNewAulaAlunoId(aluno.id);
+                              setNewAulaCurso(aluno.curso_ativo || 'Piano');
+                              openCreateModal();
+                            }}
+                            className="bg-[#ff6b00] text-white px-2 py-1.5 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> AULA AVULSA
+                          </button>
                         </div>
                       </div>
+                    ))
+                  }
+                  {alunosList.filter(aluno => (aluno.nome || '').toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                    <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
+                      <p className="text-[#8e7164] font-black text-[10px] uppercase italic">
+                        &gt;&gt; NENHUM ALUNO ENCONTRADO
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-                      {/* Botão de Registro / Criação de Aula */}
-                      <div className="mt-4 border-t-2 border-black/10 pt-3 flex justify-between items-center">
-                        <span className="text-[8px] font-black text-black/40 uppercase">
-                          XP ALUNO: +{aula.xp_ganho || 50} XP
-                        </span>
-                        
-                        <button
-                          onClick={() => openRegistroModal(aula)}
-                          className="bg-[#ff6b00] text-white px-3 py-2 border-2 border-black font-black uppercase text-[8px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
+            {activeProfessorTab === 'agenda' && (
+              <div className="space-y-4 animate-fade-in">
+                {/* Filtros de Status */}
+                <div className="flex border-4 border-black bg-black p-1 gap-1 overflow-x-auto scrollbar-hide">
+                  {([
+                    { id: 'todas', label: '🗂️ TODAS' },
+                    { id: 'pendente', label: '⏳ PENDENTES' },
+                    { id: 'realizada', label: '✅ REALIZADAS' },
+                    { id: 'falta_aluno', label: '❌ FALTAS' }
+                  ] as const).map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setFilterAgendaStatus(filter.id)}
+                      className={`flex-1 py-1.5 px-2 font-black text-[8px] uppercase tracking-wider text-center transition-all shrink-0 ${
+                        filterAgendaStatus === filter.id
+                          ? 'bg-[#ff6b00] text-white'
+                          : 'bg-[#261812] text-[#feccba] hover:bg-stone-800'
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Lista de Aulas */}
+                <div className="space-y-3">
+                  {agendaCompleta
+                    .filter((aula: any) => {
+                      if (filterAgendaStatus === 'todas') return true;
+                      if (filterAgendaStatus === 'pendente') return aula.status !== 'realizada' && aula.status !== 'falta_aluno' && aula.status !== 'ausente';
+                      if (filterAgendaStatus === 'realizada') return aula.status === 'realizada';
+                      if (filterAgendaStatus === 'falta_aluno') return aula.status === 'falta_aluno' || aula.status === 'ausente';
+                      return true;
+                    })
+                    .map((aula: any) => {
+                      const isConcluida = aula.status === 'realizada';
+                      const isFalta = aula.status === 'falta_aluno' || aula.status === 'ausente';
+                      const isPendente = !isConcluida && !isFalta;
+                      
+                      // Formatar data bonitinha
+                      let formattedDate = aula.data;
+                      try {
+                        const dateParts = aula.data.split('-');
+                        const d = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
+                        formattedDate = format(d, "dd/MM/yyyy (EEE)", { locale: ptBR }).toUpperCase();
+                      } catch (e) {}
+
+                      return (
+                        <div
+                          key={aula.id}
+                          className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative overflow-hidden"
                         >
-                          <BookOpen className="w-3 h-3" /> 
-                          {isConcluida ? 'VER_DIARIO' : 'REGISTRAR_AULA'}
-                        </button>
+                          {/* Status Badges */}
+                          {isConcluida && (
+                            <div className="absolute top-0 right-0 px-2 py-0.5 bg-emerald-500 text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black">
+                              REALIZADA
+                            </div>
+                          )}
+                          {isFalta && (
+                            <div className="absolute top-0 right-0 px-2 py-0.5 bg-red-500 text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black">
+                              FALTA
+                            </div>
+                          )}
+                          {isPendente && (
+                            <div className="absolute top-0 right-0 px-2 py-0.5 bg-[#ff6b00] text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black animate-pulse">
+                              AGUARDANDO
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-[#feccba] border-4 border-black text-black flex items-center justify-center shrink-0">
+                              <span className="font-black text-lg">♪</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[#ff6b00] font-black text-[8px] uppercase tracking-wider flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5" /> {formattedDate} @ {aula.horario?.substring(0, 5)}
+                              </p>
+                              <h4 className="text-black font-black text-sm uppercase italic leading-none my-1 truncate">
+                                {aula.nome || aula.aluno_nome || 'ALUNO'}
+                              </h4>
+                              <p className="text-black/50 font-black text-[7px] uppercase">
+                                {aula.curso_nome || 'INSTRUMENTO'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-3 border-t-2 border-black/10 flex justify-between items-center">
+                            <span className="text-[7px] font-black text-black/40 uppercase">
+                              XP: +{aula.xp_ganho || 50} XP
+                            </span>
+                            
+                            <button
+                              onClick={() => openRegistroModal(aula)}
+                              className="bg-[#ff6b00] text-white px-2.5 py-1.5 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
+                            >
+                              <BookOpen className="w-3 h-3" /> 
+                              {isConcluida ? 'VER_DIARIO' : 'REGISTRAR_AULA'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
+                  
+                  {agendaCompleta.length === 0 && (
+                    <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
+                      <p className="text-[#8e7164] font-black text-[10px] uppercase italic">
+                        &gt;&gt; NENHUMA AULA CADASTRADA NA AGENDA
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeProfessorTab === 'perfil' && (
+              <div className="space-y-5 animate-fade-in">
+                {/* Card Principal de Cadastro */}
+                <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000]">
+                  <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[8px] uppercase border-l-4 border-b-4 border-black">
+                    PERFIL DO MEBRO
+                  </div>
+                  
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-14 h-14 rounded-none border-4 border-black overflow-hidden bg-[#ff6b00] shadow-[4px_4px_0_#000] flex-shrink-0">
+                      <div className="w-full h-full flex items-center justify-center text-white font-black text-2xl">
+                        {(professorData?.nome || 'P').charAt(0).toUpperCase()}
                       </div>
                     </div>
-                  );
-                })}
-
-                {aulasHoje.length === 0 && (
-                  <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
-                    <p className="text-[#8e7164] font-black text-[10px] uppercase italic">
-                      &gt;&gt; NENHUMA_AULA_AGENDADA_HOJE
-                    </p>
+                    <div className="min-w-0">
+                      <h2 className="text-black font-black text-xl uppercase italic leading-none truncate">
+                        {professorData?.nome || 'INSTRUTOR'}
+                      </h2>
+                      <p className="text-[#8e7164] font-mono text-[8px] mt-1 truncate">
+                        {professorData?.email}
+                      </p>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
 
-            {/* Banner Decorativo */}
-            <div className="bg-[#feccba] border-8 border-black p-6 rounded-none text-center transform -rotate-1 shadow-[8px_8px_0_#000]">
-              <div className="w-12 h-12 bg-black text-[#ff6b00] rounded-none border-4 border-black flex items-center justify-center mx-auto mb-3 shadow-[4px_4px_0_#000]">
-                <Sparkles className="w-6 h-6 text-[#ff6b00]" />
+                  {/* Estatísticas e XP do Professor */}
+                  <div className="space-y-3 border-t-4 border-black pt-4">
+                    <div className="flex justify-between items-center text-[10px] font-black text-black">
+                      <span>MEU PROGRESSO - LEVEL {nivel}</span>
+                      <span>{xp.toLocaleString()} / {xpMax.toLocaleString()} XP</span>
+                    </div>
+                    <div className="h-5 bg-black p-1 border-4 border-black overflow-hidden">
+                      <div className="h-full bg-[#ff6b00] transition-all duration-1000 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]" style={{ width: `${xpPct}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bloco de Informações Financeiras */}
+                <div className="p-6 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000] text-white">
+                  <h3 className="font-black text-[9px] uppercase tracking-widest text-[#ff6b00] mb-4 flex items-center gap-2">
+                    <span>⚡</span> MINHAS INFORMAÇÕES FINANCEIRAS
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <span className="text-white/60 font-black text-[7px] uppercase tracking-widest block">VALOR POR AULA MINISTRADA</span>
+                      <p className="font-black text-xl text-white">
+                        R$ {Number(professorData?.valor_aula || 0).toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-white/60 font-black text-[7px] uppercase tracking-widest block">SALDO ACUMULADO DISPONÍVEL</span>
+                      <p className="font-black text-3xl text-[#ff6b00] italic">
+                        R$ {Number(professorData?.saldo || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botão Logout Vermelho Gigante */}
+                <button
+                  onClick={logout}
+                  className="w-full bg-[#ff3333] hover:bg-red-700 text-white py-4 border-8 border-black font-black uppercase text-sm shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3"
+                >
+                  <LogOut className="w-5 h-5" /> SAIR DA MINHA CONTA
+                </button>
               </div>
-              <h3 className="font-black text-black text-sm uppercase italic">DIÁRIO MUSICLASS ⚡</h3>
-              <p className="text-[#8e7164] font-bold text-[9px] uppercase tracking-wider mt-2">
-                Envie feedbacks das aulas, crie desafios e anexe mídias na hora. Tudo vai direto para a Área do Aluno!
-              </p>
-            </div>
+            )}
 
           </div>
         </div>
@@ -1171,18 +1701,25 @@ export default function AreaProfessor() {
         {/* BOTTOM NAV */}
         <nav className="absolute bottom-0 left-0 right-0 h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-40">
           {[
-            { icon: Home, label: 'HOME', active: true },
-            { icon: Users, label: 'ALUNOS' },
-            { icon: Calendar, label: 'AGENDA' },
-            { icon: User, label: 'PERFIL' },
-          ].map((item, i) => (
-            <button key={i} className={`flex flex-col items-center gap-1 transition-all ${item.active ? 'translate-y-[-4px]' : 'opacity-50'}`}>
-              <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${item.active ? 'bg-[#ff6b00]' : 'bg-white'}`}>
-                <item.icon className={`w-5 h-5 ${item.active ? 'text-white' : 'text-black'}`} />
-              </div>
-              <span className="text-[6px] font-black text-white uppercase tracking-tighter">{item.label}</span>
-            </button>
-          ))}
+            { id: 'home', icon: Home, label: 'HOME' },
+            { id: 'alunos', icon: Users, label: 'ALUNOS' },
+            { id: 'agenda', icon: Calendar, label: 'AGENDA' },
+            { id: 'perfil', icon: User, label: 'PERFIL' },
+          ].map((item, i) => {
+            const isActive = activeProfessorTab === item.id;
+            return (
+              <button 
+                key={i} 
+                onClick={() => setActiveProfessorTab(item.id as any)}
+                className={`flex flex-col items-center gap-1 transition-all ${isActive ? 'translate-y-[-4px]' : 'opacity-50 hover:opacity-80'}`}
+              >
+                <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${isActive ? 'bg-[#ff6b00]' : 'bg-white'}`}>
+                  <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-black'}`} />
+                </div>
+                <span className="text-[6px] font-black text-white uppercase tracking-tighter">{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
       </div>
 

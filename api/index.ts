@@ -537,7 +537,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.post('/api/aulas', async (req, res) => {
+    app.post('/api/aulas', async (req: any, res) => {
         try {
             const { aluno_id, data, horario, horario_fim, curso_nome, status, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
             
@@ -547,7 +547,7 @@ async function startServer() {
             
             const { data: prof, error: profErr } = await supabase.from('professores')
                 .select('*')
-                .eq('email', req.user.email)
+                .ilike('email', req.user.email)
                 .maybeSingle();
                 
             if (profErr || !prof) {
@@ -1080,14 +1080,14 @@ async function startServer() {
     });
 
     // Professores
-    app.get('/api/professores/me', async (req, res) => {
+    app.get('/api/professores/me', async (req: any, res) => {
         try {
             if (!req.user) {
                 return res.status(401).json({ error: 'Não autorizado' });
             }
             const { data: prof, error } = await supabase.from('professores')
                 .select('*')
-                .eq('email', req.user.email)
+                .ilike('email', req.user.email)
                 .maybeSingle();
             
             if (error) throw error;
@@ -1426,7 +1426,7 @@ async function startServer() {
     });
 
     // Agenda / Aulas (Unificando regulares e experimentais)
-    app.get('/api/agenda', async (req, res) => {
+    app.get('/api/agenda', async (req: any, res) => {
         try {
             const start = (req.query.start || req.query.date) as string;
             const end = (req.query.end || req.query.date) as string;
@@ -1435,7 +1435,7 @@ async function startServer() {
 
             let filterProfId = req.query.professor_id as string;
             if (req.user && req.user.role === 'professor') {
-                const { data: prof } = await supabase.from('professores').select('id').eq('email', req.user.email).single();
+                const { data: prof } = await supabase.from('professores').select('id').ilike('email', req.user.email).single();
                 if (prof) {
                     filterProfId = String(prof.id);
                 } else {
