@@ -487,7 +487,7 @@ async function startServer() {
             const { 
                 nome, email, telefone, cpf, endereco, 
                 responsavel_nome, responsavel_telefone, 
-                curso_id 
+                curso_id, valor_parcela, valor_com_desconto, dia_vencimento
             } = req.body;
             
             console.log(`[ALUNO_UPDATE_API] ID: ${studentId}`, { nome, curso_id });
@@ -509,16 +509,20 @@ async function startServer() {
             }
 
             // 4. Atualizar Matrícula Ativa
-            if (curso_id) {
+            const matriculaUpdate: any = {};
+            if (curso_id) matriculaUpdate.curso_id = Number(curso_id);
+            if (valor_parcela !== undefined) matriculaUpdate.valor_parcela = valor_parcela === null || valor_parcela === '' ? null : Number(valor_parcela);
+            if (valor_com_desconto !== undefined) matriculaUpdate.valor_com_desconto = valor_com_desconto === null || valor_com_desconto === '' ? null : Number(valor_com_desconto);
+            if (dia_vencimento !== undefined) matriculaUpdate.dia_vencimento = dia_vencimento === null || dia_vencimento === '' ? null : Number(dia_vencimento);
+
+            if (Object.keys(matriculaUpdate).length > 0) {
                 await supabase.from('matriculas')
-                    .update({ curso_id: Number(curso_id) })
+                    .update(matriculaUpdate)
                     .eq('aluno_id', Number(studentId))
                     .eq('status', 'ativa');
             }
 
             return res.json({ success: true, message: 'Dados sincronizados com sucesso' });
-
-            res.json({ success: true, version: '1.6' });
         } catch (error: any) {
             console.error('[API_FATAL_ERROR]:', error);
             res.status(500).json({ error: error.message, stage: 'fatal' });
@@ -608,7 +612,7 @@ async function startServer() {
     // Alunos + Matrícula
     app.get('/api/alunos', async (req, res) => {
         const { status } = req.query;
-        let query = supabase.from('alunos').select('*, matriculas(*), aulas(status)').order('nome');
+        let query = supabase.from('alunos').select('*, matriculas(*, cursos(nome)), aulas(status)').order('nome');
         
         if (status === 'arquivado') {
             query = query.eq('status', 'arquivado');
@@ -660,7 +664,7 @@ async function startServer() {
                 aluno_id: aluno.id, 
                 curso_id, 
                 professor_id, 
-                dia_semana: dia_semana ? new Date(dia_semana).getDay() : null,
+                dia_semana: dia_semana ? new Date(dia_semana + 'T12:00:00').getDay() : null,
                 horario, 
                 sala_id, 
                 pacote_id,
@@ -1189,17 +1193,49 @@ async function startServer() {
             const now = new Date();
             const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
             
-            // Só somar pagamentos de alunos ativos
+            // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
             const { data: pags, error } = await supabase.from('pagamentos')
-                .select('valor, status, tipo_receita, aluno:aluno_id!inner(status)')
+                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
                 .eq('referencia_mes_ano', mesRef)
                 .neq('aluno.status', 'arquivado');
             
             if (error) throw error;
 
-            const faturamentoPrevisto = pags?.reduce((acc, p) => acc + Number(p.valor), 0) || 0;
-            const receitaMes = pags?.filter(p => p.status === 'pago').reduce((a, c) => a + Number(c.valor), 0) || 0;
-            const pendentes = pags?.filter(p => p.status === 'pendente').reduce((a, c) => a + Number(c.valor), 0) || 0;
+            let faturamentoPrevisto = 0;
+            let receitaMes = 0;
+            let pendentes = 0;
+
+            if (pags) {
+                for (const p of pags) {
+                    let valorEfetivo = Number(p.valor);
+                    
+                    if (p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
+                        const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
+                        const matriculas = alunoObj?.matriculas;
+                        let matriculaAlvo: any = null;
+                        
+                        if (Array.isArray(matriculas) && matriculas.length > 0) {
+                            if (p.matricula_id) {
+                                matriculaAlvo = matriculas.find((m: any) => String(m.id) === String(p.matricula_id));
+                            }
+                            if (!matriculaAlvo) {
+                                matriculaAlvo = matriculas.find((m: any) => m.status === 'ativa');
+                            }
+                        }
+                        
+                        if (matriculaAlvo && matriculaAlvo.valor_com_desconto !== null && matriculaAlvo.valor_com_desconto !== undefined && Number(matriculaAlvo.valor_com_desconto) > 0) {
+                            valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
+                        }
+                    }
+
+                    if (p.status === 'pago') {
+                        receitaMes += Number(p.valor);
+                    } else {
+                        pendentes += valorEfetivo;
+                    }
+                    faturamentoPrevisto += (p.status === 'pago' ? Number(p.valor) : valorEfetivo);
+                }
+            }
             
             res.json({ 
                 faturamentoPrevisto, 
@@ -1460,7 +1496,8 @@ async function startServer() {
         try {
             const pdfBuffer = fs.readFileSync(req.file.path);
             // Import dinâmico para não crashar no startup da Vercel
-            const pdfParse = (await import('pdf-parse')).default;
+            const pdfParseModule: any = await import('pdf-parse');
+            const pdfParse = pdfParseModule.default || pdfParseModule;
             const pdfData = await pdfParse(pdfBuffer);
             const text = pdfData.text;
             

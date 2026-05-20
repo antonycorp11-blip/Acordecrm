@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Bell, LayoutGrid, List, Trophy, Star, Zap, Target, Plus, X, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { motion } from 'motion/react';
 
 type ViewMode = 'cards' | 'lista';
 

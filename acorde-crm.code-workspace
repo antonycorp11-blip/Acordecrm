@@ -1,0 +1,35 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../stitch_harmonia_music_crm"
+		},
+		{
+			"path": "../stitch_harmonia_music_crm 2/music_school_crm"
+		},
+		{
+			"path": "../stitch_harmonia_music_crm 2/rea_do_professor_mobile"
+		},
+		{
+			"path": "../stitch_harmonia_music_crm 2/ranking_lista_e_cards_sidebar_minimizada"
+		},
+		{
+			"path": "../stitch_harmonia_music_crm 2/rea_do_aluno_mobile"
+		},
+		{
+			"path": "../stitch_harmonia_music_crm 2/ranking_estilo_8_bit_dark_maximalista"
+		},
+		{
+			"path": "../stitch_harmonia_music_crm 2/agenda_estilo_8_bit_dark_maximalista"
+		},
+		{
+			"path": "../stitch_harmonia_music_crm 2/dashboard_estilo_8_bit_dark_maximalista"
+		},
+		{
+			"path": "../stitch_acorde_crm"
+		}
+	],
+	"settings": {}
+}

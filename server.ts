@@ -1155,17 +1155,49 @@ async function startServer() {
             const now = new Date();
             const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
             
-            // Só somar pagamentos de alunos ativos
+            // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
             const { data: pags, error } = await supabase.from('pagamentos')
-                .select('valor, status, tipo_receita, aluno:aluno_id!inner(status)')
+                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
                 .eq('referencia_mes_ano', mesRef)
                 .neq('aluno.status', 'arquivado');
             
             if (error) throw error;
 
-            const faturamentoPrevisto = pags?.reduce((acc, p) => acc + Number(p.valor), 0) || 0;
-            const receitaMes = pags?.filter(p => p.status === 'pago').reduce((a, c) => a + Number(c.valor), 0) || 0;
-            const pendentes = pags?.filter(p => p.status === 'pendente').reduce((a, c) => a + Number(c.valor), 0) || 0;
+            let faturamentoPrevisto = 0;
+            let receitaMes = 0;
+            let pendentes = 0;
+
+            if (pags) {
+                for (const p of pags) {
+                    let valorEfetivo = Number(p.valor);
+                    
+                    if (p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
+                        const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
+                        const matriculas = alunoObj?.matriculas;
+                        let matriculaAlvo: any = null;
+                        
+                        if (Array.isArray(matriculas) && matriculas.length > 0) {
+                            if (p.matricula_id) {
+                                matriculaAlvo = matriculas.find((m: any) => String(m.id) === String(p.matricula_id));
+                            }
+                            if (!matriculaAlvo) {
+                                matriculaAlvo = matriculas.find((m: any) => m.status === 'ativa');
+                            }
+                        }
+                        
+                        if (matriculaAlvo && matriculaAlvo.valor_com_desconto !== null && matriculaAlvo.valor_com_desconto !== undefined && Number(matriculaAlvo.valor_com_desconto) > 0) {
+                            valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
+                        }
+                    }
+
+                    if (p.status === 'pago') {
+                        receitaMes += Number(p.valor);
+                    } else {
+                        pendentes += valorEfetivo;
+                    }
+                    faturamentoPrevisto += (p.status === 'pago' ? Number(p.valor) : valorEfetivo);
+                }
+            }
             
             res.json({ 
                 faturamentoPrevisto, 
@@ -1392,7 +1424,8 @@ async function startServer() {
         try {
             const pdfBuffer = fs.readFileSync(req.file.path);
             // Import dinâmico para não crashar no startup da Vercel
-            const pdfParse = (await import('pdf-parse')).default;
+            const pdfParseModule: any = await import('pdf-parse');
+            const pdfParse = pdfParseModule.default || pdfParseModule;
             const pdfData = await pdfParse(pdfBuffer);
             const text = pdfData.text;
             

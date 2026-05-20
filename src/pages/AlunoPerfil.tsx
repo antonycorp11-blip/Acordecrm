@@ -33,8 +33,8 @@ import { toast } from 'sonner';
 
 // --- STITCH COMPONENTS ---
 
-const Card = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => (
-  <div className={`bg-[#fff8f6] border-4 border-black shadow-[4px_4px_0_#000] p-6 ${className}`}>
+const Card = ({ children, className = "", ...props }: { children: React.ReactNode, className?: string } & React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={`bg-[#fff8f6] border-4 border-black shadow-[4px_4px_0_#000] p-6 ${className}`} {...props}>
     {children}
   </div>
 );
@@ -127,9 +127,7 @@ function ProgressTracker({ aulas, total }: { aulas: any[], total: number }) {
       </div>
     </Card>
   );
-}
-
-function FinanceiroTracker({ financeiro, total }: { financeiro: any[], total: number }) {
+}function FinanceiroTracker({ financeiro, total }: { financeiro: any[], total: number }) {
   const totalSquares = total || 12;
   const getStatusColor = (status: string) => {
     const s = status?.toLowerCase();
@@ -139,7 +137,39 @@ function FinanceiroTracker({ financeiro, total }: { financeiro: any[], total: nu
     return 'bg-[#e2bfb0]';
   };
 
-  const sortedFinanceiro = [...financeiro].sort((a, b) => new Date((a.data_vencimento || '2099-12-31') + 'T12:00:00').getTime() - new Date((b.data_vencimento || '2099-12-31') + 'T12:00:00').getTime());
+  // Se o número de faturas reais no banco for menor do que o total contratado,
+  // significa que a diferença foi paga no sistema antigo (legado Emusys)
+  const legacyPaidCount = Math.max(0, totalSquares - financeiro.length);
+  
+  const displayFaturas: any[] = [];
+  
+  // 1. Adiciona as parcelas legadas como PAGAS
+  for (let i = 0; i < legacyPaidCount; i++) {
+    displayFaturas.push({
+      id: `legacy-${i}`,
+      status: 'pago',
+      tipo_receita: 'mensalidade',
+      referencia_mes_ano: 'Histórico Emusys',
+      data_vencimento: null
+    });
+  }
+  
+  // 2. Ordena as faturas reais do banco e adiciona na lista
+  const sortedReal = [...financeiro].sort((a, b) => new Date((a.data_vencimento || '2099-12-31') + 'T12:00:00').getTime() - new Date((b.data_vencimento || '2099-12-31') + 'T12:00:00').getTime());
+  displayFaturas.push(...sortedReal);
+
+  // Garante que o array tenha exatamente totalSquares elementos para renderizar todos os quadradinhos
+  while (displayFaturas.length < totalSquares) {
+    displayFaturas.push({
+      id: `dummy-${displayFaturas.length}`,
+      status: 'pendente',
+      tipo_receita: 'mensalidade',
+      referencia_mes_ano: 'Não Gerada',
+      data_vencimento: null
+    });
+  }
+
+  const pagasCount = displayFaturas.filter(f => f.status === 'pago').length;
 
   return (
     <Card className="mb-8">
@@ -147,26 +177,23 @@ function FinanceiroTracker({ financeiro, total }: { financeiro: any[], total: nu
         <div>
           <h3 className="text-[10px] font-black text-[#8e7164] uppercase tracking-[0.2em] mb-1">STATUS_FINANCEIRO</h3>
           <p className="text-xl font-black text-black uppercase italic">
-            {financeiro.filter(f => f.status?.toLowerCase() === 'pago').length}/{totalSquares} PARCELAS PAGAS
+            {pagasCount}/{totalSquares} PARCELAS PAGAS
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-2">
-        {Array.from({ length: totalSquares }).map((_, idx) => {
-          const fatura = sortedFinanceiro[idx];
+        {displayFaturas.slice(0, totalSquares).map((fatura, idx) => {
           const status = fatura?.status;
           return (
             <div key={idx} className="group relative">
               <div className={`aspect-square border-2 border-black shadow-[1px_1px_0_#000] flex items-center justify-center transition-transform hover:scale-110 cursor-help ${getStatusColor(status)}`}>
-                {fatura && status === 'pago' && <Check className="w-3 h-3 text-white" />}
-                {fatura && status === 'atrasado' && <XCircle className="w-3 h-3 text-white" />}
+                {status === 'pago' && <Check className="w-3 h-3 text-white" />}
+                {status === 'atrasado' && <XCircle className="w-3 h-3 text-white" />}
               </div>
-              {fatura && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-[8px] font-black uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 z-50 pointer-events-none">
-                  {fatura.referencia_mes_ano || format(new Date((fatura.data_vencimento || '2099-12-31') + 'T12:00:00'), 'MM/yyyy')} - {status}
-                </div>
-              )}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-[8px] font-black uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 z-50 pointer-events-none">
+                {fatura.referencia_mes_ano || (fatura.data_vencimento ? format(new Date(fatura.data_vencimento + 'T12:00:00'), 'MM/yyyy') : '')} - {status}
+              </div>
             </div>
           );
         })}
@@ -177,7 +204,7 @@ function FinanceiroTracker({ financeiro, total }: { financeiro: any[], total: nu
 
 // --- TABS ---
 
-function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], alunoId: string, onRefresh: () => void }) {
+function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas }: { financeiro: any[], alunoId: string, onRefresh: () => void, total_parcelas?: number }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState('');
   const [saving, setSaving] = useState(false);
@@ -235,7 +262,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh }: { financeiro: any[], 
 
   return (
     <div className="space-y-6">
-      <FinanceiroTracker financeiro={financeiro} total={financeiro.length} />
+      <FinanceiroTracker financeiro={financeiro} total={total_parcelas || financeiro.length} />
       
       <Card className="overflow-hidden p-0">
         <div className="p-4 border-b-4 border-black bg-black flex items-center justify-between">
@@ -455,29 +482,26 @@ export default function AlunoPerfil() {
   const handleSaveEdit = async () => {
     const token = localStorage.getItem('acorde_token');
     try {
-      // 1. Atualizar Matrícula (valores financeiros)
-      const { valor_parcela, valor_com_desconto, dia_vencimento, ...alunoData } = editFormData;
-      
-      const { error: errM } = await supabase.from('matriculas')
-        .update({ 
-          valor_parcela: valor_parcela ? Number(valor_parcela) : undefined,
-          valor_com_desconto: valor_com_desconto ? Number(valor_com_desconto) : undefined,
-          dia_vencimento: dia_vencimento ? Number(dia_vencimento) : undefined
-        })
-        .eq('aluno_id', aluno.id)
-        .eq('status', 'ativa');
-
-      if (errM) throw errM;
-
-      // 2. Atualizar Aluno
       const res = await fetch(`/api/alunos/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(alunoData)
+        body: JSON.stringify(editFormData)
       });
 
       if (res.ok) {
-        setAluno({ ...aluno, ...editFormData, matriculas: [{ ...aluno.matriculas?.[0], valor_parcela, valor_com_desconto, dia_vencimento }] });
+        const { valor_parcela, valor_com_desconto, dia_vencimento } = editFormData;
+        setAluno({ 
+          ...aluno, 
+          ...editFormData, 
+          matriculas: [
+            { 
+              ...(aluno.matriculas?.[0] || {}), 
+              valor_parcela: valor_parcela ? Number(valor_parcela) : undefined, 
+              valor_com_desconto: valor_com_desconto ? Number(valor_com_desconto) : undefined, 
+              dia_vencimento: dia_vencimento ? Number(dia_vencimento) : undefined 
+            }
+          ] 
+        });
         setIsEditModalOpen(false);
         toast.success('Perfil atualizado!');
       }
@@ -819,7 +843,7 @@ export default function AlunoPerfil() {
             </motion.div>
           )}
 
-          {activeTab === 'financeiro' && <FinanceiroTab financeiro={financeiro} alunoId={id!} onRefresh={() => {
+          {activeTab === 'financeiro' && <FinanceiroTab financeiro={financeiro} alunoId={id!} total_parcelas={aluno?.matriculas?.[0]?.total_parcelas} onRefresh={() => {
               fetch(`/api/alunos/${id}/financeiro`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` } })
                 .then(r => r.json()).then(setFinanceiro);
           }} />}
