@@ -1123,7 +1123,7 @@ export default function AreaProfessor() {
                       🎸 GRUPO: {groupName}
                     </div>
                     <div className="flex gap-2 overflow-x-auto py-1 scrollbar-thin">
-                      {chords.map((ch, idx) => {
+                      {(chords as any[]).map((ch, idx) => {
                         const globalIdx = mcChords.findIndex(c => c === ch);
                         return (
                           <div key={idx} className="relative group shrink-0 mt-1">
@@ -2759,7 +2759,7 @@ export default function AreaProfessor() {
                         GRUPO: {groupName}
                       </div>
                       <div className="flex flex-wrap gap-4">
-                        {chords.map((ch, idx) => (
+                        {(chords as any[]).map((ch, idx) => (
                           <div key={idx} className="border-2 border-black p-1 bg-white">
                             <ChordVisualizer
                               instrument={mcPlaygroundInstrument}
