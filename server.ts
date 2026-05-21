@@ -405,18 +405,103 @@ async function startServer() {
     app.post('/api/alunos/me/photo', upload.single('photo'), async (req: any, res) => {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         try {
-            // No mundo real, subiria para S3/Supabase Storage. 
-            // Para simplicidade agora, usamos o sistema local de arquivos (multer já salvou).
-            const photoUrl = `/uploads/${req.file.filename}`;
-            
-            const { error } = await supabase
+            const ext = path.extname(req.file.originalname) || '.jpg';
+            const filename = `profiles/${Date.now()}_${req.file.filename}${ext}`;
+            const fileBuffer = fs.readFileSync(req.file.path);
+            const mimeType = req.file.mimetype || 'image/jpeg';
+
+            // 1. Upload para o Supabase Storage (bucket 'uploads')
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
+
+            // Limpa o arquivo temporário
+            try { fs.unlinkSync(req.file.path); } catch {}
+
+            if (uploadError) {
+                console.error('[PROFILE_UPLOAD] Supabase Storage falhou:', uploadError.message);
+                return res.status(500).json({ error: 'Falha ao salvar foto no Storage: ' + uploadError.message });
+            }
+
+            const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+            const photoUrl = publicUrlData?.publicUrl || '';
+
+            const email = (req.user?.email || '').toLowerCase().trim();
+            const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
+
+            // 2. Obter aluno atual
+            const { data: aluno, error: selectErr } = await supabase
+                .from('alunos')
+                .select('id, foto_url')
+                .ilike('email', searchEmail)
+                .single();
+
+            if (selectErr || !aluno) throw new Error('Aluno não encontrado');
+
+            let xpBonusAdded = false;
+            // Primeira foto? (nula, vazia ou contendo placeholder/avatar padrão)
+            const isFirstPhoto = !aluno.foto_url || aluno.foto_url.trim() === '' || aluno.foto_url.includes('placeholder') || aluno.foto_url.includes('avatar') || aluno.foto_url.includes('ui-avatars.com');
+
+            // 3. Atualizar a foto do aluno
+            const { error: updateErr } = await supabase
                 .from('alunos')
                 .update({ foto_url: photoUrl })
-                .ilike('email', req.user.email);
-            
-            if (error) throw error;
-            res.json({ foto_url: photoUrl });
-        } catch (error: any) { res.status(500).json({ error: error.message }); }
+                .eq('id', aluno.id);
+
+            if (updateErr) throw updateErr;
+
+            if (isFirstPhoto) {
+                // Buscar conquista de primeira foto
+                let { data: conquista } = await supabase
+                    .from('gamificacao_conquistas')
+                    .select('*')
+                    .ilike('titulo', 'Primeira Foto de Perfil')
+                    .maybeSingle();
+
+                if (!conquista) {
+                    // Criar conquista de Primeira Foto de Perfil
+                    const { data: novaConquista, error: createErr } = await supabase
+                        .from('gamificacao_conquistas')
+                        .insert([{
+                            titulo: 'Primeira Foto de Perfil',
+                            descricao: 'Subiu sua primeira foto de perfil no Studio Master!',
+                            pontos: 150,
+                            icone: '📸'
+                        }])
+                        .select()
+                        .single();
+                    if (!createErr) conquista = novaConquista;
+                }
+
+                if (conquista) {
+                    // Verificar se o aluno já tem essa conquista
+                    const { data: progressoExistente } = await supabase
+                        .from('gamificacao_progresso')
+                        .select('*')
+                        .eq('aluno_id', aluno.id)
+                        .eq('conquista_id', conquista.id)
+                        .maybeSingle();
+
+                    if (!progressoExistente) {
+                        // Atribuir conquista
+                        const { error: insertErr } = await supabase
+                            .from('gamificacao_progresso')
+                            .insert([{
+                                aluno_id: aluno.id,
+                                conquista_id: conquista.id
+                            }]);
+                        if (!insertErr) {
+                            xpBonusAdded = true;
+                        }
+                    }
+                }
+            }
+
+            res.json({ foto_url: photoUrl, xpBonusAdded });
+        } catch (error: any) { 
+            console.error('Erro no upload de foto do perfil:', error);
+            res.status(500).json({ error: error.message }); 
+        }
     });
 
     app.post('/api/upload', upload.single('file'), (req: any, res) => {
@@ -1603,7 +1688,11 @@ async function startServer() {
     app.post('/api/agenda/:id/pagar', async (req, res) => {
         try {
             const { id } = req.params;
-            const [type, originalId] = id.split('-');
+            let type = 'reg';
+            let originalId = id;
+            if (id.includes('-')) {
+                [type, originalId] = id.split('-');
+            }
             if (type !== 'reg') return res.status(400).json({ error: 'Pagamento disponível apenas para aulas regulares' });
 
             const { data: aula } = await supabase.from('aulas').select('aluno_id, valor_aula').eq('id', originalId).single();
@@ -1639,7 +1728,11 @@ async function startServer() {
     app.patch('/api/agenda/:id', async (req, res) => {
         const { id } = req.params;
         const { data, horario, sala_id, professor_id } = req.body;
-        const [type, originalId] = id.split('-');
+        let type = 'reg';
+        let originalId = id;
+        if (id.includes('-')) {
+            [type, originalId] = id.split('-');
+        }
         const table = type === 'reg' ? 'aulas' : 'aulas_experimentais';
         
         const updatePayload: any = { data, horario };
@@ -1655,7 +1748,11 @@ async function startServer() {
 
     app.delete('/api/agenda/:id', async (req, res) => {
         const { id } = req.params;
-        const [type, originalId] = id.split('-');
+        let type = 'reg';
+        let originalId = id;
+        if (id.includes('-')) {
+            [type, originalId] = id.split('-');
+        }
         const table = type === 'reg' ? 'aulas' : 'aulas_experimentais';
         await supabase.from(table).delete().eq('id', originalId);
         res.json({ success: true });
