@@ -2263,6 +2263,49 @@ async function startServer() {
         }
     });
 
+    app.post('/api/gamificacao/remover', async (req, res) => {
+        try {
+            const { aluno_id, conquista_id } = req.body;
+            if (!aluno_id || !conquista_id) {
+                return res.status(400).json({ error: 'Parâmetros aluno_id e conquista_id são obrigatórios.' });
+            }
+            const alunoIdNum = Number(aluno_id);
+            const conquistaIdNum = Number(conquista_id);
+            if (isNaN(alunoIdNum) || isNaN(conquistaIdNum)) {
+                return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
+            }
+
+            // Buscar o registro mais recente para deletar apenas uma instância
+            const { data: registros, error: fetchError } = await supabase
+                .from('gamificacao_progresso')
+                .select('id')
+                .eq('aluno_id', alunoIdNum)
+                .eq('conquista_id', conquistaIdNum)
+                .order('id', { ascending: false });
+
+            if (fetchError) throw fetchError;
+
+            if (!registros || registros.length === 0) {
+                return res.status(404).json({ error: 'O aluno não possui esta conquista.' });
+            }
+
+            // Deleta o registro mais recente
+            const registroParaDeletar = registros[0].id;
+
+            const { error: deleteError } = await supabase
+                .from('gamificacao_progresso')
+                .delete()
+                .eq('id', registroParaDeletar);
+
+            if (deleteError) throw deleteError;
+
+            res.json({ success: true });
+        } catch (error: any) {
+            console.error('[GAMIFICACAO_REMOVER] Erro ao remover conquista:', error);
+            res.status(500).json({ error: error.message || 'Erro ao remover conquista' });
+        }
+    });
+
     app.get('/api/gamificacao/solicitacoes', async (req, res) => {
         try {
             const { data, error } = await supabase

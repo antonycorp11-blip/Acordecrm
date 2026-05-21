@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bell, LayoutGrid, List, Trophy, Star, Zap, Target, Plus, X, Save } from 'lucide-react';
+import { Search, Bell, LayoutGrid, List, Trophy, Star, Zap, Target, Plus, X, Save, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
@@ -16,6 +16,9 @@ export default function Ranking() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [assignData, setAssignData] = useState({ aluno_id: '', conquista_id: '' });
 
+  const [selectedAluno, setSelectedAluno] = useState<any | null>(null);
+  const [isAlunoModalOpen, setIsAlunoModalOpen] = useState(false);
+
   const token = localStorage.getItem('acorde_token');
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -26,14 +29,75 @@ export default function Ranking() {
         fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : []),
         fetch('/api/gamificacao/conquistas', { headers }).then(r => r.ok ? r.json() : []),
       ]);
-      setRanking(Array.isArray(resR) ? resR : []);
+      const rankingData = Array.isArray(resR) ? resR : [];
+      setRanking(rankingData);
       setAlunosList(Array.isArray(resA) ? resA : []);
       setConquistasList(Array.isArray(resC) ? resC : []);
+
+      // Atualiza o aluno selecionado se o modal estiver aberto
+      if (selectedAluno) {
+        const atualizado = rankingData.find((a: any) => a.id === selectedAluno.id);
+        if (atualizado) {
+          setSelectedAluno(atualizado);
+        }
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const handleOpenAlunoModal = (aluno: any) => {
+    setSelectedAluno(aluno);
+    setIsAlunoModalOpen(true);
+  };
+
+  const handleRemoverConquista = async (alunoId: number, conquistaId: number, conquistaNome: string) => {
+    if (!confirm(`Tem certeza de que deseja retirar o troféu "${conquistaNome}" deste aluno? O XP correspondente será deduzido automaticamente.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/gamificacao/remover', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ aluno_id: alunoId, conquista_id: conquistaId })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Troféu "${conquistaNome}" removido com sucesso! 🗑️`);
+        
+        // Atualizar o estado do selectedAluno localmente no modal
+        setSelectedAluno((prev: any) => {
+          if (!prev) return null;
+          const novasConquistas = [...(prev.conquistas || [])];
+          const targetIdx = novasConquistas.findIndex((c: any) => Number(c.id) === Number(conquistaId));
+          let pontosReduzidos = 0;
+          if (targetIdx !== -1) {
+            pontosReduzidos = novasConquistas[targetIdx].pontos || 0;
+            novasConquistas.splice(targetIdx, 1);
+          }
+          return {
+            ...prev,
+            xp: Math.max(0, (prev.xp || 0) - pontosReduzidos),
+            conquistas: novasConquistas
+          };
+        });
+
+        // Recarregar os dados do ranking
+        fetchData();
+      } else {
+        toast.error(data.error || 'Erro ao remover conquista');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro de conexão ao remover conquista');
+    }
+  };
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,7 +189,7 @@ export default function Ranking() {
               <>
                 {/* Featured #1 card (left, large) */}
                 {mockRanking[0] && (
-                  <div className="col-span-2 rounded-lg overflow-hidden relative" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '6px 6px 0 #000' }}>
+                  <div onClick={() => handleOpenAlunoModal(mockRanking[0])} className="col-span-2 rounded-lg overflow-hidden relative cursor-pointer hover:scale-[1.01] transition-all" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '6px 6px 0 #000' }}>
                     {/* Rank badge */}
                     <div className="absolute top-4 left-4 w-10 h-10 flex items-center justify-center font-black text-white text-sm z-10" style={{ background: '#ff6b00', border: '2px solid #261812', boxShadow: '2px 2px 0 #261812' }}>
                       #1
@@ -193,7 +257,7 @@ export default function Ranking() {
                 {/* Side cards #2, #3 */}
                 <div className="flex flex-col gap-5">
                   {mockRanking.slice(1, 3).map((aluno, i) => (
-                    <div key={aluno.id} className="rounded-lg overflow-hidden relative flex-1" style={{ background: '#fff1eb', border: '3px solid #261812', boxShadow: '4px 4px 0 #000', minHeight: '150px' }}>
+                    <div key={aluno.id} onClick={() => handleOpenAlunoModal(aluno)} className="rounded-lg overflow-hidden relative flex-1 cursor-pointer hover:scale-[1.02] transition-all" style={{ background: '#fff1eb', border: '3px solid #261812', boxShadow: '4px 4px 0 #000', minHeight: '150px' }}>
                       <div className="absolute top-3 left-3 flex items-center justify-center font-black text-[#261812] text-sm border-2 border-[#261812] w-9 h-9" style={{ background: '#fff8f6' }}>
                         #{i + 2}
                       </div>
@@ -268,7 +332,7 @@ export default function Ranking() {
               </thead>
               <tbody>
                 {mockRanking.map((aluno, i) => (
-                  <tr key={aluno.id} style={{ borderBottom: '2px solid #f8ddd2' }} className="hover:bg-[#ffeae1] transition-colors">
+                  <tr key={aluno.id} onClick={() => handleOpenAlunoModal(aluno)} style={{ borderBottom: '2px solid #f8ddd2' }} className="hover:bg-[#ffeae1] transition-colors cursor-pointer">
                     <td className="px-6 py-4">
                       <span className="font-black text-2xl" style={{ color: i === 0 ? '#ff6b00' : '#261812' }}>
                         #{String(i + 1).padStart(2, '0')}
@@ -386,6 +450,129 @@ export default function Ranking() {
                 <Save className="w-5 h-5" /> ATRIBUIR_PONTOS
               </button>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Aluno Profile Modal */}
+      {isAlunoModalOpen && selectedAluno && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#fff8f6] border-8 border-black w-full max-w-2xl shadow-[12px_12px_0_#000] flex flex-col relative my-8"
+          >
+            <header className="p-6 border-b-8 border-black flex items-center justify-between bg-[#feccba] shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="bg-[#ff6b00] p-2 border-4 border-black shadow-[4px_4px_0_#000]"><Trophy className="w-6 h-6 text-white" /></div>
+                <div>
+                  <h2 className="text-xl font-black text-black uppercase italic tracking-tighter">Perfil_do_Estudante</h2>
+                  <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">&gt;&gt; PLAYER_STATS</p>
+                </div>
+              </div>
+              <button onClick={() => setIsAlunoModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"><X className="w-6 h-6" /></button>
+            </header>
+
+            <div className="p-8 overflow-y-auto max-h-[calc(85vh-120px)] space-y-8">
+              {/* Top Section: Photo & Basic stats */}
+              <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-stretch bg-[#fff1eb] border-4 border-black p-6 shadow-[6px_6px_0_#000]">
+                {/* Photo */}
+                <div className="w-32 h-36 bg-[#261812] border-4 border-[#ff6b00] rounded overflow-hidden flex items-center justify-center shrink-0 shadow-[4px_4px_0_#000]">
+                  {selectedAluno.foto_url ? (
+                    <img src={selectedAluno.foto_url} alt={selectedAluno.nome} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[#ff6b00] font-black text-4xl">{(selectedAluno.nome || '?').charAt(0)}</span>
+                  )}
+                </div>
+
+                {/* Details */}
+                <div className="flex-1 flex flex-col justify-between min-w-0 text-center sm:text-left">
+                  <div>
+                    <h3 className="text-2xl font-black text-[#261812] uppercase tracking-tight leading-none mb-2 break-words">{selectedAluno.nome}</h3>
+                    <p className="text-[#7b5647] font-bold text-xs uppercase tracking-wider mb-4 sm:mb-1">
+                      CLASSE: <span className="text-[#ff6b00] font-black">{getClasse(selectedAluno.xp)}</span>
+                    </p>
+                    <p className="text-[#7b5647] font-bold text-xs uppercase tracking-wider">
+                      INSTRUMENTO: <span className="text-[#261812] font-black">{getInstrumento(selectedAluno)}</span>
+                    </p>
+                  </div>
+
+                  {/* Level & XP */}
+                  <div className="mt-4 pt-4 border-t border-[#f8ddd2]/80 flex flex-wrap items-center justify-between gap-4">
+                    <div className="px-4 py-2 bg-black text-white font-black text-xs uppercase tracking-widest border-2 border-[#ff6b00]">
+                      LVL {Math.floor((selectedAluno.xp || 0) / 100) + 1}
+                    </div>
+                    <div className="flex-1 min-w-[120px]">
+                      <div className="flex justify-between text-[9px] font-black text-[#7b5647] uppercase mb-1">
+                        <span>Progresso de XP</span>
+                        <span>{selectedAluno.xp?.toLocaleString()} XP</span>
+                      </div>
+                      <div className="w-full h-3 bg-black border-2 border-black rounded overflow-hidden">
+                        <div className="h-full bg-[#ff6b00]" style={{ width: `${Math.min(100, ((selectedAluno.xp || 0) % 1000) / 10)}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Achievements Gallery */}
+              <div>
+                <h4 className="text-xs font-black text-black uppercase tracking-widest mb-4 border-b-4 border-black pb-2 flex items-center justify-between">
+                  <span>Conquistas_Desbloqueadas</span>
+                  <span className="bg-[#ff6b00] text-white px-2 py-0.5 text-[9px] font-bold">{(selectedAluno.conquistas || []).length} TROFÉUS</span>
+                </h4>
+
+                {(selectedAluno.conquistas || []).length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(selectedAluno.conquistas || []).map((c: any, index: number) => (
+                      <div 
+                        key={`${c.id}-${index}`} 
+                        className="bg-white border-4 border-black p-4 flex gap-3 relative shadow-[4px_4px_0_#000] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_#000] transition-all group"
+                      >
+                        {/* Trophy Icon */}
+                        <div className="w-12 h-12 rounded border-2 border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden shrink-0 shadow-[2px_2px_0_#000]">
+                          {c.icone_url ? (
+                            <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-1.5" />
+                          ) : (
+                            <Trophy className="w-6 h-6 text-[#ff6b00]" />
+                          )}
+                        </div>
+
+                        {/* Title and points */}
+                        <div className="flex-1 min-w-0 pr-6">
+                          <h5 className="font-black text-[#261812] text-xs uppercase leading-tight truncate">{c.nome}</h5>
+                          <p className="text-[9px] text-[#7b5647] leading-tight font-medium mt-0.5">{c.descricao || 'Conquista especial por dedicação musical.'}</p>
+                          <span className="inline-block mt-2 px-2 py-0.5 bg-[#feccba] border border-black font-black text-[8px] uppercase tracking-wider text-[#ff6b00]">
+                            +{c.pontos} XP
+                          </span>
+                        </div>
+
+                        {/* Delete Button (Visible for Admins/Professors) */}
+                        {(user?.role === 'professor' || user?.role === 'admin') && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoverConquista(selectedAluno.id, c.id, c.nome);
+                            }}
+                            title="Remover conquista do aluno"
+                            className="absolute top-2 right-2 p-1.5 bg-[#ffeae1] border border-black text-[#7b5647] hover:bg-red-500 hover:text-white transition-all shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 border-4 border-dashed border-[#5a4136] bg-[#1a0a05]/10 rounded">
+                    <Trophy className="w-12 h-12 text-[#5a4136] mx-auto mb-2 opacity-55" />
+                    <p className="text-[#7b5647] font-black uppercase text-xs tracking-widest">Nenhuma conquista ainda</p>
+                    <p className="text-[#8e7164] font-bold uppercase text-[9px] mt-1">Este aluno ainda não recebeu troféus nesta temporada.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </motion.div>
         </div>
       )}
