@@ -355,19 +355,33 @@ export default function AreaAluno() {
                             </div>
                           )}
 
-                          {/* QUESTS INDIVIDUAIS DO ALUNO */}
+                          {/* BOSS QUEST / QUESTS DO PROFESSOR */}
                           {Array.isArray(richData.exercises) && richData.exercises.length > 0 && (
-                            <div className="space-y-1.5">
-                              <span className="text-[7px] font-black text-black uppercase block tracking-widest">
-                                🏆 MISSÕES DE TREINO ADICIONAIS:
-                              </span>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="bg-[#ff6b00] border-2 border-black px-2 py-0.5 shadow-[2px_2px_0_#000]">
+                                  <span className="text-[8px] font-black text-white uppercase tracking-widest">⚔️ BOSS QUEST — MISSÃO DO PROFESSOR</span>
+                                </div>
+                                <div className="flex-1 border-t-2 border-dashed border-[#ff6b00]/40"></div>
+                              </div>
                               {richData.exercises.map((ex: any, idx: number) => (
-                                <div key={idx} className="bg-emerald-50 text-black border-2 border-emerald-500 p-2 relative overflow-hidden">
-                                  <span className="absolute right-2 top-2 bg-emerald-500 text-white font-black text-[6px] px-1">
-                                    +{ex.points} XP
-                                  </span>
-                                  <p className="text-[9px] font-black uppercase text-emerald-800">⚔️ {ex.title}</p>
-                                  <p className="text-[7px] font-black text-stone-600 uppercase mt-0.5">{ex.description}</p>
+                                <div key={idx} className="bg-[#261812] border-4 border-[#ff6b00] p-3 relative overflow-hidden shadow-[4px_4px_0_#ff6b00]">
+                                  {/* Badge de XP */}
+                                  <div className="absolute top-2 right-2 bg-[#ffd700] border-2 border-black px-1.5 py-0.5 shadow-[2px_2px_0_#000]">
+                                    <span className="text-[7px] font-black text-black uppercase">+{ex.points} XP ⚡</span>
+                                  </div>
+                                  {/* Ícone + Título */}
+                                  <div className="flex items-center gap-2 pr-12">
+                                    <span className="text-[#ff6b00] text-base leading-none">⚔️</span>
+                                    <p className="text-[10px] font-black uppercase text-[#feccba] leading-tight">{ex.title}</p>
+                                  </div>
+                                  {ex.description && (
+                                    <p className="text-[7px] font-black text-[#ff6b00]/70 uppercase mt-1.5 leading-snug">{ex.description}</p>
+                                  )}
+                                  {/* Barra de progresso decorativa */}
+                                  <div className="mt-2 bg-black/50 border border-[#ff6b00]/30 h-1">
+                                    <div className="h-full bg-[#ff6b00] w-1/2 animate-pulse"></div>
+                                  </div>
                                 </div>
                               ))}
                             </div>

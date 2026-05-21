@@ -653,28 +653,29 @@ async function startServer() {
                         .gte('data', hoje);
 
                     if (aulasFuturas && aulasFuturas.length > 0) {
-                        const novoDia = Number(matUpdate.dia_semana);
+                        const novoDia = Number(matUpdate.dia_semana); // 0=Dom...6=Sáb
                         for (const aula of aulasFuturas) {
                             const dataAtual = new Date(aula.data + 'T12:00:00');
                             const diaAtual = dataAtual.getDay();
-                            
+
                             const updateAula: any = {};
-                            
-                            let diff = novoDia - diaAtual;
-                            if (diff !== 0) {
-                                // Move a aula para o novo dia dentro da mesma semana
+
+                            if (diaAtual !== novoDia) {
+                                // Calcula quantos dias avançar para chegar no novo dia da semana
+                                let diff = novoDia - diaAtual;
+                                if (diff <= 0) diff += 7; // Sempre avança (nunca volta no tempo)
                                 const novaData = new Date(dataAtual);
                                 novaData.setDate(novaData.getDate() + diff);
                                 updateAula.data = novaData.toISOString().split('T')[0];
                             }
 
                             if (matUpdate.horario) updateAula.horario = matUpdate.horario;
-                            
+
                             if (Object.keys(updateAula).length > 0) {
                                 await supabase.from('aulas').update(updateAula).eq('id', aula.id);
                             }
                         }
-                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas/atualizadas para dia ${matUpdate.dia_semana}.`);
+                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas para dia ${matUpdate.dia_semana}.`);
                     }
                 } else if (matUpdate.horario) {
                     // Só mudou o horário, manter os dias das aulas
