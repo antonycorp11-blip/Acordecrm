@@ -28,6 +28,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musicEngine';
@@ -288,8 +289,15 @@ export default function AreaProfessor() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Estados de navegação e Modo Apresentação do Professor
-  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'alunos' | 'agenda' | 'perfil' | 'playground'>('home');
+  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'alunos' | 'agenda' | 'perfil' | 'playground' | 'ranking'>('home');
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+
+  // Estados do Ranking e Conquistas
+  const [rankingData, setRankingData] = useState<any[]>([]);
+  const [conquistasList, setConquistasList] = useState<any[]>([]);
+  const [loadingRanking, setLoadingRanking] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignData, setAssignData] = useState({ aluno_id: '', conquista_id: '' });
   const [agendaCompleta, setAgendaCompleta] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAgendaStatus, setFilterAgendaStatus] = useState<'todas' | 'pendente' | 'realizada' | 'falta_aluno'>('todas');
@@ -421,6 +429,72 @@ export default function AreaProfessor() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const fetchRanking = async () => {
+    setLoadingRanking(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch('/api/gamificacao/ranking', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setRankingData(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar ranking:', e);
+    } finally {
+      setLoadingRanking(false);
+    }
+  };
+
+  const fetchConquistas = async () => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch('/api/gamificacao/conquistas', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setConquistasList(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar conquistas:', e);
+    }
+  };
+
+  const handleAssignConquista = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignData.aluno_id || !assignData.conquista_id) {
+      toast.error('Preencha todos os campos!');
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const res = await fetch('/api/gamificacao/atribuir', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(assignData)
+      });
+      
+      if (res.ok) {
+        toast.success('CONQUISTA ATRIBUÍDA COM SUCESSO! 🏆');
+        setIsAssignModalOpen(false);
+        setAssignData({ aluno_id: '', conquista_id: '' });
+        fetchRanking(); // recarrega o ranking
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erro ao atribuir conquista ❌');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro de conexão com o servidor ❌');
+    }
+  };
 
   const copiarUltimaAula = async (alunoId: string) => {
     if (!alunoId) return;
@@ -3035,6 +3109,90 @@ export default function AreaProfessor() {
               </div>
             )}
 
+            {activeProfessorTab === 'ranking' && (
+              <div className="space-y-5 animate-fade-in pb-10">
+                <div className="flex items-center justify-between">
+                  <div className="bg-[#ff6b00] border-4 border-black px-3 py-1.5 shadow-[4px_4px_0_#000]">
+                    <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
+                      <Trophy className="w-4 h-4 text-white" /> HALL DA FAMA
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setAssignData({ aluno_id: '', conquista_id: '' });
+                      setIsAssignModalOpen(true);
+                      fetchConquistas();
+                    }}
+                    className="bg-[#261812] hover:bg-black text-white px-3 py-1.5 border-4 border-black font-black uppercase text-[9px] shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> ATRIBUIR TROFÉU
+                  </button>
+                </div>
+
+                {loadingRanking ? (
+                  <div className="text-center py-12 text-[#8e7164] font-black text-[10px] uppercase animate-pulse">
+                    Carregando ranking geral...
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {rankingData.length === 0 ? (
+                      <div className="text-center py-12 text-[#8e7164] font-black text-[9px] uppercase border-4 border-dashed border-black bg-[#fff8f6] p-6">
+                        Nenhum aluno cadastrado ou com pontuação.
+                      </div>
+                    ) : (
+                      rankingData.map((player: any, idx: number) => {
+                        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+                        return (
+                          <div key={player.id} className="flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] bg-[#fff8f6]">
+                            {/* Colocação */}
+                            <div className="w-10 h-10 border-4 border-black flex items-center justify-center font-black text-sm shrink-0 bg-[#feccba] text-black">
+                              {medal}
+                            </div>
+                            
+                            {/* Avatar */}
+                            <div className="w-10 h-10 border-2 border-black overflow-hidden bg-[#261812] shrink-0">
+                              {player.foto_url ? (
+                                <img src={player.foto_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center font-black text-base text-[#ff6b00]">
+                                  {(player.nome || 'A').charAt(0)}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Informações Aluno */}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-black text-[10px] uppercase truncate text-black">{player.nome}</p>
+                              <p className="text-[7px] font-black uppercase text-[#8e7164] truncate">
+                                {player.curso || 'STUDENT'}
+                              </p>
+                            </div>
+
+                            {/* XP e Ação */}
+                            <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                              <p className="font-black text-xs italic text-[#ff6b00] leading-none">{player.xp} XP</p>
+                              
+                              <button
+                                onClick={() => {
+                                  setAssignData({ aluno_id: String(player.id), conquista_id: '' });
+                                  setIsAssignModalOpen(true);
+                                  fetchConquistas();
+                                }}
+                                className="bg-[#ff6b00] hover:bg-[#e05e00] text-white px-2 py-0.5 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-0.5"
+                                title="Creditar medalha/conquista para este aluno"
+                              >
+                                <Plus className="w-2.5 h-2.5" /> 🏆 CREDITAR
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
 
@@ -3044,13 +3202,20 @@ export default function AreaProfessor() {
             { id: 'home', icon: Home, label: 'HOME' },
             { id: 'alunos', icon: Users, label: 'ALUNOS' },
             { id: 'agenda', icon: Calendar, label: 'AGENDA' },
+            { id: 'ranking', icon: Trophy, label: 'RANKING' },
             { id: 'perfil', icon: User, label: 'PERFIL' },
           ].map((item, i) => {
             const isActive = activeProfessorTab === item.id;
             return (
               <button 
                 key={i} 
-                onClick={() => setActiveProfessorTab(item.id as any)}
+                onClick={() => {
+                  setActiveProfessorTab(item.id as any);
+                  if (item.id === 'ranking') {
+                    fetchRanking();
+                    fetchConquistas();
+                  }
+                }}
                 className={`flex flex-col items-center gap-1 transition-all ${isActive ? 'translate-y-[-4px]' : 'opacity-50 hover:opacity-80'}`}
               >
                 <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${isActive ? 'bg-[#ff6b00]' : 'bg-white'}`}>
@@ -3558,6 +3723,86 @@ export default function AreaProfessor() {
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
           <div className="w-full max-w-[360px]">
             <MusiclassTools onClose={() => setShowTools(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Atribuição de Conquista para Aluno */}
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto font-['Space_Mono']">
+          <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-w-md">
+            
+            {/* Fechar botão */}
+            <div className="absolute top-4 right-4">
+              <button 
+                onClick={() => setIsAssignModalOpen(false)} 
+                className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <span className="font-black bg-[#ff6b00] text-white text-[8px] px-2 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
+                GAMIFICATION SYSTEM
+              </span>
+              <h2 className="text-xl font-black text-black uppercase italic tracking-tighter mt-3">
+                CREDITAR TROFÉU
+              </h2>
+              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider">
+                Atribua uma conquista e adicione XP à ficha do aluno
+              </p>
+            </div>
+
+            <form onSubmit={handleAssignConquista} className="space-y-4">
+              
+              {/* Seleção de Aluno */}
+              <div>
+                <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">ALUNO</label>
+                <select
+                  required
+                  className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase focus:outline-none text-black"
+                  value={assignData.aluno_id}
+                  onChange={(e) => setAssignData(prev => ({ ...prev, aluno_id: e.target.value }))}
+                >
+                  <option value="">-- SELECIONE O ALUNO --</option>
+                  {alunosList.map((al: any) => (
+                    <option key={al.id} value={al.id}>
+                      {al.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seleção de Conquista */}
+              <div>
+                <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">CONQUISTA / MEDALHA</label>
+                <select
+                  required
+                  className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase focus:outline-none text-black"
+                  value={assignData.conquista_id}
+                  onChange={(e) => setAssignData(prev => ({ ...prev, conquista_id: e.target.value }))}
+                >
+                  <option value="">-- SELECIONE A MEDALHA --</option>
+                  {conquistasList.map((co: any) => (
+                    <option key={co.id} value={co.id}>
+                      🏆 {co.nome} (+{co.pontos} XP)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Ações */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full bg-[#ff6b00] hover:bg-[#e05e00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  🏆 CREDITAR AGORA
+                </button>
+              </div>
+
+            </form>
           </div>
         </div>
       )}
