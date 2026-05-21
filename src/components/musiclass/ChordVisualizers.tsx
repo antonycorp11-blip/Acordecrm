@@ -85,7 +85,8 @@ export const KeyboardVisualizer: React.FC<{
   isCustom?: boolean;
 }> = ({ chordNotes, root, type = 'maj', ext = '', bass = 'none', notesWithIndices, isCustom }) => {
   const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const WHITE_KEYS_COUNT = 10; 
+  // 8 teclas brancas → cada tecla fica ~40% mais larga e legível
+  const WHITE_KEYS_COUNT = 8;
 
   const translateNote = (note: string) => {
     const map: Record<string, string> = {
@@ -101,7 +102,14 @@ export const KeyboardVisualizer: React.FC<{
     return [0, 2, 4, 5, 7, 9, 11].includes(normalized);
   };
 
-  const startAbsIndex = 0; 
+  // Inicia o teclado na oitava que contém a nota raiz
+  // A nota mapeada para enharmonic simples antes de buscar o índice
+  const rootEnharmonic = (root || '').replace('Ab','G#').replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Bb','A#');
+  const rootNormalized = CHROMATIC_SCALE.indexOf(rootEnharmonic);
+  // startAbsIndex: começa no C (0), mas se a raiz for G#/A/A#/B, começa em C da oitava zero já cobre
+  // Se a raiz estiver nos índices 0-7, o teclado já cobre partindo do C (absIndex=0)
+  // Se a raiz for 8-11 (G# a B), ainda parte do C mas vai até o G da próxima oitava
+  const startAbsIndex = 0;
   const whiteKeysInView: number[] = [];
   let checkIdx = startAbsIndex;
   while (whiteKeysInView.length < WHITE_KEYS_COUNT) {
@@ -120,26 +128,40 @@ export const KeyboardVisualizer: React.FC<{
     }
   }
 
-  // Calcula os absIndex exatos para cada nota do acorde, uma vez por nota
-  // Isso evita duplicatas em oitavas superiores (ex: Dó acendendo em 0 e 12)
+  // Algoritmo corrigido: ilumina as notas em POSIÇÃO FUNDAMENTAL
+  // Escaneia a partir da nota RAIZ, garantindo que G# major = G#-C-D# e não C-D#-G#
   const highlightedAbsIndices = React.useMemo(() => {
     if (isCustom && notesWithIndices) {
       return new Set<number>(notesWithIndices);
     }
     const result = new Set<number>();
-    // Para cada nota do acorde, encontra o PRIMEIRO absIndex disponível no teclado visível
     const allVisibleKeys = [...whiteKeysInView, ...blackKeysToRender.map(bk => bk.absIndex)].sort((a, b) => a - b);
+
+    // Encontra a posição da RAIZ dentro das teclas visíveis
+    const rootIndexInKeys = allVisibleKeys.findIndex(absIdx => {
+      const normalized = ((absIdx % 12) + 12) % 12;
+      return CHROMATIC_SCALE[normalized] === rootEnharmonic || CHROMATIC_SCALE[normalized] === root;
+    });
+    const startFrom = rootIndexInKeys >= 0 ? rootIndexInKeys : 0;
+
+    // Escaneia da raiz em diante → posição fundamental garantida
     const notesLeft = new Set(chordNotes);
-    for (const absIdx of allVisibleKeys) {
+    const keysFromRoot = [
+      ...allVisibleKeys.slice(startFrom),
+      ...allVisibleKeys.slice(0, startFrom) // wrap para cobrir casos extremos
+    ];
+
+    for (const absIdx of keysFromRoot) {
       const normalized = ((absIdx % 12) + 12) % 12;
       const noteName = CHROMATIC_SCALE[normalized];
       if (notesLeft.has(noteName)) {
         result.add(absIdx);
-        notesLeft.delete(noteName); // Cada nota acende apenas uma vez
+        notesLeft.delete(noteName);
       }
+      if (notesLeft.size === 0) break;
     }
     return result;
-  }, [isCustom, notesWithIndices, chordNotes, whiteKeysInView, blackKeysToRender]);
+  }, [isCustom, notesWithIndices, chordNotes, root, rootEnharmonic, whiteKeysInView, blackKeysToRender]);
 
   const isHighlighted = (absIdx: number) => {
     return highlightedAbsIndices.has(absIdx);
@@ -167,9 +189,10 @@ export const KeyboardVisualizer: React.FC<{
         </div>
       </div>
 
-      <div className="p-4 bg-[#feccba]/20 flex justify-center">
+      <div className="p-3 bg-[#feccba]/20 flex justify-center">
         <div className="relative w-full bg-[#1a0a05] rounded-none p-2 border-4 border-black shadow-inner">
-          <div className="relative h-32 w-full flex bg-[#261812] rounded-none pt-0.5 overflow-visible">
+          {/* Teclado com h-36 para melhor visualização */}
+          <div className="relative h-36 w-full flex bg-[#261812] rounded-none pt-0.5 overflow-visible">
             {/* White Keys */}
             {whiteKeysInView.map((absIdx, i) => {
               const active = isHighlighted(absIdx);
@@ -183,8 +206,8 @@ export const KeyboardVisualizer: React.FC<{
                   }`}
                 >
                   {active && (
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-black flex items-center justify-center border-2 border-white shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
-                      <span className="text-[6.5px] font-black text-white uppercase">{translateNote(noteName)}</span>
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-black flex items-center justify-center border-2 border-white shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                      <span className="text-[7px] font-black text-white uppercase leading-none">{translateNote(noteName)}</span>
                     </div>
                   )}
                 </div>
@@ -201,14 +224,18 @@ export const KeyboardVisualizer: React.FC<{
               return (
                 <div
                   key={`b-${bk.absIndex}`}
-                  className={`absolute top-0 h-[60%] w-[7%] -ml-[3.5%] z-30 flex items-end justify-center pb-2 rounded-none shadow-md transition-all ${
+                  className={`absolute top-0 h-[60%] z-30 flex items-end justify-center pb-2 rounded-none shadow-md transition-all ${
                     active ? 'bg-[#ff6b00] border-b-2 border-black' : 'bg-black hover:bg-stone-900'
                   }`}
-                  style={{ left: `${left}%` }}
+                  style={{
+                    left: `${left}%`,
+                    width: `${whiteKeyWidth * 0.65}%`,
+                    marginLeft: `-${(whiteKeyWidth * 0.65) / 2}%`
+                  }}
                 >
                   {active && (
-                    <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center border-2 border-black shadow-sm">
-                      <span className="text-[5.5px] font-black text-black leading-none uppercase">{translateNote(noteName)}</span>
+                    <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center border-2 border-black shadow-sm">
+                      <span className="text-[6px] font-black text-black leading-none uppercase">{translateNote(noteName)}</span>
                     </div>
                   )}
                 </div>

@@ -311,6 +311,8 @@ export default function AreaProfessor() {
   const [mcTablatures, setMcTablatures] = useState<any[]>([]);
   const [mcDrums, setMcDrums] = useState<any[]>([]);
   const [mcMelody, setMcMelody] = useState<any[]>([]);
+  const [melodyPhrases, setMelodyPhrases] = useState<string[][]>([]); // frases da melodia atual
+  const [showMelodyPhrases, setShowMelodyPhrases] = useState<boolean>(false);
   const [mcActiveTab, setMcActiveTab] = useState<'geral' | 'acordes' | 'escalas' | 'tablatura' | 'bateria' | 'exercicios' | 'studio' | 'melodia'>('geral');
 
   // Novos estados do Musiclass v2
@@ -2185,20 +2187,53 @@ export default function AreaProfessor() {
                     🗑️ LIMPAR TUDO
                   </button>
                 </div>
+
+                {/* Botão de separar frases */}
+                <button
+                  type="button"
+                  disabled={newMelodyNotes.length === 0}
+                  onClick={() => {
+                    if (newMelodyNotes.length === 0) return;
+                    setMelodyPhrases(prev => [...prev, [...newMelodyNotes]]);
+                    setNewMelodyNotes([]);
+                  }}
+                  className="w-full py-1.5 bg-[#261812] text-[#feccba] border-2 border-[#ff6b00] font-black text-[9px] uppercase tracking-wider disabled:opacity-50 shadow-[2px_2px_0_#ff6b00] active:translate-y-[1px] flex items-center justify-center gap-1"
+                >
+                  ✂️ NOVA FRASE / PAUSA (SALVAR BLOCO ATUAL)
+                </button>
+
+                {/* Preview das frases separadas */}
+                {melodyPhrases.length > 0 && (
+                  <div className="bg-black/20 border border-[#ff6b00]/40 p-2 space-y-1">
+                    <p className="text-[7px] font-black text-[#ff6b00] uppercase tracking-widest">FRASES SALVAS ({melodyPhrases.length}):</p>
+                    {melodyPhrases.map((phrase, pi) => (
+                      <div key={pi} className="flex items-center gap-2">
+                        <span className="bg-[#ff6b00] text-white font-black text-[6px] px-1 border border-black shrink-0">F{pi+1}</span>
+                        <p className="text-[7px] font-mono text-[#feccba]/80 uppercase truncate">{phrase.map(translateNote).join(' ')}</p>
+                        <button type="button" onClick={() => setMelodyPhrases(prev => prev.filter((_, i) => i !== pi))} className="text-red-400 text-[8px] shrink-0">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button
                 type="button"
                 onClick={() => {
-                  if (!newMelodyName.trim() || newMelodyNotes.length === 0) {
-                    alert('Por favor, dê um nome e digite ao menos uma nota no piano.');
+                  // Combina frases separadas + notas atuais em andamento
+                  const allPhrases = [...melodyPhrases, ...(newMelodyNotes.length > 0 ? [newMelodyNotes] : [])];
+                  if (!newMelodyName.trim() || allPhrases.length === 0) {
+                    alert('Por favor, dê um nome e adicione pelo menos uma nota ou frase.');
                     return;
                   }
+                  const allNotes = allPhrases.flat();
                   setMcMelody(prev => [...prev, {
                     name: newMelodyName.toUpperCase(),
-                    notes: [...newMelodyNotes]
+                    notes: allNotes,
+                    phrases: allPhrases.length > 1 ? allPhrases : undefined // só salva frases se há múltiplas
                   }]);
                   setNewMelodyNotes([]);
+                  setMelodyPhrases([]);
                   setNewMelodyName('NOVA MELODIA / GUIA');
                   alert('Melodia salva com sucesso na aula!');
                 }}

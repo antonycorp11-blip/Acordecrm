@@ -1952,16 +1952,30 @@ async function startServer() {
         res.json({ url });
     });
 
-    app.post('/api/upload', upload.single('file'), (req: any, res) => {
+    app.post('/api/upload', upload.single('file'), async (req: any, res) => {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         try {
-            const ext = path.extname(req.file.originalname) || '';
-            const newFilename = `${req.file.filename}${ext}`;
-            const oldPath = req.file.path;
-            const newPath = path.join(path.dirname(oldPath), newFilename);
-            fs.renameSync(oldPath, newPath);
-            
-            const url = `/uploads/${newFilename}`;
+            const ext = path.extname(req.file.originalname) || '.webm';
+            const filename = `studio/${Date.now()}_${req.file.filename}${ext}`;
+            const fileBuffer = fs.readFileSync(req.file.path);
+            const mimeType = req.file.mimetype || 'audio/webm';
+
+            // Upload para Supabase Storage (bucket 'uploads') — URL permanente em produção
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
+
+            // Limpa arquivo temporário
+            try { fs.unlinkSync(req.file.path); } catch {}
+
+            if (uploadError) {
+                console.error('[UPLOAD] Supabase Storage falhou:', uploadError.message);
+                return res.status(500).json({ error: 'Falha ao salvar arquivo: ' + uploadError.message });
+            }
+
+            const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+            const url = publicUrlData?.publicUrl || '';
+            console.log('[UPLOAD] OK:', url);
             res.json({ url });
         } catch (error: any) {
             console.error('Erro no upload genérico index:', error);
@@ -1971,12 +1985,18 @@ async function startServer() {
 
     app.get('/api/gamificacao/ranking', async (req, res) => {
         try {
-            const { data: alunos } = await supabase.from('alunos').select('id, nome');
+            const { data: alunos } = await supabase
+                .from('alunos')
+                .select('id, nome, xp, foto_url, status, matriculas(cursos(nome))')
+                .eq('status', 'ativo');
             const { data: progresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)');
             
-            const ranking = alunos?.map(al => {
+            const ranking = (alunos || []).map(al => {
                 const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
-                const xp = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
+                // XP de conquistas (badges)
+                const xpConquistas = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
+                // XP TOTAL = XP direto de presença (aulas realizadas) + XP de conquistas
+                const xpTotal = (Number((al as any).xp) || 0) + xpConquistas;
                 
                 const conquistasMap: any = {};
                 prog.forEach(p => {
@@ -1987,13 +2007,19 @@ async function startServer() {
                     conquistasMap[cid].count++;
                 });
 
+                const cursoNome = (al as any).matriculas?.find((m: any) => m?.cursos?.nome)?.cursos?.nome || 'STUDENT';
+
                 return {
                     id: al.id,
-                    nome: al.nome,
-                    xp,
+                    nome: (al as any).nome,
+                    foto_url: (al as any).foto_url,
+                    curso: cursoNome,
+                    xp: xpTotal,
+                    xp_presenca: Number((al as any).xp) || 0,
+                    xp_conquistas: xpConquistas,
                     conquistas: Object.values(conquistasMap)
                 };
-            }).sort((a, b) => b.xp - a.xp) || [];
+            }).sort((a, b) => b.xp - a.xp);
 
             res.json(ranking);
         } catch (error) { res.status(500).json({ error: 'Erro ao gerar ranking' }); }

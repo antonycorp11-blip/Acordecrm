@@ -26,6 +26,8 @@ export default function AreaAluno() {
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [aulasRealizadas, setAulasRealizadas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas'>('home');
+  const [rankingData, setRankingData] = useState<any[]>([]);
 
   // Dados dinâmicos do aluno
   const xp = alunoData?.xp || 0;
@@ -75,6 +77,12 @@ export default function AreaAluno() {
 
     fetchAll();
   }, []);
+
+  const fetchRanking = async () => {
+    const token = localStorage.getItem('acorde_token');
+    const res = await fetch('/api/gamificacao/ranking', { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) { const data = await res.json(); setRankingData(data); }
+  };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -167,6 +175,84 @@ export default function AreaAluno() {
 
         {/* SCROLL CONTENT */}
         <div className="flex-1 overflow-auto pb-24 scrollbar-hide">
+
+          {/* ===== ABA: RANKING ===== */}
+          {activeTab === 'ranking' && (
+            <div className="px-4 py-5 space-y-3">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
+                  <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 HALL DA FAMA</h3>
+                </div>
+                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+              </div>
+              {rankingData.length === 0 && (
+                <div className="text-center py-8 text-[#8e7164] font-black text-[9px] uppercase">Carregando ranking...</div>
+              )}
+              {rankingData.map((player: any, idx: number) => {
+                const isMe = player.id === alunoData?.id;
+                const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+                return (
+                  <div key={player.id} className={`flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] ${isMe ? 'bg-[#ff6b00]' : 'bg-[#fff8f6]'}`}>
+                    <div className={`w-10 h-10 border-4 border-black flex items-center justify-center font-black text-sm shrink-0 ${isMe ? 'bg-white text-[#ff6b00]' : 'bg-[#feccba] text-black'}`}>
+                      {medal}
+                    </div>
+                    <div className="w-10 h-10 border-2 border-black overflow-hidden bg-[#261812] shrink-0">
+                      {player.foto_url ? (
+                        <img src={player.foto_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center font-black text-base ${isMe ? 'text-white' : 'text-[#ff6b00]'}`}>
+                          {(player.nome || 'A').charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-black text-[10px] uppercase truncate ${isMe ? 'text-white' : 'text-black'}`}>{player.nome}</p>
+                      <p className={`text-[7px] font-black uppercase ${isMe ? 'text-white/80' : 'text-[#8e7164]'}`}>{player.curso || 'STUDENT'}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`font-black text-sm italic ${isMe ? 'text-white' : 'text-[#ff6b00]'}`}>{player.xp} XP</p>
+                      {player.conquistas?.length > 0 && (
+                        <p className={`text-[6px] font-black ${isMe ? 'text-white/70' : 'text-[#8e7164]'}`}>{player.conquistas.length} conquistas</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ===== ABA: TODAS AS AULAS ===== */}
+          {activeTab === 'aulas' && (
+            <div className="px-4 py-5 space-y-3">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-[#261812] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
+                  <h3 className="text-[#feccba] font-black text-xs uppercase tracking-widest">📚 MINHAS AULAS</h3>
+                </div>
+                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+              </div>
+              {[...aulasRealizadas].concat(aulasHoje).sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()).map((aula: any) => (
+                <div key={aula.id} className={`flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] ${aula.status === 'realizada' ? 'bg-[#fff8f6]' : aula.status === 'falta_aluno' ? 'bg-red-50' : 'bg-[#261812]'}`}>
+                  <div className={`w-10 h-10 border-4 border-black flex flex-col items-center justify-center font-black shrink-0 ${aula.status === 'realizada' ? 'bg-[#ff6b00] text-white' : aula.status === 'falta_aluno' ? 'bg-red-500 text-white' : 'bg-[#feccba] text-black'}`}>
+                    <span className="text-[10px] leading-none">{new Date(aula.data + 'T12:00:00').getDate().toString().padStart(2,'0')}</span>
+                    <span className="text-[7px] leading-none uppercase">{new Date(aula.data + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-black text-[10px] uppercase ${aula.status !== 'pendente' ? 'text-black' : 'text-[#feccba]'}`}>{aula.curso_nome || 'AULA DE MÚSICA'}</p>
+                    <p className={`text-[7px] font-black uppercase ${aula.status !== 'pendente' ? 'text-[#8e7164]' : 'text-[#feccba]/70'}`}>{aula.horario?.substring(0,5)} • {aula.professor_nome || 'PROFESSOR'}</p>
+                  </div>
+                  <span className={`text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black ${aula.status === 'realizada' ? 'bg-[#ff6b00] text-white' : aula.status === 'falta_aluno' ? 'bg-red-500 text-white' : 'bg-[#ffd700] text-black'}`}>
+                    {aula.status === 'realizada' ? 'FEITA' : aula.status === 'falta_aluno' ? 'FALTA' : 'AGENDADA'}
+                  </span>
+                </div>
+              ))}
+              {aulasRealizadas.length === 0 && aulasHoje.length === 0 && (
+                <div className="text-center py-8 text-[#8e7164] font-black text-[9px] uppercase">Nenhuma aula registrada</div>
+              )}
+            </div>
+          )}
+
+          {/* ===== ABA: HOME (conteúdo existente) ===== */}
+          {activeTab === 'home' && (
           <div className="px-4 py-5 space-y-4">
 
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000]">
@@ -461,22 +547,49 @@ export default function AreaAluno() {
                             </div>
                           )}
 
-                          {/* MELODIAS RENDERIZADAS */}
+                          {/* MELODIAS RENDERIZADAS — com suporte a blocos de frases */}
                           {Array.isArray(richData.melody) && richData.melody.length > 0 && (
                             <div className="bg-white border-2 border-black p-2 space-y-3">
                               <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
                                 🎹 MELODIAS DE TREINO ({richData.melody.length}):
                               </span>
                               {richData.melody.map((mel: any, idx: number) => (
-                                <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2 space-y-1">
+                                <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2 space-y-2">
                                   <p className="text-[8px] font-black uppercase mb-1">{mel.name}</p>
-                                  <div className="flex flex-wrap gap-1">
-                                    {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
-                                      <div key={nIdx} className="bg-[#261812] text-[#feccba] border border-black px-1.5 py-0.5 text-[8px] font-black uppercase">
-                                        {translateNote(note)}
-                                      </div>
-                                    ))}
-                                  </div>
+                                  {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
+                                    <div className="space-y-2">
+                                      {mel.phrases.map((phrase: string[], pIdx: number) => (
+                                        <div key={pIdx} className="space-y-1">
+                                          <div className="flex items-center gap-1">
+                                            <span className="bg-[#ff6b00] text-white font-black text-[6px] px-1 border border-black">FRASE {pIdx + 1}</span>
+                                            <div className="flex-1 border-t border-dashed border-[#ff6b00]/30"></div>
+                                          </div>
+                                          <div className="flex flex-wrap gap-1">
+                                            {phrase.map((note: string, nIdx: number) => (
+                                              <div key={nIdx} className="bg-[#261812] text-[#feccba] border border-black px-1.5 py-0.5 text-[8px] font-black uppercase">
+                                                {translateNote(note)}
+                                              </div>
+                                            ))}
+                                          </div>
+                                          {pIdx < mel.phrases.length - 1 && (
+                                            <div className="flex items-center gap-1 py-0.5">
+                                              <div className="flex-1 border-t-2 border-dotted border-black/20"></div>
+                                              <span className="text-[6px] font-black text-black/30 uppercase px-1">✂ PAUSA</span>
+                                              <div className="flex-1 border-t-2 border-dotted border-black/20"></div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1">
+                                      {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
+                                        <div key={nIdx} className="bg-[#261812] text-[#feccba] border border-black px-1.5 py-0.5 text-[8px] font-black uppercase">
+                                          {translateNote(note)}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -547,7 +660,7 @@ export default function AreaAluno() {
             {/* Menu Grid */}
             <div className="grid grid-cols-2 gap-3">
               {menus.map((item, i) => (
-                <div key={i} className="bg-[#fff8f6] border-4 border-black p-4 text-center shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
+                <div key={i} onClick={() => { if (item.path === '/ranking') { setActiveTab('ranking'); fetchRanking(); } else if (item.path === '/agenda') { setActiveTab('aulas'); } }} className="bg-[#fff8f6] border-4 border-black p-4 text-center shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
                   <div className="w-10 h-10 bg-[#feccba] border-2 border-black flex items-center justify-center mx-auto mb-2">
                     <item.icon className="w-5 h-5 text-[#ff6b00]" />
                   </div>
@@ -580,19 +693,19 @@ export default function AreaAluno() {
               </div>
             </div>
           </div>
+          )} {/* end activeTab === home */}
         </div>
 
         {/* BOTTOM NAV — Mobile */}
         <nav className="fixed md:absolute bottom-0 left-0 right-0 md:left-auto md:right-auto md:w-full h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-50">
           {[
-            { icon: Home, label: 'HOME', active: true },
-            { icon: Trophy, label: 'RANK' },
-            { icon: BookOpen, label: 'AULAS' },
-            { icon: Target, label: 'QUESTS' },
-          ].map((item, i) => (
-            <button key={i} className={`flex flex-col items-center gap-1 transition-all ${item.active ? 'translate-y-[-4px]' : 'opacity-50'}`}>
-              <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${item.active ? 'bg-[#ff6b00]' : 'bg-white'}`}>
-                <item.icon className={`w-5 h-5 ${item.active ? 'text-white' : 'text-black'}`} />
+            { icon: Home, label: 'HOME', tab: 'home' as const },
+            { icon: Trophy, label: 'RANK', tab: 'ranking' as const },
+            { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
+          ].map((item) => (
+            <button key={item.tab} onClick={() => { setActiveTab(item.tab); if (item.tab === 'ranking') fetchRanking(); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.tab ? 'translate-y-[-4px]' : 'opacity-50'}`}>
+              <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${activeTab === item.tab ? 'bg-[#ff6b00]' : 'bg-white'}`}>
+                <item.icon className={`w-5 h-5 ${activeTab === item.tab ? 'text-white' : 'text-black'}`} />
               </div>
               <span className="text-[6px] font-black text-white uppercase tracking-tighter">{item.label}</span>
             </button>
