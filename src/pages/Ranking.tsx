@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Bell, LayoutGrid, List, Trophy, Star, Zap, Target, Plus, X, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 
 type ViewMode = 'cards' | 'lista';
 
@@ -36,14 +37,24 @@ export default function Ranking() {
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch('/api/gamificacao/atribuir', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify(assignData)
-    });
-    setIsModalOpen(false);
-    setAssignData({ aluno_id: '', conquista_id: '' });
-    fetchData();
+    try {
+      const res = await fetch('/api/gamificacao/atribuir', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(assignData)
+      });
+      if (res.ok) {
+        toast.success('CONQUISTA ATRIBUÍDA COM SUCESSO! 🏆');
+        setIsModalOpen(false);
+        setAssignData({ aluno_id: '', conquista_id: '' });
+        fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Erro ao atribuir conquista ❌');
+      }
+    } catch (err) {
+      toast.error('Erro de conexão com o servidor ❌');
+    }
   };
 
   const getClasse = (xp: number) => {

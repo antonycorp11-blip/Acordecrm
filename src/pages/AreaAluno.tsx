@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer } from 'lucide-react';
+import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2 } from 'lucide-react';
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
+import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -8,17 +9,7 @@ import { toast } from 'sonner';
 
 // Tradução de notas científicas para cifras em português brasileiro
 const translateNote = (note: string): string => {
-  const map: Record<string, string> = {
-    'C': 'Dó', 'C#': 'Dó#', 'Db': 'Réb',
-    'D': 'Ré', 'D#': 'Ré#', 'Eb': 'Mib',
-    'E': 'Mi',
-    'F': 'Fá', 'F#': 'Fá#', 'Gb': 'Solb',
-    'G': 'Sol', 'G#': 'Sol#', 'Ab': 'Láb',
-    'A': 'Lá', 'A#': 'Lá#', 'Bb': 'Sib',
-    'B': 'Si'
-  };
-  const baseNote = note.replace(/\d+$/, '');
-  return map[baseNote] || baseNote;
+  return note.replace(/\d+$/, '');
 };
 
 // Subcomponente de visualização inteligente de acordes
@@ -292,9 +283,189 @@ export default function AreaAluno() {
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [aulasRealizadas, setAulasRealizadas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas' | 'perfil'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas' | 'perfil' | 'jogos'>('home');
   const [rankingData, setRankingData] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
+  const [showTools, setShowTools] = useState(false);
+
+  // Estados para o Jogo "Acorde Genius"
+  const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
+  const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
+  const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
+  const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
+  const [geniusScore, setGeniusScore] = useState(0);
+  const [geniusActivePad, setGeniusActivePad] = useState<number | null>(null);
+  const [gamePoints, setGamePoints] = useState(0); // Pontos acumulados na sessão do aluno
+  const [isRedeeming, setIsRedeeming] = useState(false);
+
+  // Web Audio API Retro Sound Generator
+  const playRetroSound = (frequency: number, type: 'sine' | 'triangle' | 'square' | 'sawtooth' = 'triangle', duration: number = 0.25) => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (err) {
+      console.error('AudioContext error:', err);
+    }
+  };
+
+  const padFrequencies = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+
+  const playPadSoundAndLight = (padIndex: number) => {
+    setGeniusActivePad(padIndex);
+    playRetroSound(padFrequencies[padIndex], 'triangle', 0.35);
+    setTimeout(() => {
+      setGeniusActivePad(null);
+    }, 300);
+  };
+
+  // Toca toda a sequência gerada
+  const playGeniusSequence = (sequenceToPlay: number[]) => {
+    setGeniusState('playback');
+    let idx = 0;
+    
+    const interval = setInterval(() => {
+      if (idx >= sequenceToPlay.length) {
+        clearInterval(interval);
+        setGeniusState('playing');
+        setGeniusUserSequence([]);
+        return;
+      }
+      playPadSoundAndLight(sequenceToPlay[idx]);
+      idx++;
+    }, 650);
+  };
+
+  // Inicia o Simon Game
+  const startGeniusGame = () => {
+    setGeniusScore(0);
+    const firstNote = Math.floor(Math.random() * 4);
+    const newSeq = [firstNote];
+    setGeniusSequence(newSeq);
+    setGeniusUserSequence([]);
+    setGeniusState('playback');
+    
+    // Pequeno atraso para começar
+    setTimeout(() => {
+      playGeniusSequence(newSeq);
+    }, 500);
+  };
+
+  // Clique do usuário no Pad
+  const handleGeniusPadClick = (padIndex: number) => {
+    if (geniusState !== 'playing') return;
+
+    // Toca e acende
+    playPadSoundAndLight(padIndex);
+
+    // Registra clique do usuário
+    const nextUserSeq = [...geniusUserSequence, padIndex];
+    setGeniusUserSequence(nextUserSeq);
+
+    // Valida com a sequência original
+    const currentIndex = nextUserSeq.length - 1;
+    if (padIndex !== geniusSequence[currentIndex]) {
+      // Errou! Game Over!
+      setGeniusState('gameover');
+      // Som retro triste de derrota
+      playRetroSound(180, 'sawtooth', 0.55);
+      return;
+    }
+
+    // Se acertou a nota e completou a sequência
+    if (nextUserSeq.length === geniusSequence.length) {
+      // Avança para o próximo round
+      setGeniusScore(prev => prev + 1);
+      setGamePoints(prev => prev + 20); // Acumula pontos!
+
+      // Efeito sonoro de nível passado
+      setTimeout(() => {
+        playRetroSound(523.25, 'sine', 0.1);
+        setTimeout(() => playRetroSound(659.25, 'sine', 0.1), 80);
+        setTimeout(() => playRetroSound(783.99, 'sine', 0.15), 160);
+      }, 350);
+
+      // Adiciona uma nova nota aleatória
+      const nextNote = Math.floor(Math.random() * 4);
+      const nextSeq = [...geniusSequence, nextNote];
+      setGeniusSequence(nextSeq);
+      
+      // Agenda a reprodução da nova sequência
+      setTimeout(() => {
+        playGeniusSequence(nextSeq);
+      }, 1200);
+    }
+  };
+
+  // Função de câmbio/resgate de XP
+  const handleRedeemXp = async () => {
+    if (gamePoints < 10) {
+      toast.error('Você precisa de pelo menos 10 pontos para resgatar XP!');
+      return;
+    }
+
+    setIsRedeeming(true);
+    const token = localStorage.getItem('acorde_token');
+
+    try {
+      const res = await fetch('/api/gamificacao/resgatar-pontos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          pontos: gamePoints,
+          jogo: 'Acorde Genius'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Efeito sonoro triunfal chiptune
+        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          setTimeout(() => playRetroSound(freq, 'sine', 0.15), idx * 100);
+        });
+
+        toast.success(`💥 RESGATE RETRÔ DE SUCESSO! +${data.xpGanhos} XP de verdade creditados no CRM! 🔥`, {
+          duration: 6000
+        });
+
+        setGamePoints(0);
+        
+        // Atualiza dinamicamente o XP do aluno na tela
+        setAlunoData((prev: any) => prev ? { ...prev, xp: data.novoXp } : null);
+        
+        // Atualiza a lista do ranking para sincronizar na hora
+        fetchRanking();
+      } else {
+        const errData = await res.json();
+        toast.error(errData.error || 'Erro no resgate de pontos.');
+      }
+    } catch (err) {
+      console.error('Erro ao resgatar pontos:', err);
+      toast.error('Falha de conexão com o servidor.');
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
 
   // Dados dinâmicos do aluno
   const xp = alunoData?.xp || 0;
@@ -529,6 +700,283 @@ export default function AreaAluno() {
               ))}
               {aulasRealizadas.length === 0 && aulasHoje.length === 0 && (
                 <div className="text-center py-8 text-[#8e7164] font-black text-[9px] uppercase">Nenhuma aula registrada</div>
+              )}
+            </div>
+          )}
+
+          {/* ===== ABA: JOGOS ===== */}
+          {activeTab === 'jogos' && (
+            <div className="px-4 py-5 space-y-6">
+              {/* Cabeçalho da Galeria */}
+              <div className="flex items-center gap-3">
+                <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
+                  <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
+                    🕹️ FLIPERAMA ACORDE
+                  </h3>
+                </div>
+                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+              </div>
+
+              {!isPlayingAcordeGenius ? (
+                <>
+                  {/* Banner Retro de Boas-vindas */}
+                  <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
+                    <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest animate-pulse">
+                      ⚡ INSIRA UMA FICHA & DESTRUA NO RITMO! ⚡
+                    </p>
+                    <p className="text-white/50 font-black text-[7px] uppercase mt-1">
+                      Divirta-se nos minijogos e troque seus pontos por XP de verdade no CRM!
+                    </p>
+                  </div>
+
+                  {/* Banco de Pontos e Câmbio */}
+                  <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] space-y-4">
+                    <div className="text-center flex flex-col items-center justify-center">
+                      <p className="text-black font-black text-[8px] uppercase tracking-widest mb-2">
+                        💰 SEUS PONTOS ACUMULADOS
+                      </p>
+                      <div className="inline-block bg-black border-4 border-black px-6 py-2 text-center shadow-[4px_4px_0_#000]">
+                        <span className="font-mono text-3xl text-emerald-400 font-bold tracking-widest block">
+                          {String(gamePoints).padStart(4, '0')}
+                        </span>
+                        <span className="text-emerald-400 font-black text-[8px] block mt-0.5 uppercase tracking-wider">
+                          PONTOS GALLERY
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#feccba] border-4 border-black p-3 text-center text-black font-black text-[8px] uppercase tracking-widest space-y-1">
+                      <p>💵 TAXA DE CÂMBIO: 10 PONTOS = 1 XP NO CRM</p>
+                      <p className="text-[#ff6b00] text-[9px]">
+                        VALOR DE RESGATE ESTIMADO: +{Math.round(gamePoints / 10)} XP
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={handleRedeemXp}
+                      disabled={gamePoints < 10 || isRedeeming}
+                      className={`w-full border-4 border-black font-black text-[10px] py-3 uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        gamePoints >= 10 && !isRedeeming
+                          ? 'bg-[#00ff66] text-black hover:bg-[#00cc52]'
+                          : 'bg-[#8e7164]/30 text-[#8e7164] opacity-50 cursor-not-allowed shadow-none active:translate-y-0'
+                      }`}
+                    >
+                      {isRedeeming ? (
+                        'PROCESSANDO RESGATE...'
+                      ) : gamePoints >= 10 ? (
+                        <>🔄 RESGATAR +{Math.round(gamePoints / 10)} XP REAL NO CRM</>
+                      ) : (
+                        'JOGUE PARA JUNTAR PONTOS (MÍN. 10)'
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Grid de Fliperamas */}
+                  <div className="space-y-4 pt-2">
+                    <div className="flex items-center gap-3">
+                      <h4 className="text-white font-black text-[10px] uppercase tracking-widest">
+                        SELECIONE O GABINETE
+                      </h4>
+                      <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      {/* Jogo 1: Genius */}
+                      <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="bg-[#ff6b00] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
+                              DISPONÍVEL 🎮
+                            </span>
+                            <h3 className="text-black font-black text-xs uppercase tracking-tight">
+                              ACORDE GENIUS (8-BIT)
+                            </h3>
+                          </div>
+                          <span className="text-[#ff6b00] font-black text-[8px] bg-black border border-black px-1.5 py-0.5 shrink-0">
+                            +20 PONTOS / LVL
+                          </span>
+                        </div>
+                        <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
+                          Treine seu ouvido musical e sua memória repetindo as sequências de acordes e bips senoidais!
+                        </p>
+                        <button
+                          onClick={() => {
+                            setIsPlayingAcordeGenius(true);
+                            // Toca um som retro de moeda inserida (Insert Coin)
+                            playRetroSound(880, 'square', 0.1);
+                            setTimeout(() => playRetroSound(1760, 'square', 0.25), 100);
+                          }}
+                          className="w-full bg-[#ff6b00] text-white hover:bg-black font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
+                        >
+                          🕹️ INICIAR PARTIDA
+                        </button>
+                      </div>
+
+                      {/* Jogo 2: Fretboard Invaders (Em Breve) */}
+                      <div className="bg-[#261812] border-4 border-black p-4 flex flex-col gap-2 opacity-50 relative group">
+                        <div className="flex justify-between items-center">
+                          <h3 className="text-white/60 font-black text-xs uppercase">
+                            FRETBOARD INVADERS
+                          </h3>
+                          <span className="bg-[#3d2d26] text-white/50 text-[6px] font-black uppercase px-1.5 py-0.5 border border-black">
+                            EM BREVE 🔒
+                          </span>
+                        </div>
+                        <p className="text-white/40 font-black text-[8px] uppercase">
+                          Defenda a galáxia acertando a posição das notas na escala da guitarra e violão contra a invasão alienígena!
+                        </p>
+                      </div>
+
+                      {/* Jogo 3: Rhythm Hero (Em Breve) */}
+                      <div className="bg-[#261812] border-4 border-black p-4 flex flex-col gap-2 opacity-50 relative group">
+                        <div className="flex justify-between items-center">
+                          <h3 className="text-white/60 font-black text-xs uppercase">
+                            RHYTHM HERO
+                          </h3>
+                          <span className="bg-[#3d2d26] text-white/50 text-[6px] font-black uppercase px-1.5 py-0.5 border border-black">
+                            EM BREVE 🔒
+                          </span>
+                        </div>
+                        <p className="text-white/40 font-black text-[8px] uppercase">
+                          Um jogo de ritmo pixelado no qual você precisa acertar as batidas na hora certa para solar seu instrumento!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* ÁREA DO MINIJOGO: ACORDE GENIUS */
+                <div className="bg-black border-8 border-[#3d2d26] p-4 shadow-[8px_8px_0_#000] flex flex-col gap-4 relative">
+                  {/* Linha Decorativa Superior do Gabinete */}
+                  <div className="flex justify-between items-center">
+                    <button
+                      onClick={() => {
+                        setIsPlayingAcordeGenius(false);
+                        setGeniusState('idle');
+                        setGeniusSequence([]);
+                        setGeniusUserSequence([]);
+                        setGeniusScore(0);
+                        setGeniusActivePad(null);
+                      }}
+                      className="bg-[#261812] text-[#feccba] border-2 border-[#feccba] font-black text-[7px] uppercase px-2.5 py-1 hover:bg-black active:translate-y-[1px] transition-all cursor-pointer"
+                    >
+                      ← SAIR DO FLIPERAMA
+                    </button>
+                    <span className="text-[#ff6b00] font-black text-[8px] uppercase tracking-widest animate-pulse">
+                      GENIUS_GABINETE_v1.0
+                    </span>
+                  </div>
+
+                  {/* Tela de Status do Jogo */}
+                  <div className="bg-[#1a0a05] border-4 border-[#3d2d26] p-3 font-mono text-center space-y-1">
+                    <div className="flex justify-between text-[7px] text-[#feccba] font-black uppercase">
+                      <span>NÍVEL: {geniusScore + 1}</span>
+                      <span>SCORE: {geniusScore}</span>
+                    </div>
+                    <div className="h-6 flex items-center justify-center">
+                      {geniusState === 'idle' && (
+                        <p className="text-amber-500 font-black text-[8px] uppercase tracking-widest animate-pulse">
+                          🎮 PRESS START TO PLAY! 🎮
+                        </p>
+                      )}
+                      {geniusState === 'playback' && (
+                        <p className="text-cyan-400 font-black text-[8px] uppercase tracking-widest animate-bounce">
+                          🔊 PRESTE ATENÇÃO NA SEQUÊNCIA...
+                        </p>
+                      )}
+                      {geniusState === 'playing' && (
+                        <p className="text-green-400 font-black text-[8px] uppercase tracking-widest animate-pulse">
+                          👉 REPRODUZA A SEQUÊNCIA DE NOTAS!
+                        </p>
+                      )}
+                      {geniusState === 'gameover' && (
+                        <p className="text-red-500 font-black text-[8px] uppercase tracking-widest animate-pulse">
+                          🚨 GAME OVER! PONTOS SALVOS! 🚨
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Painel do Genius (4 Pads Quadrados Bem Retrô) */}
+                  <div className="grid grid-cols-2 gap-3 max-w-[200px] mx-auto w-full mt-2">
+                    {/* Pad 0: Verde (C4 - Dó) */}
+                    <button
+                      onClick={() => handleGeniusPadClick(0)}
+                      disabled={geniusState !== 'playing'}
+                      className={`h-20 border-4 border-black rounded-lg transition-all active:scale-95 shadow-[4px_4px_0_#000] relative ${
+                        geniusActivePad === 0
+                          ? 'bg-[#00ff66] shadow-[0_0_15px_#00ff66] border-white scale-[1.03] z-10'
+                          : 'bg-[#006622] hover:bg-[#00802b] cursor-pointer'
+                      } ${geniusState !== 'playing' ? 'cursor-default opacity-85' : ''}`}
+                    >
+                      <span className="absolute bottom-2 right-2 text-white/40 font-black text-[9px]">
+                        C
+                      </span>
+                    </button>
+
+                    {/* Pad 1: Laranja (E4 - Mi) */}
+                    <button
+                      onClick={() => handleGeniusPadClick(1)}
+                      disabled={geniusState !== 'playing'}
+                      className={`h-20 border-4 border-black rounded-lg transition-all active:scale-95 shadow-[4px_4px_0_#000] relative ${
+                        geniusActivePad === 1
+                          ? 'bg-[#ff9900] shadow-[0_0_15px_#ff9900] border-white scale-[1.03] z-10'
+                          : 'bg-[#995c00] hover:bg-[#b36b00] cursor-pointer'
+                      } ${geniusState !== 'playing' ? 'cursor-default opacity-85' : ''}`}
+                    >
+                      <span className="absolute bottom-2 right-2 text-white/40 font-black text-[9px]">
+                        E
+                      </span>
+                    </button>
+
+                    {/* Pad 2: Vermelho (G4 - Sol) */}
+                    <button
+                      onClick={() => handleGeniusPadClick(2)}
+                      disabled={geniusState !== 'playing'}
+                      className={`h-20 border-4 border-black rounded-lg transition-all active:scale-95 shadow-[4px_4px_0_#000] relative ${
+                        geniusActivePad === 2
+                          ? 'bg-[#ff3333] shadow-[0_0_15px_#ff3333] border-white scale-[1.03] z-10'
+                          : 'bg-[#990000] hover:bg-[#cc0000] cursor-pointer'
+                      } ${geniusState !== 'playing' ? 'cursor-default opacity-85' : ''}`}
+                    >
+                      <span className="absolute bottom-2 right-2 text-white/40 font-black text-[9px]">
+                        G
+                      </span>
+                    </button>
+
+                    {/* Pad 3: Azul (C5 - Dó oitavado) */}
+                    <button
+                      onClick={() => handleGeniusPadClick(3)}
+                      disabled={geniusState !== 'playing'}
+                      className={`h-20 border-4 border-black rounded-lg transition-all active:scale-95 shadow-[4px_4px_0_#000] relative ${
+                        geniusActivePad === 3
+                          ? 'bg-[#3399ff] shadow-[0_0_15px_#3399ff] border-white scale-[1.03] z-10'
+                          : 'bg-[#004d99] hover:bg-[#0066cc] cursor-pointer'
+                      } ${geniusState !== 'playing' ? 'cursor-default opacity-85' : ''}`}
+                    >
+                      <span className="absolute bottom-2 right-2 text-white/40 font-black text-[9px]">
+                        C'
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Painel de Controles */}
+                  <div className="flex gap-3 justify-center mt-2">
+                    {(geniusState === 'idle' || geniusState === 'gameover') && (
+                      <button
+                        onClick={startGeniusGame}
+                        className="bg-[#00ff66] hover:bg-[#00cc52] text-black border-4 border-black font-black text-[9px] px-6 py-2.5 uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        🎮 {geniusState === 'gameover' ? 'RECOMEÇAR PARTIDA' : 'INICIAR PARTIDA (START)'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Instruções Curtas */}
+                  <div className="text-[#8e7164] font-black text-[6px] uppercase text-center mt-2 leading-relaxed">
+                    Memorize a sequência em que as notas acendem e tocam, depois clique nos pads na mesma ordem. Cada fase vencida dá +20 pontos de jogo!
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -1147,12 +1595,31 @@ export default function AreaAluno() {
           )}
         </div>
 
+
+        {/* Botão Flutuante Musiclass Tools */}
+        <button
+          onClick={() => setShowTools(true)}
+          className="fixed md:absolute bottom-24 right-4 z-40 bg-[#ff6b00] text-white border-4 border-black p-2.5 shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none font-black text-[8px] uppercase tracking-wider hover:bg-[#ff8c3a] flex items-center gap-1 cursor-pointer"
+        >
+          🎸 FERRAMENTAS
+        </button>
+
+        {/* Modal de Ferramentas */}
+        {showTools && (
+          <div className="fixed md:absolute inset-0 bg-black/90 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
+            <div className="w-full max-w-[340px]">
+              <MusiclassTools onClose={() => setShowTools(false)} />
+            </div>
+          </div>
+        )}
+
         {/* BOTTOM NAV — Mobile */}
         <nav className="fixed md:absolute bottom-0 left-0 right-0 md:left-auto md:right-auto md:w-full h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-50">
           {[
             { icon: Home, label: 'HOME', tab: 'home' as const },
             { icon: Trophy, label: 'RANK', tab: 'ranking' as const },
             { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
+            { icon: Gamepad2, label: 'JOGOS', tab: 'jogos' as const },
             { icon: User, label: 'PERFIL', tab: 'perfil' as const },
           ].map((item) => (
             <button key={item.tab} onClick={() => { setActiveTab(item.tab); if (item.tab === 'ranking') fetchRanking(); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.tab ? 'translate-y-[-4px]' : 'opacity-50'}`}>

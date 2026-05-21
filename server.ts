@@ -504,6 +504,54 @@ async function startServer() {
         }
     });
 
+    app.post('/api/gamificacao/resgatar-pontos', async (req: any, res) => {
+        try {
+            const { pontos, jogo } = req.body;
+            if (!pontos || Number(pontos) <= 0) {
+                return res.status(400).json({ error: 'Quantidade de pontos inválida.' });
+            }
+
+            const email = (req.user?.email || '').toLowerCase().trim();
+            const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
+
+            // 1. Buscar o aluno logado
+            const { data: aluno, error } = await supabase
+                .from('alunos')
+                .select('*')
+                .ilike('email', searchEmail)
+                .single();
+            
+            if (error || !aluno) {
+                return res.status(404).json({ error: 'Aluno não encontrado.' });
+            }
+
+            // 2. Converter pontos para XP (Ex: 10 pontos = 1 XP)
+            const xpGanhos = Math.max(1, Math.round(Number(pontos) / 10));
+            const novoXp = (Number(aluno.xp) || 0) + xpGanhos;
+
+            // 3. Atualizar o XP do aluno
+            const { error: updateError } = await supabase
+                .from('alunos')
+                .update({ xp: novoXp })
+                .eq('id', aluno.id);
+
+            if (updateError) {
+                throw new Error('Erro ao atualizar XP no banco de dados: ' + updateError.message);
+            }
+
+            res.json({
+                success: true,
+                xpGanhos,
+                novoXp,
+                pontosResgatados: pontos,
+                message: `✨ Parabéns! Você resgatou ${pontos} pontos do jogo ${jogo || 'Gallery'} e ganhou +${xpGanhos} XP no Acorde CRM!`
+            });
+        } catch (error: any) {
+            console.error('Erro ao resgatar pontos:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.post('/api/upload', upload.single('file'), (req: any, res) => {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         try {
@@ -531,6 +579,24 @@ async function startServer() {
             if (error) throw error;
             res.json(data);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.get('/api/alunos/:id/ultima-aula', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('aulas')
+                .select('*')
+                .eq('aluno_id', req.params.id)
+                .eq('status', 'realizada')
+                .order('data', { ascending: false })
+                .order('horario', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (error) throw error;
+            res.json(data || null);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
     });
 
     app.get('/api/alunos/:id/financeiro', async (req, res) => {
@@ -1942,12 +2008,34 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao excluir conquista' }); }
     });
 
-    app.post('/api/gamificacao/upload', upload.single('icon'), (req: any, res) => {
+    app.post('/api/gamificacao/upload', upload.single('icon'), async (req: any, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         }
-        const url = `/uploads/${req.file.filename}`;
-        res.json({ url });
+        try {
+            const ext = path.extname(req.file.originalname) || '.png';
+            const filename = `conquistas/${Date.now()}_${req.file.filename}${ext}`;
+            const fileBuffer = fs.readFileSync(req.file.path);
+            const mimeType = req.file.mimetype || 'image/png';
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
+
+            try { fs.unlinkSync(req.file.path); } catch {}
+
+            if (uploadError) {
+                console.error('[CONQUISTA_UPLOAD] Supabase Storage falhou:', uploadError.message);
+                return res.status(500).json({ error: 'Falha ao salvar miniatura no Storage: ' + uploadError.message });
+            }
+
+            const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+            const url = publicUrlData?.publicUrl || '';
+            res.json({ url });
+        } catch (error: any) {
+            console.error('Erro no upload de conquista:', error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     app.get('/api/gamificacao/ranking', async (req, res) => {
@@ -1995,10 +2083,25 @@ async function startServer() {
     app.post('/api/gamificacao/atribuir', async (req, res) => {
         try {
             const { aluno_id, conquista_id } = req.body;
-            const { error } = await supabase.from('gamificacao_progresso').insert([{ aluno_id, conquista_id }]);
+            if (!aluno_id || !conquista_id) {
+                return res.status(400).json({ error: 'Parâmetros aluno_id e conquista_id são obrigatórios.' });
+            }
+            const alunoIdNum = Number(aluno_id);
+            const conquistaIdNum = Number(conquista_id);
+            if (isNaN(alunoIdNum) || isNaN(conquistaIdNum)) {
+                return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
+            }
+
+            const { error } = await supabase
+                .from('gamificacao_progresso')
+                .insert([{ aluno_id: alunoIdNum, conquista_id: conquistaIdNum }]);
+            
             if (error) throw error;
             res.json({ success: true });
-        } catch (error) { res.status(500).json({ error: 'Erro ao atribuir conquista' }); }
+        } catch (error: any) {
+            console.error('[GAMIFICACAO_ATRIBUIR] Erro ao atribuir conquista:', error);
+            res.status(500).json({ error: error.message || 'Erro ao atribuir conquista' });
+        }
     });
 
     // Serve static files from public folder

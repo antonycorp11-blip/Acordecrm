@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Plus, Upload, Search, Settings, X, Save, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
 
 export default function Conquistas() {
   const [conquistas, setConquistas] = useState<any[]>([]);
@@ -44,14 +45,15 @@ export default function Conquistas() {
         body: JSON.stringify(formData)
       });
       if (res.ok) {
+        toast.success('CONQUISTA CRIADA COM SUCESSO! 🎖️');
         setIsModalOpen(false);
         setFormData({ nome: '', descricao: '', pontos: 10, regra_automatica: '', icone_url: '' });
         fetchConquistas();
       } else {
-        alert('Erro ao criar conquista');
+        toast.error('Erro ao criar conquista ❌');
       }
     } catch (err) {
-      alert('Erro de conexão');
+      toast.error('Erro de conexão com o servidor ❌');
     }
   };
 
@@ -64,12 +66,13 @@ export default function Conquistas() {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
+          toast.success('CONQUISTA EXCLUÍDA! 🗑️');
           fetchConquistas();
         } else {
-          alert('Erro ao excluir conquista');
+          toast.error('Erro ao excluir conquista ❌');
         }
       } catch (err) {
-        alert('Erro de conexão');
+        toast.error('Erro de conexão com o servidor ❌');
       }
     }
   };
@@ -92,11 +95,12 @@ export default function Conquistas() {
       if (res.ok) {
         const json = await res.json();
         setFormData(prev => ({ ...prev, icone_url: json.url }));
+        toast.success('Miniatura enviada com sucesso! 🎨');
       } else {
-        alert('Erro ao fazer upload');
+        toast.error('Erro ao fazer upload da imagem! ❌');
       }
     } catch (err) {
-      alert('Erro de conexão no upload');
+      toast.error('Erro de conexão no upload ❌');
     } finally {
       setUploading(false);
     }

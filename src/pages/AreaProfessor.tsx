@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musicEngine';
 import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordVisualizers';
+import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 
 class MelodySynth {
@@ -213,17 +214,7 @@ class DrumSynth {
 const synth = new DrumSynth();
 
 const translateNote = (note: string): string => {
-  const map: Record<string, string> = {
-    'C': 'Dó', 'C#': 'Dó#', 'Db': 'Réb',
-    'D': 'Ré', 'D#': 'Ré#', 'Eb': 'Mib',
-    'E': 'Mi',
-    'F': 'Fá', 'F#': 'Fá#', 'Gb': 'Solb',
-    'G': 'Sol', 'G#': 'Sol#', 'Ab': 'Láb',
-    'A': 'Lá', 'A#': 'Lá#', 'Bb': 'Sib',
-    'B': 'Si'
-  };
-  const baseNote = note.replace(/\d+$/, '');
-  return map[baseNote] || baseNote;
+  return note.replace(/\d+$/, '');
 };
 
 // Helper para pegar os dias da semana atual (Segunda a Domingo)
@@ -267,6 +258,7 @@ export default function AreaProfessor() {
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [alunosList, setAlunosList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showTools, setShowTools] = useState(false);
   
   // Modal de registro de aula existente (Musiclass)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -314,6 +306,8 @@ export default function AreaProfessor() {
   const [melodyPhrases, setMelodyPhrases] = useState<string[][]>([]); // frases da melodia atual
   const [showMelodyPhrases, setShowMelodyPhrases] = useState<boolean>(false);
   const [mcActiveTab, setMcActiveTab] = useState<'geral' | 'acordes' | 'escalas' | 'tablatura' | 'bateria' | 'exercicios' | 'studio' | 'melodia'>('geral');
+  const [showFichaChoice, setShowFichaChoice] = useState(false);
+  const [loadingUltimaAula, setLoadingUltimaAula] = useState(false);
 
   // Novos estados do Musiclass v2
   const [currentGroupName, setCurrentGroupName] = useState('INTRO');
@@ -428,6 +422,86 @@ export default function AreaProfessor() {
     loadData();
   }, []);
 
+  const copiarUltimaAula = async (alunoId: string) => {
+    if (!alunoId) return;
+    setLoadingUltimaAula(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/alunos/${alunoId}/ultima-aula`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        const ultimaAula = await res.json();
+        if (ultimaAula) {
+          let conteudoText = ultimaAula.conteudo || '';
+          let tarefaCasaText = ultimaAula.tarefa_casa || '';
+          let chords: any[] = [];
+          let scales: any[] = [];
+          let exercises: any[] = [];
+          let recordings: any[] = [];
+          let tablatures: any[] = [];
+          let drums: any[] = [];
+          let melody: any[] = [];
+
+          try {
+            if (ultimaAula.conteudo && ultimaAula.conteudo.trim().startsWith('{') && ultimaAula.conteudo.trim().endsWith('}')) {
+              const richData = JSON.parse(ultimaAula.conteudo);
+              if (richData.isRich) {
+                conteudoText = richData.conteudoText || '';
+                tarefaCasaText = richData.tarefaCasaText || '';
+                chords = richData.chords || [];
+                scales = richData.scales || [];
+                exercises = richData.exercises || [];
+                recordings = richData.recordings || [];
+                tablatures = richData.tablatures || [];
+                drums = richData.drums || [];
+                melody = richData.melody || [];
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao ler JSON rico da aula anterior:', e);
+          }
+
+          setConteudo(conteudoText);
+          setTarefaCasa(tarefaCasaText);
+          setMcChords(chords);
+          setMcScales(scales);
+          setMcExercises(exercises);
+          setMcRecordings(recordings);
+          setMcTablatures(tablatures);
+          setMcDrums(drums);
+          setMcMelody(melody);
+
+          try {
+            if (typeof ultimaAula.midias === 'string') {
+              setMidias(JSON.parse(ultimaAula.midias));
+            } else if (Array.isArray(ultimaAula.midias)) {
+              setMidias(ultimaAula.midias);
+            } else {
+              setMidias([]);
+            }
+          } catch {
+            setMidias([]);
+          }
+
+          toast.success('DADOS DA AULA ANTERIOR COPIADOS COM SUCESSO! 🔄');
+        } else {
+          toast.info('ESTE ALUNO NÃO POSSUI NENHUMA AULA ANTERIOR REALIZADA.');
+        }
+      } else {
+        toast.error('ERRO AO BUSCAR AULA ANTERIOR.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('ERRO DE CONEXÃO.');
+    } finally {
+      setLoadingUltimaAula(false);
+      setShowFichaChoice(false);
+    }
+  };
+
   const openRegistroModal = (aula: any) => {
     setSelectedAula(aula);
     setStatusAula(aula.status === 'realizada' || aula.status === 'pendente' ? 'realizada' : aula.status);
@@ -484,6 +558,13 @@ export default function AreaProfessor() {
       }
     } catch {
       setMidias([]);
+    }
+    
+    // Se a aula for pendente e não tiver conteúdo, oferece a escolha de cópia
+    if (aula.status === 'pendente' && !conteudoText) {
+      setShowFichaChoice(true);
+    } else {
+      setShowFichaChoice(false);
     }
     
     setIsModalOpen(true);
@@ -3147,6 +3228,34 @@ export default function AreaProfessor() {
 
             <form onSubmit={salvarDiarioAula} className="space-y-4">
               
+              {showFichaChoice && (
+                <div className="border-4 border-dashed border-[#ff6b00] bg-[#feccba]/10 p-4 space-y-3.5 mb-4 shadow-[4px_4px_0_rgba(0,0,0,0.05)] rounded-none font-mono">
+                  <div className="flex items-center gap-2 text-[#ff6b00] font-black text-[10px] uppercase tracking-widest">
+                    <span>🔄</span> DETECTAMOS UMA NOVA FICHA DE AULA
+                  </div>
+                  <p className="text-[9px] text-[#8e7164] uppercase leading-relaxed font-black">
+                    Deseja iniciar esta ficha totalmente do zero ou copiar os dados da aula anterior realizada deste aluno para reaproveitar?
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowFichaChoice(false)}
+                      className="py-2.5 bg-black text-white hover:bg-stone-900 border-2 border-black text-[9px] font-black uppercase tracking-wider shadow-[2px_2px_0_rgba(0,0,0,0.2)] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5"
+                    >
+                      ✨ FICHA DO ZERO
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loadingUltimaAula}
+                      onClick={() => copiarUltimaAula(selectedAula.aluno_id)}
+                      className="py-2.5 bg-[#ff6b00] text-white hover:bg-[#e05e00] border-2 border-black text-[9px] font-black uppercase tracking-wider shadow-[2px_2px_0_rgba(0,0,0,0.2)] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {loadingUltimaAula ? '⏳ CARREGANDO...' : '🔄 COPIAR ANTERIOR'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Presença/Falta */}
               <div>
                 <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">STATUS DA AULA</label>
@@ -3432,6 +3541,23 @@ export default function AreaProfessor() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Botão Flutuante Musiclass Tools para o Professor */}
+      <button
+        onClick={() => setShowTools(true)}
+        className="fixed bottom-6 right-6 z-50 bg-[#ff6b00] text-white border-4 border-black p-3.5 shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none font-black text-[9.5px] uppercase tracking-widest hover:bg-[#ff8c3a] flex items-center gap-1.5 cursor-pointer"
+      >
+        🎸 MUSICLASS TOOLS
+      </button>
+
+      {/* Modal de Ferramentas */}
+      {showTools && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
+          <div className="w-full max-w-[360px]">
+            <MusiclassTools onClose={() => setShowTools(false)} />
           </div>
         </div>
       )}
