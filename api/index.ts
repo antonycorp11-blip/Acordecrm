@@ -361,6 +361,77 @@ async function startServer() {
     });
 
     // --- ALUNOS & CURSOS ENDPOINTS ---
+    app.get('/api/alunos/me', async (req: any, res) => {
+        try {
+            const email = (req.user?.email || '').toLowerCase().trim();
+            const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
+
+            // 1. Buscar o aluno logado
+            const { data: aluno, error } = await supabase
+                .from('alunos')
+                .select('*, matriculas(*, cursos(nome))')
+                .ilike('email', searchEmail)
+                .single();
+            
+            if (error || !aluno) {
+                // Tenta fallback para aluno de teste
+                const { data: fallback, error: errFb } = await supabase.from('alunos').select('*, matriculas(*, cursos(nome))').eq('id', 3).maybeSingle();
+                if (fallback) {
+                    const activeCourse = (fallback.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
+                    return res.json({ ...fallback, ranking: 1, curso_ativo: activeCourse, conquistas: [] });
+                }
+                return res.status(404).json({ error: 'Aluno não encontrado' });
+            }
+
+            // 2. Calcular Ranking e XP real (baseado em conquistas)
+            const { data: allAlunos } = await supabase.from('alunos').select('id, xp');
+            const { data: progresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)');
+            
+            const rankingList = (allAlunos || []).map(al => {
+                const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
+                const xpCalculado = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
+                return { id: al.id, xp: (al.xp || 0) + xpCalculado };
+            }).sort((a, b) => b.xp - a.xp);
+
+            const myEntry = rankingList.find(r => r.id === aluno.id);
+            const myRank = rankingList.findIndex(r => r.id === aluno.id) + 1;
+            const myXp = myEntry ? myEntry.xp : (aluno.xp || 0);
+
+            const activeCourse = (aluno.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
+
+            res.json({
+                ...aluno,
+                ranking: myRank,
+                xp: myXp,
+                curso_ativo: activeCourse,
+                conquistas: progresso?.filter(p => p.aluno_id === aluno.id).map(p => ({
+                    ...p.conquista,
+                    data_conquista: p.created_at
+                })) || []
+            });
+        } catch (error: any) { 
+            console.error('Erro em /api/alunos/me:', error);
+            res.status(500).json({ error: error.message }); 
+        }
+    });
+
+    app.post('/api/alunos/me/photo', upload.single('photo'), async (req: any, res) => {
+        if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+        try {
+            const photoUrl = `/uploads/${req.file.filename}`;
+            const email = (req.user?.email || '').toLowerCase().trim();
+            const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
+            
+            const { error } = await supabase
+                .from('alunos')
+                .update({ foto_url: photoUrl })
+                .ilike('email', searchEmail);
+            
+            if (error) throw error;
+            res.json({ foto_url: photoUrl });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
     app.get('/api/alunos/:id', async (req, res) => {
         try {
             const { data, error } = await supabase
@@ -1680,41 +1751,6 @@ async function startServer() {
         }
         res.json(updated);
     });
-
-    app.get('/api/alunos/me', async (req: any, res) => {
-        try {
-            const email = (req.user?.email || '').toLowerCase().trim();
-            
-            // Força busca pelo e-mail do admin ou do teste
-            const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
-
-            const { data: aluno, error: errMe } = await supabase
-                .from('alunos')
-                .select('*, matriculas(*, cursos(nome))')
-                .ilike('email', searchEmail)
-                .order('id', { foreignTable: 'matriculas', ascending: false })
-                .maybeSingle();
-
-            if (errMe) throw new Error(`Supabase Me Error: ${errMe.message}`);
-
-            if (!aluno) {
-                const { data: fallback, error: errFb } = await supabase.from('alunos').select('*, matriculas(*, cursos(nome))').eq('id', 3).order('id', { foreignTable: 'matriculas', ascending: false }).maybeSingle();
-                if (errFb) throw new Error(`Supabase Fallback Error: ${errFb.message}`);
-                
-                if (fallback) {
-                    const activeCourse = (fallback.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
-                    return res.json({ ...fallback, ranking: 1, curso_ativo: activeCourse });
-                }
-                return res.status(404).json({ error: 'Nenhum dado encontrado' });
-            }
-
-            const activeCourse = (aluno.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
-            return res.json({ ...aluno, ranking: 1, curso_ativo: activeCourse });
-        } catch (err: any) {
-            res.status(500).json({ error: err.message });
-        }
-    });
-
     app.delete('/api/agenda/:id', async (req, res) => {
         const { id } = req.params;
         const [type, originalId] = id.split('-');

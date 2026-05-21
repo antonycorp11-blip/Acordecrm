@@ -183,8 +183,8 @@ export const KeyboardVisualizer: React.FC<{
                   }`}
                 >
                   {active && (
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-black flex items-center justify-center border-2 border-white shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
-                      <span className="text-[7px] font-black text-white uppercase">{translateNote(noteName)}</span>
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-black flex items-center justify-center border-2 border-white shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                      <span className="text-[6.5px] font-black text-white uppercase">{translateNote(noteName)}</span>
                     </div>
                   )}
                 </div>
@@ -207,8 +207,8 @@ export const KeyboardVisualizer: React.FC<{
                   style={{ left: `${left}%` }}
                 >
                   {active && (
-                    <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center border-2 border-black shadow-sm">
-                      <span className="text-[6px] font-black text-black leading-none uppercase">{translateNote(noteName)}</span>
+                    <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center border-2 border-black shadow-sm">
+                      <span className="text-[5.5px] font-black text-black leading-none uppercase">{translateNote(noteName)}</span>
                     </div>
                   )}
                 </div>

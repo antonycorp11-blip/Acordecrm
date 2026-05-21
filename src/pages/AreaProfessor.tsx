@@ -1269,7 +1269,7 @@ export default function AreaProfessor() {
                         const globalIdx = mcChords.findIndex(c => c === ch);
                         const isTeclado = (ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument)?.toLowerCase().includes('teclado') || (ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument)?.toLowerCase().includes('piano');
                         return (
-                          <div key={idx} className={`relative group shrink-0 mt-2.5 origin-top-left ${isTeclado ? 'w-[280px]' : 'w-[160px]'}`}>
+                          <div key={idx} className={`relative group shrink-0 mt-2.5 origin-top-left ${isTeclado ? 'w-[320px]' : 'w-[160px]'}`}>
                             <ChordVisualizer
                               instrument={ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument}
                               chordNotes={ch.notes || []}
@@ -3297,7 +3297,7 @@ export default function AreaProfessor() {
                         {(chords as any[]).map((ch, idx) => {
                           const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
                           return (
-                            <div key={idx} className={`border-2 border-black p-1 bg-white ${isTeclado ? 'w-[280px] sm:w-[340px]' : 'w-[160px]'}`}>
+                            <div key={idx} className={`border-2 border-black p-1 bg-white ${isTeclado ? 'w-[320px] sm:w-[340px]' : 'w-[160px]'}`}>
                               <ChordVisualizer
                                 instrument={ch.instrument || mcPlaygroundInstrument}
                                 chordNotes={ch.notes || []}

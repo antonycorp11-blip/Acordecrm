@@ -322,7 +322,7 @@ export default function AreaAluno() {
                                 {richData.chords.map((ch: any, idx: number) => {
                                   const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
                                   return (
-                                    <div key={idx} className={`shrink-0 scale-95 origin-top-left ${isTeclado ? 'w-[270px]' : 'w-[160px]'}`}>
+                                    <div key={idx} className={`shrink-0 scale-95 origin-top-left ${isTeclado ? 'w-[320px]' : 'w-[160px]'}`}>
                                       <ChordVisualizer
                                         instrument={ch.instrument || currentInstrument}
                                         chordNotes={ch.notes || []}
