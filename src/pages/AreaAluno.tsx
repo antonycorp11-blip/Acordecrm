@@ -285,6 +285,7 @@ export default function AreaAluno() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas' | 'perfil' | 'jogos'>('home');
   const [rankingData, setRankingData] = useState<any[]>([]);
+  const [todasConquistas, setTodasConquistas] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
   const [showTools, setShowTools] = useState(false);
 
@@ -513,8 +514,52 @@ export default function AreaAluno() {
       .finally(() => setLoading(false));
     };
 
+    const fetchTodasConquistas = () => {
+      fetch('/api/gamificacao/conquistas', { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setTodasConquistas(Array.isArray(data) ? data : []))
+        .catch(console.error);
+    };
+
     fetchAll();
+    fetchTodasConquistas();
   }, []);
+
+  const handleSolicitarTrofeu = async (conquistaId: number) => {
+    const token = localStorage.getItem('acorde_token');
+    if (!token || !alunoData?.id) return;
+
+    try {
+      const res = await fetch('/api/gamificacao/solicitar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ aluno_id: alunoData.id, conquista_id: conquistaId })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('SOLICITAÇÃO ENVIADA COM SUCESSO! 📨');
+        playRetroSound(880, 'sine', 0.15);
+        setTimeout(() => playRetroSound(1320, 'sine', 0.25), 150);
+        // Recarregar dados do aluno
+        const timestamp = Date.now();
+        const headers = { 'Authorization': `Bearer ${token}` };
+        fetch(`/api/alunos/me?t=${timestamp}`, { headers })
+          .then(r => r.ok ? r.json() : null)
+          .then(me => { if (me) setAlunoData(me); });
+      } else {
+        toast.error(data.error || 'Erro ao solicitar troféu');
+        playRetroSound(220, 'sawtooth', 0.3);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao conectar com o servidor.');
+      playRetroSound(220, 'sawtooth', 0.3);
+    }
+  };
 
   const fetchRanking = async () => {
     const token = localStorage.getItem('acorde_token');
@@ -1529,12 +1574,12 @@ export default function AreaAluno() {
                 </div>
 
                 {/* Barra de XP */}
-                <div className="w-full mt-2">
-                  <div className="flex justify-between text-[7px] font-black uppercase mb-1">
-                    <span>PROGRESSO_DE_NÍVEL</span>
+                <div className="w-full space-y-2">
+                  <div className="flex justify-between items-center text-[8px] font-black text-black">
+                    <span>XP DO PRÓXIMO NÍVEL</span>
                     <span>{xp % 1000} / 1000 XP</span>
                   </div>
-                  <div className="w-full h-4 bg-black border-2 border-black p-0.5">
+                  <div className="h-6 bg-black p-1 border-4 border-black overflow-hidden w-full">
                     <div 
                       className="h-full bg-[#ff6b00] transition-all duration-500" 
                       style={{ width: `${(xp % 1000) / 10}%` }}
@@ -1543,39 +1588,98 @@ export default function AreaAluno() {
                 </div>
               </div>
 
-              {/* Seção de Conquistas e Troféus */}
+              {/* Seção de Conquistas e Troféus - Galeria Dinâmica */}
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 TROFÉUS E CONQUISTAS</h3>
+                  <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 GALERIA DE TROFÉUS E CONQUISTAS</h3>
                   <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                 </div>
                 
-                {alunoData?.conquistas && alunoData.conquistas.length > 0 ? (
+                {todasConquistas && todasConquistas.length > 0 ? (
                   <div className="grid grid-cols-1 gap-3">
-                    {alunoData.conquistas.map((c: any, i: number) => (
-                      <div key={i} className="bg-[#261812] border-4 border-black p-4 flex items-center gap-4 hover:border-[#ff6b00] transition-all">
-                        <div className="w-12 h-12 bg-[#3d2d26] border-2 border-black flex items-center justify-center text-2xl shrink-0">
-                          {c.icone || '🏆'}
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-[#feccba] font-black text-[10px] uppercase leading-none">{c.titulo}</h4>
-                          <p className="text-white/60 font-black text-[8px] uppercase mt-1 leading-tight">{c.descricao}</p>
-                          {c.data_conquista && (
-                            <p className="text-[#ff6b00] font-black text-[6px] uppercase mt-1">
-                              DESBLOQUEADO EM {new Date(c.data_conquista).toLocaleDateString('pt-BR')}
+                    {todasConquistas.map((conquista: any) => {
+                      const conquistado = alunoData?.conquistas?.find((c: any) => Number(c.id) === Number(conquista.id) || Number(c.conquista_id) === Number(conquista.id));
+                      const solicitacaoPendente = alunoData?.solicitacoes?.find((s: any) => Number(s.conquista_id) === Number(conquista.id) && s.status === 'pendente');
+
+                      let cardStyle = "bg-[#261812] border-4 border-black p-4 flex items-center gap-4 hover:border-[#ff6b00] transition-all";
+                      let badgeIconStyle = "w-12 h-12 bg-[#3d2d26] border-2 border-black flex items-center justify-center text-2xl shrink-0";
+                      
+                      if (conquistado) {
+                        cardStyle = "bg-[#261812] border-4 border-[#ff6b00] p-4 flex items-center gap-4 shadow-[0_0_8px_#ff6b00] transition-all";
+                        badgeIconStyle = "w-12 h-12 bg-[#572710] border-2 border-[#ff6b00] flex items-center justify-center text-2xl shrink-0";
+                      } else if (solicitacaoPendente) {
+                        cardStyle = "bg-[#1f1510] border-4 border-dashed border-[#8e7164] opacity-80 p-4 flex items-center gap-4 transition-all";
+                        badgeIconStyle = "w-12 h-12 bg-[#2d211b] border-2 border-[#8e7164] flex items-center justify-center text-2xl shrink-0 grayscale opacity-60";
+                      } else {
+                        cardStyle = "bg-[#1f1510] border-4 border-black opacity-90 p-4 flex items-center gap-4 hover:border-[#ff6b00] transition-all";
+                        badgeIconStyle = "w-12 h-12 bg-[#2d211b] border-2 border-black flex items-center justify-center text-2xl shrink-0 grayscale opacity-40";
+                      }
+
+                      return (
+                        <div key={conquista.id} className={cardStyle}>
+                          <div className={badgeIconStyle}>
+                            {conquista.icone_url ? (
+                              <img src={conquista.icone_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span>{conquista.icone || '🏆'}</span>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <h4 className={`font-black text-[10px] uppercase leading-none ${conquistado ? 'text-[#ff6b00]' : 'text-[#feccba]'}`}>
+                              {conquista.nome}
+                            </h4>
+                            <p className="text-white/60 font-black text-[8px] uppercase mt-1.5 leading-tight">
+                              {conquista.descricao || 'Nenhuma descrição fornecida.'}
                             </p>
-                          )}
+                            
+                            {conquistado ? (
+                              <div className="flex items-center gap-1.5 mt-2">
+                                <span className="text-[6px] font-black uppercase text-green-400 bg-black/40 border border-green-400 px-1 py-0.5 rounded-none leading-none">
+                                  DESBLOQUEADO ✅
+                                </span>
+                                {conquistado.data_conquista && (
+                                  <span className="text-white/40 font-mono text-[5px] uppercase">
+                                    EM {new Date(conquistado.data_conquista).toLocaleDateString('pt-BR')}
+                                  </span>
+                                )}
+                              </div>
+                            ) : solicitacaoPendente ? (
+                              <div className="mt-2">
+                                <span className="text-[6px] font-black uppercase text-yellow-400 bg-black/40 border border-yellow-400 px-1 py-0.5 rounded-none leading-none animate-pulse inline-block">
+                                  PENDENTE ⏳ AGUARDANDO APROVAÇÃO DO PROFESSOR
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="mt-2">
+                                <span className="text-[6px] font-black uppercase text-white/40 bg-black/40 border border-white/20 px-1 py-0.5 rounded-none leading-none inline-block">
+                                  BLOQUEADO 🔒
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <span className="text-[#ff6b00] font-black text-[8px] bg-black border border-black px-1.5 py-0.5 leading-none">
+                              +{conquista.pontos || 100} XP
+                            </span>
+                            
+                            {!conquistado && !solicitacaoPendente && (
+                              <button
+                                onClick={() => handleSolicitarTrofeu(conquista.id)}
+                                className="bg-[#4ade80] hover:bg-[#22c55e] text-black px-1.5 py-1 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all"
+                              >
+                                🚀 SOLICITAR
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-[#ff6b00] font-black text-[8px] bg-black border border-black px-1.5 py-0.5 shrink-0">
-                          +{c.pontos || 100} XP
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="bg-[#261812] border-4 border-black p-6 text-center">
-                    <p className="text-[#8e7164] font-black text-[9px] uppercase">Nenhum troféu desbloqueado ainda.</p>
-                    <p className="text-white/40 font-black text-[7px] uppercase mt-1">Complete missões ou envie sua foto de perfil para ganhar pontos!</p>
+                    <p className="text-[#8e7164] font-black text-[9px] uppercase">Nenhum troféu cadastrado na galeria ainda.</p>
                   </div>
                 )}
               </div>

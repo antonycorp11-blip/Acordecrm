@@ -295,6 +295,7 @@ export default function AreaProfessor() {
   // Estados do Ranking e Conquistas
   const [rankingData, setRankingData] = useState<any[]>([]);
   const [conquistasList, setConquistasList] = useState<any[]>([]);
+  const [solicitacoesList, setSolicitacoesList] = useState<any[]>([]);
   const [loadingRanking, setLoadingRanking] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [assignData, setAssignData] = useState({ aluno_id: '', conquista_id: '' });
@@ -428,6 +429,7 @@ export default function AreaProfessor() {
 
   useEffect(() => {
     loadData();
+    fetchSolicitacoes();
   }, []);
 
   const fetchRanking = async () => {
@@ -458,6 +460,92 @@ export default function AreaProfessor() {
       }
     } catch (e) {
       console.error('Erro ao buscar conquistas:', e);
+    }
+  };
+
+  const playRetroSound = (frequency: number, type: 'sine' | 'triangle' | 'square' | 'sawtooth' = 'triangle', duration: number = 0.25) => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (err) {
+      console.error('AudioContext error:', err);
+    }
+  };
+
+  const playSuccessSound = () => {
+    playRetroSound(523.25, 'square', 0.15); // C5
+    setTimeout(() => {
+      playRetroSound(659.25, 'square', 0.25); // E5
+    }, 120);
+  };
+
+  const playFailSound = () => {
+    playRetroSound(220, 'sawtooth', 0.15); // A3
+    setTimeout(() => {
+      playRetroSound(146.83, 'sawtooth', 0.3); // D3
+    }, 120);
+  };
+
+  const fetchSolicitacoes = async () => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch('/api/gamificacao/solicitacoes', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setSolicitacoesList(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar solicitações:', e);
+    }
+  };
+
+  const handleRevisarSolicitacao = async (id: number, status: 'aprovada' | 'rejeitada') => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const res = await fetch(`/api/gamificacao/solicitacoes/${id}/revisar`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ status })
+      });
+      
+      if (res.ok) {
+        if (status === 'aprovada') {
+          playSuccessSound();
+          toast.success('🏆 SOLICITAÇÃO APROVADA COM SUCESSO!');
+        } else {
+          playFailSound();
+          toast.success('❌ Solicitação rejeitada.');
+        }
+        fetchSolicitacoes();
+        fetchRanking(); // Atualiza o ranking, caso mude o XP
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData.error || 'Erro ao processar solicitação');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro de conexão');
     }
   };
 
@@ -3099,6 +3187,54 @@ export default function AreaProfessor() {
                   </div>
                 </div>
 
+                {/* GALERIA DE CONSULTA DE TROFÉUS (SISTEMA DE GAMIFICAÇÃO) */}
+                <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] space-y-4">
+                  <div className="flex items-center justify-between border-b-4 border-black pb-3">
+                    <h3 className="text-black font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
+                      <Trophy className="w-4 h-4 text-[#ff6b00]" /> DIRETÓRIO DE TROFÉUS
+                    </h3>
+                    <span className="bg-[#ff6b00] text-white border-2 border-black px-1.5 py-0.5 font-black text-[7px] uppercase tracking-tighter shadow-[2px_2px_0_#000]">
+                      {conquistasList.length} CADASTRADOS
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                    {conquistasList.length === 0 ? (
+                      <div className="col-span-full text-center py-6 text-[#8e7164] font-black text-[8px] uppercase">
+                        Nenhum troféu cadastrado.
+                      </div>
+                    ) : (
+                      conquistasList.map((conq: any) => (
+                        <div key={conq.id} className="flex items-center gap-3 p-2.5 border-4 border-black bg-white shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all">
+                          {/* Ícone */}
+                          <div className="w-10 h-10 border-2 border-black bg-[#fff8f6] flex items-center justify-center shrink-0 shadow-[2px_2px_0_#000]">
+                            {conq.icone_url ? (
+                              <img src={conq.icone_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-sm">🏆</span>
+                            )}
+                          </div>
+
+                          {/* Detalhes */}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="font-black text-[9px] uppercase truncate text-black mb-0 leading-none">
+                                {conq.nome}
+                              </p>
+                              <span className="bg-yellow-400 text-black border border-black px-1 font-black text-[6px] uppercase tracking-tighter shrink-0">
+                                {conq.pontos} XP
+                              </span>
+                            </div>
+                            <p className="text-[7px] text-[#8e7164] font-semibold mt-1.5 mb-0 leading-tight">
+                              {conq.descricao || 'Sem descrição.'}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
                 {/* Botão Logout Vermelho Gigante */}
                 <button
                   onClick={logout}
@@ -3111,6 +3247,94 @@ export default function AreaProfessor() {
 
             {activeProfessorTab === 'ranking' && (
               <div className="space-y-5 animate-fade-in pb-10">
+                {/* PENDÊNCIAS DE GAMIFICAÇÃO */}
+                {solicitacoesList.filter((s: any) => s.status === 'pendente').length > 0 && (
+                  <div className="border-8 border-black bg-[#261812] text-white p-4 shadow-[8px_8px_0_#000] space-y-4">
+                    <div className="flex items-center gap-2 border-b-4 border-black pb-2">
+                      <div className="w-3.5 h-3.5 bg-yellow-400 border-2 border-black animate-pulse rounded-full shrink-0" />
+                      <h4 className="font-black text-[10px] tracking-widest uppercase text-yellow-400">
+                        🔔 SOLICITAÇÕES PENDENTES DE TROFÉUS ({solicitacoesList.filter((s: any) => s.status === 'pendente').length})
+                      </h4>
+                    </div>
+
+                    <div className="space-y-3">
+                      {solicitacoesList
+                        .filter((s: any) => s.status === 'pendente')
+                        .map((sol: any) => {
+                          const alunoCompleto = alunosList.find((a: any) => a.id === sol.aluno_id);
+                          const fotoUrl = alunoCompleto?.foto_url;
+                          const curso = alunoCompleto?.curso || 'MÚSICA';
+                          
+                          return (
+                            <div key={sol.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-4 border-black bg-white text-black shadow-[4px_4px_0_#000] hover:translate-x-1 transition-all">
+                              <div className="flex items-center gap-3">
+                                {/* Avatar do Aluno */}
+                                <div className="w-10 h-10 border-2 border-black overflow-hidden bg-[#261812] shrink-0">
+                                  {fotoUrl ? (
+                                    <img src={fotoUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center font-black text-sm text-[#ff6b00]">
+                                      {(sol.aluno?.nome || 'A').charAt(0).toUpperCase()}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Info do Aluno */}
+                                <div className="min-w-0">
+                                  <p className="font-black text-[10px] uppercase truncate text-black mb-0">
+                                    {sol.aluno?.nome}
+                                  </p>
+                                  <p className="text-[7px] font-black uppercase text-[#8e7164] truncate mt-0.5 mb-0">
+                                    {curso}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Troféu Solicitado */}
+                              <div className="flex items-center gap-2 border-2 border-black bg-[#fff8f6] p-2 flex-1 sm:max-w-xs">
+                                <div className="w-8 h-8 border-2 border-black bg-white flex items-center justify-center shrink-0 shadow-[2px_2px_0_#000]">
+                                  {sol.conquista?.icone_url ? (
+                                    <img src={sol.conquista?.icone_url} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-xs">🏆</span>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-black text-[8px] uppercase truncate text-[#ff6b00] mb-0 leading-none">
+                                    {sol.conquista?.nome}
+                                  </p>
+                                  <p className="text-[6px] text-black font-semibold mt-0.5 mb-0 leading-tight line-clamp-1">
+                                    {sol.conquista?.descricao}
+                                  </p>
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <span className="bg-[#ff6b00] text-white border-2 border-black px-1 py-0.5 font-black text-[7px] uppercase tracking-tighter shadow-[1px_1px_0_#000]">
+                                    +{sol.conquista?.pontos} XP
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Ações de Decisão */}
+                              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                <button
+                                  onClick={() => handleRevisarSolicitacao(sol.id, 'aprovada')}
+                                  className="bg-[#2ecc71] hover:bg-[#27ae60] text-white px-2 py-1.5 border-2 border-black font-black uppercase text-[8px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1"
+                                >
+                                  CONCEDER ✅
+                                </button>
+                                <button
+                                  onClick={() => handleRevisarSolicitacao(sol.id, 'rejeitada')}
+                                  className="bg-[#ff3333] hover:bg-red-700 text-white px-2 py-1.5 border-2 border-black font-black uppercase text-[8px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1"
+                                >
+                                  NEGAR ❌
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <div className="bg-[#ff6b00] border-4 border-black px-3 py-1.5 shadow-[4px_4px_0_#000]">
                     <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
@@ -3239,6 +3463,7 @@ export default function AreaProfessor() {
                   if (item.id === 'ranking') {
                     fetchRanking();
                     fetchConquistas();
+                    fetchSolicitacoes();
                   }
                 }}
                 className={`flex flex-col items-center gap-1 transition-all ${isActive ? 'translate-y-[-4px]' : 'opacity-50 hover:opacity-80'}`}

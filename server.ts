@@ -387,6 +387,11 @@ async function startServer() {
             const myRank = rankingList.findIndex(r => r.id === aluno.id) + 1;
             const myXp = myEntry ? myEntry.xp : (aluno.xp || 0);
 
+            const { data: solicitacoes } = await supabase
+                .from('gamificacao_solicitacoes')
+                .select('conquista_id, status')
+                .eq('aluno_id', aluno.id);
+
             res.json({
                 ...aluno,
                 ranking: myRank,
@@ -394,7 +399,8 @@ async function startServer() {
                 conquistas: progresso?.filter(p => p.aluno_id === aluno.id).map(p => ({
                     ...p.conquista,
                     data_conquista: p.created_at
-                })) || []
+                })) || [],
+                solicitacoes: solicitacoes || []
             });
         } catch (error: any) { 
             console.error('Erro em /api/alunos/me:', error);
@@ -2101,6 +2107,121 @@ async function startServer() {
         } catch (error: any) {
             console.error('[GAMIFICACAO_ATRIBUIR] Erro ao atribuir conquista:', error);
             res.status(500).json({ error: error.message || 'Erro ao atribuir conquista' });
+        }
+    });
+
+    app.get('/api/gamificacao/solicitacoes', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('gamificacao_solicitacoes')
+                .select('*, aluno:aluno_id(id, nome), conquista:conquista_id(id, nome, descricao, pontos, icone_url)')
+                .order('id', { ascending: false });
+            
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error: any) {
+            console.error('[GAMIFICACAO_SOLICITACOES_GET] Erro:', error);
+            res.status(500).json({ error: error.message || 'Erro ao carregar solicitações' });
+        }
+    });
+
+    app.post('/api/gamificacao/solicitar', async (req, res) => {
+        try {
+            const { aluno_id, conquista_id } = req.body;
+            if (!aluno_id || !conquista_id) {
+                return res.status(400).json({ error: 'Parâmetros aluno_id e conquista_id são obrigatórios.' });
+            }
+            const alunoIdNum = Number(aluno_id);
+            const conquistaIdNum = Number(conquista_id);
+            if (isNaN(alunoIdNum) || isNaN(conquistaIdNum)) {
+                return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
+            }
+
+            // 1. Verificar se o aluno já possui a conquista
+            const { data: jaPossui, error: errorPossui } = await supabase
+                .from('gamificacao_progresso')
+                .select('id')
+                .eq('aluno_id', alunoIdNum)
+                .eq('conquista_id', conquistaIdNum);
+            
+            if (errorPossui) throw errorPossui;
+            if (jaPossui && jaPossui.length > 0) {
+                return res.status(400).json({ error: 'Você já conquistou este troféu!' });
+            }
+
+            // 2. Verificar se já existe solicitação pendente
+            const { data: jaSolicitou, error: errorSolicitou } = await supabase
+                .from('gamificacao_solicitacoes')
+                .select('id')
+                .eq('aluno_id', alunoIdNum)
+                .eq('conquista_id', conquistaIdNum)
+                .eq('status', 'pendente');
+            
+            if (errorSolicitou) throw errorSolicitou;
+            if (jaSolicitou && jaSolicitou.length > 0) {
+                return res.status(400).json({ error: 'Você já tem uma solicitação pendente para este troféu.' });
+            }
+
+            // 3. Criar solicitação
+            const { data, error: errorInsert } = await supabase
+                .from('gamificacao_solicitacoes')
+                .insert([{ aluno_id: alunoIdNum, conquista_id: conquistaIdNum, status: 'pendente' }])
+                .select()
+                .single();
+            
+            if (errorInsert) throw errorInsert;
+            res.json(data);
+        } catch (error: any) {
+            console.error('[GAMIFICACAO_SOLICITAR] Erro:', error);
+            res.status(500).json({ error: error.message || 'Erro ao processar solicitação' });
+        }
+    });
+
+    app.post('/api/gamificacao/solicitacoes/:id/revisar', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { status } = req.body; // 'aprovada' | 'rejeitada'
+            if (!status || (status !== 'aprovada' && status !== 'rejeitada')) {
+                return res.status(400).json({ error: 'Status inválido. Deve ser aprovada ou rejeitada.' });
+            }
+
+            const solicitacaoId = Number(id);
+            if (isNaN(solicitacaoId)) {
+                return res.status(400).json({ error: 'ID da solicitação deve ser numérico.' });
+            }
+
+            // 1. Buscar a solicitação
+            const { data: solicitacao, error: errorGet } = await supabase
+                .from('gamificacao_solicitacoes')
+                .select('*')
+                .eq('id', solicitacaoId)
+                .single();
+            
+            if (errorGet || !solicitacao) {
+                return res.status(404).json({ error: 'Solicitação não encontrada.' });
+            }
+
+            // 2. Atualizar status da solicitação
+            const { error: errorUpdate } = await supabase
+                .from('gamificacao_solicitacoes')
+                .update({ status })
+                .eq('id', solicitacaoId);
+            
+            if (errorUpdate) throw errorUpdate;
+
+            // 3. Se aprovada, creditar na tabela de progresso
+            if (status === 'aprovada') {
+                const { error: errorProg } = await supabase
+                    .from('gamificacao_progresso')
+                    .insert([{ aluno_id: solicitacao.aluno_id, conquista_id: solicitacao.conquista_id }]);
+                
+                if (errorProg) throw errorProg;
+            }
+
+            res.json({ success: true });
+        } catch (error: any) {
+            console.error('[GAMIFICACAO_REVISAR] Erro:', error);
+            res.status(500).json({ error: error.message || 'Erro ao revisar solicitação' });
         }
     });
 
