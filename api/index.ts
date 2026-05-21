@@ -649,12 +649,24 @@ async function startServer() {
                 return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
             }
 
+            // Calcular horario_fim de forma segura, evitando NaN:00
+            const calcHorarioFim = (h: string | undefined, hFim: string | undefined): string => {
+                if (hFim && hFim !== 'undefined' && !hFim.includes('NaN')) return hFim;
+                if (!h || h === 'undefined') return '13:00';
+                const parts = h.split(':');
+                const hNum = parseInt(parts[0], 10);
+                const mNum = parseInt(parts[1] || '0', 10);
+                if (isNaN(hNum)) return '13:00';
+                const newH = (hNum + 1) % 24;
+                return `${String(newH).padStart(2, '0')}:${String(mNum).padStart(2, '0')}`;
+            };
+
             const newAula = {
                 aluno_id,
                 professor_id: prof.id,
                 data,
-                horario,
-                horario_fim: horario_fim || `${parseInt(horario) + 1}:00`,
+                horario: horario || '12:00',
+                horario_fim: calcHorarioFim(horario, horario_fim),
                 curso_nome: curso_nome || 'Música',
                 status: status || 'realizada',
                 conteudo: conteudo || '',
