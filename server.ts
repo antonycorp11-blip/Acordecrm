@@ -1990,11 +1990,12 @@ async function startServer() {
 
     app.post('/api/gamificacao/conquistas', async (req, res) => {
         try {
-            const { nome, descricao, pontos, regra_automatica, icone_url } = req.body;
+            const { nome, descricao, pontos, regra_automatica, icone_url, classe } = req.body;
             const payload: any = { nome, descricao };
             if (pontos !== undefined) payload.pontos = Number(pontos);
             if (regra_automatica !== undefined) payload.regra_automatica = regra_automatica || null;
             if (icone_url !== undefined) payload.icone_url = icone_url || null;
+            if (classe !== undefined) payload.classe = classe || 'Especial';
 
             const { data, error } = await supabase
                 .from('gamificacao_conquistas')
@@ -2004,6 +2005,28 @@ async function startServer() {
             if (error) throw error;
             res.json(data);
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao salvar conquista' }); }
+    });
+
+    app.put('/api/gamificacao/conquistas/:id', async (req, res) => {
+        try {
+            const { nome, descricao, pontos, regra_automatica, icone_url, classe } = req.body;
+            const payload: any = {};
+            if (nome !== undefined) payload.nome = nome;
+            if (descricao !== undefined) payload.descricao = descricao;
+            if (pontos !== undefined) payload.pontos = Number(pontos);
+            if (regra_automatica !== undefined) payload.regra_automatica = regra_automatica || null;
+            if (icone_url !== undefined) payload.icone_url = icone_url || null;
+            if (classe !== undefined) payload.classe = classe || 'Especial';
+
+            const { data, error } = await supabase
+                .from('gamificacao_conquistas')
+                .update(payload)
+                .eq('id', req.params.id)
+                .select()
+                .single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao atualizar conquista' }); }
     });
 
     app.delete('/api/gamificacao/conquistas/:id', async (req, res) => {
@@ -2049,7 +2072,7 @@ async function startServer() {
             // Buscar alunos ativos (exclui arquivados e testes)
             const { data: alunos } = await supabase
                 .from('alunos')
-                .select('id, nome, xp, curso_ativo')
+                .select('id, nome, xp, foto_url, curso_ativo')
                 .neq('status', 'arquivado');
 
             const { data: progresso } = await supabase
@@ -2074,6 +2097,7 @@ async function startServer() {
                 return {
                     id: al.id,
                     nome: al.nome,
+                    foto_url: al.foto_url,
                     xp: xpTotal,
                     xp_aulas: Number(al.xp) || 0,
                     xp_conquistas: xpConquistas,
@@ -2137,16 +2161,28 @@ async function startServer() {
                 return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
             }
 
-            // 1. Verificar se o aluno já possui a conquista
-            const { data: jaPossui, error: errorPossui } = await supabase
-                .from('gamificacao_progresso')
-                .select('id')
-                .eq('aluno_id', alunoIdNum)
-                .eq('conquista_id', conquistaIdNum);
+            // 0. Buscar classe da conquista para checar se é cumulativa (Especial)
+            const { data: conquista, error: errorConq } = await supabase
+                .from('gamificacao_conquistas')
+                .select('classe')
+                .eq('id', conquistaIdNum)
+                .single();
             
-            if (errorPossui) throw errorPossui;
-            if (jaPossui && jaPossui.length > 0) {
-                return res.status(400).json({ error: 'Você já conquistou este troféu!' });
+            if (errorConq) throw errorConq;
+            const isEspecial = conquista?.classe === 'Especial';
+
+            if (!isEspecial) {
+                // 1. Verificar se o aluno já possui a conquista
+                const { data: jaPossui, error: errorPossui } = await supabase
+                    .from('gamificacao_progresso')
+                    .select('id')
+                    .eq('aluno_id', alunoIdNum)
+                    .eq('conquista_id', conquistaIdNum);
+                
+                if (errorPossui) throw errorPossui;
+                if (jaPossui && jaPossui.length > 0) {
+                    return res.status(400).json({ error: 'Você já conquistou este troféu!' });
+                }
             }
 
             // 2. Verificar se já existe solicitação pendente

@@ -7,13 +7,23 @@ export default function Conquistas() {
   const [conquistas, setConquistas] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
+    id: undefined as number | undefined,
     nome: '',
     descricao: '',
-    pontos: 10,
+    pontos: 250,
     regra_automatica: '',
-    icone_url: ''
+    icone_url: '',
+    classe: 'Especial'
   });
   const [uploading, setUploading] = useState(false);
+
+  const classesXP: Record<string, number> = {
+    'Especial': 250,
+    'Raro': 500,
+    'Epico': 750,
+    'Lendario': 1200,
+    'Supremo': 2000
+  };
 
   const fetchConquistas = async () => {
     const token = localStorage.getItem('acorde_token');
@@ -32,25 +42,68 @@ export default function Conquistas() {
 
   useEffect(() => { fetchConquistas(); }, []);
 
+  const resetForm = () => {
+    setFormData({
+      id: undefined,
+      nome: '',
+      descricao: '',
+      pontos: 250,
+      regra_automatica: '',
+      icone_url: '',
+      classe: 'Especial'
+    });
+  };
+
+  const handleClasseChange = (classe: string) => {
+    setFormData(prev => ({
+      ...prev,
+      classe,
+      pontos: classesXP[classe] || 250
+    }));
+  };
+
+  const handleEditClick = (conquista: any) => {
+    setFormData({
+      id: conquista.id,
+      nome: conquista.nome || '',
+      descricao: conquista.descricao || '',
+      pontos: conquista.pontos || 250,
+      regra_automatica: conquista.regra_automatica || '',
+      icone_url: conquista.icone_url || '',
+      classe: conquista.classe || 'Especial'
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     const token = localStorage.getItem('acorde_token');
     e.preventDefault();
+    const isEdit = formData.id !== undefined;
+    const url = isEdit ? `/api/gamificacao/conquistas/${formData.id}` : '/api/gamificacao/conquistas';
+    const method = isEdit ? 'PUT' : 'POST';
     try {
-      const res = await fetch('/api/gamificacao/conquistas', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          nome: formData.nome,
+          descricao: formData.descricao,
+          pontos: formData.pontos,
+          regra_automatica: formData.regra_automatica,
+          icone_url: formData.icone_url,
+          classe: formData.classe
+        })
       });
       if (res.ok) {
-        toast.success('CONQUISTA CRIADA COM SUCESSO! 🎖️');
+        toast.success(isEdit ? 'CONQUISTA ATUALIZADA COM SUCESSO! 🎖️' : 'CONQUISTA CRIADA COM SUCESSO! 🎖️');
         setIsModalOpen(false);
-        setFormData({ nome: '', descricao: '', pontos: 10, regra_automatica: '', icone_url: '' });
+        resetForm();
         fetchConquistas();
       } else {
-        toast.error('Erro ao criar conquista ❌');
+        toast.error(isEdit ? 'Erro ao atualizar conquista ❌' : 'Erro ao criar conquista ❌');
       }
     } catch (err) {
       toast.error('Erro de conexão com o servidor ❌');
@@ -117,7 +170,7 @@ export default function Conquistas() {
           <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">&gt;&gt; GESTÃO_DE_GAMIFICAÇÃO</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => { resetForm(); setIsModalOpen(true); }}
           className="bg-[#ff6b00] text-white px-8 py-4 border-4 border-black font-black uppercase text-xs shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-3 transition-all italic italic"
         >
           <Plus className="w-5 h-5" /> NOVA_CONQUISTA
@@ -131,7 +184,7 @@ export default function Conquistas() {
             <h2 className="text-xl font-black text-black uppercase italic italic">Nenhuma conquista criada</h2>
             <p className="text-[#8e7164] font-black uppercase text-[10px] max-w-md mb-6">Crie medalhas customizadas, faça upload de ícones ou selecione regras automáticas.</p>
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => { resetForm(); setIsModalOpen(true); }}
               className="bg-[#ff6b00] text-white px-8 py-4 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
             >
               Criar Primeira Conquista
@@ -141,12 +194,22 @@ export default function Conquistas() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
             {conquistas.map(c => (
               <div key={c.id} className="bg-[#fff8f6] border-4 border-black p-6 flex flex-col items-center text-center relative group shadow-[6px_6px_0_#000] hover:translate-y-[-4px] transition-all">
-                <button 
-                  onClick={() => handleDelete(c.id)}
-                  className="absolute top-2 right-2 text-black/10 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  <button 
+                    onClick={() => handleEditClick(c)}
+                    className="text-black/30 hover:text-[#ff6b00] p-1 bg-white border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none"
+                    title="Editar Conquista"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(c.id)}
+                    className="text-black/30 hover:text-red-600 p-1 bg-white border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none"
+                    title="Excluir Conquista"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 <div className="w-20 h-20 border-4 border-black bg-white flex items-center justify-center mb-4 shadow-[4px_4px_0_#000] overflow-hidden">
                   {c.icone_url ? (
                      <img src={c.icone_url} alt="Ícone" className="w-full h-full object-contain p-2" />
@@ -156,7 +219,10 @@ export default function Conquistas() {
                 </div>
                 <h3 className="font-black text-black uppercase italic italic text-sm">{c.nome}</h3>
                 <p className="text-[8px] font-black text-[#8e7164] mt-2 uppercase tracking-tighter line-clamp-2">{c.descricao}</p>
-                <div className="mt-4 inline-flex items-center gap-1 bg-black text-white px-3 py-1 border-2 border-[#ff6b00] text-[8px] font-black uppercase tracking-widest shadow-[2px_2px_0_#ff6b00]">
+                <div className="mt-2 inline-flex items-center gap-1 bg-[#ff6b00] text-white px-2 py-0.5 border border-black text-[7px] font-black uppercase tracking-wider">
+                  {c.classe || 'ESPECIAL'}
+                </div>
+                <div className="mt-2 inline-flex items-center gap-1 bg-black text-white px-3 py-1 border-2 border-[#ff6b00] text-[8px] font-black uppercase tracking-widest shadow-[2px_2px_0_#ff6b00]">
                    +{c.pontos} XP
                 </div>
               </div>
@@ -175,14 +241,17 @@ export default function Conquistas() {
               className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-md"
             >
               <div className="absolute top-0 right-0 p-4">
-                 <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                 <button 
+                   onClick={() => { resetForm(); setIsModalOpen(false); }} 
+                   className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                 >
                     <X className="w-4 h-4" />
                  </button>
               </div>
 
               <div className="mb-8">
                 <h2 className="text-xl font-black text-black uppercase italic italic flex items-center gap-2">
-                   <Trophy className="w-6 h-6 text-[#ff6b00]" /> NOVA_MEDALHA
+                   <Trophy className="w-6 h-6 text-[#ff6b00]" /> {formData.id ? 'EDITAR_MEDALHA' : 'NOVA_MEDALHA'}
                 </h2>
                 <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
               </div>
@@ -216,6 +285,20 @@ export default function Conquistas() {
 
                  <div className="space-y-4">
                    <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CLASSE / RARIDADE</label>
+                     <select 
+                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                       value={formData.classe}
+                       onChange={(e) => handleClasseChange(e.target.value)}
+                     >
+                       <option value="Especial">ESPECIAL (250 XP - CUMULATIVO)</option>
+                       <option value="Raro">RARO (500 XP)</option>
+                       <option value="Epico">ÉPICO (750 XP)</option>
+                       <option value="Lendario">LENDÁRIO (1.200 XP)</option>
+                       <option value="Supremo">SUPREMO (2.000 XP)</option>
+                     </select>
+                   </div>
+                   <div>
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_DA_CONQUISTA</label>
                      <input 
                        required
@@ -239,9 +322,9 @@ export default function Conquistas() {
                         <input 
                           type="number"
                           required
-                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                          readOnly
+                          className="w-full px-4 py-3 bg-[#f3ebe8] border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none cursor-not-allowed"
                           value={formData.pontos}
-                          onChange={(e) => setFormData({...formData, pontos: Number(e.target.value)})}
                         />
                       </div>
                       <div>
@@ -263,7 +346,7 @@ export default function Conquistas() {
                    type="submit"
                    className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
                  >
-                   <Save className="w-5 h-5" /> SALVAR_CONQUISTA
+                   <Save className="w-5 h-5" /> {formData.id ? 'SALVAR_ALTERAÇÕES' : 'SALVAR_CONQUISTA'}
                  </button>
               </form>
             </motion.div>

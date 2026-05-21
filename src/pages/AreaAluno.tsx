@@ -1589,89 +1589,135 @@ export default function AreaAluno() {
               </div>
 
               {/* Seção de Conquistas e Troféus - Galeria Dinâmica */}
-              <div className="space-y-3">
+              <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 GALERIA DE TROFÉUS E CONQUISTAS</h3>
                   <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                 </div>
                 
                 {todasConquistas && todasConquistas.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3">
-                    {todasConquistas.map((conquista: any) => {
-                      const conquistado = alunoData?.conquistas?.find((c: any) => Number(c.id) === Number(conquista.id) || Number(c.conquista_id) === Number(conquista.id));
-                      const solicitacaoPendente = alunoData?.solicitacoes?.find((s: any) => Number(s.conquista_id) === Number(conquista.id) && s.status === 'pendente');
+                  <div className="space-y-6">
+                    {[
+                      { key: 'Supremo', label: '👑 SUPREMO (2.000 XP)', border: 'border-[#d4af37]', text: 'text-[#d4af37]', bgGrad: 'from-[#d4af37]/20 via-[#261812] to-[#261812]', glow: 'rgba(212, 175, 55, 0.4)' },
+                      { key: 'Lendario', label: '🔥 LENDÁRIO (1.200 XP)', border: 'border-[#f97316]', text: 'text-[#f97316]', bgGrad: 'from-[#f97316]/20 via-[#261812] to-[#261812]', glow: 'rgba(249, 115, 22, 0.4)' },
+                      { key: 'Epico', label: '🔮 ÉPICO (750 XP)', border: 'border-[#a855f7]', text: 'text-[#a855f7]', bgGrad: 'from-[#a855f7]/20 via-[#261812] to-[#261812]', glow: 'rgba(168, 85, 247, 0.4)' },
+                      { key: 'Raro', label: '⭐ RARO (500 XP)', border: 'border-[#3b82f6]', text: 'text-[#3b82f6]', bgGrad: 'from-[#3b82f6]/20 via-[#261812] to-[#261812]', glow: 'rgba(59, 130, 246, 0.4)' },
+                      { key: 'Especial', label: '⚡ ESPECIAL (250 XP - CUMULATIVO)', border: 'border-[#22c55e]', text: 'text-[#22c55e]', bgGrad: 'from-[#22c55e]/20 via-[#261812] to-[#261812]', glow: 'rgba(34, 197, 94, 0.4)' }
+                    ].map((categoria) => {
+                      const conquistasDaCategoria = todasConquistas.filter(
+                        (c: any) => (c.classe || 'Especial').toLowerCase() === categoria.key.toLowerCase()
+                      );
 
-                      let cardStyle = "bg-[#261812] border-4 border-black p-4 flex items-center gap-4 hover:border-[#ff6b00] transition-all";
-                      let badgeIconStyle = "w-12 h-12 bg-[#3d2d26] border-2 border-black flex items-center justify-center text-2xl shrink-0";
-                      
-                      if (conquistado) {
-                        cardStyle = "bg-[#261812] border-4 border-[#ff6b00] p-4 flex items-center gap-4 shadow-[0_0_8px_#ff6b00] transition-all";
-                        badgeIconStyle = "w-12 h-12 bg-[#572710] border-2 border-[#ff6b00] flex items-center justify-center text-2xl shrink-0";
-                      } else if (solicitacaoPendente) {
-                        cardStyle = "bg-[#1f1510] border-4 border-dashed border-[#8e7164] opacity-80 p-4 flex items-center gap-4 transition-all";
-                        badgeIconStyle = "w-12 h-12 bg-[#2d211b] border-2 border-[#8e7164] flex items-center justify-center text-2xl shrink-0 grayscale opacity-60";
-                      } else {
-                        cardStyle = "bg-[#1f1510] border-4 border-black opacity-90 p-4 flex items-center gap-4 hover:border-[#ff6b00] transition-all";
-                        badgeIconStyle = "w-12 h-12 bg-[#2d211b] border-2 border-black flex items-center justify-center text-2xl shrink-0 grayscale opacity-40";
-                      }
+                      if (conquistasDaCategoria.length === 0) return null;
 
                       return (
-                        <div key={conquista.id} className={cardStyle}>
-                          <div className={badgeIconStyle}>
-                            {conquista.icone_url ? (
-                              <img src={conquista.icone_url} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <span>{conquista.icone || '🏆'}</span>
-                            )}
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <h4 className={`font-black text-[10px] uppercase leading-none ${conquistado ? 'text-[#ff6b00]' : 'text-[#feccba]'}`}>
-                              {conquista.nome}
-                            </h4>
-                            <p className="text-white/60 font-black text-[8px] uppercase mt-1.5 leading-tight">
-                              {conquista.descricao || 'Nenhuma descrição fornecida.'}
-                            </p>
-                            
-                            {conquistado ? (
-                              <div className="flex items-center gap-1.5 mt-2">
-                                <span className="text-[6px] font-black uppercase text-green-400 bg-black/40 border border-green-400 px-1 py-0.5 rounded-none leading-none">
-                                  DESBLOQUEADO ✅
-                                </span>
-                                {conquistado.data_conquista && (
-                                  <span className="text-white/40 font-mono text-[5px] uppercase">
-                                    EM {new Date(conquistado.data_conquista).toLocaleDateString('pt-BR')}
-                                  </span>
-                                )}
-                              </div>
-                            ) : solicitacaoPendente ? (
-                              <div className="mt-2">
-                                <span className="text-[6px] font-black uppercase text-yellow-400 bg-black/40 border border-yellow-400 px-1 py-0.5 rounded-none leading-none animate-pulse inline-block">
-                                  PENDENTE ⏳ AGUARDANDO APROVAÇÃO DO PROFESSOR
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="mt-2">
-                                <span className="text-[6px] font-black uppercase text-white/40 bg-black/40 border border-white/20 px-1 py-0.5 rounded-none leading-none inline-block">
-                                  BLOQUEADO 🔒
-                                </span>
-                              </div>
-                            )}
+                        <div key={categoria.key} className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-black border-2 ${categoria.border} ${categoria.text}`}>
+                              {categoria.label}
+                            </span>
+                            <div className={`flex-1 border-t border-dashed border-[#3d2d26]`}></div>
                           </div>
 
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            <span className="text-[#ff6b00] font-black text-[8px] bg-black border border-black px-1.5 py-0.5 leading-none">
-                              +{conquista.pontos || 100} XP
-                            </span>
-                            
-                            {!conquistado && !solicitacaoPendente && (
-                              <button
-                                onClick={() => handleSolicitarTrofeu(conquista.id)}
-                                className="bg-[#4ade80] hover:bg-[#22c55e] text-black px-1.5 py-1 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all"
-                              >
-                                🚀 SOLICITAR
-                              </button>
-                            )}
+                          <div className="grid grid-cols-1 gap-3">
+                            {conquistasDaCategoria.map((conquista: any) => {
+                              const conquistadoInstancias = alunoData?.conquistas?.filter(
+                                (c: any) => Number(c.id) === Number(conquista.id) || Number(c.conquista_id) === Number(conquista.id)
+                              ) || [];
+                              const conquistadoCount = conquistadoInstancias.length;
+                              const conquistado = conquistadoCount > 0;
+                              const solicitacaoPendente = alunoData?.solicitacoes?.find(
+                                (s: any) => Number(s.conquista_id) === Number(conquista.id) && s.status === 'pendente'
+                              );
+
+                              const classeEfetiva = conquista.classe || 'Especial';
+                              
+                              let cardStyle = "";
+                              let badgeIconStyle = "";
+                              let customStyle: React.CSSProperties = {};
+
+                              if (conquistado) {
+                                cardStyle = `bg-gradient-to-r ${categoria.bgGrad} border-4 ${categoria.border} p-4 flex items-center gap-4 transition-all`;
+                                badgeIconStyle = `w-12 h-12 bg-[#2d211b] border-2 ${categoria.border} flex items-center justify-center text-2xl shrink-0`;
+                                customStyle = { boxShadow: `0 0 12px ${categoria.glow}` };
+                              } else if (solicitacaoPendente) {
+                                cardStyle = "bg-[#1f1510] border-4 border-dashed border-[#8e7164] opacity-80 p-4 flex items-center gap-4 transition-all";
+                                badgeIconStyle = "w-12 h-12 bg-[#2d211b] border-2 border-[#8e7164] flex items-center justify-center text-2xl shrink-0 grayscale opacity-60";
+                              } else {
+                                cardStyle = "bg-[#1f1510] border-4 border-black/80 opacity-90 p-4 flex items-center gap-4 hover:border-white/20 transition-all";
+                                badgeIconStyle = "w-12 h-12 bg-[#2d211b] border-2 border-black flex items-center justify-center text-2xl shrink-0 grayscale opacity-40";
+                              }
+
+                              return (
+                                <div key={conquista.id} className={cardStyle} style={customStyle}>
+                                  <div className={badgeIconStyle}>
+                                    {conquista.icone_url ? (
+                                      <img src={conquista.icone_url} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span>{conquista.icone || '🏆'}</span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <h4 className={`font-black text-[10px] uppercase leading-none ${conquistado ? categoria.text : 'text-[#feccba]'}`}>
+                                        {conquista.nome}
+                                      </h4>
+                                      {classeEfetiva === 'Especial' && (
+                                        <span className="text-[5px] font-black uppercase text-[#22c55e] bg-black border border-[#22c55e] px-1 py-0.2 rounded-none leading-none">
+                                          CUMULATIVO 🔄
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-white/60 font-black text-[8px] uppercase mt-1.5 leading-tight">
+                                      {conquista.descricao || 'Nenhuma descrição fornecida.'}
+                                    </p>
+
+                                    {conquistado ? (
+                                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                        <span className="text-[6px] font-black uppercase text-green-400 bg-black/40 border border-green-400 px-1 py-0.5 rounded-none leading-none">
+                                          DESBLOQUEADO ✅ {conquistadoCount > 1 && `(${conquistadoCount}X)`}
+                                        </span>
+                                        {conquistadoInstancias[0]?.data_conquista && (
+                                          <span className="text-white/40 font-mono text-[5px] uppercase">
+                                            {conquistadoCount > 1 ? 'ÚLTIMO EM ' : 'EM '}
+                                            {new Date(conquistadoInstancias[0].data_conquista).toLocaleDateString('pt-BR')}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : solicitacaoPendente ? (
+                                      <div className="mt-2">
+                                        <span className="text-[6px] font-black uppercase text-yellow-400 bg-black/40 border border-yellow-400 px-1 py-0.5 rounded-none leading-none animate-pulse inline-block">
+                                          PENDENTE ⏳ AGUARDANDO APROVAÇÃO DO PROFESSOR
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="mt-2">
+                                        <span className="text-[6px] font-black uppercase text-white/40 bg-black/40 border border-white/20 px-1 py-0.5 rounded-none leading-none inline-block">
+                                          BLOQUEADO 🔒
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                    <span className={`font-black text-[8px] bg-black border ${conquistado ? `${categoria.border} ${categoria.text}` : 'border-black text-[#ff6b00]'} px-1.5 py-0.5 leading-none`}>
+                                      +{conquista.pontos || 100} XP
+                                    </span>
+
+                                    {/* Se for Especial (cumulativa), permite solicitar novamente, contanto que não haja solicitação pendente para esse troféu */}
+                                    {((!conquistado || classeEfetiva === 'Especial') && !solicitacaoPendente) && (
+                                      <button
+                                        onClick={() => handleSolicitarTrofeu(conquista.id)}
+                                        className="bg-[#4ade80] hover:bg-[#22c55e] text-black px-1.5 py-1 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all"
+                                      >
+                                        🚀 SOLICITAR
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );
