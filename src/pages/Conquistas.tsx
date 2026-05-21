@@ -157,7 +157,7 @@ export default function Conquistas() {
                 <h3 className="font-black text-black uppercase italic italic text-sm">{c.nome}</h3>
                 <p className="text-[8px] font-black text-[#8e7164] mt-2 uppercase tracking-tighter line-clamp-2">{c.descricao}</p>
                 <div className="mt-4 inline-flex items-center gap-1 bg-black text-white px-3 py-1 border-2 border-[#ff6b00] text-[8px] font-black uppercase tracking-widest shadow-[2px_2px_0_#ff6b00]">
-                   +{c.pontos} ACORDE_COINS
+                   +{c.pontos} XP
                 </div>
               </div>
             ))}
@@ -235,7 +235,7 @@ export default function Conquistas() {
                    </div>
                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">COINS_RECOMPENSA</label>
+                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">XP_RECOMPENSA</label>
                         <input 
                           type="number"
                           required
