@@ -659,8 +659,33 @@ export default function AreaAluno() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`font-black text-[10px] uppercase truncate ${isMe ? 'text-white' : 'text-black'}`}>{player.nome}</p>
-                      <p className={`text-[7px] font-black uppercase ${isMe ? 'text-white/80' : 'text-[#8e7164]'}`}>{player.curso || 'STUDENT'}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className={`font-black text-[10px] uppercase truncate mb-0 ${isMe ? 'text-white' : 'text-black'}`}>{player.nome}</p>
+                        {/* Ícones de Conquistas */}
+                        {player.conquistas && player.conquistas.length > 0 && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            {player.conquistas.slice(0, 4).map((c: any, cIdx: number) => (
+                              <div 
+                                key={cIdx} 
+                                className="w-5 h-5 border-2 border-black bg-white flex items-center justify-center shadow-[1px_1px_0_#000] shrink-0" 
+                                title={c.nome}
+                              >
+                                {c.icone_url ? (
+                                  <img src={c.icone_url} alt={c.nome} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-[8px]">🏆</span>
+                                )}
+                              </div>
+                            ))}
+                            {player.conquistas.length > 4 && (
+                              <span className={`text-[6px] font-black uppercase leading-none ${isMe ? 'text-white/80' : 'text-[#8e7164]'}`}>
+                                +{player.conquistas.length - 4}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <p className={`text-[7px] font-black uppercase mt-0.5 mb-0 ${isMe ? 'text-white/80' : 'text-[#8e7164]'}`}>{player.curso || 'STUDENT'}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className={`font-black text-sm italic ${isMe ? 'text-white' : 'text-[#ff6b00]'}`}>{player.xp} XP</p>
