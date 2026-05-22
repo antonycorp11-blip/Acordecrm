@@ -632,9 +632,19 @@ export default function AreaAluno() {
         } catch (e) {}
       }
 
-      const recorder = options 
-        ? new MediaRecorder(stream, options) 
-        : new MediaRecorder(stream);
+      let recorder: MediaRecorder;
+      try {
+        recorder = options 
+          ? new MediaRecorder(stream, options) 
+          : new MediaRecorder(stream);
+      } catch (err) {
+        console.warn('Falha ao instanciar MediaRecorder com opções, tentando sem opções:', err);
+        try {
+          recorder = new MediaRecorder(stream);
+        } catch (fatalErr: any) {
+          throw new Error('Seu navegador não oferece suporte para gravação de vídeo: ' + fatalErr.message);
+        }
+      }
       const chunks: Blob[] = [];
       
       recorder.ondataavailable = (e) => {
