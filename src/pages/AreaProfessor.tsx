@@ -2887,6 +2887,16 @@ export default function AreaProfessor() {
                   </div>
                 </div>
 
+                {/* Botão de Ferramentas Inline no Fluxo */}
+                <div className="p-1">
+                  <button
+                    onClick={() => setShowTools(true)}
+                    className="w-full bg-[#ff6b00] text-white py-3.5 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2.5 hover:bg-[#ff8c3a] cursor-pointer"
+                  >
+                    🎸 ABRIR MUSICLASS TOOLS (METRÔNOMO & AFINADOR)
+                  </button>
+                </div>
+
                 {/* Widget de Saldo do Mestre */}
                 <div className="p-5 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000] transform -rotate-1">
                   <h3 className="text-white font-black text-[9px] uppercase tracking-widest mb-2 flex items-center gap-2">
@@ -4248,18 +4258,10 @@ export default function AreaProfessor() {
         </div>
       )}
 
-      {/* Botão Flutuante Musiclass Tools para o Professor */}
-      <button
-        onClick={() => setShowTools(true)}
-        className="fixed bottom-6 right-6 z-50 bg-[#ff6b00] text-white border-4 border-black p-3.5 shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none font-black text-[9.5px] uppercase tracking-widest hover:bg-[#ff8c3a] flex items-center gap-1.5 cursor-pointer"
-      >
-        🎸 MUSICLASS TOOLS
-      </button>
-
       {/* Modal de Ferramentas */}
       {showTools && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-          <div className="w-full max-w-[360px]">
+          <div className="w-full max-w-[500px] md:max-w-[560px]">
             <MusiclassTools onClose={() => setShowTools(false)} />
           </div>
         </div>

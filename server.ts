@@ -124,7 +124,7 @@ async function startServer() {
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
     
     app.get('/api/sistema/versao', (req, res) => {
-        res.json({ versao: 'SYNC_V4.2.9' });
+        res.json({ versao: 'SYNC_V4.3.0' });
     });
     
     app.get('/api/health', (req, res) => {
@@ -2272,7 +2272,21 @@ async function startServer() {
             const ext = path.extname(req.file.originalname) || '.mp4';
             const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
             const fileBuffer = fs.readFileSync(req.file.path);
-            const mimeType = req.file.mimetype || 'video/mp4';
+            
+            // Sanitização inteligente de mimeType contra falhas de empacotamento no Vercel ou browsers (como enviar como text/plain)
+            let mimeType = req.file.mimetype || 'video/mp4';
+            if (!mimeType.startsWith('video/') || mimeType.includes('text/plain') || mimeType.includes('octet-stream')) {
+                const extLower = ext.toLowerCase();
+                if (extLower === '.webm') {
+                    mimeType = 'video/webm';
+                } else if (extLower === '.mov' || extLower === '.qt') {
+                    mimeType = 'video/quicktime';
+                } else if (extLower === '.mp4') {
+                    mimeType = 'video/mp4';
+                } else {
+                    mimeType = 'video/mp4';
+                }
+            }
 
             const { error: uploadError } = await supabase.storage
                 .from('uploads')

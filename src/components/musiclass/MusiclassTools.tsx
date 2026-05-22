@@ -42,15 +42,17 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
     osc.connect(gainNode);
     gainNode.connect(audioContextRef.current.destination);
 
-    // Primeiro tempo tem tom mais agudo
+    osc.type = 'sine';
+    // Primeiro tempo tem tom extremamente agudo (2200Hz vs 1500Hz para bloco de madeira digital)
     const isFirstBeat = beat === 0;
-    osc.frequency.setValueAtTime(isFirstBeat ? 1000 : 800, time);
+    osc.frequency.setValueAtTime(isFirstBeat ? 2200 : 1500, time);
     
-    gainNode.gain.setValueAtTime(0.5, time);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    gainNode.gain.setValueAtTime(0.8, time);
+    // Decaimento ultra rápido (20ms) para criar um estalo "click" limpo e agudo
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, time + 0.02);
 
     osc.start(time);
-    osc.stop(time + 0.06);
+    osc.stop(time + 0.03);
 
     // Dispara animação síncrona com o tempo do som
     const delay = Math.max(0, (time - audioContextRef.current.currentTime) * 1000);
@@ -188,7 +190,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
       sum += buffer[i] * buffer[i];
     }
     const rms = Math.sqrt(sum / SIZE);
-    if (rms < 0.006) return -1; // Volume muito baixo
+    if (rms < 0.002) return -1; // Sensibilidade cirúrgica para captação silenciosa
     
     // De 50Hz (período ~ sampleRate/50) a 1000Hz (período ~ sampleRate/1000)
     const maxPeriod = Math.round(sampleRate / 50);
@@ -256,7 +258,13 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        } 
+      });
       if (!audioContextRef.current) return;
 
       const source = audioContextRef.current.createMediaStreamSource(stream);
@@ -381,7 +389,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="flex flex-col bg-[#fff8f6] border-4 border-black shadow-[6px_6px_0_#000] w-full max-w-[400px] mx-auto font-mono text-black overflow-hidden relative z-50 animate-in fade-in zoom-in-95 duration-200">
+    <div className="flex flex-col bg-[#fff8f6] border-4 border-black shadow-[6px_6px_0_#000] w-full max-w-[500px] md:max-w-[560px] mx-auto font-mono text-black overflow-hidden relative z-50 animate-in fade-in zoom-in-95 duration-200">
       
       {/* Cabeçalho do Console Retrô */}
       <div className="bg-[#261812] py-2 px-3 flex justify-between items-center border-b-4 border-black">

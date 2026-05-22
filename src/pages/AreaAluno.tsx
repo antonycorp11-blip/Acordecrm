@@ -281,7 +281,7 @@ export default function AreaAluno() {
   const { user, logout } = useAuth();
   const [needsUpdate, setNeedsUpdate] = useState(false);
   const [serverVersion, setServerVersion] = useState('');
-  const VERSAO_CLIENTE = 'SYNC_V4.2.9';
+  const VERSAO_CLIENTE = 'SYNC_V4.3.0';
   const [alunoData, setAlunoData] = useState<any>(null);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [aulasRealizadas, setAulasRealizadas] = useState<any[]>([]);
@@ -622,14 +622,14 @@ export default function AreaAluno() {
 
   // Gravação de Vídeo de Treino
   const startRecording = async () => {
-    // Desvio Síncrono Imediato para iOS (iPhone/iPad/iPod) ou se o MediaRecorder não existir.
+    // Desvio Síncrono Imediato para qualquer dispositivo móvel (Android E iOS) ou se o MediaRecorder não existir.
     // Isso é feito no mesmo tick de execução do clique do botão para burlar a restrição
-    // de 'User Gesture Requirement' do WebKit no iOS, permitindo abrir a câmera nativa.
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                  (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1);
+    // de 'User Gesture Requirement' no Android/iOS, abrindo a câmera nativa de forma robusta e síncrona.
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                     (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1);
     const hasMediaRecorder = typeof MediaRecorder !== 'undefined';
-    if (isIOS || !hasMediaRecorder) {
-      console.log('[startRecording] Usuário no iOS ou MediaRecorder ausente. Acionando desvio síncrono para a câmera nativa.');
+    if (isMobile || !hasMediaRecorder) {
+      console.log('[startRecording] Usuário em dispositivo móvel ou MediaRecorder ausente. Acionando desvio síncrono para a câmera nativa.');
       const fallbackInput = document.getElementById('camera-capture-fallback');
       if (fallbackInput) {
         fallbackInput.click();
@@ -1571,7 +1571,7 @@ export default function AreaAluno() {
           <div className="px-4 py-5 space-y-4">
 
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] flex flex-col gap-4">
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.9 • UPDATE_22MAY_2115</p>
+              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.3.0 • UPDATE_22MAY_2200</p>
               
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-none border-4 border-black bg-[#ff6b00] shrink-0 shadow-[4px_4px_0_#000] overflow-hidden">
@@ -2311,7 +2311,7 @@ export default function AreaAluno() {
         {/* Modal de Ferramentas */}
         {showTools && (
           <div className="fixed md:absolute inset-0 bg-black/90 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-            <div className="w-full max-w-[340px]">
+            <div className="w-full max-w-[500px] md:max-w-[560px]">
               <MusiclassTools onClose={() => setShowTools(false)} />
             </div>
           </div>
