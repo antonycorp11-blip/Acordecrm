@@ -281,7 +281,7 @@ export default function AreaAluno() {
   const { user, logout } = useAuth();
   const [needsUpdate, setNeedsUpdate] = useState(false);
   const [serverVersion, setServerVersion] = useState('');
-  const VERSAO_CLIENTE = 'SYNC_V4.2.8';
+  const VERSAO_CLIENTE = 'SYNC_V4.2.9';
   const [alunoData, setAlunoData] = useState<any>(null);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [aulasRealizadas, setAulasRealizadas] = useState<any[]>([]);
@@ -622,6 +622,21 @@ export default function AreaAluno() {
 
   // Gravação de Vídeo de Treino
   const startRecording = async () => {
+    // Desvio Síncrono Imediato para iOS (iPhone/iPad/iPod) ou se o MediaRecorder não existir.
+    // Isso é feito no mesmo tick de execução do clique do botão para burlar a restrição
+    // de 'User Gesture Requirement' do WebKit no iOS, permitindo abrir a câmera nativa.
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                  (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1);
+    const hasMediaRecorder = typeof MediaRecorder !== 'undefined';
+    if (isIOS || !hasMediaRecorder) {
+      console.log('[startRecording] Usuário no iOS ou MediaRecorder ausente. Acionando desvio síncrono para a câmera nativa.');
+      const fallbackInput = document.getElementById('camera-capture-fallback');
+      if (fallbackInput) {
+        fallbackInput.click();
+        return;
+      }
+    }
+
     let interval: any = null;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -1556,7 +1571,7 @@ export default function AreaAluno() {
           <div className="px-4 py-5 space-y-4">
 
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] flex flex-col gap-4">
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.8 • UPDATE_22MAY_2045</p>
+              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.9 • UPDATE_22MAY_2115</p>
               
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-none border-4 border-black bg-[#ff6b00] shrink-0 shadow-[4px_4px_0_#000] overflow-hidden">

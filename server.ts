@@ -124,7 +124,7 @@ async function startServer() {
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
     
     app.get('/api/sistema/versao', (req, res) => {
-        res.json({ versao: 'SYNC_V4.2.8' });
+        res.json({ versao: 'SYNC_V4.2.9' });
     });
     
     app.get('/api/health', (req, res) => {
