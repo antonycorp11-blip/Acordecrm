@@ -653,9 +653,14 @@ export default function AreaAluno() {
         }
       };
 
-      const mimeEfetivo = recorder.mimeType || options.mimeType || 'video/webm';
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: mimeEfetivo });
+        // Solução robusta universal: detecta o mimeType a partir do primeiro chunk se disponível, 
+        // ou do recorder.mimeType, ou do fallback dinâmico seguro de options
+        const tipoDetectado = (chunks.length > 0 && chunks[0].type) || 
+                              recorder.mimeType || 
+                              (options && options.mimeType) || 
+                              'video/mp4';
+        const blob = new Blob(chunks, { type: tipoDetectado });
         setVideoBlob(blob);
         const url = URL.createObjectURL(blob);
         setVideoPreviewUrl(url);
@@ -1463,7 +1468,7 @@ export default function AreaAluno() {
           <div className="px-4 py-5 space-y-4">
 
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] flex flex-col gap-4">
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.5 • UPDATE_22MAY_1520</p>
+              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.6 • UPDATE_22MAY_1925</p>
               
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-none border-4 border-black bg-[#ff6b00] shrink-0 shadow-[4px_4px_0_#000] overflow-hidden">
