@@ -540,7 +540,7 @@ export default function AreaAluno() {
       const timestamp = Date.now();
       fetch(`/api/treinos/me?t=${timestamp}`, { headers })
         .then(r => r.ok ? r.json() : [])
-        .then(data => setTreinos(data))
+        .then(data => setTreinos(Array.isArray(data) ? data : []))
         .catch(console.error);
     };
     fetchTreinosInit();
@@ -552,7 +552,7 @@ export default function AreaAluno() {
     const headers = { 'Authorization': `Bearer ${token}` };
     fetch('/api/treinos/me', { headers })
       .then(r => r.ok ? r.json() : [])
-      .then(data => setTreinos(data))
+      .then(data => setTreinos(Array.isArray(data) ? data : []))
       .catch(console.error);
   };
 
