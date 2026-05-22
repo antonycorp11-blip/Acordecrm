@@ -81,7 +81,7 @@ async function testAgendaEndpoint(email: string) {
 
         console.log(`Sucesso! Aulas encontradas: ${aulas?.length || 0}`);
         if (aulas && aulas.length > 0) {
-            console.log(`Primeira aula encontrada: ID=${aulas[0].id}, Data=${aulas[0].data}, Aluno=${aulas[0].alunos?.nome}, Status=${aulas[0].status}`);
+            console.log(`Primeira aula encontrada: ID=${aulas[0].id}, Data=${aulas[0].data}, Aluno=${(aulas[0].alunos as any)?.nome}, Status=${aulas[0].status}`);
         }
     } catch (err: any) {
         console.error(`Erro fatal no testAgendaEndpoint:`, err.message);

@@ -54,7 +54,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
     const token = authHeader && authHeader.split(' ')[1];
     
     // Ignorar rotas públicas
-    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/vagas'];
+    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/vagas', '/api/sistema/versao'];
     if (publicRoutes.includes(req.path)) return next();
     
     // A gamificação/upload pode precisar de token também
@@ -122,6 +122,10 @@ async function startServer() {
 
     // --- API ROUTES ---
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
+    
+    app.get('/api/sistema/versao', (req, res) => {
+        res.json({ versao: 'SYNC_V4.2.8' });
+    });
     
     app.get('/api/health', (req, res) => {
         res.json({

@@ -279,6 +279,9 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
 
 export default function AreaAluno() {
   const { user, logout } = useAuth();
+  const [needsUpdate, setNeedsUpdate] = useState(false);
+  const [serverVersion, setServerVersion] = useState('');
+  const VERSAO_CLIENTE = 'SYNC_V4.2.8';
   const [alunoData, setAlunoData] = useState<any>(null);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [aulasRealizadas, setAulasRealizadas] = useState<any[]>([]);
@@ -544,6 +547,18 @@ export default function AreaAluno() {
         .catch(console.error);
     };
     fetchTreinosInit();
+
+    // Verificar versão do sistema contra cache do navegador
+    fetch(`/api/sistema/versao?t=${Date.now()}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.versao && data.versao !== VERSAO_CLIENTE) {
+          console.warn(`[VERSION_CHECK] Mismatch detectado! Cliente: ${VERSAO_CLIENTE}, Servidor: ${data.versao}`);
+          setServerVersion(data.versao);
+          setNeedsUpdate(true);
+        }
+      })
+      .catch(console.error);
   }, []);
 
   const fetchTreinos = () => {
@@ -607,6 +622,7 @@ export default function AreaAluno() {
 
   // Gravação de Vídeo de Treino
   const startRecording = async () => {
+    let interval: any = null;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { width: 480, height: 480, facingMode: 'user' }, 
@@ -653,6 +669,29 @@ export default function AreaAluno() {
         }
       };
 
+      recorder.onerror = (e: any) => {
+        console.error('Erro assíncrono detectado no MediaRecorder. Acionando fallback da câmera nativa:', e);
+        try {
+          recorder.stop();
+        } catch (stopErr) {}
+        stream.getTracks().forEach(track => track.stop());
+        setRecording(false);
+        if (interval) {
+          clearInterval(interval);
+        }
+        setRecordingIntervalId((prevId: any) => {
+          if (prevId) clearInterval(prevId);
+          return null;
+        });
+        playRetroSound(220, 'sawtooth', 0.35);
+        toast.info('Redirecionando para gravação nativa do aparelho...');
+        
+        const fallbackInput = document.getElementById('camera-capture-fallback');
+        if (fallbackInput) {
+          fallbackInput.click();
+        }
+      };
+
       recorder.onstop = () => {
         // Solução robusta universal: detecta o mimeType a partir do primeiro chunk se disponível, 
         // ou do recorder.mimeType, ou do fallback dinâmico seguro de options
@@ -673,7 +712,7 @@ export default function AreaAluno() {
       setRecording(true);
       setRecordingTimer(0);
       
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
         setRecordingTimer(prev => {
           if (prev >= 45) {
             recorder.stop();
@@ -909,6 +948,32 @@ export default function AreaAluno() {
       
       {/* MOBILE SIMULATOR WRAPPER */}
       <div className="w-full h-full md:h-[844px] md:max-w-[390px] md:border-[12px] md:border-black md:rounded-[60px] md:shadow-[0_0_0_8px_#3d2d26,0_20px_50px_rgba(0,0,0,0.5)] bg-[#1a0a05] relative overflow-hidden flex flex-col">
+        
+        {needsUpdate && (
+          <div className="bg-red-600 text-white border-b-8 border-black p-4 text-center font-black text-[9px] uppercase animate-pulse flex flex-col gap-2 z-[100] relative">
+            <p>🚨 NOVA ATUALIZAÇÃO CRÍTICA ({serverVersion})!</p>
+            <p className="text-[7px] text-white/90">Corrigido gravador de vídeo em navegadores móveis (Opera, Chrome, Safari iOS).</p>
+            <button
+              onClick={() => {
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then((registrations) => {
+                    for (const reg of registrations) reg.unregister();
+                  });
+                }
+                if ('caches' in window) {
+                  caches.keys().then((names) => {
+                    for (const name of names) caches.delete(name);
+                  });
+                }
+                // Reload rígido forçando bypass de cache
+                window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
+              }}
+              className="bg-white text-black border-2 border-black font-black px-3 py-1 hover:bg-black hover:text-white transition-all cursor-pointer text-[8px] uppercase shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none"
+            >
+              ⚡ ATUALIZAR E CORRIGIR AGORA
+            </button>
+          </div>
+        )}
         
         {/* Notch simulation */}
         <div className="hidden md:block absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-50"></div>
@@ -1491,7 +1556,7 @@ export default function AreaAluno() {
           <div className="px-4 py-5 space-y-4">
 
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] flex flex-col gap-4">
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.7 • UPDATE_22MAY_1935</p>
+              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.8 • UPDATE_22MAY_2045</p>
               
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-none border-4 border-black bg-[#ff6b00] shrink-0 shadow-[4px_4px_0_#000] overflow-hidden">
