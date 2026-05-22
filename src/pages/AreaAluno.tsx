@@ -613,21 +613,28 @@ export default function AreaAluno() {
         audio: true 
       });
       
-      let options = { mimeType: 'video/webm;codecs=vp9,opus' };
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: 'video/webm;codecs=vp8,opus' };
-      }
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: 'video/webm' };
-      }
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: 'video/mp4' };
-      }
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: '' };
+      const tiposParaTestar = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4',
+        'video/quicktime'
+      ];
+
+      let options: any = null;
+      for (const tipo of tiposParaTestar) {
+        try {
+          if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(tipo)) {
+            options = { mimeType: tipo };
+            break;
+          }
+        } catch (e) {}
       }
 
-      const recorder = new MediaRecorder(stream, options);
+      const recorder = options 
+        ? new MediaRecorder(stream, options) 
+        : new MediaRecorder(stream);
       const chunks: Blob[] = [];
       
       recorder.ondataavailable = (e) => {
