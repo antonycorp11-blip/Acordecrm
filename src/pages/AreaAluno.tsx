@@ -687,9 +687,15 @@ export default function AreaAluno() {
       
       setRecordingIntervalId(interval);
       playRetroSound(600, 'sine', 0.1);
-    } catch (err) {
-      console.error(err);
-      toast.error('Erro ao acessar câmera/microfone. Certifique-se de conceder a permissão.');
+    } catch (err: any) {
+      console.warn('Falha na gravação em tempo real no browser. Ativando câmera nativa do aparelho...', err);
+      // Fallback: Disparar clique no input de arquivo com capture="user"
+      const fallbackInput = document.getElementById('camera-capture-fallback');
+      if (fallbackInput) {
+        fallbackInput.click();
+      } else {
+        toast.error('Erro ao acessar câmera do aparelho: ' + (err.message || ''));
+      }
     }
   };
 
@@ -1456,6 +1462,23 @@ export default function AreaAluno() {
                           }}
                         />
                       </label>
+
+                      {/* Input oculto para captura de câmera nativa do sistema em caso de falha no MediaRecorder do navegador */}
+                      <input
+                        type="file"
+                        accept="video/*"
+                        capture="user"
+                        id="camera-capture-fallback"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setVideoBlob(file);
+                            setVideoPreviewUrl(URL.createObjectURL(file));
+                            toast.success('Câmera do celular ativada com sucesso! Vídeo pronto para enviar. 📹🔥');
+                          }
+                        }}
+                      />
                     </div>
                   )}
                 </div>
@@ -1468,7 +1491,7 @@ export default function AreaAluno() {
           <div className="px-4 py-5 space-y-4">
 
             <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] flex flex-col gap-4">
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.6 • UPDATE_22MAY_1925</p>
+              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.2.7 • UPDATE_22MAY_1935</p>
               
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-none border-4 border-black bg-[#ff6b00] shrink-0 shadow-[4px_4px_0_#000] overflow-hidden">
