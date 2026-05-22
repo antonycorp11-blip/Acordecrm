@@ -2583,9 +2583,11 @@ async function startServer() {
                 }
             }
 
+            const fileBlob = new Blob([fileBuffer], { type: mimeType });
+
             const { error: uploadError } = await supabase.storage
                 .from('uploads')
-                .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
+                .upload(filename, fileBlob, { contentType: mimeType, upsert: true });
 
             try { fs.unlinkSync(req.file.path); } catch {}
 

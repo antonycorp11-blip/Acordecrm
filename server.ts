@@ -124,7 +124,7 @@ async function startServer() {
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
     
     app.get('/api/sistema/versao', (req, res) => {
-        res.json({ versao: 'SYNC_V4.3.0' });
+        res.json({ versao: 'SYNC_V4.3.1' });
     });
     
     app.get('/api/health', (req, res) => {
@@ -2288,9 +2288,11 @@ async function startServer() {
                 }
             }
 
+            const fileBlob = new Blob([fileBuffer], { type: mimeType });
+
             const { error: uploadError } = await supabase.storage
                 .from('uploads')
-                .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
+                .upload(filename, fileBlob, { contentType: mimeType, upsert: true });
 
             try { fs.unlinkSync(req.file.path); } catch {}
 

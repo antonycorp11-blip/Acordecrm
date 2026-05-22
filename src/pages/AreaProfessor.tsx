@@ -974,13 +974,21 @@ export default function AreaProfessor() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
       let options = {};
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+      const safeIsTypeSupported = (mime: string) => {
+        try {
+          return typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mime);
+        } catch (e) {
+          return false;
+        }
+      };
+
+      if (safeIsTypeSupported('audio/webm;codecs=opus')) {
         options = { mimeType: 'audio/webm;codecs=opus' };
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+      } else if (safeIsTypeSupported('audio/webm')) {
         options = { mimeType: 'audio/webm' };
-      } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+      } else if (safeIsTypeSupported('audio/ogg')) {
         options = { mimeType: 'audio/ogg' };
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+      } else if (safeIsTypeSupported('audio/mp4')) {
         options = { mimeType: 'audio/mp4' };
       }
 
