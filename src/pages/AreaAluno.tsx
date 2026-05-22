@@ -636,8 +636,9 @@ export default function AreaAluno() {
         }
       };
 
+      const mimeEfetivo = recorder.mimeType || options.mimeType || 'video/webm';
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
+        const blob = new Blob(chunks, { type: mimeEfetivo });
         setVideoBlob(blob);
         const url = URL.createObjectURL(blob);
         setVideoPreviewUrl(url);
@@ -690,8 +691,17 @@ export default function AreaAluno() {
     
     try {
       const token = localStorage.getItem('acorde_token');
+      
+      const mime = videoBlob.type || 'video/webm';
+      let extensao = 'webm';
+      if (mime.includes('mp4')) {
+        extensao = 'mp4';
+      } else if (mime.includes('quicktime') || mime.includes('mov')) {
+        extensao = 'mov';
+      }
+      
       const formData = new FormData();
-      formData.append('video', videoBlob, 'treino_video.webm');
+      formData.append('video', videoBlob, `treino_video.${extensao}`);
       
       setUploadProgress(45);
       const res = await fetch('/api/treinos/upload-video', {
