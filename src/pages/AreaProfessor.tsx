@@ -1,4 +1,3 @@
-import React, { useState, useEffect } from 'react';
 import { 
   Bell, 
   Home, 
@@ -25,7 +24,9 @@ import {
   Volume2,
   Square,
   PenTool,
-  CheckCircle
+  CheckCircle,
+  Flame,
+  Video
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -289,7 +290,7 @@ export default function AreaProfessor() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Estados de navegação e Modo Apresentação do Professor
-  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'alunos' | 'agenda' | 'perfil' | 'playground' | 'ranking'>('home');
+  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'alunos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos'>('home');
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
 
   // Estados do Ranking e Conquistas
@@ -303,6 +304,20 @@ export default function AreaProfessor() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAgendaStatus, setFilterAgendaStatus] = useState<'todas' | 'pendente' | 'realizada' | 'falta_aluno'>('todas');
   const [selectedWeekDay, setSelectedWeekDay] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+
+  // NOVOS ESTADOS ADICIONADOS PARA NOTIFICAÇÕES E TREINOS E HISTÓRICO
+  const [selectedAlunoHistorico, setSelectedAlunoHistorico] = useState<{ id: string; nome: string } | null>(null);
+  const [historicoAulas, setHistoricoAulas] = useState<any[]>([]);
+  const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
+  const [loadingHistorico, setLoadingHistorico] = useState(false);
+
+  const [notificacoes, setNotificacoes] = useState<any[]>([]);
+  const [isNotifDrawerOpen, setIsNotifDrawerOpen] = useState(false);
+
+  const [treinosAlunos, setTreinosAlunos] = useState<any[]>([]);
+  const [loadingTreinos, setLoadingTreinos] = useState(false);
+  const [selectedTreinoVideo, setSelectedTreinoVideo] = useState<string | null>(null);
+  const [isTreinoVideoModalOpen, setIsTreinoVideoModalOpen] = useState(false);
 
   // Estados Ricos do Musiclass compartilhados
   const [mcChords, setMcChords] = useState<any[]>([]);
@@ -430,7 +445,105 @@ export default function AreaProfessor() {
   useEffect(() => {
     loadData();
     fetchSolicitacoes();
+    fetchNotificacoes();
+    fetchTreinos();
+    
+    // Atualização em background de notificações de 30 em 30 segundos
+    const timer = setInterval(() => {
+      fetchNotificacoes();
+    }, 30000);
+    return () => clearInterval(timer);
   }, []);
+
+  const fetchNotificacoes = async () => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch('/api/notificacoes', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setNotificacoes(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar notificações:', error);
+    }
+  };
+
+  const marcarNotificacaoLida = async (notifId: number) => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch(`/api/notificacoes/${notifId}/lida`, {
+        method: 'POST',
+        headers
+      });
+      if (res.ok) {
+        setNotificacoes(prev => prev.map(n => n.id === notifId ? { ...n, lida: true } : n));
+        playRetroSound(880, 'triangle', 0.05); // som retrô de marcar como lido
+      }
+    } catch (error) {
+      console.error('Erro ao marcar notificação como lida:', error);
+    }
+  };
+
+  const limparNotificacoes = async () => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch('/api/notificacoes/limpar', {
+        method: 'POST',
+        headers
+      });
+      if (res.ok) {
+        setNotificacoes([]);
+        toast.success('Notificações limpas!');
+        playSuccessSound();
+      }
+    } catch (error) {
+      console.error('Erro ao limpar notificações:', error);
+      toast.error('Erro ao limpar notificações.');
+    }
+  };
+
+  const fetchTreinos = async () => {
+    setLoadingTreinos(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch('/api/treinos/prof', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setTreinosAlunos(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar treinos dos alunos:', error);
+    } finally {
+      setLoadingTreinos(false);
+    }
+  };
+
+  const handleAbrirHistoricoAluno = async (alunoId: string | number, nomeAluno: string) => {
+    setSelectedAlunoHistorico({ id: String(alunoId), nome: nomeAluno });
+    setIsHistoricoModalOpen(true);
+    setLoadingHistorico(true);
+    playRetroSound(523.25, 'triangle', 0.1); // som chiptune de clique de abertura
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch(`/api/alunos/${alunoId}/historico-aulas`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setHistoricoAulas(Array.isArray(data) ? data : []);
+      } else {
+        setHistoricoAulas([]);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar histórico de aulas:', error);
+      setHistoricoAulas([]);
+    } finally {
+      setLoadingHistorico(false);
+    }
+  };
 
   const fetchRanking = async () => {
     setLoadingRanking(true);
@@ -2710,8 +2823,22 @@ export default function AreaProfessor() {
             <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB</h1>
           </div>
           <div className="flex items-center gap-4">
-            <button className="text-black hover:text-[#ff6b00] transition-colors">
+            <button 
+              onClick={() => {
+                setIsNotifDrawerOpen(true);
+                playRetroSound(587.33, 'square', 0.08); // som de chiptune de clique de notificação D5
+                setTimeout(() => {
+                  playRetroSound(880, 'square', 0.15); // A5
+                }, 70);
+              }}
+              className="text-black hover:text-[#ff6b00] transition-colors relative cursor-pointer"
+            >
               <Bell className="w-6 h-6" />
+              {notificacoes.filter(n => !n.lida).length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white font-black text-[7px] w-4.5 h-4.5 rounded-full border-2 border-black flex items-center justify-center animate-bounce leading-none shadow-[1px_1px_0_#000]">
+                  {notificacoes.filter(n => !n.lida).length}
+                </span>
+              )}
             </button>
             <button onClick={logout} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
               <LogOut className="w-4 h-4" />
@@ -2834,7 +2961,17 @@ export default function AreaProfessor() {
                               <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
                                 <Clock className="w-3 h-3" /> {aula.horario?.substring(0, 5)}
                               </p>
-                              <h4 className="text-black font-black text-base uppercase italic leading-none my-1 truncate text-ellipsis overflow-hidden">
+                              <h4 
+                                onClick={() => {
+                                  if (aula.aluno_id) {
+                                    handleAbrirHistoricoAluno(aula.aluno_id, aula.nome || aula.aluno_nome);
+                                  } else {
+                                    toast.error('Aluno não vinculado a esta aula.');
+                                  }
+                                }}
+                                className="text-black font-black text-base uppercase italic leading-none my-1 truncate text-ellipsis overflow-hidden cursor-pointer hover:text-[#ff6b00] underline decoration-dashed decoration-2 hover:decoration-solid transition-colors"
+                                title="Clique para ver o histórico do aluno"
+                              >
                                 {aula.nome || aula.aluno_nome || 'ALUNO NÃO VINCULADO'}
                               </h4>
                               <p className="text-black/50 font-black text-[8px] uppercase">
@@ -3100,7 +3237,17 @@ export default function AreaProfessor() {
                               <p className="text-[#ff6b00] font-black text-[8px] uppercase tracking-wider flex items-center gap-1">
                                 <Clock className="w-2.5 h-2.5" /> {formattedDate} @ {aula.horario?.substring(0, 5)}
                               </p>
-                              <h4 className="text-black font-black text-sm uppercase italic leading-none my-1 truncate">
+                               <h4 
+                                onClick={() => {
+                                  if (aula.aluno_id) {
+                                    handleAbrirHistoricoAluno(aula.aluno_id, aula.nome || aula.aluno_nome);
+                                  } else {
+                                    toast.error('Aluno não vinculado a esta aula.');
+                                  }
+                                }}
+                                className="text-black font-black text-sm uppercase italic leading-none my-1 truncate cursor-pointer hover:text-[#ff6b00] underline decoration-dashed decoration-2 hover:decoration-solid transition-colors"
+                                title="Clique para ver o histórico do aluno"
+                              >
                                 {aula.nome || aula.aluno_nome || 'ALUNO'}
                               </h4>
                               <p className="text-black/50 font-black text-[7px] uppercase">
@@ -3242,6 +3389,141 @@ export default function AreaProfessor() {
                 >
                   <LogOut className="w-5 h-5" /> SAIR DA MINHA CONTA
                 </button>
+              </div>
+            )}
+
+            {activeProfessorTab === 'treinos' && (
+              <div className="space-y-4 animate-fade-in pb-10">
+                {/* Cabeçalho da aba Treinos */}
+                <div className="bg-[#fff8f6] border-8 border-black p-5 relative shadow-[8px_8px_0_#000]">
+                  <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[8px] uppercase border-l-4 border-b-4 border-black">
+                    PRACTICE HUB
+                  </div>
+                  <h3 className="text-black font-black text-lg uppercase italic tracking-tighter mt-1 flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-[#ff6b00] animate-pulse" /> TREINOS DOS ALUNOS
+                  </h3>
+                  <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider mt-1">
+                    Acompanhe os check-ins diários e assista às gravações de 24h dos alunos!
+                  </p>
+                </div>
+
+                {/* Lista de Treinos */}
+                <div className="space-y-3">
+                  {loadingTreinos ? (
+                    <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
+                      <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-widest animate-pulse">
+                        &gt;&gt; CARREGANDO TREINOS DIÁRIOS...
+                      </p>
+                    </div>
+                  ) : treinosAlunos.length === 0 ? (
+                    <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
+                      <p className="text-[#8e7164] font-black text-[9px] uppercase italic">
+                        &gt;&gt; NENHUM TREINO REGISTRADO ATÉ O MOMENTO
+                      </p>
+                    </div>
+                  ) : (
+                    treinosAlunos.map((treino: any) => {
+                      const dataFormatada = new Date(treino.created_at).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+
+                      // Calcula horas restantes para expirar o vídeo
+                      let tempoRestanteStr = '';
+                      let isExpirado = true;
+                      if (treino.video_url && treino.video_created_at) {
+                        const videoTime = new Date(treino.video_created_at).getTime();
+                        const now = Date.now();
+                        const diffMs = videoTime + 24 * 60 * 60 * 1000 - now;
+                        if (diffMs > 0) {
+                          isExpirado = false;
+                          const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                          const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                          tempoRestanteStr = `${diffHrs}h ${diffMins}m restantes`;
+                        }
+                      }
+
+                      return (
+                        <div
+                          key={treino.id}
+                          className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative overflow-hidden"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Foto ou Inicial */}
+                            <div className="w-12 h-12 bg-[#feccba] border-4 border-black text-black overflow-hidden flex items-center justify-center shrink-0 shadow-[2px_2px_0_#000]">
+                              {treino.aluno?.foto_url ? (
+                                <img src={treino.aluno.foto_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="font-black text-lg text-black">
+                                  {(treino.aluno?.nome || 'A').charAt(0).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[#ff6b00] font-black text-[8px] uppercase tracking-wider leading-none">
+                                {dataFormatada}
+                              </p>
+                              <h4 
+                                onClick={() => {
+                                  if (treino.aluno_id) {
+                                    handleAbrirHistoricoAluno(treino.aluno_id, treino.aluno?.nome || 'ALUNO');
+                                  }
+                                }}
+                                className="text-black font-black text-sm uppercase italic leading-none my-1.5 truncate cursor-pointer hover:text-[#ff6b00] underline decoration-dashed decoration-1 hover:decoration-solid transition-colors"
+                              >
+                                {treino.aluno?.nome || 'ALUNO DESCONHECIDO'}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="bg-[#402a20] text-[#feccba] border border-black px-1 font-black text-[6.5px] uppercase leading-none">
+                                  🔥 STREAK: {treino.streak_count || 1} DIAS
+                                </span>
+                                <span className="bg-emerald-500 text-white border border-black px-1 font-black text-[6.5px] uppercase leading-none">
+                                  {treino.xp_adicionado || 10} XP
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Seção do Vídeo demonstrativo curto */}
+                          {treino.video_url && !isExpirado ? (
+                            <div className="mt-3 border-t-2 border-black/10 pt-3 flex justify-between items-center bg-[#261812]/5 p-2.5 border-2 border-black">
+                              <div className="min-w-0">
+                                <span className="text-[7.5px] font-black text-[#ff6b00] uppercase tracking-widest block leading-none">
+                                  📹 VÍDEO DO TREINO
+                                </span>
+                                <span className="text-[6.5px] font-black text-black/55 uppercase tracking-wider block mt-1">
+                                  ⏳ {tempoRestanteStr}
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setSelectedTreinoVideo(treino.video_url);
+                                  setIsTreinoVideoModalOpen(true);
+                                  playRetroSound(880, 'triangle', 0.08);
+                                }}
+                                className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 border-2 border-black font-black uppercase text-[7.5px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1 cursor-pointer animate-pulse"
+                              >
+                                <Video className="w-3 h-3 text-white" /> ASSISTIR GRAVAÇÃO
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-3 border-t-2 border-black/10 pt-3 flex items-center justify-between">
+                              <span className="text-[7px] font-black text-black/40 uppercase">
+                                check-in simples de treino
+                              </span>
+                              <span className="text-[6.5px] font-black text-[#8e7164] uppercase tracking-wider">
+                                sem vídeo enviado
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
 
@@ -3451,6 +3733,7 @@ export default function AreaProfessor() {
             { id: 'home', icon: Home, label: 'HOME' },
             { id: 'alunos', icon: Users, label: 'ALUNOS' },
             { id: 'agenda', icon: Calendar, label: 'AGENDA' },
+            { id: 'treinos', icon: Flame, label: 'TREINOS' },
             { id: 'ranking', icon: Trophy, label: 'RANKING' },
             { id: 'perfil', icon: User, label: 'PERFIL' },
           ].map((item, i) => {
@@ -3465,13 +3748,17 @@ export default function AreaProfessor() {
                     fetchConquistas();
                     fetchSolicitacoes();
                   }
+                  if (item.id === 'treinos') {
+                    fetchTreinos();
+                  }
+                  playRetroSound(440, 'triangle', 0.04); // som de clique retrô sutil ao navegar
                 }}
-                className={`flex flex-col items-center gap-1 transition-all ${isActive ? 'translate-y-[-4px]' : 'opacity-50 hover:opacity-80'}`}
+                className={`flex flex-col items-center gap-0.5 transition-all ${isActive ? 'translate-y-[-4px]' : 'opacity-50 hover:opacity-80'}`}
               >
-                <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${isActive ? 'bg-[#ff6b00]' : 'bg-white'}`}>
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-black'}`} />
+                <div className={`p-1.5 border-4 border-black shadow-[4px_4px_0_#000] ${isActive ? 'bg-[#ff6b00]' : 'bg-white'}`}>
+                  <item.icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-black'}`} />
                 </div>
-                <span className="text-[6px] font-black text-white uppercase tracking-tighter">{item.label}</span>
+                <span className="text-[5.5px] font-black text-white uppercase tracking-tighter">{item.label}</span>
               </button>
             );
           })}
@@ -4053,6 +4340,272 @@ export default function AreaProfessor() {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: HISTÓRICO DE AULAS CONCLUÍDAS DO ALUNO */}
+      {isHistoricoModalOpen && selectedAlunoHistorico && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto font-['Space_Mono']">
+          <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            
+            {/* Fechar botão */}
+            <div className="absolute top-4 right-4">
+              <button 
+                onClick={() => {
+                  setIsHistoricoModalOpen(false);
+                  playRetroSound(146.83, 'sawtooth', 0.15); // som retrô de fechar
+                }} 
+                className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <span className="font-black bg-[#ff6b00] text-white text-[8px] px-2 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
+                STUDENT HISTORY
+              </span>
+              <h2 className="text-xl font-black text-black uppercase italic tracking-tighter mt-3">
+                {selectedAlunoHistorico.nome}
+              </h2>
+              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider">
+                Evolução cronológica de aulas concluídas e tarefas passadas
+              </p>
+            </div>
+
+            {loadingHistorico ? (
+              <div className="py-12 text-center">
+                <p className="text-black font-black text-xs uppercase tracking-widest animate-pulse">
+                  &gt;&gt; REQUISITANDO DADOS HISTÓRICOS...
+                </p>
+              </div>
+            ) : historicoAulas.length === 0 ? (
+              <div className="py-8 text-center border-4 border-dashed border-black/20 bg-white">
+                <p className="text-[#8e7164] font-black text-[9px] uppercase italic">
+                  &gt;&gt; NENHUMA AULA ANTERIOR ENCONTRADA PARA ESTE ALUNO
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                {historicoAulas.map((aula: any) => {
+                  let dataFormatada = aula.data;
+                  try {
+                    const dateParts = aula.data.split('-');
+                    const d = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
+                    dataFormatada = format(d, "dd/MM/yyyy (EEEE)", { locale: ptBR }).toUpperCase();
+                  } catch (e) {}
+
+                  return (
+                    <div key={aula.id} className="border-4 border-black p-4 bg-white shadow-[4px_4px_0_#000] space-y-3 relative overflow-hidden">
+                      <div className="flex justify-between items-start border-b-2 border-black/10 pb-2">
+                        <div>
+                          <span className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider block">
+                            📅 {dataFormatada} @ {aula.horario?.substring(0, 5)}
+                          </span>
+                          <span className="bg-[#402a20] text-[#feccba] border border-black px-1 font-black text-[7px] uppercase tracking-tighter mt-1 inline-block">
+                            {aula.cursos?.nome || 'CURSO'}
+                          </span>
+                        </div>
+                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-500 px-1.5 py-0.5 font-black text-[7px] uppercase tracking-widest">
+                          +{aula.xp_ganho || 50} XP
+                        </span>
+                      </div>
+
+                      {/* Conteúdo Pedagógico */}
+                      <div>
+                        <span className="text-[7.5px] font-black text-black/55 uppercase tracking-widest block mb-0.5">
+                          💡 CONTEÚDO PRATICADO:
+                        </span>
+                        <p className="text-[10px] text-black font-semibold bg-stone-50 p-2 border-2 border-black whitespace-pre-line leading-relaxed">
+                          {aula.conteudo || 'Nenhum diário registrado.'}
+                        </p>
+                      </div>
+
+                      {/* Tarefa de Casa */}
+                      {aula.tarefa_casa && (
+                        <div>
+                          <span className="text-[7.5px] font-black text-[#ff6b00] uppercase tracking-widest block mb-0.5">
+                            📝 TAREFA DE CASA / MISSÃO:
+                          </span>
+                          <p className="text-[10px] text-black font-semibold bg-[#fff8f6] p-2 border-2 border-[#ff6b00] whitespace-pre-line leading-relaxed">
+                            {aula.tarefa_casa}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Professor */}
+                      <div className="flex justify-end text-[7px] font-black text-black/30 uppercase">
+                        Instrutor: {aula.professores?.nome || 'HUB'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: GAVETA DE NOTIFICAÇÕES (DRAWER RETRO) */}
+      {isNotifDrawerOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center p-0 md:p-4 bg-black/85 backdrop-blur-sm font-['Space_Mono']">
+          <div className="bg-[#fff8f6] border-t-8 md:border-8 border-black p-6 relative shadow-[0_-8px_0_#000,12px_12px_0_#000] w-full max-w-md h-[80vh] md:h-[600px] flex flex-col justify-between overflow-hidden">
+            
+            {/* Fechar botão */}
+            <div className="absolute top-4 right-4 z-10">
+              <button 
+                onClick={() => {
+                  setIsNotifDrawerOpen(false);
+                  playRetroSound(146.83, 'sawtooth', 0.15); // som retrô de fechar
+                }} 
+                className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mb-4 shrink-0">
+              <span className="font-black bg-[#ff6b00] text-white text-[8px] px-2 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
+                NOTIFICATIONS ENGINE
+              </span>
+              <div className="flex justify-between items-center mt-3">
+                <h2 className="text-xl font-black text-black uppercase italic tracking-tighter">
+                  🔔 NOTIFICAÇÕES
+                </h2>
+                {notificacoes.length > 0 && (
+                  <button
+                    onClick={limparNotificacoes}
+                    className="bg-[#ff3333] hover:bg-red-700 text-white border-2 border-black font-black uppercase text-[7.5px] px-2 py-1.5 shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
+                  >
+                    LIMPAR TODAS
+                  </button>
+                )}
+              </div>
+              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider mt-1">
+                Feed de atividades recentes enviadas pelos alunos em tempo real
+              </p>
+            </div>
+
+            {/* Lista das Notificações */}
+            <div className="flex-1 overflow-auto space-y-3 pr-1 pb-4">
+              {notificacoes.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center border-4 border-dashed border-black/25 bg-white p-8">
+                  <span className="text-3xl animate-bounce">🔈</span>
+                  <p className="text-[#8e7164] font-black text-[9px] uppercase italic text-center mt-4">
+                    &gt;&gt; NADA DE NOVO POR AQUI. SILÊNCIO TOTAL DE 8 BITS...
+                  </p>
+                </div>
+              ) : (
+                notificacoes.map((notif: any) => {
+                  let NotifIcon = Bell;
+                  let iconBg = 'bg-[#feccba]';
+                  if (notif.tipo === 'treino') {
+                    NotifIcon = Flame;
+                    iconBg = 'bg-orange-500 text-white';
+                  } else if (notif.tipo === 'trofeu' || notif.tipo === 'conquista') {
+                    NotifIcon = Trophy;
+                    iconBg = 'bg-yellow-400 text-black';
+                  } else if (notif.tipo === 'confirmacao') {
+                    NotifIcon = CheckCircle;
+                    iconBg = 'bg-emerald-500 text-white';
+                  }
+
+                  const formatTime = (timeStr: string) => {
+                    try {
+                      return new Date(timeStr).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+                    } catch (e) {
+                      return '';
+                    }
+                  };
+
+                  return (
+                    <div 
+                      key={notif.id}
+                      onClick={() => !notif.lida && marcarNotificacaoLida(notif.id)}
+                      className={`border-4 border-black p-3 bg-white shadow-[4px_4px_0_#000] relative overflow-hidden transition-all flex gap-3 ${
+                        !notif.lida ? 'border-l-[12px] border-l-[#ff6b00] cursor-pointer hover:bg-stone-50' : 'opacity-70'
+                      }`}
+                    >
+                      {/* Ícone */}
+                      <div className={`w-8 h-8 border-2 border-black flex items-center justify-center shrink-0 shadow-[2px_2px_0_#000] ${iconBg}`}>
+                        <NotifIcon className="w-4 h-4" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex justify-between items-center gap-1.5">
+                          <h4 className="font-black text-[9.5px] uppercase truncate text-black mb-0 leading-tight">
+                            {notif.titulo}
+                          </h4>
+                          <span className="text-[6.5px] font-black text-black/30 shrink-0">
+                            {formatTime(notif.created_at)}
+                          </span>
+                        </div>
+                        <p className="text-[8.5px] font-semibold text-black mt-1 leading-normal">
+                          {notif.mensagem}
+                        </p>
+                      </div>
+
+                      {/* Dot pixelado indicando não lida */}
+                      {!notif.lida && (
+                        <div className="absolute top-1 right-1 w-2 h-2 bg-[#ff6b00] border border-black animate-pulse" />
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: PLAYER DE VÍDEO RETRO (TREINOS CURTOS 24H) */}
+      {isTreinoVideoModalOpen && selectedTreinoVideo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm overflow-y-auto font-['Space_Mono']">
+          <div className="bg-[#fff8f6] border-[8px] border-black p-5 relative shadow-[12px_12px_0_#000] w-full max-w-md">
+            
+            {/* Fechar botão */}
+            <div className="absolute top-4 right-4 z-10">
+              <button 
+                onClick={() => {
+                  setIsTreinoVideoModalOpen(false);
+                  setSelectedTreinoVideo(null);
+                  playRetroSound(146.83, 'sawtooth', 0.15); // som retrô de fechar
+                }} 
+                className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <span className="font-black bg-[#ff6b00] text-white text-[8px] px-2 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
+                VIDEO MONITOR
+              </span>
+              <h2 className="text-base font-black text-black uppercase italic tracking-tighter mt-2">
+                📺 PERFORMANCE DO TREINO
+              </h2>
+            </div>
+
+            {/* Container do Player Brutalista com visual pixel art */}
+            <div className="border-4 border-black bg-black shadow-[6px_6px_0_#000] overflow-hidden relative group aspect-video">
+              <video 
+                src={selectedTreinoVideo} 
+                controls 
+                autoPlay 
+                className="w-full h-full object-contain"
+                playsInline
+              />
+            </div>
+            
+            <div className="mt-4 bg-[#261812] text-white p-3 border-4 border-black text-[7.5px] font-black uppercase text-center tracking-widest">
+              ⏳ ESTE VÍDEO SERÁ EXCLUÍDO APÓS 24 HORAS PARA ECONOMIA DE ARMAZENAMENTO SUPABASE
+            </div>
           </div>
         </div>
       )}

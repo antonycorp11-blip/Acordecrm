@@ -2134,6 +2134,342 @@ async function startServer() {
         }
     });
 
+    // ==========================================
+    // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
+    // ==========================================
+    const sendPushNotification = async (titulo: string, mensagem: string) => {
+        try {
+            const appId = process.env.ONESIGNAL_APP_ID || '35a5de9e-3f65-4f40-a3e9-a417387349ab';
+            const restKey = process.env.ONESIGNAL_REST_API_KEY;
+
+            if (!restKey) {
+                console.log('[PUSH_NOTIFICATION] OneSignal REST API Key não configurada. Notificação registrada localmente apenas.');
+                return;
+            }
+
+            const response = await fetch('https://onesignal.com/api/v1/notifications', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Authorization': `Basic ${restKey}`
+                },
+                body: JSON.stringify({
+                    app_id: appId,
+                    included_segments: ['Subscribed Users'],
+                    headings: { en: titulo, pt: titulo },
+                    contents: { en: mensagem, pt: mensagem }
+                })
+            });
+
+            const data = await response.json();
+            console.log('[PUSH_NOTIFICATION] OneSignal Push enviado com sucesso:', data);
+        } catch (err) {
+            console.error('[PUSH_NOTIFICATION] Erro ao enviar push OneSignal:', err);
+        }
+    };
+
+    // 1. Obter treinos do aluno autenticado
+    app.get('/api/treinos/me', async (req, res) => {
+        try {
+            const email = (req as any).user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado.' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
+
+            const { data: treinos, error } = await supabase
+                .from('aluno_treinos')
+                .select('*')
+                .eq('aluno_id', aluno.id)
+                .order('data', { ascending: false });
+
+            if (error) throw error;
+            res.json(treinos || []);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 2. Registrar check-in de treino diário
+    app.post('/api/treinos', async (req, res) => {
+        try {
+            const email = (req as any).user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado.' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
+
+            const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+
+            const { data: existing } = await supabase
+                .from('aluno_treinos')
+                .select('id')
+                .eq('aluno_id', aluno.id)
+                .eq('data', todayStr)
+                .maybeSingle();
+
+            if (existing) {
+                return res.status(400).json({ error: 'Você já marcou seu check-in de treino hoje!' });
+            }
+
+            const { data: treino, error } = await supabase
+                .from('aluno_treinos')
+                .insert([{ aluno_id: aluno.id, data: todayStr }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // Criar notificação para o professor
+            const titulo = 'Treino registrado! 🔥';
+            const mensagem = `${aluno.nome} marcou seu check-in de treino diário!`;
+            
+            await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
+
+            sendPushNotification(titulo, mensagem);
+
+            res.json({ success: true, data: treino });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 3. Upload de vídeo curto de treino (24h de duração)
+    app.post('/api/treinos/upload-video', upload.single('video'), async (req: any, res) => {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhum arquivo de vídeo enviado.' });
+        }
+        try {
+            const email = req.user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado.' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
+
+            const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+
+            let { data: treino } = await supabase
+                .from('aluno_treinos')
+                .select('*')
+                .eq('aluno_id', aluno.id)
+                .eq('data', todayStr)
+                .maybeSingle();
+
+            if (!treino) {
+                const { data: novoTreino, error: createError } = await supabase
+                    .from('aluno_treinos')
+                    .insert([{ aluno_id: aluno.id, data: todayStr }])
+                    .select()
+                    .single();
+                if (createError) throw createError;
+                treino = novoTreino;
+            }
+
+            const ext = path.extname(req.file.originalname) || '.mp4';
+            const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
+            const fileBuffer = fs.readFileSync(req.file.path);
+            const mimeType = req.file.mimetype || 'video/mp4';
+
+            const { error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
+
+            try { fs.unlinkSync(req.file.path); } catch {}
+
+            if (uploadError) {
+                console.error('[TREINO_VIDEO_UPLOAD] Erro Storage:', uploadError.message);
+                return res.status(500).json({ error: 'Falha ao salvar vídeo: ' + uploadError.message });
+            }
+
+            const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+            const url = publicUrlData?.publicUrl || '';
+
+            if (treino.video_url) {
+                try {
+                    const oldPath = treino.video_url.split('/uploads/')[1];
+                    if (oldPath) {
+                        await supabase.storage.from('uploads').remove([oldPath]);
+                    }
+                } catch (e) {
+                    console.error('Erro ao deletar vídeo antigo do storage:', e);
+                }
+            }
+
+            const { data: updatedTreino, error: updateError } = await supabase
+                .from('aluno_treinos')
+                .update({ 
+                    video_url: url,
+                    video_created_at: new Date().toISOString()
+                })
+                .eq('id', treino.id)
+                .select()
+                .single();
+
+            if (updateError) throw updateError;
+
+            // Criar notificação para o professor
+            const titulo = 'Vídeo de treino enviado! 📹';
+            const mensagem = `${aluno.nome} gravou um vídeo estudando hoje!`;
+            
+            await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
+
+            sendPushNotification(titulo, mensagem);
+
+            res.json({ success: true, url, data: updatedTreino });
+        } catch (error: any) {
+            console.error('[TREINO_VIDEO_UPLOAD] Erro geral:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 4. Obter treinos de todos os alunos (Professor) com limpeza expirada integrada
+    app.get('/api/treinos/prof', async (req, res) => {
+        try {
+            // Rotina de limpeza automática de vídeos antigos (> 24 horas)
+            const limitDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const { data: expirados } = await supabase
+                .from('aluno_treinos')
+                .select('id, video_url')
+                .not('video_url', 'is', null)
+                .lt('video_created_at', limitDate);
+
+            if (expirados && expirados.length > 0) {
+                console.log(`[TREINO_VIDEO_CLEANUP] Limpando ${expirados.length} vídeos com mais de 24h...`);
+                for (const item of expirados) {
+                    try {
+                        const filePath = item.video_url.split('/uploads/')[1];
+                        if (filePath) {
+                            await supabase.storage.from('uploads').remove([filePath]);
+                        }
+                        await supabase
+                            .from('aluno_treinos')
+                            .update({ video_url: null, video_created_at: null })
+                            .eq('id', item.id);
+                    } catch (e: any) {
+                        console.error('[CLEANUP] Erro no item:', item.id, e.message);
+                    }
+                }
+            }
+
+            const { data: treinos, error } = await supabase
+                .from('aluno_treinos')
+                .select('*, aluno:aluno_id(id, nome, foto_url, curso_ativo)')
+                .order('id', { ascending: false })
+                .limit(100);
+
+            if (error) throw error;
+            res.json(treinos || []);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 5. Histórico de Aulas Concluídas de um aluno
+    app.get('/api/alunos/:id/historico-aulas', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const alunoIdNum = Number(id);
+            if (isNaN(alunoIdNum)) return res.status(400).json({ error: 'ID inválido.' });
+
+            const { data: aulas, error } = await supabase
+                .from('aulas')
+                .select('*, professores(nome), cursos(nome)')
+                .eq('aluno_id', alunoIdNum)
+                .eq('status', 'realizada')
+                .order('data', { ascending: false })
+                .order('horario', { ascending: false });
+
+            if (error) throw error;
+            res.json(aulas || []);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 6. Confirmar presença na próxima aula (Aluno)
+    app.post('/api/aulas/:id/confirmar-aluno', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const email = (req as any).user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado.' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
+
+            const { data: aula, error } = await supabase
+                .from('aulas')
+                .update({ status: 'confirmada' })
+                .eq('id', Number(id))
+                .eq('aluno_id', aluno.id)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // Criar notificação
+            const dataFormatada = new Date(aula.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            const titulo = 'Presença confirmada! 🎸';
+            const mensagem = `${aluno.nome} confirmou que virá na aula do dia ${dataFormatada} às ${aula.horario?.substring(0, 5)}!`;
+
+            await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'confirmacao', aluno_id: aluno.id }]);
+
+            sendPushNotification(titulo, mensagem);
+
+            res.json({ success: true, data: aula });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 7. Listar notificações do feed do professor
+    app.get('/api/notificacoes', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('notificacoes')
+                .select('*, aluno:aluno_id(id, nome, foto_url)')
+                .order('id', { ascending: false })
+                .limit(50);
+
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 8. Marcar notificação como lida
+    app.post('/api/notificacoes/:id/lida', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { data, error } = await supabase
+                .from('notificacoes')
+                .update({ lida: true })
+                .eq('id', Number(id))
+                .select()
+                .single();
+
+            if (error) throw error;
+            res.json({ success: true, data });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 9. Limpar todas as notificações
+    app.post('/api/notificacoes/limpar', async (req, res) => {
+        try {
+            const { error } = await supabase
+                .from('notificacoes')
+                .delete()
+                .neq('id', 0);
+
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.post('/api/gamificacao/remover', async (req, res) => {
         try {
             const { aluno_id, conquista_id } = req.body;

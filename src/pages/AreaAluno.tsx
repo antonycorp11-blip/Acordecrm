@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2 } from 'lucide-react';
+import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle } from 'lucide-react';
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { useAuth } from '../contexts/AuthContext';
@@ -283,11 +283,22 @@ export default function AreaAluno() {
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [aulasRealizadas, setAulasRealizadas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas' | 'perfil' | 'jogos'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas' | 'perfil' | 'jogos' | 'treino'>('home');
   const [rankingData, setRankingData] = useState<any[]>([]);
   const [todasConquistas, setTodasConquistas] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
   const [showTools, setShowTools] = useState(false);
+
+  // Estados para o Sistema de Treino Diário
+  const [treinos, setTreinos] = useState<any[]>([]);
+  const [recording, setRecording] = useState(false);
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string>('');
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [recordingTimer, setRecordingTimer] = useState(0);
+  const [recordingIntervalId, setRecordingIntervalId] = useState<any>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Estados para o Jogo "Acorde Genius"
   const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
@@ -523,7 +534,227 @@ export default function AreaAluno() {
 
     fetchAll();
     fetchTodasConquistas();
+    
+    // Buscar treinos do aluno na inicializacao
+    const fetchTreinosInit = () => {
+      const timestamp = Date.now();
+      fetch(`/api/treinos/me?t=${timestamp}`, { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setTreinos(data))
+        .catch(console.error);
+    };
+    fetchTreinosInit();
   }, []);
+
+  const fetchTreinos = () => {
+    const token = localStorage.getItem('acorde_token');
+    if (!token) return;
+    const headers = { 'Authorization': `Bearer ${token}` };
+    fetch('/api/treinos/me', { headers })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setTreinos(data))
+      .catch(console.error);
+  };
+
+  const handleConfirmarPresenca = async (aulaId: number) => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      if (!token) return;
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const res = await fetch(`/api/aulas/${aulaId}/confirmar-aluno`, {
+        method: 'POST',
+        headers
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao confirmar presença.');
+      }
+
+      toast.success('Presença confirmada! 🎸');
+      playRetroSound(880, 'sine', 0.15);
+      setTimeout(() => playRetroSound(1320, 'sine', 0.25), 150);
+      
+      // Recarrega dados
+      const timestamp = Date.now();
+      Promise.all([
+        fetch(`/api/alunos/me?t=${timestamp}`, { headers }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/agenda?t=${timestamp}`, { headers }).then(r => r.ok ? r.json() : [])
+      ]).then(([me, agenda]) => {
+        if (me) {
+          setAlunoData(me);
+          const now = new Date();
+          const allAulas = Array.isArray(agenda) ? agenda : [];
+          
+          const futureAulas = allAulas
+            .filter((a: any) => {
+              const aulaDate = new Date(`${a.data}T${a.horario || '00:00:00'}`);
+              return aulaDate >= now && a.status !== 'realizada';
+            })
+            .sort((a: any, b: any) => new Date(`${a.data}T${a.horario}`).getTime() - new Date(`${b.data}T${b.horario}`).getTime());
+
+          setAulasHoje(futureAulas);
+        }
+      });
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao confirmar.');
+    }
+  };
+
+  // Gravação de Vídeo de Treino
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: 480, height: 480, facingMode: 'user' }, 
+        audio: true 
+      });
+      
+      let options = { mimeType: 'video/webm;codecs=vp9,opus' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm;codecs=vp8,opus' };
+      }
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm' };
+      }
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/mp4' };
+      }
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: '' };
+      }
+
+      const recorder = new MediaRecorder(stream, options);
+      const chunks: Blob[] = [];
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        setVideoBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setVideoPreviewUrl(url);
+        
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setRecording(true);
+      setRecordingTimer(0);
+      
+      const interval = setInterval(() => {
+        setRecordingTimer(prev => {
+          if (prev >= 45) {
+            recorder.stop();
+            clearInterval(interval);
+            setRecording(false);
+            return 45;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+      
+      setRecordingIntervalId(interval);
+      playRetroSound(600, 'sine', 0.1);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao acessar câmera/microfone. Certifique-se de conceder a permissão.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && recording) {
+      try {
+        mediaRecorder.stop();
+      } catch (e) {}
+      if (recordingIntervalId) {
+        clearInterval(recordingIntervalId);
+      }
+      setRecording(false);
+      playRetroSound(400, 'sine', 0.15);
+    }
+  };
+
+  const uploadVideo = async () => {
+    if (!videoBlob) return;
+    setUploadingVideo(true);
+    setUploadProgress(15);
+    
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const formData = new FormData();
+      formData.append('video', videoBlob, 'treino_video.webm');
+      
+      setUploadProgress(45);
+      const res = await fetch('/api/treinos/upload-video', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      setUploadProgress(85);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao enviar vídeo.');
+      }
+      
+      const data = await res.json();
+      setUploadProgress(100);
+      toast.success('Vídeo de treino enviado com sucesso! 📹🔥');
+      playRetroSound(880, 'sine', 0.15);
+      setTimeout(() => playRetroSound(1320, 'sine', 0.25), 150);
+      
+      setVideoBlob(null);
+      setVideoPreviewUrl('');
+      fetchTreinos();
+    } catch (err: any) {
+      toast.error(err.message || 'Falha no envio do vídeo.');
+    } finally {
+      setUploadingVideo(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleMarcarTreino = async () => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch('/api/treinos', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao marcar treino.');
+      }
+      
+      toast.success('Treino registrado! 🔥 +20 XP de estudo diário!');
+      playRetroSound(880, 'sine', 0.15);
+      setTimeout(() => playRetroSound(1200, 'sine', 0.2), 100);
+      
+      const timestamp = Date.now();
+      const headers = { 'Authorization': `Bearer ${token}` };
+      fetch(`/api/alunos/me?t=${timestamp}`, { headers })
+        .then(r => r.ok ? r.json() : null)
+        .then(me => { if (me) setAlunoData(me); });
+
+      fetchTreinos();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao marcar treino.');
+    }
+  };
 
   const handleSolicitarTrofeu = async (conquistaId: number) => {
     const token = localStorage.getItem('acorde_token');
@@ -611,6 +842,16 @@ export default function AreaAluno() {
     { id: 1, titulo: 'PRATICAR ESCALAS', descricao: '30 minutos de piano clássico', xp: 250, progresso: 60, tipo: 'play' },
     { id: 2, titulo: '8-BIT THEORY QUIZ', descricao: 'Acertar 10 questões de teoria', xp: 150, status: 'READY', tipo: 'quiz' },
   ];
+
+  // Streak tracker dos ultimos 7 dias
+  const ultimosSeteDias = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const dataStr = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+    const label = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+    const diaNum = d.getDate();
+    return { dataStr, label, diaNum };
+  });
 
   const menus = [
     { icon: Trophy, label: 'HALL DA FAMA', path: '/ranking' },
@@ -1051,6 +1292,145 @@ export default function AreaAluno() {
             </div>
           )}
 
+          {/* ===== ABA: TREINO (SISTEMA DE TREINO DIÁRIO) ===== */}
+          {activeTab === 'treino' && (
+            <div className="px-4 py-5 space-y-6">
+              {/* Header Retro */}
+              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden flex flex-col gap-2">
+                <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; DIARY_STREAK_ACTIVE • SYNC_ON</p>
+                <h2 className="text-black font-black text-xl uppercase italic leading-tight">
+                  MEU DIÁRIO DE TREINO
+                </h2>
+                <p className="text-[10px] text-[#261812] font-black uppercase">
+                  Marque sua presença de estudo diária e envie um vídeo opcional estudando (expira em 24h) para avisar seu professor!
+                </p>
+              </div>
+
+              {/* Streak Tracker 8-bit */}
+              <div className="bg-[#261812] border-8 border-black p-5 shadow-[8px_8px_0_#000] space-y-4">
+                <div className="flex justify-between items-center">
+                  <p className="text-white font-black text-[9px] uppercase tracking-widest">STREAK ÚLTIMOS 7 DIAS</p>
+                  <span className="text-[#ff6b00] font-black text-[9px] uppercase tracking-widest">
+                    🔥 {treinos.length} CHECK-INS TOTAIS
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-7 gap-2">
+                  {ultimosSeteDias.map((dia) => {
+                    const treinou = treinos.some((t: any) => t.data === dia.dataStr);
+                    const temVideo = treinos.some((t: any) => t.data === dia.dataStr && t.video_url);
+                    
+                    return (
+                      <div 
+                        key={dia.dataStr} 
+                        className={`border-4 border-black p-2 flex flex-col items-center justify-center gap-1.5 shadow-[2px_2px_0_#000] ${
+                          treinou 
+                            ? temVideo 
+                              ? 'bg-[#00ffcc] text-black' 
+                              : 'bg-[#ff6b00] text-white' 
+                            : 'bg-[#1a0a05] text-[#8e7164]'
+                        }`}
+                      >
+                        <span className="text-[7px] font-black">{dia.label}</span>
+                        <span className="text-sm font-black italic leading-none">{dia.diaNum}</span>
+                        <span className="text-[8px] font-black leading-none">
+                          {treinou ? (temVideo ? '📹' : '🔥') : '❌'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Ações de Treino */}
+              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] flex flex-col gap-4">
+                {/* Botão de Check-in */}
+                {treinos.some((t: any) => t.data === new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-')) ? (
+                  <div className="bg-[#00ffcc] text-black border-4 border-black p-4 text-center font-black text-xs uppercase shadow-[4px_4px_0_#000]">
+                    🔥 CHECK-IN DE HOJE REALIZADO! (+20 XP CREDITADOS)
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleMarcarTreino}
+                    className="w-full bg-[#ff6b00] hover:bg-black text-white font-black text-xs py-4 uppercase border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    🔥 MARCAR TREINO HOJE (+20 XP)
+                  </button>
+                )}
+
+                {/* Upload / Gravação de Vídeo */}
+                <div className="border-t-4 border-dashed border-black pt-4 space-y-4">
+                  <h3 className="text-black font-black text-[10px] uppercase tracking-wider flex items-center gap-2">
+                    📹 COMPROVAR COM VÍDEO (MAX 45 SEGUNDOS)
+                  </h3>
+
+                  {recording ? (
+                    <div className="bg-[#261812] border-4 border-black p-6 text-center space-y-4 shadow-[4px_4px_0_#000]">
+                      <div className="w-4 h-4 bg-red-600 rounded-full animate-ping mx-auto" />
+                      <p className="text-white font-black text-xs uppercase tracking-widest">
+                        GRAVANDO TREINO: {recordingTimer}s / 45s
+                      </p>
+                      <button
+                        onClick={stopRecording}
+                        className="bg-red-600 hover:bg-red-700 text-white font-black text-[9px] uppercase px-4 py-2 border-2 border-black shadow-[2px_2px_0_#000]"
+                      >
+                        ⏹ PARAR GRAVAÇÃO
+                      </button>
+                    </div>
+                  ) : videoPreviewUrl ? (
+                    <div className="bg-[#261812] border-4 border-black p-4 space-y-4 shadow-[4px_4px_0_#000]">
+                      <video src={videoPreviewUrl} className="w-full max-h-[300px] border-4 border-black bg-black" controls />
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setVideoBlob(null);
+                            setVideoPreviewUrl('');
+                          }}
+                          className="flex-1 bg-black text-[#feccba] font-black text-[9px] uppercase py-2.5 border-2 border-black"
+                        >
+                          EXCLUIR & GRAVAR OUTRO
+                        </button>
+                        <button
+                          onClick={uploadVideo}
+                          disabled={uploadingVideo}
+                          className="flex-1 bg-[#00ffcc] text-black font-black text-[9px] uppercase py-2.5 border-2 border-black shadow-[2px_2px_0_#000] hover:bg-white active:translate-y-0.5"
+                        >
+                          {uploadingVideo ? `ENVIANDO... ${uploadProgress}%` : '📹 ENVIAR PARA O PROFESSOR'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={startRecording}
+                        className="bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black font-black text-[9px] uppercase py-3 border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-1"
+                      >
+                        🎥 GRAVAR VÍDEO AGORA
+                      </button>
+                      
+                      <label className="bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black font-black text-[9px] uppercase py-3 border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-1 text-center">
+                        📁 SELECIONAR ARQUIVO
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setVideoBlob(file);
+                              setVideoPreviewUrl(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ===== ABA: HOME (conteúdo existente) ===== */}
           {activeTab === 'home' && (
           <div className="px-4 py-5 space-y-4">
@@ -1114,19 +1494,33 @@ export default function AreaAluno() {
 
             {/* Próxima Sessão */}
             {aulasHoje[0] ? (
-              <div className="p-5 flex items-center gap-4 bg-[#ff6b00] border-8 border-black shadow-[10px_10px_0_#000]">
-                <div className="w-14 h-14 bg-[#261812] border-4 border-black text-[#ff6b00] flex items-center justify-center shrink-0 shadow-[4px_4px_0_#000]">
-                  <span className="font-black text-2xl">♪</span>
+              <div className="p-5 flex flex-col gap-3 bg-[#ff6b00] border-8 border-black shadow-[10px_10px_0_#000]">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-[#261812] border-4 border-black text-[#ff6b00] flex items-center justify-center shrink-0 shadow-[4px_4px_0_#000]">
+                    <span className="font-black text-2xl">♪</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white/80 font-black text-[8px] uppercase tracking-widest mb-1">&gt;&gt; PRÓXIMA_AULA</p>
+                    <p className="text-white font-black text-sm uppercase italic leading-none mb-1">
+                      {new Date(aulasHoje[0].data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} @ {aulasHoje[0].horario?.substring(0,5)}
+                    </p>
+                    <span className="text-[7px] font-black text-white bg-black px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block mt-0.5">
+                      STATUS: {aulasHoje[0].status === 'confirmada' ? 'CONFIRMADA' : 'PENDENTE'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-white/80 font-black text-[8px] uppercase tracking-widest mb-1">&gt;&gt; PRÓXIMA_AULA</p>
-                  <p className="text-white font-black text-lg uppercase italic leading-none mb-1">
-                    {new Date(aulasHoje[0].data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} @ {aulasHoje[0].horario?.substring(0,5)}
-                  </p>
-                </div>
-                <button className="bg-white border-4 border-black p-2 shadow-[4px_4px_0_#000] shrink-0">
-                  <ChevronRight className="w-6 h-6 text-black" />
-                </button>
+                {aulasHoje[0].status === 'confirmada' ? (
+                  <div className="bg-[#00ffcc] text-black border-4 border-black text-center font-black text-[8px] uppercase tracking-wider py-1.5 shadow-[2px_2px_0_#000]">
+                    ✔️ PRESENÇA CONFIRMADA!
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleConfirmarPresenca(aulasHoje[0].id)}
+                    className="w-full bg-white hover:bg-black hover:text-white text-black border-4 border-black text-center font-black text-[8px] uppercase tracking-wider py-2 shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
+                  >
+                    👍 CONFIRMAR PRESENÇA NA AULA
+                  </button>
+                )}
               </div>
             ) : (
               <div className="p-6 text-center bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000]">
@@ -1792,12 +2186,13 @@ export default function AreaAluno() {
         <nav className="fixed md:absolute bottom-0 left-0 right-0 md:left-auto md:right-auto md:w-full h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-50">
           {[
             { icon: Home, label: 'HOME', tab: 'home' as const },
+            { icon: Flame, label: 'TREINO', tab: 'treino' as const },
             { icon: Trophy, label: 'RANK', tab: 'ranking' as const },
             { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
             { icon: Gamepad2, label: 'JOGOS', tab: 'jogos' as const },
             { icon: User, label: 'PERFIL', tab: 'perfil' as const },
           ].map((item) => (
-            <button key={item.tab} onClick={() => { setActiveTab(item.tab); if (item.tab === 'ranking') fetchRanking(); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.tab ? 'translate-y-[-4px]' : 'opacity-50'}`}>
+            <button key={item.tab} onClick={() => { setActiveTab(item.tab); if (item.tab === 'ranking') fetchRanking(); else if (item.tab === 'treino') fetchTreinos(); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.tab ? 'translate-y-[-4px]' : 'opacity-50'}`}>
               <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${activeTab === item.tab ? 'bg-[#ff6b00]' : 'bg-white'}`}>
                 <item.icon className={`w-5 h-5 ${activeTab === item.tab ? 'text-white' : 'text-black'}`} />
               </div>
