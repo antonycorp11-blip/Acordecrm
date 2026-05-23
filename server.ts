@@ -794,6 +794,30 @@ async function startServer() {
                         return res.status(500).json({ error: matError.message, stage: 'matricula' });
                     }
                     console.log(`[MATRICULA_UPDATE] Sucesso! Matrícula ${matriculaId} atualizada com:`, matUpdate);
+
+                    // PASSO 3: Reagendar Aulas Pendentes se o dia ou horário mudou
+                    if (matUpdate.dia_semana !== undefined || matUpdate.horario !== undefined) {
+                        const { data: aulasFuturas } = await supabase.from('aulas')
+                            .select('id, data')
+                            .eq('matricula_id', matriculaId)
+                            .eq('status', 'pendente');
+                            
+                        if (aulasFuturas && aulasFuturas.length > 0) {
+                            console.log(`[MATRICULA_UPDATE] Reagendando ${aulasFuturas.length} aulas pendentes na agenda...`);
+                            for (const af of aulasFuturas) {
+                                const payload: any = {};
+                                if (matUpdate.horario) payload.horario = matUpdate.horario;
+                                if (matUpdate.dia_semana !== undefined) {
+                                    const d = new Date(af.data + 'T12:00:00'); // Evita timezone bug
+                                    const currentDay = d.getDay();
+                                    const diff = matUpdate.dia_semana - currentDay;
+                                    d.setDate(d.getDate() + diff);
+                                    payload.data = d.toISOString().split('T')[0];
+                                }
+                                await supabase.from('aulas').update(payload).eq('id', af.id);
+                            }
+                        }
+                    }
                 } else {
                     console.warn(`[MATRICULA_UPDATE] Nenhuma matrícula encontrada para aluno ${studentId}`);
                 }
@@ -2437,7 +2461,7 @@ async function startServer() {
 
             const { data: treinos, error } = await supabase
                 .from('aluno_treinos')
-                .select('*, alunos(id, nome, foto_url, curso_ativo)')
+                .select('*, alunos(id, nome, foto_url)')
                 .order('id', { ascending: false })
                 .limit(100);
 
