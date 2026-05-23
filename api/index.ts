@@ -2735,7 +2735,7 @@ async function startServer() {
 
             const { data: treinos, error } = await supabase
                 .from('aluno_treinos')
-                .select('*, aluno:aluno_id(id, nome, foto_url, curso_ativo)')
+                .select('*, alunos(id, nome, foto_url, curso_ativo)')
                 .order('id', { ascending: false })
                 .limit(100);
 
