@@ -31,7 +31,16 @@ export const OneSignalService = {
         // Usa o login nativo do SDK v16+, que EXIGE que o externalId seja estritamente String
         const externalIdStr = String(emailOrId);
         await OneSignal.login(externalIdStr);
-        console.log(`[OneSignal] Usuário logado: ${externalIdStr}`);
+        
+        // MAGICA PARA REATIVAR USUARIOS ÓRFÃOS SILENCIOSAMENTE!
+        // Força a re-inscrição do push usando a permissão já concedida pelo iOS na URL do site
+        if (OneSignal.User.PushSubscription) {
+          await OneSignal.User.PushSubscription.optIn();
+        }
+        // Se a permissão nativa não existir (novo aparelho), pede com pop-up
+        await OneSignal.Slidedown.promptPush({ force: true });
+        
+        console.log(`[OneSignal] Usuário logado e Push forçado: ${externalIdStr}`);
       }
     });
   },
