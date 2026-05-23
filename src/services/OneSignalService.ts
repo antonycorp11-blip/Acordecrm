@@ -9,16 +9,8 @@ export const OneSignalService = {
   APP_ID: 'e5e38375-5fd8-4e92-bf0d-29996ba9426d',
 
   init: async () => {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function(OneSignal: any) {
-      await OneSignal.init({
-        appId: OneSignalService.APP_ID,
-        notifyButton: {
-          enable: false, // Nós dispararemos o prompt manualmente
-        },
-      });
-      console.log('[OneSignal] SDK Inicializado no Frontend.');
-    });
+    // Inicialização movida para o index.html (Head) para garantir prioridade e evitar TypeError no login
+    console.log('[OneSignal] Init hook called mas delegando para head script');
   },
 
   promptForPermission: async () => {
