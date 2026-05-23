@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { OneSignalService } from './services/OneSignalService';
 import { Sidebar } from './components/layout/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Alunos from './pages/Alunos';
@@ -56,6 +57,10 @@ const RoleRedirect = ({ children, defaultPath }: { children: React.ReactNode, de
 };
 
 export default function App() {
+  React.useEffect(() => {
+    OneSignalService.init();
+  }, []);
+
   return (
     <AuthProvider>
       <Router>

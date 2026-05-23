@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { OneSignalService } from '../services/OneSignalService';
 
 interface User {
   id: string;
@@ -30,7 +31,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (storedToken && storedUser) {
       setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
+      try { OneSignalService.loginUser(parsedUser.id); } catch(e){}
     }
     
     setIsLoading(false);
@@ -53,6 +56,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(newUser);
     localStorage.setItem('acorde_token', newToken);
     localStorage.setItem('acorde_user', JSON.stringify(newUser));
+    
+    try { 
+      OneSignalService.loginUser(newUser.id);
+      OneSignalService.promptForPermission();
+    } catch(e){}
   };
 
   const logout = () => {
@@ -60,6 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     localStorage.removeItem('acorde_token');
     localStorage.removeItem('acorde_user');
+    try { OneSignalService.logoutUser(); } catch(e){}
   };
 
   return (

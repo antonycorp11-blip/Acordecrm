@@ -2143,8 +2143,8 @@ async function startServer() {
     // ==========================================
     const sendPushNotification = async (titulo: string, mensagem: string) => {
         try {
-            const appId = process.env.ONESIGNAL_APP_ID || '35a5de9e-3f65-4f40-a3e9-a417387349ab';
-            const restKey = process.env.ONESIGNAL_REST_API_KEY;
+            const appId = process.env.ONESIGNAL_APP_ID || 'e5e38375-5fd8-4e92-bf0d-29996ba9426d';
+            const restKey = process.env.ONESIGNAL_REST_API_KEY || 'os_v2_app_4xryg5k73bhjfpynfgmwxkkcnu4sdaw5ya2e5w4zmam2qy2qh5cerspbb7itdjvruebt3paajj57slecf6gvufnrk2jjvyn24z36xgy';
 
             if (!restKey) {
                 console.log('[PUSH_NOTIFICATION] OneSignal REST API Key não configurada. Notificação registrada localmente apenas.');
@@ -2280,7 +2280,8 @@ async function startServer() {
                 if (extLower === '.webm') {
                     mimeType = 'video/webm';
                 } else if (extLower === '.mov' || extLower === '.qt') {
-                    mimeType = 'video/quicktime';
+                    // Bypass iOS: O Supabase bloqueia video/quicktime em muitos buckets. Disfarçamos como mp4.
+                    mimeType = 'video/mp4';
                 } else if (extLower === '.mp4') {
                     mimeType = 'video/mp4';
                 } else {
