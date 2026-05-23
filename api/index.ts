@@ -758,16 +758,33 @@ async function startServer() {
                             
                         if (aulasFuturas && aulasFuturas.length > 0) {
                             console.log(`[MATRICULA_UPDATE] Reagendando ${aulasFuturas.length} aulas pendentes na agenda...`);
-                            for (const af of aulasFuturas) {
+                            
+                            // Ordenar as aulas pendentes da mais próxima para a mais distante
+                            const aulasOrdenadas = aulasFuturas.sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime());
+                            
+                            // Achar a próxima data real possível para o novo dia da semana a partir de amanhã
+                            let currentNextDay = new Date();
+                            currentNextDay.setHours(12, 0, 0, 0);
+                            // Pode começar a buscar a partir de hoje mesmo se ainda der tempo
+                            // Para garantir segurança de agenda, vamos buscar a partir da data atual
+                            
+                            if (matUpdate.dia_semana !== undefined) {
+                                while (currentNextDay.getDay() !== Number(matUpdate.dia_semana)) {
+                                    currentNextDay.setDate(currentNextDay.getDate() + 1);
+                                }
+                            }
+
+                            for (let i = 0; i < aulasOrdenadas.length; i++) {
+                                const af = aulasOrdenadas[i];
                                 const payload: any = {};
                                 if (matUpdate.horario) payload.horario = matUpdate.horario;
+                                
                                 if (matUpdate.dia_semana !== undefined) {
-                                    const d = new Date(af.data + 'T12:00:00'); // Evita timezone bug
-                                    const currentDay = d.getDay();
-                                    const diff = matUpdate.dia_semana - currentDay;
-                                    d.setDate(d.getDate() + diff);
-                                    payload.data = d.toISOString().split('T')[0];
+                                    payload.data = currentNextDay.toISOString().split('T')[0];
+                                    // Pula pra próxima semana para a próxima aula do laço
+                                    currentNextDay.setDate(currentNextDay.getDate() + 7);
                                 }
+                                
                                 await supabase.from('aulas').update(payload).eq('id', af.id);
                             }
                         }
