@@ -1800,6 +1800,56 @@ async function startServer() {
         }
     });
 
+    // Módulo de Confirmação de Aula: Solicitar confirmação (Admin/Professor -> Aluno)
+    app.post('/api/agenda/:id/solicitar-confirmacao', async (req: any, res) => {
+        try {
+            const { id } = req.params;
+            const originalId = id.replace('reg-', '').replace('exp-', ''); 
+
+            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome, id)').eq('id', originalId).single();
+            if (errA || !aula) throw new Error('Aula não encontrada');
+
+            // Atualizar status
+            await supabase.from('aulas').update({ status: 'aguardando_confirmacao' }).eq('id', originalId);
+
+            // Enviar Push para o Aluno
+            if (aula.alunos?.id) {
+                await sendPushNotification(
+                    'Confirme sua próxima aula! 🎸',
+                    `Olá ${aula.alunos.nome.split(' ')[0]}, precisamos confirmar sua presença na próxima aula. Toque aqui e acesse sua Área do Aluno!`,
+                    aula.alunos.id
+                );
+            }
+
+            res.json({ success: true, status: 'aguardando_confirmacao' });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Módulo de Confirmação de Aula: Aluno confirmando
+    app.post('/api/agenda/:id/confirmar', async (req: any, res) => {
+        try {
+            const { id } = req.params;
+            const originalId = id.replace('reg-', '').replace('exp-', '');
+
+            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).single();
+            if (errA || !aula) throw new Error('Aula não encontrada');
+
+            // Atualizar status
+            await supabase.from('aulas').update({ status: 'confirmada' }).eq('id', originalId);
+
+            // Enviar Push para o Professor
+            if (aula.professores?.id) {
+                await sendPushNotification(
+                    'Aula Confirmada! ✅',
+                    `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`,
+                    String(aula.professores.id)
+                );
+            }
+
+            res.json({ success: true, status: 'confirmada' });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
     app.patch('/api/aulas/:id/reschedule', async (req, res) => {
         try {
             const { data, horario } = req.body;
@@ -2436,7 +2486,7 @@ async function startServer() {
     // ==========================================
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
-    const sendPushNotification = async (titulo: string, mensagem: string) => {
+    const sendPushNotification = async (titulo: string, mensagem: string, targetUserId?: string) => {
         try {
             const appId = process.env.ONESIGNAL_APP_ID || 'e5e38375-5fd8-4e92-bf0d-29996ba9426d';
             const restKey = process.env.ONESIGNAL_REST_API_KEY || 'os_v2_app_4xryg5k73bhjfpynfgmwxkkcnu4sdaw5ya2e5w4zmam2qy2qh5cerspbb7itdjvruebt3paajj57slecf6gvufnrk2jjvyn24z36xgy';
@@ -2446,18 +2496,26 @@ async function startServer() {
                 return;
             }
 
+            const bodyPayload: any = {
+                app_id: appId,
+                headings: { en: titulo, pt: titulo },
+                contents: { en: mensagem, pt: mensagem }
+            };
+
+            if (targetUserId) {
+                bodyPayload.include_aliases = { external_id: [targetUserId] };
+                bodyPayload.target_channel = "push";
+            } else {
+                bodyPayload.included_segments = ['Subscribed Users'];
+            }
+
             const response = await fetch('https://onesignal.com/api/v1/notifications', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json; charset=utf-8',
                     'Authorization': `Basic ${restKey}`
                 },
-                body: JSON.stringify({
-                    app_id: appId,
-                    included_segments: ['Subscribed Users'],
-                    headings: { en: titulo, pt: titulo },
-                    contents: { en: mensagem, pt: mensagem }
-                })
+                body: JSON.stringify(bodyPayload)
             });
 
             const data = await response.json();
@@ -2564,25 +2622,21 @@ async function startServer() {
                 treino = novoTreino;
             }
 
-            const ext = path.extname(req.file.originalname) || '.mp4';
+            let ext = path.extname(req.file.originalname) || '.mp4';
+            let mimeType = req.file.mimetype || 'video/mp4';
+            const extLower = ext.toLowerCase();
+
+            // Bypass incondicional para iOS:
+            if (mimeType.includes('quicktime') || extLower === '.mov' || extLower === '.qt') {
+                mimeType = 'video/mp4';
+                ext = '.mp4';
+            } else if (!mimeType.startsWith('video/') || mimeType.includes('text/plain') || mimeType.includes('octet-stream')) {
+                if (extLower === '.webm') mimeType = 'video/webm';
+                else mimeType = 'video/mp4';
+            }
+
             const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
             const fileBuffer = fs.readFileSync(req.file.path);
-            
-            // Sanitização inteligente de mimeType contra falhas de empacotamento no Vercel ou browsers (como enviar como text/plain)
-            let mimeType = req.file.mimetype || 'video/mp4';
-            if (!mimeType.startsWith('video/') || mimeType.includes('text/plain') || mimeType.includes('octet-stream')) {
-                const extLower = ext.toLowerCase();
-                if (extLower === '.webm') {
-                    mimeType = 'video/webm';
-                } else if (extLower === '.mov' || extLower === '.qt') {
-                    // Bypass iOS: O Supabase bloqueia video/quicktime em muitos buckets. Disfarçamos como mp4.
-                    mimeType = 'video/mp4';
-                } else if (extLower === '.mp4') {
-                    mimeType = 'video/mp4';
-                } else {
-                    mimeType = 'video/mp4';
-                }
-            }
 
             // Enviar fileBuffer nativamente ao invés do Blob global do NodeJS 
             // O supabase client lida melhor com o buffer diretamente se contentType for fornecido em serverless

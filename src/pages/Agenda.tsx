@@ -317,6 +317,27 @@ export default function Agenda() {
           >
             <Users className="w-3.5 h-3.5" /> Ver Perfil
           </button>
+          {selectedAula.type === 'regular' && (
+            <button 
+              onClick={() => {
+                fetch(`/api/agenda/${selectedAula.id}/solicitar-confirmacao`, { 
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
+                }).then(res => {
+                  if (res.ok) {
+                    toast.success('Notificação de confirmação enviada!');
+                    fetchAulas();
+                    setSelectedAula(null);
+                  } else {
+                    toast.error('Erro ao solicitar confirmação.');
+                  }
+                });
+              }}
+              className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ff6b00] hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black"
+            >
+              <Bell className="w-3.5 h-3.5" /> Solicitar Confirmação
+            </button>
+          )}
           <button 
             onClick={() => {
               if (confirm('Deseja desmarcar esta aula?')) {

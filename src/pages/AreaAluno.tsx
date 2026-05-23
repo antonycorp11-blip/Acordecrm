@@ -580,7 +580,7 @@ export default function AreaAluno() {
         'Content-Type': 'application/json'
       };
       
-      const res = await fetch(`/api/aulas/${aulaId}/confirmar-aluno`, {
+      const res = await fetch(`/api/agenda/${aulaId}/confirmar`, {
         method: 'POST',
         headers
       });
@@ -1635,31 +1635,31 @@ export default function AreaAluno() {
 
             {/* Próxima Sessão */}
             {aulasHoje[0] ? (
-              <div className="p-5 flex flex-col gap-3 bg-[#ff6b00] border-8 border-black shadow-[10px_10px_0_#000]">
+              <div className={`p-5 flex flex-col gap-3 border-8 border-black shadow-[10px_10px_0_#000] transition-colors duration-500 ${aulasHoje[0].status === 'confirmada' ? 'bg-[#00cc00]' : 'bg-[#ff6b00]'}`}>
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-[#261812] border-4 border-black text-[#ff6b00] flex items-center justify-center shrink-0 shadow-[4px_4px_0_#000]">
                     <span className="font-black text-2xl">♪</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white/80 font-black text-[8px] uppercase tracking-widest mb-1">&gt;&gt; PRÓXIMA_AULA</p>
-                    <p className="text-white font-black text-sm uppercase italic leading-none mb-1">
+                    <p className={`font-black text-[8px] uppercase tracking-widest mb-1 ${aulasHoje[0].status === 'confirmada' ? 'text-black' : 'text-white/80'}`}>&gt;&gt; PRÓXIMA_AULA</p>
+                    <p className={`font-black text-sm uppercase italic leading-none mb-1 ${aulasHoje[0].status === 'confirmada' ? 'text-black' : 'text-white'}`}>
                       {new Date(aulasHoje[0].data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} @ {aulasHoje[0].horario?.substring(0,5)}
                     </p>
-                    <span className="text-[7px] font-black text-white bg-black px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block mt-0.5">
+                    <span className={`text-[7px] font-black px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block mt-0.5 ${aulasHoje[0].status === 'confirmada' ? 'bg-black text-[#00cc00]' : 'bg-black text-white'}`}>
                       STATUS: {aulasHoje[0].status === 'confirmada' ? 'CONFIRMADA' : 'PENDENTE'}
                     </span>
                   </div>
                 </div>
                 {aulasHoje[0].status === 'confirmada' ? (
-                  <div className="bg-[#00ffcc] text-black border-4 border-black text-center font-black text-[8px] uppercase tracking-wider py-1.5 shadow-[2px_2px_0_#000]">
-                    ✔️ PRESENÇA CONFIRMADA!
+                  <div className="bg-black text-[#00cc00] border-4 border-black text-center font-black text-[8px] uppercase tracking-wider py-1.5 shadow-[2px_2px_0_#000]">
+                    ✔️ AULA CONFIRMADA!
                   </div>
                 ) : (
                   <button
                     onClick={() => handleConfirmarPresenca(aulasHoje[0].id)}
                     className="w-full bg-white hover:bg-black hover:text-white text-black border-4 border-black text-center font-black text-[8px] uppercase tracking-wider py-2 shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
                   >
-                    👍 CONFIRMAR PRESENÇA NA AULA
+                    👍 EU VOU! CONFIRMAR PRESENÇA
                   </button>
                 )}
               </div>
