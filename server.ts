@@ -2209,7 +2209,7 @@ async function startServer() {
             };
 
             if (targetUserId) {
-                bodyPayload.include_aliases = { external_id: [targetUserId] };
+                bodyPayload.include_aliases = { external_id: [String(targetUserId)] };
                 bodyPayload.target_channel = "push";
             } else {
                 bodyPayload.included_segments = ['Subscribed Users'];

@@ -31,12 +31,13 @@ export const OneSignalService = {
     });
   },
 
-  loginUser: async (emailOrId: string) => {
+  loginUser: async (emailOrId: string | number) => {
     window.OneSignalDeferred.push(async function(OneSignal: any) {
       if (OneSignal.User) {
-        // Usa o login nativo do SDK v16+
-        await OneSignal.login(emailOrId);
-        console.log(`[OneSignal] Usuário logado: ${emailOrId}`);
+        // Usa o login nativo do SDK v16+, que EXIGE que o externalId seja estritamente String
+        const externalIdStr = String(emailOrId);
+        await OneSignal.login(externalIdStr);
+        console.log(`[OneSignal] Usuário logado: ${externalIdStr}`);
       }
     });
   },
