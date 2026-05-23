@@ -2198,16 +2198,17 @@ async function startServer() {
     // ==========================================
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
-    const sendPushNotification = async (titulo: string, mensagem: string, targetUserId?: string) => {
+    async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string) {
+        // Usa a chave que vier do process.env (Vercel) para nao precisar hardcode
+        const appKey = process.env.ONESIGNAL_REST_API_KEY;
+        const appId = process.env.VITE_ONESIGNAL_APP_ID;
+
+        if (!appKey || !appId) {
+            console.error('[OneSignal] Chaves não configuradas no ambiente (env). Ignorando envio.');
+            return;
+        }
+
         try {
-            const appId = process.env.ONESIGNAL_APP_ID || 'e5e38375-5fd8-4e92-bf0d-29996ba9426d';
-            const restKey = process.env.ONESIGNAL_REST_API_KEY || 'os_v2_app_4xryg5k73bhjfpynfgmwxkkcnu4sdaw5ya2e5w4zmam2qy2qh5cerspbb7itdjvruebt3paajj57slecf6gvufnrk2jjvyn24z36xgy';
-
-            if (!restKey) {
-                console.log('[PUSH_NOTIFICATION] OneSignal REST API Key não configurada. Notificação registrada localmente apenas.');
-                return;
-            }
-
             const bodyPayload: any = {
                 app_id: appId,
                 headings: { en: titulo, pt: titulo },
@@ -2225,7 +2226,7 @@ async function startServer() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json; charset=utf-8',
-                    'Authorization': `Basic ${restKey}`
+                    'Authorization': `Basic ${appKey}`
                 },
                 body: JSON.stringify(bodyPayload)
             });
