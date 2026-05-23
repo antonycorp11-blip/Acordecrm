@@ -1764,13 +1764,16 @@ async function startServer() {
             // Atualizar status
             await supabase.from('aulas').update({ status: 'aguardando_confirmacao' }).eq('id', originalId);
 
-            // Enviar Push para o Aluno
+            // Enviar Notificação Interna e Push para o Aluno
             if (aula.alunos?.id) {
-                await sendPushNotification(
-                    'Confirme sua próxima aula! 🎸',
-                    `Olá ${aula.alunos.nome.split(' ')[0]}, precisamos confirmar sua presença na próxima aula. Toque aqui e acesse sua Área do Aluno!`,
-                    aula.alunos.id
-                );
+                const titulo = 'Confirme sua próxima aula! 🎸';
+                const msg = `Olá ${aula.alunos.nome.split(' ')[0]}, precisamos confirmar sua presença na próxima aula. Toque aqui e acesse sua Área do Aluno!`;
+                
+                await supabase.from('notificacoes').insert([{
+                    titulo, mensagem: msg, tipo: 'agenda', aluno_id: aula.alunos.id
+                }]);
+                
+                await sendPushNotification(titulo, msg, String(aula.alunos.id));
             }
 
             res.json({ success: true, status: 'aguardando_confirmacao' });
@@ -1789,13 +1792,16 @@ async function startServer() {
             // Atualizar status
             await supabase.from('aulas').update({ status: 'confirmada' }).eq('id', originalId);
 
-            // Enviar Push para o Professor
+            // Enviar Notificação Interna e Push para o Professor
             if (aula.professores?.id) {
-                await sendPushNotification(
-                    'Aula Confirmada! ✅',
-                    `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`,
-                    String(aula.professores.id)
-                );
+                const titulo = 'Aula Confirmada! ✅';
+                const msg = `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`;
+                
+                await supabase.from('notificacoes').insert([{
+                    titulo, mensagem: msg, tipo: 'agenda', professor_id: aula.professores.id
+                }]);
+
+                await sendPushNotification(titulo, msg, String(aula.professores.id));
             }
 
             res.json({ success: true, status: 'confirmada' });
@@ -2346,10 +2352,11 @@ async function startServer() {
 
             // Enviar fileBuffer nativamente ao invés do Blob global do NodeJS 
             // O supabase client lida melhor com o buffer diretamente se contentType for fornecido
+            // Octet-stream ignora validacoes
             const { error: uploadError } = await supabase.storage
                 .from('uploads')
                 .upload(filename, fileBuffer, { 
-                    contentType: mimeType, 
+                    contentType: 'application/octet-stream', 
                     upsert: true,
                     cacheControl: '3600'
                 });
