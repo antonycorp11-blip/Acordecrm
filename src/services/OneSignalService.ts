@@ -23,6 +23,7 @@ export const OneSignalService = {
 
   promptForPermission: async () => {
     return new Promise((resolve) => {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async function(OneSignal: any) {
         await OneSignal.Slidedown.promptPush();
         const permission = await OneSignal.Notifications.permission;
@@ -32,6 +33,7 @@ export const OneSignalService = {
   },
 
   loginUser: async (emailOrId: string | number) => {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal: any) {
       if (OneSignal.User) {
         // Usa o login nativo do SDK v16+, que EXIGE que o externalId seja estritamente String
@@ -43,6 +45,7 @@ export const OneSignalService = {
   },
 
   logoutUser: async () => {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal: any) {
       if (OneSignal.User) {
         await OneSignal.logout();
