@@ -2493,9 +2493,9 @@ async function startServer() {
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
     async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string) {
-        // Usa a chave que vier do process.env (Vercel) para nao precisar hardcode
-        const appKey = process.env.ONESIGNAL_REST_API_KEY;
-        const appId = process.env.VITE_ONESIGNAL_APP_ID;
+        // Usa a chave que vier do process.env (Vercel) ou a fixa do CRM gerada 
+        const appKey = process.env.ONESIGNAL_REST_API_KEY || "os_v2_app_4xryg5k73bhjfpynfgmwxkkcnwcvfypnfloecovlfax5fylq2dk6b2lq3r3gfzceeled7tosj4ewp5r2vahdhuniekw6movppvka3xa";
+        const appId = process.env.VITE_ONESIGNAL_APP_ID || "e5e38375-5fd8-4e92-bf0d-29996ba9426d";
 
         if (!appKey || !appId) {
             console.error('[OneSignal] Chaves não configuradas no ambiente (env). Ignorando envio.');
