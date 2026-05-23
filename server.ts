@@ -1764,14 +1764,10 @@ async function startServer() {
             // Atualizar status
             await supabase.from('aulas').update({ status: 'aguardando_confirmacao' }).eq('id', originalId);
 
-            // Enviar Notificação Interna e Push para o Aluno
+            // Enviar Push para o Aluno
             if (aula.alunos?.id) {
                 const titulo = 'Confirme sua próxima aula! 🎸';
                 const msg = `Olá ${aula.alunos.nome.split(' ')[0]}, precisamos confirmar sua presença na próxima aula. Toque aqui e acesse sua Área do Aluno!`;
-                
-                await supabase.from('notificacoes').insert([{
-                    titulo, mensagem: msg, tipo: 'agenda', aluno_id: aula.alunos.id
-                }]);
                 
                 await sendPushNotification(titulo, msg, String(aula.alunos.id));
             }
