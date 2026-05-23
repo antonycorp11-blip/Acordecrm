@@ -644,6 +644,14 @@ export default function AreaAluno() {
         audio: true 
       });
       
+      const safeIsTypeSupported = (mime: string) => {
+        try {
+          return typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mime);
+        } catch (e) {
+          return false;
+        }
+      };
+
       const tiposParaTestar = [
         'video/webm;codecs=vp9,opus',
         'video/webm;codecs=vp8,opus',
@@ -655,12 +663,10 @@ export default function AreaAluno() {
 
       let options: any = null;
       for (const tipo of tiposParaTestar) {
-        try {
-          if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(tipo)) {
-            options = { mimeType: tipo };
-            break;
-          }
-        } catch (e) {}
+        if (safeIsTypeSupported(tipo)) {
+          options = { mimeType: tipo };
+          break;
+        }
       }
 
       let recorder: MediaRecorder;

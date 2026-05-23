@@ -2583,11 +2583,15 @@ async function startServer() {
                 }
             }
 
-            const fileBlob = new Blob([fileBuffer], { type: mimeType });
-
+            // Enviar fileBuffer nativamente ao invés do Blob global do NodeJS 
+            // O supabase client lida melhor com o buffer diretamente se contentType for fornecido em serverless
             const { error: uploadError } = await supabase.storage
                 .from('uploads')
-                .upload(filename, fileBlob, { contentType: mimeType, upsert: true });
+                .upload(filename, fileBuffer, { 
+                    contentType: mimeType, 
+                    upsert: true,
+                    cacheControl: '3600'
+                });
 
             try { fs.unlinkSync(req.file.path); } catch {}
 
