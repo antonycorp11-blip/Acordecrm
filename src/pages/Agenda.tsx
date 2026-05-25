@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, HelpCircle, Search, ChevronLeft, ChevronRight, Zap, Users, AlertTriangle, Trash2, RefreshCcw } from 'lucide-react';
+import { Bell, HelpCircle, Search, ChevronLeft, ChevronRight, Zap, Users, AlertTriangle, Trash2, RefreshCcw, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
 const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00'];
 
 export default function Agenda() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [professores, setProfessores] = useState<any[]>([]);
   const [aulas, setAulas] = useState<any[]>([]);
@@ -61,6 +61,7 @@ export default function Agenda() {
 
   // Color based on tipo/status
   const getAulaColor = (aula: any) => {
+    if (aula.status === 'confirmada') return { bg: '#22c55e', border: '#14532d', text: '#ffffff' };
     if (aula.tipo === 'experimental') return { bg: '#fff8f6', border: '#7b5647', text: '#261812' };
     return { bg: '#ff6b00', border: '#261812', text: '#fff' };
   };
@@ -115,19 +116,25 @@ export default function Agenda() {
     <div className="flex flex-col flex-1 h-screen overflow-hidden" style={{ background: '#1a0f0a', fontFamily: "'Space Mono', monospace" }}>
 
       {/* TOP BAR */}
-      <header className="flex items-center gap-4 px-6 py-4 border-b-4 border-[#3d2d26] shrink-0" style={{ background: '#1a0f0a' }}>
+      <header className="flex items-center gap-4 px-6 pt-12 pb-4 md:pt-4 border-b-4 border-[#3d2d26] shrink-0" style={{ background: '#1a0f0a' }}>
         <div className="flex items-center gap-3 flex-1">
-          <h1 className="text-white font-black text-lg tracking-widest uppercase">STUDIO CRM</h1>
-          <span className="text-[#ff6b00] font-black text-lg tracking-widest uppercase ml-2">| AGENDA</span>
+          <h1 className="text-white font-black text-lg tracking-widest uppercase truncate max-w-[120px] md:max-w-none">STUDIO CRM</h1>
+          <span className="text-[#ff6b00] font-black text-lg tracking-widest uppercase ml-2 hidden md:inline">| AGENDA</span>
         </div>
-        <div className="flex items-center gap-2 bg-[#261812] border-2 border-[#5a4136] rounded px-3 py-2 flex-1 max-w-sm">
+        <div className="hidden md:flex items-center gap-2 bg-[#261812] border-2 border-[#5a4136] rounded px-3 py-2 flex-1 max-w-sm">
           <Search className="w-4 h-4 text-[#8e7164]" />
           <input placeholder="Buscar aluno ou professor..." className="bg-transparent text-sm text-[#fff8f6] placeholder:text-[#8e7164] outline-none flex-1" style={{ fontFamily: "'Space Mono', monospace" }} />
         </div>
         <div className="flex items-center gap-3">
-          <button className="text-[#8e7164] hover:text-white"><Bell className="w-5 h-5" /></button>
-          <button className="text-[#8e7164] hover:text-white"><HelpCircle className="w-5 h-5" /></button>
-          <div className="w-9 h-9 rounded-full border-2 border-[#ff6b00] bg-[#ff6b00] flex items-center justify-center text-white font-black text-sm">
+          <button className="hidden md:block text-[#8e7164] hover:text-white"><Bell className="w-5 h-5" /></button>
+          <button className="hidden md:block text-[#8e7164] hover:text-white"><HelpCircle className="w-5 h-5" /></button>
+          <button 
+            onClick={() => { logout(); navigate('/login'); }}
+            className="md:hidden flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded border-2 border-red-800 text-[10px] font-black uppercase tracking-wider hover:bg-red-700 active:translate-y-0.5"
+          >
+            <LogOut className="w-3.5 h-3.5" /> Sair
+          </button>
+          <div className="hidden md:flex w-9 h-9 rounded-full border-2 border-[#ff6b00] bg-[#ff6b00] items-center justify-center text-white font-black text-sm">
             {(user?.nome || 'A').charAt(0).toUpperCase()}
           </div>
         </div>
@@ -240,7 +247,31 @@ export default function Agenda() {
                       >
                         <div className="flex justify-between items-center mb-3">
                            <span className="font-black text-2xl uppercase text-black">{aula.horario ? aula.horario.substring(0, 5) : '--:--'}</span>
-                           <span className="text-[10px] uppercase font-black px-2 py-1 border-2 border-black shadow-[2px_2px_0_#000]" style={{ background: c.bg, color: c.text }}>{aula.status || 'PENDENTE'}</span>
+                           <span 
+                             className={`text-[10px] uppercase font-black px-2 py-1 border-2 border-black shadow-[2px_2px_0_#000] ${aula.status !== 'confirmada' ? 'cursor-pointer hover:scale-105 active:scale-95 transition-transform' : ''}`}
+                             style={{ background: c.bg, color: c.text }}
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               if (aula.status !== 'confirmada') {
+                                 if (window.confirm('Tem certeza que deseja confirmar esta aula para o professor? (Isso enviará uma notificação a ele)')) {
+                                   fetch(`/api/agenda/${aula.id}/confirmar`, { 
+                                     method: 'POST',
+                                     headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
+                                   }).then(res => {
+                                     if(res.ok) {
+                                       toast.success('Aula confirmada com sucesso!');
+                                       fetchAulas();
+                                     } else {
+                                       toast.error('Erro ao confirmar aula.');
+                                     }
+                                   });
+                                 }
+                               }
+                             }}
+                             title={aula.status !== 'confirmada' ? 'Clique para confirmar aula' : 'Aula confirmada'}
+                           >
+                             {aula.status || 'PENDENTE'}
+                           </span>
                         </div>
                         <h3 className="font-black text-xl uppercase mb-1 text-black truncate">{aula.aluno_nome || 'ALUNO SEM NOME'}</h3>
                         <p className="text-[#ff6b00] font-black uppercase text-xs">PROF. {prof ? prof.nome.split(' ')[0] : 'DESCONHECIDO'}</p>
