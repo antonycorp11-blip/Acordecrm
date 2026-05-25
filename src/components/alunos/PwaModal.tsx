@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, BellRing, Sparkles, X, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
-import { playRetroSound } from '../../utils/audioUtils';
 import { OneSignalService } from '../../services/OneSignalService';
 
 interface PwaModalProps {
@@ -49,8 +48,6 @@ export function PwaModal({ alunoData, onRewardClaimed }: PwaModalProps) {
           const data = await res.json();
           if (data.xpGanho) {
               toast.success(`🎉 SUCESSO! Você ganhou ${data.xpGanho} XP!`);
-              playRetroSound(880, 'sine', 0.15);
-              setTimeout(() => playRetroSound(1320, 'sine', 0.25), 150);
               onRewardClaimed(data.xpGanho);
               setIsOpen(false);
           } else {
