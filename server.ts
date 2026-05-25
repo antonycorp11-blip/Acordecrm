@@ -2233,8 +2233,7 @@ async function startServer() {
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
     async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string) {
-        // Usa a chave que vier do process.env (Vercel) ou a fixa do CRM gerada
-        const appKey = process.env.ONESIGNAL_REST_API_KEY || "os_v2_app_4xryg5k73bhjfpynfgmwxkkcnwqjed5gbjzufg46opftu3xedej7aj4icgw5gtpj7jhwtdzuhth4oauo4mu66vldihvb67hwnq2hpoy";
+        const appKey = process.env.ONESIGNAL_REST_API_KEY;
         const appId = process.env.VITE_ONESIGNAL_APP_ID || "e5e38375-5fd8-4e92-bf0d-29996ba9426d";
 
         if (!appKey || !appId) {
