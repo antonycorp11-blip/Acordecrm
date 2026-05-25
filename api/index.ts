@@ -2530,7 +2530,8 @@ async function startServer() {
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
     async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string) {
-        const appKey = process.env.ONESIGNAL_REST_API_KEY;
+        const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'ONESIGNAL_REST_API_KEY').maybeSingle();
+        const appKey = config?.key_value || process.env.ONESIGNAL_REST_API_KEY;
         const appId = process.env.VITE_ONESIGNAL_APP_ID || "e5e38375-5fd8-4e92-bf0d-29996ba9426d";
 
         if (!appKey || !appId) {
