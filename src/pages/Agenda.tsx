@@ -229,7 +229,13 @@ export default function Agenda() {
                       <div 
                         key={aula.id} 
                         className="p-5 bg-white border-4 border-black shadow-[6px_6px_0_#000] cursor-pointer hover:bg-[#ffeae1] active:translate-y-1 active:shadow-[2px_2px_0_#000] transition-all"
-                        onClick={(e) => handleAulaClick(e, aula)}
+                        onClick={(e) => {
+                           if (selectedAula?.id === aula.id) {
+                               setSelectedAula(null);
+                           } else {
+                               setSelectedAula(aula);
+                           }
+                        }}
                       >
                         <div className="flex justify-between items-center mb-3">
                            <span className="font-black text-2xl uppercase text-black">{aula.horario ? aula.horario.substring(0, 5) : '--:--'}</span>
@@ -237,6 +243,37 @@ export default function Agenda() {
                         </div>
                         <h3 className="font-black text-xl uppercase mb-1 text-black truncate">{aula.aluno_nome || 'ALUNO SEM NOME'}</h3>
                         <p className="text-[#ff6b00] font-black uppercase text-xs">PROF. {prof ? prof.nome.split(' ')[0] : 'DESCONHECIDO'}</p>
+
+                        {/* ACÕES EXPOSTAS DO CARD */}
+                        {selectedAula?.id === aula.id && (
+                           <div className="mt-4 pt-4 border-t-4 border-dashed border-[#ff6b00] flex flex-col gap-2">
+                               <button 
+                                 onClick={(e) => { e.stopPropagation(); navigate(`/alunos/${aula.aluno_id}`) }}
+                                 className="w-full px-4 py-3 bg-[#feccba] border-4 border-black font-black text-xs uppercase text-left hover:bg-[#ff6b00] hover:text-white transition-colors flex items-center gap-2 text-black shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"
+                               >
+                                 <Users className="w-4 h-4 shrink-0" /> Perfil do Aluno
+                               </button>
+                               <button 
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   const isToday = aula.data === currentBaseDate.toLocaleDateString('en-CA');
+                                   const hour = parseInt((aula.horario || '00:00:00').substring(0, 2), 10);
+                                   const isMorning = hour < 12;
+                                   const timeText = isToday ? `hoje às ${(aula.horario || '').substring(0, 5)}` : `amanhã às ${(aula.horario || '').substring(0, 5)}${isMorning ? ' da manhã' : ''}`;
+                                   const name = (aula.aluno_nome || 'Aluno(a)').split(' ')[0];
+                                   const msg = `Olá ${name}, tudo bem? Passando para confirmar a sua aula ${timeText}. Podemos aguardar sua presença?`;
+
+                                   navigator.clipboard.writeText(msg).then(() => {
+                                       toast.success('Mensagem de WhatsApp copiada!');
+                                       setSelectedAula(null);
+                                   });
+                                 }}
+                                 className="w-full px-4 py-3 bg-green-500 text-white border-4 border-black font-black text-xs uppercase text-left hover:bg-green-600 transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
+                               >
+                                 <span className="text-xl -mt-1 flex items-center justify-center shrink-0">💬</span> Enviar WhatsApp (Copiar)
+                               </button>
+                           </div>
+                        )}
                       </div>
                     )
                   })
@@ -333,10 +370,10 @@ export default function Agenda() {
           </div>
         </div>
       </div>
-      {/* MINI MENU */}
+      {/* MINI MENU DESKTOP */}
       {selectedAula && menuPos && (
         <div 
-          className="fixed z-[100] bg-white border-4 border-black shadow-[6px_6px_0_#000] p-2 flex flex-col gap-1 animate-in zoom-in-95 duration-200"
+          className="hidden md:flex fixed z-[100] bg-white border-4 border-black shadow-[6px_6px_0_#000] p-2 flex-col gap-1 animate-in zoom-in-95 duration-200"
           style={{ top: menuPos.y, left: menuPos.x }}
           onClick={e => e.stopPropagation()}
         >

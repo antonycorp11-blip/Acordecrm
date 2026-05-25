@@ -9,6 +9,11 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
+    if (window.innerWidth < 768) {
+      navigate('/agenda', { replace: true });
+      return;
+    }
+
     fetch('/api/dashboard/stats', {
       headers: { Authorization: `Bearer ${localStorage.getItem('acorde_token')}` }
     })

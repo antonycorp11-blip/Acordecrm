@@ -38,7 +38,7 @@ export function Sidebar() {
 
   return (
     <div
-      className={cn('flex flex-col h-screen sticky top-0 shrink-0 transition-all duration-300 relative group border-r-4', isCollapsed ? 'w-[72px]' : 'w-64')}
+      className={cn('hidden md:flex flex-col h-screen sticky top-0 shrink-0 transition-all duration-300 relative group border-r-4', isCollapsed ? 'w-[72px]' : 'w-64')}
       style={{ background: '#fff8f6', borderColor: '#261812', fontFamily: "'Space Mono', monospace" }}
     >
       {/* Toggle button */}
