@@ -273,6 +273,78 @@ export default function Agenda() {
                                >
                                  <span className="text-xl -mt-1 flex items-center justify-center shrink-0">💬</span> Enviar WhatsApp (Copiar)
                                </button>
+                               
+                               {aula.type === 'regular' && (
+                                 <button 
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     fetch(`/api/agenda/${aula.id}/solicitar-confirmacao`, { 
+                                       method: 'POST',
+                                       headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
+                                     }).then(res => {
+                                       if (res.ok) {
+                                         toast.success('Notificação de confirmação enviada!');
+                                         fetchAulas();
+                                         setSelectedAula(null);
+                                       } else {
+                                         toast.error('Erro ao solicitar confirmação.');
+                                       }
+                                     });
+                                   }}
+                                   className="w-full px-4 py-3 bg-[#1a0f0a] text-white border-4 border-black font-black text-xs uppercase text-left hover:bg-black transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
+                                 >
+                                   <Bell className="w-4 h-4 shrink-0" /> Notificar App (Push)
+                                 </button>
+                               )}
+
+                               <button 
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   const novoHorario = window.prompt("Reagendar: Digite o novo horário (Ex: 14:00)", (aula.horario || '').substring(0, 5));
+                                   if (!novoHorario) return;
+                                   const novaData = window.prompt("Reagendar: Digite a nova data (AAAA-MM-DD)", aula.data ? aula.data.split('T')[0] : currentBaseDate.toLocaleDateString('en-CA'));
+                                   if (!novaData) return;
+
+                                   fetch(`/api/agenda/${aula.id}`, { 
+                                     method: 'PATCH',
+                                     headers: { 
+                                       'Content-Type': 'application/json',
+                                       'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` 
+                                     },
+                                     body: JSON.stringify({ horario: novoHorario, data: novaData })
+                                   }).then(res => {
+                                     if(res.ok){
+                                        toast.success('Aula reagendada com sucesso!');
+                                        fetchAulas();
+                                        setSelectedAula(null);
+                                     } else {
+                                        toast.error('Erro ao reagendar aula.');
+                                     }
+                                   });
+                                 }}
+                                 className="w-full px-4 py-3 bg-blue-500 text-white border-4 border-black font-black text-xs uppercase text-left hover:bg-blue-600 transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
+                               >
+                                 <RefreshCcw className="w-4 h-4 shrink-0" /> Reagendar
+                               </button>
+
+                               <button 
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   if (window.confirm('Tem certeza que deseja cancelar e desmarcar esta aula?')) {
+                                     fetch(`/api/agenda/${aula.id}`, { 
+                                       method: 'DELETE',
+                                       headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
+                                     }).then(() => {
+                                       toast.success('Aula cancelada e removida da agenda.');
+                                       fetchAulas();
+                                       setSelectedAula(null);
+                                     });
+                                   }
+                                 }}
+                                 className="w-full px-4 py-3 bg-red-500 text-white border-4 border-black font-black text-xs uppercase text-left hover:bg-red-600 transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
+                               >
+                                 <Trash2 className="w-4 h-4 shrink-0" /> Cancelar Aula
+                               </button>
                            </div>
                         )}
                       </div>
