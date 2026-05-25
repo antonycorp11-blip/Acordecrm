@@ -151,8 +151,8 @@ export default function Agenda() {
           </div>
 
           {/* Nav + Legend */}
-          <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ background: '#fff8f6', borderBottom: '3px solid #261812' }}>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 px-5 py-3 shrink-0" style={{ background: '#fff8f6', borderBottom: '3px solid #261812' }}>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               {/* DIA / SEMANA TOGGLE */}
               <div className="flex bg-[#261812] border-2 border-black p-0.5 rounded shadow-[3px_3px_0_#000] mr-4">
                 <button 
@@ -190,7 +190,7 @@ export default function Agenda() {
               </button>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
               <span className="border-2 border-[#261812] rounded px-3 py-1 font-black text-xs text-[#261812] uppercase">{mesAno}</span>
               <div className="flex items-center gap-4 ml-4">
                 <button
@@ -230,6 +230,7 @@ export default function Agenda() {
                         key={aula.id} 
                         className="p-5 bg-white border-4 border-black shadow-[6px_6px_0_#000] cursor-pointer hover:bg-[#ffeae1] active:translate-y-1 active:shadow-[2px_2px_0_#000] transition-all"
                         onClick={(e) => {
+                           e.stopPropagation();
                            if (selectedAula?.id === aula.id) {
                                setSelectedAula(null);
                            } else {
