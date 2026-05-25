@@ -2510,6 +2510,29 @@ async function startServer() {
                 .single();
             
             if (errorInsert) throw errorInsert;
+
+            // 4. Notificar Professores via CRM (Notificações) e Push (OneSignal)
+            try {
+                const { data: alunoInfo } = await supabase.from('alunos').select('nome').eq('id', alunoIdNum).single();
+                const { data: trofeuInfo } = await supabase.from('gamificacao_conquistas').select('nome').eq('id', conquistaIdNum).single();
+                
+                if (alunoInfo && trofeuInfo) {
+                    const titulo = 'Nova Solicitação de Troféu! 🏆';
+                    const mensagem = `${alunoInfo.nome} solicitou o troféu: ${trofeuInfo.nome}`;
+                    
+                    await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'gamificacao', aluno_id: alunoIdNum }]);
+
+                    // Disparar Push para equipe (professores e admins)
+                    const { data: equipe } = await supabase.from('usuarios').select('id').in('role', ['professor', 'admin']);
+                    if (equipe && equipe.length > 0) {
+                        const equipeIds = equipe.map(u => String(u.id));
+                        sendPushNotification(titulo, mensagem, equipeIds);
+                    }
+                }
+            } catch (e) {
+                console.error('[GAMIFICACAO_SOLICITAR] Erro ao enviar notificacao de cross-push:', e);
+            }
+
             res.json(data);
         } catch (error: any) {
             console.error('[GAMIFICACAO_SOLICITAR] Erro:', error);
