@@ -3,6 +3,7 @@ import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, L
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { useAuth } from '../contexts/AuthContext';
+import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -774,6 +775,16 @@ export default function AreaAluno() {
 
   const uploadVideo = async () => {
     if (!videoBlob) return;
+    
+    // VERIFICAÇÃO DE SEGURANÇA VERCEL: Se passar de 4.5MB, a Vercel corta (413 Payload Too Large)
+    const MAX_SIZE = 4.5 * 1024 * 1024; // 4.5MB
+    if (videoBlob.size > MAX_SIZE) {
+      toast.error('O vídeo ficou muito pesado! Grave no máximo 15 a 20 segundos em baixa resolução.');
+      setVideoBlob(null);
+      setVideoPreviewUrl('');
+      return;
+    }
+
     setUploadingVideo(true);
     setUploadProgress(15);
     
@@ -1027,8 +1038,18 @@ export default function AreaAluno() {
             <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB <span className="text-[8px] text-[#ff6b00]">v1.0.2</span></h1>
           </div>
           <div className="flex items-center gap-4">
-            <button className="text-black hover:text-[#ff6b00] transition-colors">
+            <button 
+              onClick={() => {
+                OneSignalService.forcePrompt();
+                toast.success('Permissão de notificações ativada! Verifique no painel.');
+              }}
+              className="text-black hover:text-[#ff6b00] transition-colors relative group"
+              title="Ativar Notificações"
+            >
               <Bell className="w-6 h-6" />
+              <span className="absolute -bottom-8 right-0 bg-black text-white text-[8px] font-black p-1 uppercase hidden group-hover:block whitespace-nowrap">
+                ATIVAR PUSH
+              </span>
             </button>
             <button onClick={logout} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
               <LogOut className="w-4 h-4" />
@@ -1559,6 +1580,10 @@ export default function AreaAluno() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
+                            if (file.size > 4.5 * 1024 * 1024) {
+                              toast.error('O arquivo da câmera excedeu o limite! Grave no máximo 15 segundos ou reduza a resolução da câmera no Android.');
+                              return;
+                            }
                             setVideoBlob(file);
                             setVideoPreviewUrl(URL.createObjectURL(file));
                             toast.success('Câmera do celular ativada com sucesso! Vídeo pronto para enviar. 📹🔥');

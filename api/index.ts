@@ -2674,7 +2674,8 @@ async function startServer() {
             if (mimeType.includes('quicktime') || extLower === '.mov' || extLower === '.qt') {
                 mimeType = 'video/mp4';
                 ext = '.mp4';
-            } else if (!mimeType.startsWith('video/') || mimeType.includes('text/plain') || mimeType.includes('octet-stream')) {
+            } else if (!mimeType.startsWith('video/') || mimeType.includes('octet-stream')) {
+                // Se cair de pára-quedas como octet-stream, preservamos a extensão para adivinhar
                 if (extLower === '.webm') mimeType = 'video/webm';
                 else mimeType = 'video/mp4';
             }
@@ -2682,13 +2683,11 @@ async function startServer() {
             const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
             const fileBuffer = fs.readFileSync(req.file.path);
 
-            // Enviar fileBuffer nativamente ao invés do Blob global do NodeJS 
-            // O supabase client lida melhor com o buffer diretamente. 
-            // Para não bloquear extensões de M4A/MOV/QT restritas no bucket da Vercel, enviamos octet-stream
+            // O supabase client precisa do contentType certo para o player Web Mobile não quebrar.
             const { error: uploadError } = await supabase.storage
                 .from('uploads')
                 .upload(filename, fileBuffer, { 
-                    contentType: 'application/octet-stream', 
+                    contentType: mimeType, 
                     upsert: true,
                     cacheControl: '3600'
                 });

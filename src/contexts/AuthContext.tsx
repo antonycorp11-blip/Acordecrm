@@ -59,7 +59,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try { 
       OneSignalService.loginUser(newUser.id);
-      OneSignalService.promptForPermission();
     } catch(e){}
   };
 

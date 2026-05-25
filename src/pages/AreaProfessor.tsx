@@ -30,6 +30,7 @@ import {
   Video
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { OneSignalService } from '../services/OneSignalService';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -2834,11 +2835,13 @@ export default function AreaProfessor() {
           <div className="flex items-center gap-4">
             <button 
               onClick={() => {
+                OneSignalService.forcePrompt();
                 setIsNotifDrawerOpen(true);
                 playRetroSound(587.33, 'square', 0.08); // som de chiptune de clique de notificação D5
                 setTimeout(() => {
                   playRetroSound(880, 'square', 0.15); // A5
                 }, 70);
+                toast.success('Permissões de notificação verificadas!');
               }}
               className="text-black hover:text-[#ff6b00] transition-colors relative cursor-pointer"
             >

@@ -28,19 +28,22 @@ export const OneSignalService = {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal: any) {
       if (OneSignal.User) {
-        // Usa o login nativo do SDK v16+, que EXIGE que o externalId seja estritamente String
         const externalIdStr = String(emailOrId);
         await OneSignal.login(externalIdStr);
-        
-        // MAGICA PARA REATIVAR USUARIOS ÓRFÃOS SILENCIOSAMENTE!
-        // Força a re-inscrição do push usando a permissão já concedida pelo iOS na URL do site
+        console.log(`[OneSignal] Usuário logado: ${externalIdStr}. Opt-In manual necessário via botão.`);
+      }
+    });
+  },
+
+  forcePrompt: async () => {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal: any) {
+      if (OneSignal.User) {
         if (OneSignal.User.PushSubscription) {
           await OneSignal.User.PushSubscription.optIn();
         }
-        // Se a permissão nativa não existir (novo aparelho), pede com pop-up
         await OneSignal.Slidedown.promptPush({ force: true });
-        
-        console.log(`[OneSignal] Usuário logado e Push forçado: ${externalIdStr}`);
+        console.log('[OneSignal] Permissão forçada acionada via interação do usuário!');
       }
     });
   },
