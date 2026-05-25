@@ -8,7 +8,8 @@ import {
   Phone,
   Trash2,
   RefreshCcw,
-  UserPlus
+  UserPlus,
+  BellRing
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlunoModal } from '../components/alunos/AlunoModal';
@@ -151,7 +152,14 @@ export default function Alunos() {
                           )}
                         </div>
                         <div>
-                          <p className="font-black text-sm text-[#261812] uppercase group-hover:text-[#ff6b00] transition-colors tracking-tight">{aluno.nome || 'SEM NOME'}</p>
+                          <p className="font-black text-sm text-[#261812] uppercase group-hover:text-[#ff6b00] transition-colors tracking-tight flex items-center gap-2">
+                            {aluno.nome || 'SEM NOME'}
+                            {aluno.push_ativo && (
+                              <span title="Notificações Ativadas no App" className="text-emerald-500 bg-emerald-100 p-1 rounded-full border-2 border-emerald-500 shadow-[1px_1px_0_#000]">
+                                 <BellRing className="w-3 h-3" />
+                              </span>
+                            )}
+                          </p>
                           <p className="text-[9px] text-[#7b5647] font-black uppercase tracking-tighter">CADASTRO EM {new Date(aluno.data_cadastro).getFullYear()}</p>
                         </div>
                       </div>

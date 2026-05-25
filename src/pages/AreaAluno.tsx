@@ -7,6 +7,7 @@ import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { PwaModal } from '../components/alunos/PwaModal';
 
 // Tradução de notas científicas para cifras em português brasileiro
 const translateNote = (note: string): string => {
@@ -1492,21 +1493,22 @@ export default function AreaAluno() {
                 {/* Botão de Check-in */}
                 {treinos.some((t: any) => t.data === new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-')) ? (
                   <div className="bg-[#00ffcc] text-black border-4 border-black p-4 text-center font-black text-xs uppercase shadow-[4px_4px_0_#000]">
-                    🔥 CHECK-IN DE HOJE REALIZADO! (+20 XP CREDITADOS)
+                    🔥 CHECK-IN DE HOJE REALIZADO! (+200 XP CREDITADOS)
                   </div>
                 ) : (
                   <button
                     onClick={handleMarcarTreino}
                     className="w-full bg-[#ff6b00] hover:bg-black text-white font-black text-xs py-4 uppercase border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
-                    🔥 MARCAR TREINO HOJE (+20 XP)
+                    🔥 MARCAR TREINO HOJE (+200 XP)
                   </button>
                 )}
 
                 {/* Upload / Gravação de Vídeo */}
                 <div className="border-t-4 border-dashed border-black pt-4 space-y-4">
-                  <h3 className="text-black font-black text-[10px] uppercase tracking-wider flex items-center gap-2">
-                    📹 COMPROVAR COM VÍDEO (MAX 45 SEGUNDOS)
+                  <h3 className="text-black font-black text-[10px] uppercase tracking-wider flex items-center justify-between gap-2">
+                    <span>📹 COMPROVAR COM VÍDEO (MAX 45 SEGUNDOS)</span>
+                    <span className="bg-[#ff6b00] text-white px-2 py-0.5 border-2 border-black rotate-3 shadow-[2px_2px_0_#000] animate-pulse">+400 XP</span>
                   </h3>
 
                   {recording ? (
@@ -1596,6 +1598,12 @@ export default function AreaAluno() {
               </div>
             </div>
           )}
+
+          {/* ===== MODAL DE MISSÃO PWA ===== */}
+          <PwaModal 
+             alunoData={alunoData} 
+             onRewardClaimed={(xp) => setAlunoData((prev: any) => ({ ...prev, xp: (prev.xp || 0) + xp, push_recompensado: true }))} 
+          />
 
           {/* ===== ABA: HOME (conteúdo existente) ===== */}
           {activeTab === 'home' && (

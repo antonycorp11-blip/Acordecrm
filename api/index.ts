@@ -231,6 +231,33 @@ async function startServer() {
             res.status(500).json({ error: 'Erro interno no servidor ao registrar usuário: ' + error.message }); 
         }
     });
+    // --- Recompensa Push PWA ---
+    app.post('/api/alunos/recompensa-push', async (req: any, res) => {
+        try {
+            const email = req.user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, xp, push_recompensado').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            // Se já resgatou, apenas atualiza a flag visual pro ADM
+            if (aluno.push_recompensado) {
+                await supabase.from('alunos').update({ push_ativo: true }).eq('id', aluno.id);
+                return res.json({ success: true, message: 'Push ativo atualizado.' });
+            }
+
+            // Primeira vez! Dá 500 XP
+            const novoXp = (aluno.xp || 0) + 500;
+            await supabase.from('alunos').update({ xp: novoXp, push_ativo: true, push_recompensado: true }).eq('id', aluno.id);
+
+            // Avisar o professor? Pode ser legal, mas não foi pedido. Deixa quieto pra não flodar.
+
+            res.json({ success: true, xpGanho: 500 });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // --- Usuários (Acessos) ---
     app.get('/api/usuarios', async (req, res) => {
         try {
@@ -2541,7 +2568,7 @@ async function startServer() {
     // ==========================================
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
-    async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string) {
+    async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string | string[]) {
         const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'ONESIGNAL_REST_API_KEY').maybeSingle();
         const appKey = config?.key_value || process.env.ONESIGNAL_REST_API_KEY;
         const appId = process.env.VITE_ONESIGNAL_APP_ID || "e5e38375-5fd8-4e92-bf0d-29996ba9426d";
@@ -2559,7 +2586,8 @@ async function startServer() {
             };
 
             if (targetUserId) {
-                bodyPayload.include_aliases = { external_id: [String(targetUserId)] };
+                const targets = Array.isArray(targetUserId) ? targetUserId.map(String) : [String(targetUserId)];
+                bodyPayload.include_aliases = { external_id: targets };
                 bodyPayload.target_channel = "push";
             } else {
                 bodyPayload.included_segments = ['Subscribed Users'];
@@ -2633,15 +2661,25 @@ async function startServer() {
 
             if (error) throw error;
 
+            // Adicionar 200 XP de recompensa
+            const { data: xpData } = await supabase.from('alunos').select('xp').eq('id', aluno.id).single();
+            const novoXp = (xpData?.xp || 0) + 200;
+            await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno.id);
+
             // Criar notificação para o professor
             const titulo = 'Treino registrado! 🔥';
-            const mensagem = `${aluno.nome} marcou seu check-in de treino diário!`;
+            const mensagem = `${aluno.nome} marcou seu check-in de treino diário e ganhou 200 XP!`;
             
             await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
 
-            sendPushNotification(titulo, mensagem);
+            // Disparar Push para equipe (professores e admins)
+            const { data: equipe } = await supabase.from('usuarios').select('id').in('role', ['professor', 'admin']);
+            if (equipe && equipe.length > 0) {
+                const equipeIds = equipe.map(u => String(u.id));
+                sendPushNotification(titulo, mensagem, equipeIds);
+            }
 
-            res.json({ success: true, data: treino });
+            res.json({ success: true, data: treino, xpGanho: 200 });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
@@ -2737,15 +2775,25 @@ async function startServer() {
 
             if (updateError) throw updateError;
 
+            // Adicionar 400 XP de recompensa
+            const { data: xpData } = await supabase.from('alunos').select('xp').eq('id', aluno.id).single();
+            const novoXp = (xpData?.xp || 0) + 400;
+            await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno.id);
+
             // Criar notificação para o professor
             const titulo = 'Vídeo de treino enviado! 📹';
-            const mensagem = `${aluno.nome} gravou um vídeo estudando hoje!`;
+            const mensagem = `${aluno.nome} gravou um vídeo estudando hoje e ganhou 400 XP!`;
             
             await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
 
-            sendPushNotification(titulo, mensagem);
+            // Disparar Push para equipe (professores e admins)
+            const { data: equipe } = await supabase.from('usuarios').select('id').in('role', ['professor', 'admin']);
+            if (equipe && equipe.length > 0) {
+                const equipeIds = equipe.map(u => String(u.id));
+                sendPushNotification(titulo, mensagem, equipeIds);
+            }
 
-            res.json({ success: true, url, data: updatedTreino });
+            res.json({ success: true, url, data: updatedTreino, xpGanho: 400 });
         } catch (error: any) {
             console.error('[TREINO_VIDEO_UPLOAD] Erro geral:', error);
             res.status(500).json({ error: error.message });
