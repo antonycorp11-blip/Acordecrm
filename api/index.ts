@@ -1847,18 +1847,23 @@ async function startServer() {
             const { id } = req.params;
             const originalId = id.replace('reg-', '').replace('exp-', ''); 
 
-            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome, id)').eq('id', originalId).single();
+            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome, id, email)').eq('id', originalId).single();
             if (errA || !aula) throw new Error('Aula não encontrada');
 
             // Atualizar status
             await supabase.from('aulas').update({ status: 'aguardando_confirmacao' }).eq('id', originalId);
 
-            // Enviar Push para o Aluno
+            // Enviar Push para o Aluno (Localiza o ID real de login via email)
             if (aula.alunos?.id) {
                 const titulo = 'Confirme sua próxima aula! 🎸';
                 const msg = `Olá ${aula.alunos.nome.split(' ')[0]}, precisamos confirmar sua presença na próxima aula. Toque aqui e acesse sua Área do Aluno!`;
                 
-                await sendPushNotification(titulo, msg, String(aula.alunos.id));
+                let pushId = String(aula.alunos.id);
+                if (aula.alunos.email) {
+                    const { data: usr } = await supabase.from('usuarios').select('id').ilike('email', aula.alunos.email).single();
+                    if (usr?.id) pushId = String(usr.id);
+                }
+                await sendPushNotification(titulo, msg, pushId);
             }
 
             res.json({ success: true, status: 'aguardando_confirmacao' });
@@ -1871,7 +1876,7 @@ async function startServer() {
             const { id } = req.params;
             const originalId = id.replace('reg-', '').replace('exp-', '');
 
-            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).single();
+            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome, email)').eq('id', originalId).single();
             if (errA || !aula) throw new Error('Aula não encontrada');
 
             // Atualizar status
@@ -1886,7 +1891,14 @@ async function startServer() {
                     titulo, mensagem: msg, tipo: 'agenda', professor_id: aula.professores.id
                 }]);
 
-                await sendPushNotification(titulo, msg, String(aula.professores.id));
+                // Mapeia o Professor ID para o Login ID do OneSignal
+                let pushId = String(aula.professores.id);
+                if (aula.professores.email) {
+                    const { data: usr } = await supabase.from('usuarios').select('id').ilike('email', aula.professores.email).single();
+                    if (usr?.id) pushId = String(usr.id);
+                }
+                
+                await sendPushNotification(titulo, msg, pushId);
             }
 
             res.json({ success: true, status: 'confirmada' });
