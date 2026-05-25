@@ -49,10 +49,20 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
 // Componente para redirecionamento baseado em Role
 const RoleRedirect = ({ children, defaultPath }: { children: React.ReactNode, defaultPath: string }) => {
   const { user } = useAuth();
+  const [isMobile, setIsMobile] = React.useState(window.innerWidth < 768);
+
+  React.useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   if (user?.role === 'professor') return <Navigate to="/area-professor" />;
   if (user?.role === 'aluno') return <Navigate to="/area-aluno" />;
   
+  // Para Admins no Mobile, redirecionar do Dashboard (raiz) direto para a Agenda
+  if (isMobile && defaultPath === '/') return <Navigate to="/agenda" />;
+
   return <>{children}</>;
 };
 

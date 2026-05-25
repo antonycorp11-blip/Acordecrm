@@ -218,7 +218,35 @@ export default function Agenda() {
                 <span className="text-[#7b5647] font-black uppercase text-sm animate-pulse">Carregando agenda...</span>
               </div>
             ) : (
-              <table className="min-w-full h-full" style={{ borderCollapse: 'separate', borderSpacing: '0' }}>
+              <>
+              {/* VISÃO MOBILE (Cards) */}
+              <div className="md:hidden flex flex-col gap-4 p-4 min-h-full">
+                {aulas.length > 0 ? (
+                  [...aulas].sort((a, b) => (a.horario || '').localeCompare(b.horario || '')).map(aula => {
+                    const c = getAulaColor(aula);
+                    const prof = professores.find(p => p.id === aula.professor_id);
+                    return (
+                      <div 
+                        key={aula.id} 
+                        className="p-5 bg-white border-4 border-black shadow-[6px_6px_0_#000] cursor-pointer hover:bg-[#ffeae1] active:translate-y-1 active:shadow-[2px_2px_0_#000] transition-all"
+                        onClick={(e) => handleAulaClick(e, aula)}
+                      >
+                        <div className="flex justify-between items-center mb-3">
+                           <span className="font-black text-2xl uppercase text-black">{aula.horario ? aula.horario.substring(0, 5) : '--:--'}</span>
+                           <span className="text-[10px] uppercase font-black px-2 py-1 border-2 border-black shadow-[2px_2px_0_#000]" style={{ background: c.bg, color: c.text }}>{aula.status || 'PENDENTE'}</span>
+                        </div>
+                        <h3 className="font-black text-xl uppercase mb-1 text-black truncate">{aula.aluno_nome || 'ALUNO SEM NOME'}</h3>
+                        <p className="text-[#ff6b00] font-black uppercase text-xs">PROF. {prof ? prof.nome.split(' ')[0] : 'DESCONHECIDO'}</p>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <p className="text-center font-black uppercase text-xs opacity-50 mt-10 text-[#261812]">Nenhuma aula programada</p>
+                )}
+              </div>
+
+              {/* VISÃO DESKTOP (Tabela) */}
+              <table className="min-w-full h-full hidden md:table" style={{ borderCollapse: 'separate', borderSpacing: '0' }}>
                 <thead>
                   <tr>
                     <th className="sticky left-0 z-10 px-4 py-3 text-[#261812] font-black text-[10px] uppercase tracking-widest text-left min-w-[150px]" style={{ background: '#feccba', borderRight: '3px solid #261812', borderBottom: '3px solid #261812' }}>
@@ -281,6 +309,7 @@ export default function Agenda() {
                   )}
                 </tbody>
               </table>
+              </>
             )}
           </div>
 
@@ -313,9 +342,27 @@ export default function Agenda() {
         >
           <button 
             onClick={() => navigate(`/alunos/${selectedAula.aluno_id}`)}
-            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black"
+            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
           >
             <Users className="w-3.5 h-3.5" /> Ver Perfil
+          </button>
+          <button 
+            onClick={() => {
+              const isToday = selectedAula.data === currentBaseDate.toLocaleDateString('en-CA');
+              const hour = parseInt((selectedAula.horario || '00:00:00').substring(0, 2), 10);
+              const isMorning = hour < 12;
+              const timeText = isToday ? `hoje às ${(selectedAula.horario || '').substring(0, 5)}` : `amanhã às ${(selectedAula.horario || '').substring(0, 5)}${isMorning ? ' da manhã' : ''}`;
+              const name = (selectedAula.aluno_nome || 'Aluno(a)').split(' ')[0];
+              const msg = `Olá ${name}, tudo bem? Passando para confirmar a sua aula ${timeText}. Podemos aguardar sua presença?`;
+
+              navigator.clipboard.writeText(msg).then(() => {
+                  toast.success('Mensagem de confirmação copiada!');
+                  setSelectedAula(null);
+              });
+            }}
+            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-green-500 hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
+          >
+            <span className="text-sm -mt-0.5 w-3.5 h-3.5 flex items-center justify-center">💬</span> Copiar Msg Texto (WhatsApp)
           </button>
           {selectedAula.type === 'regular' && (
             <button 
