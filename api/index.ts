@@ -2682,7 +2682,7 @@ async function startServer() {
                         `;
 
                         await transporter.sendMail({
-                            from: \`"Studio Acorde" <\${smtpEmail}>\`,
+                            from: `"Studio Acorde" <${smtpEmail}>`,
                             to: emailTo,
                             subject: titulo,
                             html: emailHtml
