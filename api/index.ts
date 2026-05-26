@@ -389,6 +389,40 @@ async function startServer() {
     });
 
     // --- ALUNOS & CURSOS ENDPOINTS ---
+    app.post('/api/alunos', async (req, res) => {
+        try {
+            const insertData = req.body;
+            const { data, error } = await supabase.from('alunos').insert([insertData]).select().single();
+            if (error) throw error;
+
+            // Disparar notificação para o professor se houver
+            if (req.body.professor_id) {
+                 const { data: prof } = await supabase.from('professores').select('nome, email, player_id').eq('id', req.body.professor_id).single();
+                 if (prof && prof.player_id) {
+                     const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+                     let appId = process.env.ONESIGNAL_APP_ID;
+                     let appKey = process.env.ONESIGNAL_REST_API_KEY;
+                     if (keys) {
+                         const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+                         const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+                         if (dbAppId) appId = dbAppId;
+                         if (dbAppKey) appKey = dbAppKey;
+                     }
+                     if (appId && appKey) {
+                         const alunoNome = data.nome.split(' ')[0];
+                         await sendPushNotification(
+                             'Novo Aluno Matriculado! 🎉',
+                             `Você tem um novo aluno: ${alunoNome} foi matriculado no seu curso de ${data.curso}. Verifique sua agenda!`,
+                             appId, appKey, prof.player_id, prof.email
+                         );
+                     }
+                 }
+            }
+
+            res.json({ success: true, id: data.id });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
     app.get('/api/alunos/me', async (req: any, res) => {
         try {
             const email = (req.user?.email || '').toLowerCase().trim();
@@ -549,6 +583,44 @@ async function startServer() {
             console.error('Erro no upload de foto do perfil:', error);
             res.status(500).json({ error: error.message }); 
         }
+    });
+
+    app.post('/api/alunos/:id/pratica', async (req, res) => {
+        try {
+            const { minutos, data } = req.body;
+            const localDateStr = data || new Date().toISOString().split('T')[0];
+
+            const { data: insertData, error } = await supabase.from('historico_pratica').insert([{
+                aluno_id: req.params.id,
+                minutos: minutos,
+                data: localDateStr
+            }]);
+
+            if (error) throw error;
+
+            // Recuperar player_id para enviar parabéns
+            const { data: aluno } = await supabase.from('alunos').select('player_id, email').eq('id', req.params.id).single();
+            if (aluno && aluno.player_id) {
+                const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+                let appId = process.env.ONESIGNAL_APP_ID;
+                let appKey = process.env.ONESIGNAL_REST_API_KEY;
+                if (keys) {
+                    const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+                    const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+                    if (dbAppId) appId = dbAppId;
+                    if (dbAppKey) appKey = dbAppKey;
+                }
+                if (appId && appKey) {
+                    await sendPushNotification(
+                        'Treino Registrado! 🎸🔥',
+                        `Parabéns por praticar ${minutos} minutos hoje! Continue assim para acumular XP e subir de nível.`,
+                        appId, appKey, aluno.player_id, aluno.email
+                    );
+                }
+            }
+
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
     app.get('/api/alunos/:id', async (req, res) => {
@@ -1802,6 +1874,61 @@ async function startServer() {
     });
 
     // Agenda / Aulas (Unificando regulares e experimentais)
+    // CRON: Lembrete de 12 horas
+    app.get('/api/cron/notificar-12h', async (req, res) => {
+        try {
+            const now = new Date();
+            const startWindow = new Date(now.getTime() + 11 * 60 * 60 * 1000); // 11 hours from now
+            const endWindow = new Date(now.getTime() + 13 * 60 * 60 * 1000); // 13 hours from now
+
+            // Fetch pending classes
+            const { data: pendentes, error: errPendentes } = await supabase
+                .from('aulas')
+                .select('id, data, horario, aluno_id, status, curso, aluno:alunos(nome, player_id, email)')
+                .eq('status', 'pendente');
+
+            if (errPendentes) throw errPendentes;
+
+            const aulasToNotify = pendentes?.filter(a => {
+                if (!a.data || !a.horario) return false;
+                const classDateStr = `${a.data.split('T')[0]}T${a.horario.substring(0, 8).padEnd(8, '0')}`;
+                const classTime = new Date(classDateStr).getTime();
+                return classTime >= startWindow.getTime() && classTime <= endWindow.getTime();
+            }) || [];
+
+            let count = 0;
+            for (const aula of aulasToNotify) {
+                const aluno = Array.isArray(aula.aluno) ? aula.aluno[0] : aula.aluno;
+                if (aluno && aluno.player_id) {
+                    const classDateStr = `${aula.data.split('T')[0]}T${aula.horario.substring(0, 8).padEnd(8, '0')}`;
+                    const timeText = new Date(classDateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    
+                    const titulo = 'Confirmação de Aula 🎸';
+                    const msg = `Sua aula de ${aula.curso || 'Música'} começa em aproximadamente 12 horas (às ${timeText})! Por favor, entre no app e confirme sua presença.`;
+                    
+                    const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+                    let appId = process.env.ONESIGNAL_APP_ID;
+                    let appKey = process.env.ONESIGNAL_REST_API_KEY;
+                    if (keys) {
+                        const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+                        const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+                        if (dbAppId) appId = dbAppId;
+                        if (dbAppKey) appKey = dbAppKey;
+                    }
+
+                    if (appId && appKey) {
+                        await sendPushNotification(titulo, msg, appId, appKey, aluno.player_id, aluno.email);
+                        count++;
+                    }
+                }
+            }
+            res.json({ success: true, notified: count });
+        } catch (error) {
+            console.error('[CRON] Erro:', error);
+            res.status(500).json({ error: 'Erro no cron' });
+        }
+    });
+
     app.get('/api/agenda', async (req: any, res) => {
         try {
             const start = (req.query.start || req.query.date) as string;
@@ -1919,30 +2046,50 @@ async function startServer() {
             const { id } = req.params;
             const originalId = id.replace('reg-', '').replace('exp-', '');
 
-            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome, email)').eq('id', originalId).single();
+            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome, email, player_id), professores(id, nome, email, player_id)').eq('id', originalId).single();
             if (errA || !aula) throw new Error('Aula não encontrada');
 
             // Atualizar status
             await supabase.from('aulas').update({ status: 'confirmada' }).eq('id', originalId);
 
+            // Pegar credenciais do OneSignal
+            const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+            let appId = process.env.ONESIGNAL_APP_ID || '';
+            let appKey = process.env.ONESIGNAL_REST_API_KEY || '';
+            if (keys) {
+                const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+                const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+                if (dbAppId) appId = dbAppId;
+                if (dbAppKey) appKey = dbAppKey;
+            }
+
             // Enviar Notificação Interna, Push e Email para o Professor
             if (aula.professores?.id) {
                 const titulo = 'Aula Confirmada! ✅';
-                const msg = `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`;
+                const alunoNome = aula.alunos ? (Array.isArray(aula.alunos) ? aula.alunos[0].nome : aula.alunos.nome) : 'seu aluno';
+                const msg = `O aluno ${alunoNome} confirmou a presença na próxima aula!`;
                 
                 await supabase.from('notificacoes').insert([{
                     titulo, mensagem: msg, tipo: 'agenda', professor_id: aula.professores.id
                 }]);
 
-                // Mapeia o Professor ID para o Login ID do OneSignal e pega o email
-                let pushId = String(aula.professores.id);
                 const profEmail = aula.professores.email;
-                if (profEmail) {
-                    const { data: usr } = await supabase.from('usuarios').select('id').ilike('email', profEmail).single();
-                    if (usr?.id) pushId = String(usr.id);
+                const pushId = aula.professores.player_id || String(aula.professores.id);
+                if (appId && appKey) {
+                    await sendPushNotification(titulo, msg, appId, appKey, pushId, profEmail);
                 }
-                
-                await sendPushNotification(titulo, msg, pushId, profEmail);
+            }
+
+            // Enviar Recibo para o Aluno
+            if (aula.alunos?.id) {
+                const tituloAluno = 'Sua aula foi confirmada! ✅';
+                const msgAluno = `Sua presença foi confirmada! Caso ocorra algum imprevisto e precise cancelar, por favor entre em contato pelo WhatsApp com até 3 horas de antecedência.`;
+                const alunoEmail = Array.isArray(aula.alunos) ? aula.alunos[0].email : aula.alunos.email;
+                const pushIdAluno = Array.isArray(aula.alunos) ? aula.alunos[0].player_id : aula.alunos.player_id;
+                const finalPushId = pushIdAluno || String(aula.alunos.id);
+                if (appId && appKey) {
+                    await sendPushNotification(tituloAluno, msgAluno, appId, appKey, finalPushId, alunoEmail);
+                }
             }
 
             res.json({ success: true, status: 'confirmada' });
@@ -2008,6 +2155,9 @@ async function startServer() {
         }
         const table = type === 'reg' ? 'aulas' : 'aulas_experimentais';
         
+        // Antes de atualizar, pega o aluno e o professor
+        const { data: oldAula } = await supabase.from(table).select('professor_id, aluno_id').eq('id', originalId).single();
+
         const updatePayload: any = { data, horario };
         if (sala_id !== undefined) updatePayload.sala_id = sala_id;
         if (professor_id !== undefined) updatePayload.professor_id = professor_id;
@@ -2016,6 +2166,38 @@ async function startServer() {
         if (error) {
             return res.status(500).json({ error: error.message });
         }
+
+        // Notificar o professor
+        if (oldAula && updated && (data || horario)) {
+             const profIdFinal = professor_id || oldAula.professor_id;
+             if (profIdFinal) {
+                 const { data: prof } = await supabase.from('professores').select('player_id, email, nome').eq('id', profIdFinal).single();
+                 const { data: aluno } = await supabase.from('alunos').select('nome').eq('id', updated.aluno_id || oldAula.aluno_id).single();
+                 
+                 if (prof && prof.player_id) {
+                     const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+                     let appId = process.env.ONESIGNAL_APP_ID;
+                     let appKey = process.env.ONESIGNAL_REST_API_KEY;
+                     if (keys) {
+                         const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+                         const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+                         if (dbAppId) appId = dbAppId;
+                         if (dbAppKey) appKey = dbAppKey;
+                     }
+                     if (appId && appKey) {
+                         const timeText = new Date(`${updated.data.split('T')[0]}T${updated.horario.substring(0, 8).padEnd(8, '0')}`).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                         const dtArr = updated.data.split('T')[0].split('-');
+                         const dataPtBr = `${dtArr[2]}/${dtArr[1]}`;
+                         await sendPushNotification(
+                             'Aula Reagendada 🔄',
+                             `Atenção: A aula de ${(aluno?.nome || 'Aluno').split(' ')[0]} foi reagendada para ${dataPtBr} às ${timeText}.`,
+                             appId, appKey, prof.player_id, prof.email
+                         );
+                     }
+                 }
+             }
+        }
+
         res.json(updated);
     });
     app.delete('/api/agenda/:id', async (req, res) => {
