@@ -3,6 +3,12 @@ import { Trophy, Plus, Upload, Search, Settings, X, Save, Trash2 } from 'lucide-
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
+export const resolveTrophyImage = (instrumento: string, classe: string) => {
+  const slugInst = (instrumento || 'teoria-musical').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace('cordas-violaoguitarrabaixo', 'cordas').replace('tecladopiano', 'teclado');
+  const slugClasse = (classe || 'raro').toLowerCase().replace('é', 'e').replace('á', 'a');
+  return `/trofeus/${slugInst}-${slugClasse}.jpg`;
+};
+
 export default function Conquistas() {
   const [conquistas, setConquistas] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -13,7 +19,8 @@ export default function Conquistas() {
     pontos: 250,
     regra_automatica: '',
     icone_url: '',
-    classe: 'Especial'
+    classe: 'Especial',
+    instrumento: 'Teoria Musical'
   });
   const [uploading, setUploading] = useState(false);
 
@@ -50,7 +57,8 @@ export default function Conquistas() {
       pontos: 250,
       regra_automatica: '',
       icone_url: '',
-      classe: 'Especial'
+      classe: 'Especial',
+      instrumento: 'Teoria Musical'
     });
   };
 
@@ -70,7 +78,8 @@ export default function Conquistas() {
       pontos: conquista.pontos || 250,
       regra_automatica: conquista.regra_automatica || '',
       icone_url: conquista.icone_url || '',
-      classe: conquista.classe || 'Especial'
+      classe: conquista.classe || 'Especial',
+      instrumento: conquista.instrumento || 'Teoria Musical'
     });
     setIsModalOpen(true);
   };
@@ -94,7 +103,8 @@ export default function Conquistas() {
           pontos: formData.pontos,
           regra_automatica: formData.regra_automatica,
           icone_url: formData.icone_url,
-          classe: formData.classe
+          classe: formData.classe,
+          instrumento: formData.instrumento
         })
       });
       if (res.ok) {
@@ -211,8 +221,8 @@ export default function Conquistas() {
                   </button>
                 </div>
                 <div className="w-20 h-20 border-4 border-black bg-white flex items-center justify-center mb-4 shadow-[4px_4px_0_#000] overflow-hidden">
-                  {c.icone_url ? (
-                     <img src={c.icone_url} alt="Ícone" className="w-full h-full object-contain p-2" />
+                  {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                     <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt="Ícone" className="w-full h-full object-contain p-2" />
                   ) : (
                      <Trophy className="w-10 h-10 text-[#ff6b00]" />
                   )}
@@ -260,8 +270,8 @@ export default function Conquistas() {
                  <div className="flex flex-col items-center justify-center">
                     <label className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest mb-4">ÍCONE_PIXEL_ART</label>
                     <div className="w-28 h-28 border-4 border-black bg-white flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
-                       {formData.icone_url ? (
-                          <img src={formData.icone_url} alt="Ícone" className="w-full h-full object-contain p-2" />
+                       {formData.icone_url || resolveTrophyImage(formData.instrumento, formData.classe) ? (
+                          <img src={formData.icone_url || resolveTrophyImage(formData.instrumento, formData.classe)} alt="Ícone" className="w-full h-full object-contain p-2" />
                        ) : (
                           <>
                             <Upload className="w-8 h-8 text-black/10 mb-2 group-hover:text-[#ff6b00] transition-colors" />
@@ -284,6 +294,20 @@ export default function Conquistas() {
                  </div>
 
                  <div className="space-y-4">
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">INSTRUMENTO / CATEGORIA</label>
+                     <select 
+                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                       value={formData.instrumento}
+                       onChange={(e) => setFormData({...formData, instrumento: e.target.value})}
+                     >
+                       <option value="Teoria Musical">Teoria Musical (Geral)</option>
+                       <option value="Cordas (Violão/Guitarra/Baixo)">Cordas (Violão/Guitarra/Baixo)</option>
+                       <option value="Teclado / Piano">Teclado / Piano</option>
+                       <option value="Bateria">Bateria</option>
+                       <option value="Técnica Vocal">Técnica Vocal</option>
+                     </select>
+                   </div>
                    <div>
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CLASSE / RARIDADE</label>
                      <select 

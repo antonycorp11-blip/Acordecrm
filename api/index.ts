@@ -2415,12 +2415,13 @@ async function startServer() {
 
     app.post('/api/gamificacao/conquistas', async (req, res) => {
         try {
-            const { nome, descricao, pontos, regra_automatica, icone_url, classe } = req.body;
+            const { nome, descricao, pontos, regra_automatica, icone_url, classe, instrumento } = req.body;
             const payload: any = { nome, descricao };
             if (pontos !== undefined) payload.pontos = Number(pontos);
             if (regra_automatica !== undefined) payload.regra_automatica = regra_automatica || null;
             if (icone_url !== undefined) payload.icone_url = icone_url || null;
             if (classe !== undefined) payload.classe = classe || 'Especial';
+            if (instrumento !== undefined) payload.instrumento = instrumento || 'Teoria Musical';
 
             const { data, error } = await supabase
                 .from('gamificacao_conquistas')
@@ -2434,7 +2435,7 @@ async function startServer() {
 
     app.put('/api/gamificacao/conquistas/:id', async (req, res) => {
         try {
-            const { nome, descricao, pontos, regra_automatica, icone_url, classe } = req.body;
+            const { nome, descricao, pontos, regra_automatica, icone_url, classe, instrumento } = req.body;
             const payload: any = {};
             if (nome !== undefined) payload.nome = nome;
             if (descricao !== undefined) payload.descricao = descricao;
@@ -2442,6 +2443,7 @@ async function startServer() {
             if (regra_automatica !== undefined) payload.regra_automatica = regra_automatica || null;
             if (icone_url !== undefined) payload.icone_url = icone_url || null;
             if (classe !== undefined) payload.classe = classe || 'Especial';
+            if (instrumento !== undefined) payload.instrumento = instrumento;
 
             const { data, error } = await supabase
                 .from('gamificacao_conquistas')

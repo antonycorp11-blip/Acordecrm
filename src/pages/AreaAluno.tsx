@@ -7,7 +7,14 @@ import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { PwaModal } from '../components/alunos/PwaModal';
+import PwaModal from '../components/PwaModal';
+import LessonChords from '../components/LessonChords';
+
+export const resolveTrophyImage = (instrumento: string, classe: string) => {
+  const slugInst = (instrumento || 'teoria-musical').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace('cordas-violaoguitarrabaixo', 'cordas').replace('tecladopiano', 'teclado').replace('tecnicavocal', 'vocal');
+  const slugClasse = (classe || 'raro').toLowerCase().replace('é', 'e').replace('á', 'a');
+  return `/trofeus/${slugInst}-${slugClasse}.jpg`;
+};
 
 // Tradução de notas científicas para cifras em português brasileiro
 const translateNote = (note: string): string => {
@@ -2018,8 +2025,8 @@ export default function AreaAluno() {
               <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
                 {alunoData?.conquistas?.map((c: any, i: number) => (
                   <div key={i} className="flex-shrink-0 w-16 h-16 bg-[#261812] border-4 border-black relative group shadow-[4px_4px_0_#000]">
-                    {c.icone_url ? (
-                      <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-1" />
+                    {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                      <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-1" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[#ff6b00]">
                          <Trophy className="w-6 h-6" />
@@ -2163,7 +2170,26 @@ export default function AreaAluno() {
                   <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                 </div>
                 
-                {todasConquistas && todasConquistas.length > 0 ? (
+                {(() => {
+                  const studentCourses = alunoData?.matriculas?.map((m: any) => m.cursos?.nome?.toLowerCase() || '') || [];
+                  const isCordas = studentCourses.some((c: string) => c.includes('violão') || c.includes('guitarra') || c.includes('baixo') || c.includes('ukulele'));
+                  const isTeclado = studentCourses.some((c: string) => c.includes('teclado') || c.includes('piano'));
+                  const isBateria = studentCourses.some((c: string) => c.includes('bateria'));
+                  const isVocal = studentCourses.some((c: string) => c.includes('vocal') || c.includes('canto'));
+
+                  const filteredConquistas = todasConquistas?.filter((c: any) => {
+                     const inst = c.instrumento || 'Teoria Musical';
+                     if (inst === 'Teoria Musical' || inst === 'Geral') return true;
+                     if (inst === 'Cordas (Violão/Guitarra/Baixo)' && isCordas) return true;
+                     if (inst === 'Teclado / Piano' && isTeclado) return true;
+                     if (inst === 'Bateria' && isBateria) return true;
+                     if (inst === 'Técnica Vocal' && isVocal) return true;
+                     return false;
+                  }) || [];
+
+                  if (filteredConquistas.length === 0) return null;
+
+                  return (
                   <div className="space-y-6">
                     {[
                       { key: 'Supremo', label: '👑 SUPREMO (2.000 XP)', border: 'border-[#d4af37]', text: 'text-[#d4af37]', bgGrad: 'from-[#d4af37]/20 via-[#261812] to-[#261812]', glow: 'rgba(212, 175, 55, 0.4)' },
@@ -2172,7 +2198,7 @@ export default function AreaAluno() {
                       { key: 'Raro', label: '⭐ RARO (500 XP)', border: 'border-[#3b82f6]', text: 'text-[#3b82f6]', bgGrad: 'from-[#3b82f6]/20 via-[#261812] to-[#261812]', glow: 'rgba(59, 130, 246, 0.4)' },
                       { key: 'Especial', label: '⚡ ESPECIAL (250 XP - CUMULATIVO)', border: 'border-[#22c55e]', text: 'text-[#22c55e]', bgGrad: 'from-[#22c55e]/20 via-[#261812] to-[#261812]', glow: 'rgba(34, 197, 94, 0.4)' }
                     ].map((categoria) => {
-                      const conquistasDaCategoria = todasConquistas.filter(
+                      const conquistasDaCategoria = filteredConquistas.filter(
                         (c: any) => (c.classe || 'Especial').toLowerCase() === categoria.key.toLowerCase()
                       );
 
@@ -2219,8 +2245,8 @@ export default function AreaAluno() {
                               return (
                                 <div key={conquista.id} className={cardStyle} style={customStyle}>
                                   <div className={badgeIconStyle}>
-                                    {conquista.icone_url ? (
-                                      <img src={conquista.icone_url} alt="" className="w-full h-full object-cover" />
+                                    {conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe) ? (
+                                      <img src={conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe)} alt="" className="w-full h-full object-cover p-2" />
                                     ) : (
                                       <span>{conquista.icone || '🏆'}</span>
                                     )}
@@ -2291,7 +2317,8 @@ export default function AreaAluno() {
                       );
                     })}
                   </div>
-                ) : (
+                  );
+                })()}
                   <div className="bg-[#261812] border-4 border-black p-6 text-center">
                     <p className="text-[#8e7164] font-black text-[9px] uppercase">Nenhum troféu cadastrado na galeria ainda.</p>
                   </div>
