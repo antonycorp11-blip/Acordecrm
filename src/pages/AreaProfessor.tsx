@@ -222,8 +222,9 @@ const translateNote = (note: string): string => {
 };
 
 // Helper para pegar os dias da semana atual (Segunda a Domingo)
-const getWeekDays = () => {
+const getWeekDays = (weekOffset = 0) => {
   const today = new Date();
+  today.setDate(today.getDate() + (weekOffset * 7));
   const currentDay = today.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
   // Ajusta para que Segunda-feira seja o primeiro dia da semana (índice 0)
   const distance = currentDay === 0 ? -6 : 1 - currentDay;
@@ -306,6 +307,7 @@ export default function AreaProfessor() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAgendaStatus, setFilterAgendaStatus] = useState<'todas' | 'pendente' | 'realizada' | 'falta_aluno'>('todas');
   const [selectedWeekDay, setSelectedWeekDay] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [agendaWeekOffset, setAgendaWeekOffset] = useState<number>(0);
 
   // NOVOS ESTADOS ADICIONADOS PARA NOTIFICAÇÕES E TREINOS E HISTÓRICO
   const [selectedAlunoHistorico, setSelectedAlunoHistorico] = useState<{ id: string; nome: string } | null>(null);
@@ -3115,14 +3117,24 @@ export default function AreaProfessor() {
                     <h4 className="text-white font-black text-[9px] uppercase tracking-widest flex items-center gap-1">
                       📅 PLANEJAMENTO SEMANAL
                     </h4>
-                    <span className="text-[#ff6b00] font-black text-[8px] uppercase">
-                      Semana Atual
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => setAgendaWeekOffset(o => o - 1)} className="px-2 py-1 bg-stone-800 text-white text-[8px] font-black uppercase hover:bg-stone-700 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">&lt; ANT</button>
+                      
+                      <span className="text-[#ff6b00] font-black text-[8px] uppercase px-1 hidden sm:inline">
+                        {agendaWeekOffset === 0 ? 'Semana Atual' : agendaWeekOffset < 0 ? `${Math.abs(agendaWeekOffset)} Sem. Atrás` : `${agendaWeekOffset} Sem. Frente`}
+                      </span>
+                      
+                      <button type="button" onClick={() => setAgendaWeekOffset(o => o + 1)} className="px-2 py-1 bg-stone-800 text-white text-[8px] font-black uppercase hover:bg-stone-700 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">PRÓX &gt;</button>
+                      
+                      {agendaWeekOffset !== 0 && (
+                         <button type="button" onClick={() => { setAgendaWeekOffset(0); setSelectedWeekDay(format(new Date(), 'yyyy-MM-dd')); }} className="px-2 py-1 ml-1 bg-[#ff6b00] text-white text-[8px] font-black uppercase hover:bg-orange-500 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">HOJE</button>
+                      )}
+                    </div>
                   </div>
                   
                   {/* Grid de 7 dias */}
                   <div className="grid grid-cols-7 gap-1.5">
-                    {getWeekDays().map((day) => {
+                    {getWeekDays(agendaWeekOffset).map((day) => {
                       const dayStr = format(day, 'yyyy-MM-dd');
                       const isSelected = selectedWeekDay === dayStr;
                       const isToday = format(new Date(), 'yyyy-MM-dd') === dayStr;
