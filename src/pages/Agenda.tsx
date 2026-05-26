@@ -61,9 +61,20 @@ export default function Agenda() {
 
   // Color based on tipo/status
   const getAulaColor = (aula: any) => {
-    if (aula.status === 'confirmada') return { bg: '#22c55e', border: '#14532d', text: '#ffffff' };
+    if (aula.status === 'realizada' || aula.status === 'presente') return { bg: '#22c55e', border: '#14532d', text: '#ffffff' }; // Verde
+    if (aula.status === 'confirmada') return { bg: '#3b82f6', border: '#1e3a8a', text: '#ffffff' }; // Azul
     if (aula.tipo === 'experimental') return { bg: '#fff8f6', border: '#7b5647', text: '#261812' };
     return { bg: '#ff6b00', border: '#261812', text: '#fff' };
+  };
+
+  const isConfirmable = (data: string, horario: string) => {
+    if (!data || !horario) return true;
+    const d = data.split('T')[0];
+    const t = horario.substring(0, 8).padEnd(8, '0');
+    const aulaTime = new Date(`${d}T${t}`).getTime();
+    const now = new Date().getTime();
+    const diffHours = (aulaTime - now) / (1000 * 60 * 60);
+    return diffHours <= 12;
   };
 
   const handleDragStart = (e: React.DragEvent, aula: any) => {
@@ -253,6 +264,10 @@ export default function Agenda() {
                              onClick={(e) => {
                                e.stopPropagation();
                                if (aula.status !== 'confirmada') {
+                                 if (!isConfirmable(aula.data, aula.horario)) {
+                                   toast.error('A aula só pode ser confirmada com 12 horas ou menos de antecedência.', { duration: 4000 });
+                                   return;
+                                 }
                                  if (window.confirm('Tem certeza que deseja confirmar esta aula para o professor? (Isso enviará uma notificação a ele)')) {
                                    fetch(`/api/agenda/${aula.id}/confirmar`, { 
                                      method: 'POST',
