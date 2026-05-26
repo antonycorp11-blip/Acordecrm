@@ -2229,7 +2229,7 @@ export default function AreaAluno() {
                             <div className={`flex-1 border-t border-dashed border-[#3d2d26]`}></div>
                           </div>
 
-                          <div className="grid grid-cols-1 gap-3">
+                          <div className="flex gap-3 overflow-x-auto pb-4 snap-x scrollbar-hide">
                             {conquistasDaCategoria.map((conquista: any) => {
                               const conquistadoInstancias = alunoData?.conquistas?.filter(
                                 (c: any) => Number(c.id) === Number(conquista.id) || Number(c.conquista_id) === Number(conquista.id)
@@ -2247,15 +2247,15 @@ export default function AreaAluno() {
                               let customStyle: React.CSSProperties = {};
 
                               if (conquistado) {
-                                cardStyle = `bg-gradient-to-r ${categoria.bgGrad} border-4 ${categoria.border} p-4 flex items-center gap-4 transition-all`;
-                                badgeIconStyle = `w-12 h-12 bg-[#2d211b] border-2 ${categoria.border} flex items-center justify-center text-2xl shrink-0`;
+                                cardStyle = `bg-gradient-to-r ${categoria.bgGrad} border-4 ${categoria.border} p-3 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3 transition-all min-w-[260px] sm:min-w-[320px] shrink-0 snap-center relative`;
+                                badgeIconStyle = `w-14 h-14 bg-[#2d211b] border-2 ${categoria.border} flex items-center justify-center text-2xl shrink-0`;
                                 customStyle = { boxShadow: `0 0 12px ${categoria.glow}` };
                               } else if (solicitacaoPendente) {
-                                cardStyle = "bg-[#1f1510] border-4 border-dashed border-[#8e7164] opacity-80 p-4 flex items-center gap-4 transition-all";
-                                badgeIconStyle = "w-12 h-12 bg-[#2d211b] border-2 border-[#8e7164] flex items-center justify-center text-2xl shrink-0 grayscale opacity-60";
+                                cardStyle = "bg-[#1f1510] border-4 border-dashed border-[#8e7164] opacity-80 p-3 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3 transition-all min-w-[260px] sm:min-w-[320px] shrink-0 snap-center relative";
+                                badgeIconStyle = "w-14 h-14 bg-[#2d211b] border-2 border-[#8e7164] flex items-center justify-center text-2xl shrink-0 grayscale opacity-60";
                               } else {
-                                cardStyle = "bg-[#1f1510] border-4 border-black/80 opacity-90 p-4 flex items-center gap-4 hover:border-white/20 transition-all";
-                                badgeIconStyle = "w-12 h-12 bg-[#2d211b] border-2 border-black flex items-center justify-center text-2xl shrink-0 grayscale opacity-40";
+                                cardStyle = "bg-[#1f1510] border-4 border-black/80 opacity-90 p-3 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3 hover:border-white/20 transition-all min-w-[260px] sm:min-w-[320px] shrink-0 snap-center relative";
+                                badgeIconStyle = "w-14 h-14 bg-[#2d211b] border-2 border-black flex items-center justify-center text-2xl shrink-0 grayscale opacity-40";
                               }
 
                               return (
@@ -2268,49 +2268,51 @@ export default function AreaAluno() {
                                     )}
                                   </div>
 
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <h4 className={`font-black text-[10px] uppercase leading-none ${conquistado ? categoria.text : 'text-[#feccba]'}`}>
-                                        {conquista.nome}
-                                      </h4>
-                                      {classeEfetiva === 'Especial' && (
-                                        <span className="text-[5px] font-black uppercase text-[#22c55e] bg-black border border-[#22c55e] px-1 py-0.2 rounded-none leading-none">
-                                          CUMULATIVO 🔄
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-white/60 font-black text-[8px] uppercase mt-1.5 leading-tight">
-                                      {conquista.descricao || 'Nenhuma descrição fornecida.'}
-                                    </p>
-
-                                    {conquistado ? (
-                                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                                        <span className="text-[6px] font-black uppercase text-green-400 bg-black/40 border border-green-400 px-1 py-0.5 rounded-none leading-none">
-                                          DESBLOQUEADO ✅ {conquistadoCount > 1 && `(${conquistadoCount}X)`}
-                                        </span>
-                                        {conquistadoInstancias[0]?.data_conquista && (
-                                          <span className="text-white/40 font-mono text-[5px] uppercase">
-                                            {conquistadoCount > 1 ? 'ÚLTIMO EM ' : 'EM '}
-                                            {new Date(conquistadoInstancias[0].data_conquista).toLocaleDateString('pt-BR')}
+                                  <div className="flex-1 w-full min-w-0 flex flex-col justify-between h-full">
+                                    <div>
+                                      <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                                        <h4 className={`font-black text-[10px] uppercase leading-tight ${conquistado ? categoria.text : 'text-[#feccba]'}`}>
+                                          {conquista.nome}
+                                        </h4>
+                                        {classeEfetiva === 'Especial' && (
+                                          <span className="text-[5px] font-black uppercase text-[#22c55e] bg-black border border-[#22c55e] px-1 py-0.5 rounded-none leading-none">
+                                            CUMULATIVO 🔄
                                           </span>
                                         )}
                                       </div>
-                                    ) : solicitacaoPendente ? (
-                                      <div className="mt-2">
-                                        <span className="text-[6px] font-black uppercase text-yellow-400 bg-black/40 border border-yellow-400 px-1 py-0.5 rounded-none leading-none animate-pulse inline-block">
-                                          PENDENTE ⏳ AGUARDANDO APROVAÇÃO DO PROFESSOR
-                                        </span>
-                                      </div>
-                                    ) : (
-                                      <div className="mt-2">
-                                        <span className="text-[6px] font-black uppercase text-white/40 bg-black/40 border border-white/20 px-1 py-0.5 rounded-none leading-none inline-block">
-                                          BLOQUEADO 🔒
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
+                                      <p className="text-white/60 font-black text-[8px] uppercase mt-1.5 leading-snug line-clamp-2">
+                                        {conquista.descricao || 'Nenhuma descrição fornecida.'}
+                                      </p>
+                                    </div>
 
-                                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                      {conquistado ? (
+                                        <div className="flex items-center justify-center sm:justify-start gap-1.5 mt-2 flex-wrap">
+                                          <span className="text-[6px] font-black uppercase text-green-400 bg-black/40 border border-green-400 px-1 py-0.5 rounded-none leading-none">
+                                            DESBLOQUEADO ✅ {conquistadoCount > 1 && `(${conquistadoCount}X)`}
+                                          </span>
+                                          {conquistadoInstancias[0]?.data_conquista && (
+                                            <span className="text-white/40 font-mono text-[5px] uppercase">
+                                              {conquistadoCount > 1 ? 'ÚLTIMO EM ' : 'EM '}
+                                              {new Date(conquistadoInstancias[0].data_conquista).toLocaleDateString('pt-BR')}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : solicitacaoPendente ? (
+                                        <div className="mt-2">
+                                          <span className="text-[6px] font-black uppercase text-yellow-400 bg-black/40 border border-yellow-400 px-1 py-0.5 rounded-none leading-none animate-pulse inline-block">
+                                            PENDENTE ⏳ AGUARDANDO APROVAÇÃO
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div className="mt-2">
+                                          <span className="text-[6px] font-black uppercase text-white/40 bg-black/40 border border-white/20 px-1 py-0.5 rounded-none leading-none inline-block">
+                                            BLOQUEADO 🔒
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                  <div className="sm:absolute sm:bottom-3 sm:right-3 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-end gap-1.5 w-full sm:w-auto mt-2 sm:mt-0">
                                     <span className={`font-black text-[8px] bg-black border ${conquistado ? `${categoria.border} ${categoria.text}` : 'border-black text-[#ff6b00]'} px-1.5 py-0.5 leading-none`}>
                                       +{conquista.pontos || 100} XP
                                     </span>
