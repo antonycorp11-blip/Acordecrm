@@ -24,7 +24,7 @@ export default function Dashboard() {
 
   const faturamento = stats?.receitaMensal ?? 0;
   const proximasAulas = stats?.proximasAulas ?? [];
-  const alunosApp = stats?.alunosAtivosApp ?? [];
+  const alunosApp = stats?.alunosAppStatus ?? [];
   const matriculasPorCurso = stats?.matriculasPorCurso ?? [];
   const maxQtd = matriculasPorCurso.length > 0 ? Math.max(...matriculasPorCurso.map((m: any) => m.qtd)) : 10;
 
@@ -78,17 +78,22 @@ export default function Dashboard() {
           {/* Alunos PWA Ativos */}
           <div className="rounded-lg p-5 relative flex flex-col" style={{ background: '#ff6b00', border: '3px solid #261812', boxShadow: '4px 4px 0 #261812' }}>
             <div className="flex items-center justify-between mb-4 shrink-0">
-              <p className="text-white text-[11px] font-black uppercase tracking-widest">APP INSTALADO (PUSH)</p>
+              <p className="text-white text-[11px] font-black uppercase tracking-widest">STATUS DE INSTALAÇÃO DO APP</p>
               <span className="text-white font-black text-xl">📱</span>
             </div>
             <div className="flex-1 overflow-auto space-y-2 pr-2">
-              {alunosApp.length > 0 ? alunosApp.map((aluno: string, idx: number) => (
-                <div key={idx} className="bg-white rounded px-3 py-2 flex items-center gap-2 border-2 border-transparent">
-                  <Sparkles className="w-4 h-4 text-[#ff6b00] shrink-0" />
-                  <span className="text-[#261812] text-xs font-black truncate">{aluno.split(' ')[0]} {aluno.split(' ').slice(1).join(' ').substring(0, 10)}.</span>
+              {alunosApp.length > 0 ? alunosApp.map((aluno: any, idx: number) => (
+                <div key={idx} className={`bg-white rounded px-3 py-2 flex items-center justify-between gap-2 border-2 ${aluno.ativo ? 'border-emerald-500' : 'border-red-500'}`}>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-xs shrink-0">{aluno.ativo ? '🟢' : '🔴'}</span>
+                    <span className="text-[#261812] text-xs font-black truncate" title={aluno.nome}>{aluno.nome}</span>
+                  </div>
+                  <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 ${aluno.ativo ? 'bg-emerald-100 text-emerald-800 border border-emerald-400' : 'bg-red-100 text-red-800 border border-red-400'}`}>
+                    {aluno.ativo ? 'ATIVO' : 'COBRAR'}
+                  </span>
                 </div>
               )) : (
-                <div className="text-white/80 text-xs font-black uppercase text-center mt-5">Nenhum aluno com app instalado ainda</div>
+                <div className="text-white/80 text-xs font-black uppercase text-center mt-5">Sem alunos cadastrados</div>
               )}
             </div>
           </div>

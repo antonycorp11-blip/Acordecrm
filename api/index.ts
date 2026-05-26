@@ -1116,6 +1116,14 @@ async function startServer() {
 
             const alunosAtivosApp = alunosData?.filter((a: any) => a.push_recompensado).map((a: any) => a.nome) || [];
             
+            const alunosAppStatus = alunosData?.map((a: any) => ({
+                nome: a.nome,
+                ativo: !!a.push_recompensado
+            })).sort((a: any, b: any) => {
+                if (a.ativo === b.ativo) return a.nome.localeCompare(b.nome);
+                return a.ativo ? 1 : -1;
+            }) || [];
+            
             const contagemCursos: Record<string, number> = {};
             alunosData?.forEach((aluno: any) => {
                 const cursoNome = aluno.matriculas?.[0]?.cursos?.nome || 'Outros/Sem Curso';
@@ -1148,7 +1156,7 @@ async function startServer() {
                 })) || [])
             ].sort((a, b) => a.horario.localeCompare(b.horario));
 
-            res.json({ totalAlunos: totalAlunos || 0, aulasHoje, receitaMensal, proximasAulas, alunosAtivosApp, matriculasPorCurso });
+            res.json({ totalAlunos: totalAlunos || 0, aulasHoje, receitaMensal, proximasAulas, alunosAtivosApp, matriculasPorCurso, alunosAppStatus });
         } catch (error) { res.status(500).json({ error: 'Erro ao carregar estatísticas' }); }
     });
 

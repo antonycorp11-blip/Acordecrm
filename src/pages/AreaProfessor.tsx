@@ -309,6 +309,25 @@ export default function AreaProfessor() {
   const [selectedWeekDay, setSelectedWeekDay] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [agendaWeekOffset, setAgendaWeekOffset] = useState<number>(0);
 
+  const handleMudarSemana = (offsetDiff: number) => {
+    setAgendaWeekOffset(prevOffset => {
+      const newOffset = prevOffset + offsetDiff;
+      const newDays = getWeekDays(newOffset);
+      try {
+        const oldDays = getWeekDays(prevOffset);
+        const oldIndex = oldDays.findIndex(d => format(d, 'yyyy-MM-dd') === selectedWeekDay);
+        if (oldIndex >= 0 && oldIndex < 7) {
+          setSelectedWeekDay(format(newDays[oldIndex], 'yyyy-MM-dd'));
+        } else {
+          setSelectedWeekDay(format(newDays[0], 'yyyy-MM-dd'));
+        }
+      } catch (e) {
+        setSelectedWeekDay(format(newDays[0], 'yyyy-MM-dd'));
+      }
+      return newOffset;
+    });
+  };
+
   // NOVOS ESTADOS ADICIONADOS PARA NOTIFICAÇÕES E TREINOS E HISTÓRICO
   const [selectedAlunoHistorico, setSelectedAlunoHistorico] = useState<{ id: string; nome: string } | null>(null);
   const [historicoAulas, setHistoricoAulas] = useState<any[]>([]);
@@ -3118,13 +3137,13 @@ export default function AreaProfessor() {
                       📅 PLANEJAMENTO SEMANAL
                     </h4>
                     <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => setAgendaWeekOffset(o => o - 1)} className="px-2 py-1 bg-stone-800 text-white text-[8px] font-black uppercase hover:bg-stone-700 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">&lt; ANT</button>
+                      <button type="button" onClick={() => handleMudarSemana(-1)} className="px-2 py-1 bg-stone-800 text-white text-[8px] font-black uppercase hover:bg-stone-700 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">&lt; ANT</button>
                       
                       <span className="text-[#ff6b00] font-black text-[8px] uppercase px-1 hidden sm:inline">
                         {agendaWeekOffset === 0 ? 'Semana Atual' : agendaWeekOffset < 0 ? `${Math.abs(agendaWeekOffset)} Sem. Atrás` : `${agendaWeekOffset} Sem. Frente`}
                       </span>
                       
-                      <button type="button" onClick={() => setAgendaWeekOffset(o => o + 1)} className="px-2 py-1 bg-stone-800 text-white text-[8px] font-black uppercase hover:bg-stone-700 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">PRÓX &gt;</button>
+                      <button type="button" onClick={() => handleMudarSemana(1)} className="px-2 py-1 bg-stone-800 text-white text-[8px] font-black uppercase hover:bg-stone-700 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">PRÓX &gt;</button>
                       
                       {agendaWeekOffset !== 0 && (
                          <button type="button" onClick={() => { setAgendaWeekOffset(0); setSelectedWeekDay(format(new Date(), 'yyyy-MM-dd')); }} className="px-2 py-1 ml-1 bg-[#ff6b00] text-white text-[8px] font-black uppercase hover:bg-orange-500 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">HOJE</button>
