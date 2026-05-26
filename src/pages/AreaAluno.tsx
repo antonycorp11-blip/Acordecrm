@@ -2187,7 +2187,13 @@ export default function AreaAluno() {
                      return false;
                   }) || [];
 
-                  if (filteredConquistas.length === 0) return null;
+                  if (filteredConquistas.length === 0) {
+                    return (
+                      <div className="bg-[#261812] border-4 border-black p-6 text-center">
+                        <p className="text-[#8e7164] font-black text-[9px] uppercase">Nenhum troféu cadastrado na galeria ainda.</p>
+                      </div>
+                    );
+                  }
 
                   return (
                   <div className="space-y-6">
@@ -2319,10 +2325,6 @@ export default function AreaAluno() {
                   </div>
                   );
                 })()}
-                  <div className="bg-[#261812] border-4 border-black p-6 text-center">
-                    <p className="text-[#8e7164] font-black text-[9px] uppercase">Nenhum troféu cadastrado na galeria ainda.</p>
-                  </div>
-                )}
               </div>
 
               {/* Histórico de Aulas Passadas */}
