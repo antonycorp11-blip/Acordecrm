@@ -81,7 +81,7 @@ export default function Dashboard() {
               <p className="text-white text-[11px] font-black uppercase tracking-widest">STATUS DE INSTALAÇÃO DO APP</p>
               <span className="text-white font-black text-xl">📱</span>
             </div>
-            <div className="flex-1 overflow-auto space-y-2 pr-2">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2 max-h-48 custom-scrollbar">
               {alunosApp.length > 0 ? alunosApp.map((aluno: any, idx: number) => (
                 <div key={idx} className={`bg-white rounded px-3 py-2 flex items-center justify-between gap-2 border-2 ${aluno.ativo ? 'border-emerald-500' : 'border-red-500'}`}>
                   <div className="flex items-center gap-1.5 min-w-0">

@@ -2972,7 +2972,8 @@ export default function AreaProfessor() {
                     {aulasHoje.map((aula: any) => {
                       const isConcluida = aula.status === 'realizada';
                       const isFalta = aula.status === 'falta_aluno' || aula.status === 'ausente';
-                      const isPendente = !isConcluida && !isFalta;
+                      const isConfirmada = aula.status === 'confirmada';
+                      const isPendente = !isConcluida && !isFalta && !isConfirmada;
                       
                       return (
                         <div
@@ -2990,9 +2991,15 @@ export default function AreaProfessor() {
                               FALTA
                             </div>
                           )}
+                          {isConfirmada && (
+                            <div className="absolute top-0 right-0 px-3 py-1 bg-blue-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
+                              CONFIRMADA
+                            </div>
+                          )}
                           {isPendente && (
                             <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black animate-pulse">
                               AGUARDANDO
+
                             </div>
                           )}
 
@@ -3232,6 +3239,7 @@ export default function AreaProfessor() {
                       
                       if (filterAgendaStatus === 'todas') return true;
                       if (filterAgendaStatus === 'pendente') return aula.status !== 'realizada' && aula.status !== 'falta_aluno' && aula.status !== 'ausente';
+                      if (filterAgendaStatus === 'pendente') return aula.status !== 'realizada' && aula.status !== 'falta_aluno' && aula.status !== 'ausente' && aula.status !== 'confirmada';
                       if (filterAgendaStatus === 'realizada') return aula.status === 'realizada';
                       if (filterAgendaStatus === 'falta_aluno') return aula.status === 'falta_aluno' || aula.status === 'ausente';
                       return true;
@@ -3250,7 +3258,8 @@ export default function AreaProfessor() {
                     return aulasDoDia.map((aula: any) => {
                       const isConcluida = aula.status === 'realizada';
                       const isFalta = aula.status === 'falta_aluno' || aula.status === 'ausente';
-                      const isPendente = !isConcluida && !isFalta;
+                      const isConfirmada = aula.status === 'confirmada';
+                      const isPendente = !isConcluida && !isFalta && !isConfirmada;
                       
                       // Formatar data bonitinha
                       let formattedDate = aula.data;
@@ -3274,6 +3283,11 @@ export default function AreaProfessor() {
                           {isFalta && (
                             <div className="absolute top-0 right-0 px-2 py-0.5 bg-red-500 text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black">
                               FALTA
+                            </div>
+                          )}
+                          {isConfirmada && (
+                            <div className="absolute top-0 right-0 px-2 py-0.5 bg-blue-500 text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black">
+                              CONFIRMADA
                             </div>
                           )}
                           {isPendente && (

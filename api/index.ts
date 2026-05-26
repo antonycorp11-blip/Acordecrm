@@ -122,6 +122,23 @@ async function startServer() {
     // --- SEGURANÇA ---
     app.use(authenticateToken);
 
+    // --- HELPER: NOTIFY ADMINS ---
+    const notifyAdmins = async (titulo: string, mensagem: string) => {
+        try {
+            // Find admins
+            const { data: admins } = await supabase.from('usuarios').select('email').eq('role', 'admin');
+            if (!admins || admins.length === 0) return;
+            
+            const adminEmails = admins.map((a: any) => a.email);
+            for (const email of adminEmails) {
+                // Using sendPushNotification with only emailTo
+                await sendPushNotification(titulo, mensagem, undefined, email);
+            }
+        } catch (e) {
+            console.error('[ADMIN_NOTIFY] Error notifying admins:', e);
+        }
+    };
+
     // --- API ROUTES ---
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
     
@@ -194,6 +211,9 @@ async function startServer() {
             }]).select().single();
 
             if (errU) throw errU;
+            
+            await notifyAdmins('Novo Aluno no App! 📱', `O aluno ${aluno.nome} acabou de configurar sua senha e realizar o primeiro acesso no App!`);
+            
             res.json({ success: true });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
@@ -1126,7 +1146,19 @@ async function startServer() {
             
             const contagemCursos: Record<string, number> = {};
             alunosData?.forEach((aluno: any) => {
-                const cursoNome = aluno.matriculas?.[0]?.cursos?.nome || 'Outros/Sem Curso';
+                // Find an active matricula, or just use the first one available
+                const matriculaAtiva = (aluno.matriculas || []).find((m: any) => m.status === 'ativa') || aluno.matriculas?.[0];
+                let cursoNome = 'Outros/Sem Curso';
+                
+                if (matriculaAtiva && matriculaAtiva.cursos) {
+                    // Supabase sometimes returns related records as arrays if relationships aren't strictly many-to-one
+                    if (Array.isArray(matriculaAtiva.cursos)) {
+                        cursoNome = matriculaAtiva.cursos[0]?.nome || 'Outros/Sem Curso';
+                    } else {
+                        cursoNome = matriculaAtiva.cursos.nome || 'Outros/Sem Curso';
+                    }
+                }
+                
                 contagemCursos[cursoNome] = (contagemCursos[cursoNome] || 0) + 1;
             });
             const matriculasPorCurso = Object.entries(contagemCursos).map(([curso, qtd]) => ({ curso, qtd: qtd as number })).sort((a, b) => b.qtd - a.qtd);
@@ -2070,6 +2102,9 @@ async function startServer() {
                 if (dbAppId) appId = dbAppId;
                 if (dbAppKey) appKey = dbAppKey;
             }
+
+            const alunoNomeAdmin = aula.alunos ? (Array.isArray(aula.alunos) ? aula.alunos[0].nome : aula.alunos.nome) : 'Um aluno';
+            await notifyAdmins('Confirmação de Aula', `${alunoNomeAdmin} acabou de confirmar presença em uma aula!`);
 
             // Enviar Notificação Interna, Push e Email para o Professor
             if (aula.professores?.id) {
