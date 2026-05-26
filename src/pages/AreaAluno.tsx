@@ -7,8 +7,7 @@ import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import PwaModal from '../components/PwaModal';
-import LessonChords from '../components/LessonChords';
+import { PwaModal } from '../components/alunos/PwaModal';
 
 export const resolveTrophyImage = (instrumento: string, classe: string) => {
   const slugInst = (instrumento || 'teoria-musical').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace('cordas-violaoguitarrabaixo', 'cordas').replace('tecladopiano', 'teclado').replace('tecnicavocal', 'vocal');
