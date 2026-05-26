@@ -4,8 +4,19 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
 export const resolveTrophyImage = (instrumento: string, classe: string) => {
-  const slugInst = (instrumento || 'teoria-musical').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace('cordas-violaoguitarrabaixo', 'cordas').replace('tecladopiano', 'teclado');
-  const slugClasse = (classe || 'raro').toLowerCase().replace('é', 'e').replace('á', 'a');
+  const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  
+  let slugInst = normalize(instrumento || 'teoria-musical')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  if (slugInst === 'cordas-violao-guitarra-baixo') slugInst = 'cordas';
+  if (slugInst === 'teclado-piano') slugInst = 'teclado';
+  if (slugInst === 'tecnica-vocal') slugInst = 'vocal';
+
+  const slugClasse = normalize(classe || 'raro').replace(/\s+/g, '-');
   return `/trofeus/${slugInst}-${slugClasse}.jpg`;
 };
 

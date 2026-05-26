@@ -10,8 +10,19 @@ import { toast } from 'sonner';
 import { PwaModal } from '../components/alunos/PwaModal';
 
 export const resolveTrophyImage = (instrumento: string, classe: string) => {
-  const slugInst = (instrumento || 'teoria-musical').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace('cordas-violaoguitarrabaixo', 'cordas').replace('tecladopiano', 'teclado').replace('tecnicavocal', 'vocal');
-  const slugClasse = (classe || 'raro').toLowerCase().replace('é', 'e').replace('á', 'a');
+  const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  
+  let slugInst = normalize(instrumento || 'teoria-musical')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  if (slugInst === 'cordas-violao-guitarra-baixo') slugInst = 'cordas';
+  if (slugInst === 'teclado-piano') slugInst = 'teclado';
+  if (slugInst === 'tecnica-vocal') slugInst = 'vocal';
+
+  const slugClasse = normalize(classe || 'raro').replace(/\s+/g, '-');
   return `/trofeus/${slugInst}-${slugClasse}.jpg`;
 };
 
