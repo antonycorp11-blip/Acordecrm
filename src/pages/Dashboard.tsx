@@ -24,10 +24,9 @@ export default function Dashboard() {
 
   const faturamento = stats?.receitaMensal ?? 0;
   const proximasAulas = stats?.proximasAulas ?? [];
-
-  // Data history - default to flat bars if empty
-  const bars = stats?.historicoMatriculas ?? [10, 10, 10, 10, 10, 10];
-  const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN'];
+  const alunosApp = stats?.alunosAtivosApp ?? [];
+  const matriculasPorCurso = stats?.matriculasPorCurso ?? [];
+  const maxQtd = matriculasPorCurso.length > 0 ? Math.max(...matriculasPorCurso.map((m: any) => m.qtd)) : 10;
 
   const dotColors = ['bg-green-500', 'bg-orange-500', 'bg-red-500'];
 
@@ -58,52 +57,39 @@ export default function Dashboard() {
       {/* MAIN CONTENT */}
       <div className="flex-1 overflow-auto p-6 space-y-5">
 
-        {/* TOP CARDS ROW */}
+        {/* TOP ROW */}
         <div className="grid grid-cols-3 gap-5">
-
-          {/* Faturamento do Mês */}
-          <div className="sticker-card rounded-lg p-5" style={{ background: '#fff8f6' }}>
-            <p className="text-[#ff6b00] text-[10px] font-black uppercase tracking-widest mb-3">FATURAMENTO DO MÊS</p>
-            <div className="text-[#261812] font-black" style={{ fontSize: '3rem', lineHeight: 1, fontFamily: "'Space Mono', monospace" }}>
-              R$
+          {/* Total Alunos & Aulas */}
+          <div className="col-span-2 grid grid-cols-2 gap-5">
+            <div className="sticker-card rounded-lg p-5 flex flex-col justify-center" style={{ background: '#fff8f6' }}>
+              <p className="text-[#ff6b00] text-[10px] font-black uppercase tracking-widest mb-3">TOTAL DE ALUNOS ATIVOS</p>
+              <div className="text-[#261812] font-black text-6xl leading-none">
+                {stats?.totalAlunos || 0}
+              </div>
             </div>
-            <div className="text-[#261812] font-black" style={{ fontSize: '2.8rem', lineHeight: 1, fontFamily: "'Space Mono', monospace" }}>
-              {faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </div>
-            <div className="mt-4 inline-flex items-center gap-1 border-2 border-[#ff6b00] rounded px-2 py-1">
-              <TrendingUp className="w-3 h-3 text-[#ff6b00]" />
-              <span className="text-[#ff6b00] text-[10px] font-black">0% vs mês anterior</span>
-            </div>
-          </div>
-
-          {/* Alertas Críticos */}
-          <div className="rounded-lg p-5 relative" style={{ background: '#ff6b00', border: '3px solid #261812', boxShadow: '4px 4px 0 #261812' }}>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-white text-[11px] font-black uppercase tracking-widest">SISTEMA ATIVO</p>
-              <span className="text-white font-black text-xl">✓</span>
-            </div>
-            <div className="space-y-2">
-              <div className="bg-white rounded px-3 py-2 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#ff6b00] shrink-0" />
-                <span className="text-[#261812] text-xs font-black">Nenhum alerta crítico</span>
+            <div className="sticker-card rounded-lg p-5 flex flex-col justify-center" style={{ background: '#fff8f6' }}>
+              <p className="text-[#ff6b00] text-[10px] font-black uppercase tracking-widest mb-3">AULAS AGENDADAS (HOJE)</p>
+              <div className="text-[#261812] font-black text-6xl leading-none">
+                {stats?.aulasHoje || 0}
               </div>
             </div>
           </div>
 
-          {/* Meta do Mês */}
-          <div className="sticker-card rounded-lg p-5 flex flex-col items-center justify-center" style={{ background: '#fff8f6' }}>
-            <div className="flex gap-2 text-[#ff6b00] mb-2">
-              <Sparkles className="w-5 h-5" />
-              <Sparkles className="w-4 h-4 mt-1" />
-              <Sparkles className="w-5 h-5" />
+          {/* Alunos PWA Ativos */}
+          <div className="rounded-lg p-5 relative flex flex-col" style={{ background: '#ff6b00', border: '3px solid #261812', boxShadow: '4px 4px 0 #261812' }}>
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <p className="text-white text-[11px] font-black uppercase tracking-widest">APP INSTALADO (PUSH)</p>
+              <span className="text-white font-black text-xl">📱</span>
             </div>
-            <p className="text-[#261812] font-black text-center text-sm uppercase tracking-widest leading-tight">
-              META DE MATRÍCULAS<br />TEMPORADA ATUAL
-            </p>
-            <div className="w-full mt-4 rounded-sm overflow-hidden" style={{ background: '#261812', height: '24px', border: '2px solid #261812' }}>
-              <div className="h-full rounded-sm flex items-center justify-end pr-2" style={{ width: '5%', background: '#7b5647' }}>
-                <span className="text-white text-[10px] font-black">0%</span>
-              </div>
+            <div className="flex-1 overflow-auto space-y-2 pr-2">
+              {alunosApp.length > 0 ? alunosApp.map((aluno: string, idx: number) => (
+                <div key={idx} className="bg-white rounded px-3 py-2 flex items-center gap-2 border-2 border-transparent">
+                  <Sparkles className="w-4 h-4 text-[#ff6b00] shrink-0" />
+                  <span className="text-[#261812] text-xs font-black truncate">{aluno.split(' ')[0]} {aluno.split(' ').slice(1).join(' ').substring(0, 10)}.</span>
+                </div>
+              )) : (
+                <div className="text-white/80 text-xs font-black uppercase text-center mt-5">Nenhum aluno com app instalado ainda</div>
+              )}
             </div>
           </div>
         </div>
@@ -111,31 +97,41 @@ export default function Dashboard() {
         {/* BOTTOM ROW */}
         <div className="grid grid-cols-3 gap-5">
 
-          {/* Matrículas Ativas Chart */}
-          <div className="col-span-2 sticker-card rounded-lg overflow-hidden" style={{ background: '#fff8f6' }}>
-            <div className="flex items-center gap-3 px-4 py-3" style={{ background: '#ff6b00', borderBottom: '3px solid #261812' }}>
+          {/* Matrículas por Curso Chart */}
+          <div className="col-span-2 sticker-card rounded-lg overflow-hidden flex flex-col" style={{ background: '#fff8f6', minHeight: '280px' }}>
+            <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ background: '#ff6b00', borderBottom: '3px solid #261812' }}>
               <div className="w-3 h-3 rounded-sm border border-white bg-white/20"></div>
-              <p className="text-white text-[11px] font-black uppercase tracking-widest flex-1">MATRÍCULAS ATIVAS - HISTÓRICO 2024</p>
+              <p className="text-white text-[11px] font-black uppercase tracking-widest flex-1">MATRÍCULAS POR CURSO / INSTRUMENTO</p>
               <div className="flex gap-2">
                 <div className="w-4 h-4 border border-white rounded-sm bg-white/20"></div>
                 <div className="w-4 h-4 border border-white rounded-sm bg-white/20"></div>
               </div>
             </div>
-            <div className="p-5">
-              <div className="flex items-end gap-3 h-28 mb-3">
-                {bars.map((h: number, i: number) => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className="w-full rounded-t transition-all"
-                      style={{ height: `${h}%`, background: '#e2bfb0', border: '2px solid #7b5647' }}
-                    />
-                  </div>
-                ))}
+            <div className="p-5 flex-1 flex flex-col justify-end">
+              <div className="flex items-end gap-4 h-40 mb-3 border-b-4 border-[#261812] pb-1">
+                {matriculasPorCurso.length > 0 ? matriculasPorCurso.map((m: any, i: number) => {
+                  const heightPct = Math.max(5, (m.qtd / maxQtd) * 100);
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group relative">
+                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-black text-white text-[10px] font-black px-2 py-1 rounded transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                        {m.qtd} Aluno{m.qtd !== 1 ? 's' : ''}
+                      </div>
+                      <div
+                        className="w-full rounded-t transition-all cursor-pointer hover:brightness-90 relative"
+                        style={{ height: `${heightPct}%`, background: '#ff6b00', border: '3px solid #261812', borderBottom: 'none' }}
+                      >
+                         <div className="absolute inset-0 bg-white/10 w-1/3"></div>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                   <div className="w-full flex items-center justify-center text-[#8e7164] font-black uppercase text-xs">Sem dados de cursos</div>
+                )}
               </div>
-              <div className="flex gap-3">
-                {months.map((m, i) => (
-                  <div key={i} className="flex-1 text-center">
-                    <span className="text-[10px] font-black text-[#8e7164] uppercase">{m}</span>
+              <div className="flex gap-4">
+                {matriculasPorCurso.map((m: any, i: number) => (
+                  <div key={i} className="flex-1 text-center shrink-0 min-w-0">
+                    <span className="text-[9px] font-black text-[#8e7164] uppercase truncate block">{m.curso.substring(0, 8)}</span>
                   </div>
                 ))}
               </div>

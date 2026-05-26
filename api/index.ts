@@ -1028,13 +1028,27 @@ async function startServer() {
             const { count: aulasExpHoje } = await supabase.from('aulas_experimentais').select('*', { count: 'exact', head: true }).eq('data', today);
             const aulasHoje = (aulasRegHoje || 0) + (aulasExpHoje || 0);
 
-            // Receita: apenas mensalidades pagas no mês atual
+            // Receita (Mantida no código, mas o front não vai mais exibir)
             const { data: pagamentosMes } = await supabase.from('pagamentos')
                 .select('valor')
                 .eq('status', 'pago')
                 .eq('tipo_receita', 'mensalidade')
                 .eq('referencia_mes_ano', mesAtual);
-            const receitaMensal = pagamentosMes?.reduce((acc, curr) => acc + Number(curr.valor), 0) || 0;
+            const receitaMensal = pagamentosMes?.reduce((acc: number, curr: any) => acc + Number(curr.valor), 0) || 0;
+            
+            // Dados de Alunos: Push Ativo e Cursos
+            const { data: alunosData } = await supabase.from('alunos')
+                .select('nome, push_recompensado, matriculas(cursos(nome))')
+                .eq('status', 'ativo');
+
+            const alunosAtivosApp = alunosData?.filter((a: any) => a.push_recompensado).map((a: any) => a.nome) || [];
+            
+            const contagemCursos: Record<string, number> = {};
+            alunosData?.forEach((aluno: any) => {
+                const cursoNome = aluno.matriculas?.[0]?.cursos?.nome || 'Outros/Sem Curso';
+                contagemCursos[cursoNome] = (contagemCursos[cursoNome] || 0) + 1;
+            });
+            const matriculasPorCurso = Object.entries(contagemCursos).map(([curso, qtd]) => ({ curso, qtd: qtd as number })).sort((a, b) => b.qtd - a.qtd);
             
             // Aulas do dia (regulares)
             const { data: aulasRegData } = await supabase.from('aulas')
@@ -1061,7 +1075,7 @@ async function startServer() {
                 })) || [])
             ].sort((a, b) => a.horario.localeCompare(b.horario));
 
-            res.json({ totalAlunos: totalAlunos || 0, aulasHoje, receitaMensal, proximasAulas });
+            res.json({ totalAlunos: totalAlunos || 0, aulasHoje, receitaMensal, proximasAulas, alunosAtivosApp, matriculasPorCurso });
         } catch (error) { res.status(500).json({ error: 'Erro ao carregar estatísticas' }); }
     });
 
@@ -1880,17 +1894,18 @@ async function startServer() {
             // Atualizar status
             await supabase.from('aulas').update({ status: 'aguardando_confirmacao' }).eq('id', originalId);
 
-            // Enviar Push para o Aluno (Localiza o ID real de login via email)
+            // Enviar Push e Email para o Aluno
             if (aula.alunos?.id) {
                 const titulo = 'Confirme sua próxima aula! 🎸';
                 const msg = `Olá ${aula.alunos.nome.split(' ')[0]}, precisamos confirmar sua presença na próxima aula. Toque aqui e acesse sua Área do Aluno!`;
                 
                 let pushId = String(aula.alunos.id);
-                if (aula.alunos.email) {
-                    const { data: usr } = await supabase.from('usuarios').select('id').ilike('email', aula.alunos.email).single();
+                const alunoEmail = aula.alunos.email;
+                if (alunoEmail) {
+                    const { data: usr } = await supabase.from('usuarios').select('id').ilike('email', alunoEmail).single();
                     if (usr?.id) pushId = String(usr.id);
                 }
-                await sendPushNotification(titulo, msg, pushId);
+                await sendPushNotification(titulo, msg, pushId, alunoEmail);
             }
 
             res.json({ success: true, status: 'aguardando_confirmacao' });
@@ -1909,7 +1924,7 @@ async function startServer() {
             // Atualizar status
             await supabase.from('aulas').update({ status: 'confirmada' }).eq('id', originalId);
 
-            // Enviar Notificação Interna e Push para o Professor
+            // Enviar Notificação Interna, Push e Email para o Professor
             if (aula.professores?.id) {
                 const titulo = 'Aula Confirmada! ✅';
                 const msg = `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`;
@@ -1918,14 +1933,15 @@ async function startServer() {
                     titulo, mensagem: msg, tipo: 'agenda', professor_id: aula.professores.id
                 }]);
 
-                // Mapeia o Professor ID para o Login ID do OneSignal
+                // Mapeia o Professor ID para o Login ID do OneSignal e pega o email
                 let pushId = String(aula.professores.id);
-                if (aula.professores.email) {
-                    const { data: usr } = await supabase.from('usuarios').select('id').ilike('email', aula.professores.email).single();
+                const profEmail = aula.professores.email;
+                if (profEmail) {
+                    const { data: usr } = await supabase.from('usuarios').select('id').ilike('email', profEmail).single();
                     if (usr?.id) pushId = String(usr.id);
                 }
                 
-                await sendPushNotification(titulo, msg, pushId);
+                await sendPushNotification(titulo, msg, pushId, profEmail);
             }
 
             res.json({ success: true, status: 'confirmada' });
@@ -2589,9 +2605,9 @@ async function startServer() {
     });
 
     // ==========================================
-    // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
+    // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED & E-MAIL
     // ==========================================
-    async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string | string[]) {
+    async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string | string[], emailTo?: string) {
         const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'ONESIGNAL_REST_API_KEY').maybeSingle();
         const appKey = config?.key_value || process.env.ONESIGNAL_REST_API_KEY;
         const appId = process.env.VITE_ONESIGNAL_APP_ID || "e5e38375-5fd8-4e92-bf0d-29996ba9426d";
@@ -2602,6 +2618,7 @@ async function startServer() {
         }
 
         try {
+            // Disparo de PUSH
             const bodyPayload: any = {
                 app_id: appId,
                 headings: { en: titulo, pt: titulo },
@@ -2624,11 +2641,45 @@ async function startServer() {
                 },
                 body: JSON.stringify(bodyPayload)
             });
-
             const data = await response.json();
-            console.log('[PUSH_NOTIFICATION] OneSignal Push enviado com sucesso:', data);
+            console.log('[PUSH_NOTIFICATION] OneSignal Push enviado:', data);
+            
+            // Disparo de E-MAIL (Se configurado no dashboard OneSignal e emailTo provido)
+            if (emailTo) {
+                const emailHtml = `
+                    <div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812;">
+                        <h2 style="color: #ff6b00; text-transform: uppercase;">STUDIO ACORDE - AVISO DA ESCOLA</h2>
+                        <p style="font-size: 16px; font-weight: bold;">${titulo}</p>
+                        <p>${mensagem}</p>
+                        <br/>
+                        <a href="https://acordecrm.vercel.app" style="display: inline-block; padding: 15px 30px; background: #ff6b00; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px; border: 2px solid #261812; box-shadow: 4px 4px 0 #261812;">ACESSAR MEU APLICATIVO</a>
+                        <br/><br/>
+                        <hr style="border: 1px dashed #7b5647;" />
+                        <small style="color: #8e7164;">Esta é uma mensagem automática do Studio Acorde CRM. Não responda este e-mail.</small>
+                    </div>
+                `;
+
+                const emailPayload = {
+                    app_id: appId,
+                    include_email_tokens: [emailTo],
+                    email_subject: titulo,
+                    email_body: emailHtml
+                };
+
+                const resEmail = await fetch('https://onesignal.com/api/v1/notifications', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Authorization': `Key ${appKey}`
+                    },
+                    body: JSON.stringify(emailPayload)
+                });
+                const dataEmail = await resEmail.json();
+                console.log('[PUSH_NOTIFICATION] OneSignal E-mail disparado para', emailTo, dataEmail);
+            }
+
         } catch (err) {
-            console.error('[PUSH_NOTIFICATION] Erro ao enviar push OneSignal:', err);
+            console.error('[PUSH_NOTIFICATION] Erro ao enviar notificação OneSignal:', err);
         }
     };
 
