@@ -1760,12 +1760,7 @@ async function startServer() {
                 let valorEfetivo = Number(p.valor);
                 const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
                 if (desconto_dia_10 === 'true' && p.status === 'pendente' && p.tipo_receita === 'mensalidade') {
-                    const matriculas = alunoObj?.matriculas || [];
-                    const matriculaAtiva = matriculas.find((m: any) => m.status === 'ativa');
-                    const pacoteNome = matriculaAtiva?.pacotes?.nome?.toLowerCase() || '';
-                    if (pacoteNome.includes('anual')) {
-                        valorEfetivo = Math.max(0, valorEfetivo - 100);
-                    }
+                    valorEfetivo = Math.max(0, valorEfetivo - 100);
                 }
                 return { ...p, aluno_nome: alunoObj?.nome, valor: valorEfetivo };
             }) || [];
@@ -1862,28 +1857,8 @@ async function startServer() {
                     let valorEfetivo = Number(p.valor);
                     
                     if (p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
-                        const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
-                        const matriculas = alunoObj?.matriculas;
-                        let matriculaAlvo: any = null;
-                        
-                        if (Array.isArray(matriculas) && matriculas.length > 0) {
-                            if (p.matricula_id) {
-                                matriculaAlvo = matriculas.find((m: any) => String(m.id) === String(p.matricula_id));
-                            }
-                            if (!matriculaAlvo) {
-                                matriculaAlvo = matriculas.find((m: any) => m.status === 'ativa');
-                            }
-                        }
-                        
                         if (desconto_dia_10 === 'true') {
-                            const pacoteNome = matriculaAlvo?.pacotes?.nome?.toLowerCase() || '';
-                            if (pacoteNome.includes('anual')) {
-                                valorEfetivo = Math.max(0, valorEfetivo - 100);
-                            }
-                        } else {
-                            if (matriculaAlvo && matriculaAlvo.valor_com_desconto !== null && matriculaAlvo.valor_com_desconto !== undefined && Number(matriculaAlvo.valor_com_desconto) > 0) {
-                                valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
-                            }
+                            valorEfetivo = Math.max(0, valorEfetivo - 100);
                         }
                     }
 
