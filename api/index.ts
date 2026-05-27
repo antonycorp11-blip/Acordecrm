@@ -1742,11 +1742,11 @@ async function startServer() {
     // Pagamentos Global
     app.get('/api/pagamentos', async (req, res) => {
         try {
-            const { mes } = req.query;
-            // Só retornar pagamentos de alunos que NÃO estão arquivados
+            const { mes, desconto_dia_10 } = req.query;
             let dbQuery = supabase
                 .from('pagamentos')
-                .select('*, aluno:aluno_id!inner(nome, status)')
+                .select('*, aluno:aluno_id!inner(nome, status, matriculas(id, status, pacote_id, pacotes(nome)))')
+                .neq('aluno.status', 'inativo')
                 .neq('aluno.status', 'arquivado');
             
             if (mes && mes !== 'undefined' && mes !== '') {
@@ -1756,7 +1756,19 @@ async function startServer() {
             const { data, error } = await dbQuery.order('data_vencimento', { ascending: false });
             if (error) throw error;
             
-            const formatted = data?.map((p: any) => ({ ...p, aluno_nome: p.aluno?.nome })) || [];
+            const formatted = data?.map((p: any) => {
+                let valorEfetivo = Number(p.valor);
+                const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
+                if (desconto_dia_10 === 'true' && p.status === 'pendente' && p.tipo_receita === 'mensalidade') {
+                    const matriculas = alunoObj?.matriculas || [];
+                    const matriculaAtiva = matriculas.find((m: any) => m.status === 'ativa');
+                    const pacoteNome = matriculaAtiva?.pacotes?.nome?.toLowerCase() || '';
+                    if (pacoteNome.includes('anual')) {
+                        valorEfetivo = Math.max(0, valorEfetivo - 100);
+                    }
+                }
+                return { ...p, aluno_nome: alunoObj?.nome, valor: valorEfetivo };
+            }) || [];
             res.json(formatted);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
@@ -1767,14 +1779,28 @@ async function startServer() {
             const { id } = req.params;
             const { metodo_pagamento, valor_pago } = req.body;
             const today = new Date().toISOString().split('T')[0];
+            const updates: any = { 
+                status: 'pago', 
+                data_pagamento: today, 
+                metodo_pagamento: metodo_pagamento || 'dinheiro'
+            };
+            if (valor_pago !== undefined) {
+                updates.valor_pago = valor_pago;
+                updates.valor = valor_pago;
+            }
             const { data, error } = await supabase.from('pagamentos')
-                .update({ 
-                    status: 'pago', 
-                    data_pagamento: today, 
-                    metodo_pagamento: metodo_pagamento || 'dinheiro',
-                    valor_pago: valor_pago || null
-                })
+                .update(updates)
                 .eq('id', id).select().single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Excluir um pagamento
+    app.delete('/api/pagamentos/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { data, error } = await supabase.from('pagamentos').delete().eq('id', id).select().single();
             if (error) throw error;
             res.json(data);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
@@ -1814,14 +1840,15 @@ async function startServer() {
     // Resumo financeiro do mês
     app.get('/api/financeiro/resumo', async (req, res) => {
         try {
-            const { mes } = req.query;
+            const { mes, desconto_dia_10 } = req.query;
             const now = new Date();
             const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
             
-            // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
+            // Só somar pagamentos de alunos ativos, trazendo pacotes para considerar desconto
             const { data: pags, error } = await supabase.from('pagamentos')
-                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
+                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela, pacote_id, pacotes(nome)))')
                 .eq('referencia_mes_ano', mesRef)
+                .neq('aluno.status', 'inativo')
                 .neq('aluno.status', 'arquivado');
             
             if (error) throw error;
@@ -1848,8 +1875,15 @@ async function startServer() {
                             }
                         }
                         
-                        if (matriculaAlvo && matriculaAlvo.valor_com_desconto !== null && matriculaAlvo.valor_com_desconto !== undefined && Number(matriculaAlvo.valor_com_desconto) > 0) {
-                            valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
+                        if (desconto_dia_10 === 'true') {
+                            const pacoteNome = matriculaAlvo?.pacotes?.nome?.toLowerCase() || '';
+                            if (pacoteNome.includes('anual')) {
+                                valorEfetivo = Math.max(0, valorEfetivo - 100);
+                            }
+                        } else {
+                            if (matriculaAlvo && matriculaAlvo.valor_com_desconto !== null && matriculaAlvo.valor_com_desconto !== undefined && Number(matriculaAlvo.valor_com_desconto) > 0) {
+                                valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
+                            }
                         }
                     }
 

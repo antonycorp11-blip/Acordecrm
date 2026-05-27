@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, Search, Filter, ArrowUpRight, ArrowDownLeft,
-  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity
+  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -31,8 +31,10 @@ export default function Financeiro() {
   const [activeTab, setActiveTab] = useState<'caixa' | 'professores'>('caixa');
   const [remuneracao, setRemuneracao] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
-  const [baixaModal, setBaixaModal] = useState<{ id: number | null, open: boolean }>({ id: null, open: false });
+  const [baixaModal, setBaixaModal] = useState<{ id: number | null, open: boolean, valorSugerido: number }>({ id: null, open: false, valorSugerido: 0 });
   const [baixaMetodo, setBaixaMetodo] = useState('dinheiro');
+  const [valorPago, setValorPago] = useState<string>('');
+  const [descontoDia10, setDescontoDia10] = useState(false);
 
   const fetchData = async () => {
     const token = localStorage.getItem('acorde_token');
@@ -40,8 +42,8 @@ export default function Financeiro() {
     setLoading(true);
     try {
       const [pagsRes, resumoRes, alunosRes, remunRes] = await Promise.all([
-        fetch(`/api/pagamentos?mes=${currentMonth}`, { headers }).then(r => r.ok ? r.json() : []),
-        fetch(`/api/financeiro/resumo?mes=${currentMonth}`, { headers }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/pagamentos?mes=${currentMonth}&desconto_dia_10=${descontoDia10}`, { headers }).then(r => r.ok ? r.json() : []),
+        fetch(`/api/financeiro/resumo?mes=${currentMonth}&desconto_dia_10=${descontoDia10}`, { headers }).then(r => r.ok ? r.json() : null),
         fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : []),
         fetch(`/api/financeiro/remuneracao?mes_ano=${currentMonth}`, { headers }).then(r => r.ok ? r.json() : []),
       ]);
@@ -53,7 +55,7 @@ export default function Financeiro() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [currentMonth]);
+  useEffect(() => { fetchData(); }, [currentMonth, descontoDia10]);
 
   const handleMonthChange = (offset: number) => {
     const [m, y] = currentMonth.split('/').map(Number);
@@ -71,10 +73,10 @@ export default function Financeiro() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       }, 
-      body: JSON.stringify({ metodo_pagamento: baixaMetodo }) 
+      body: JSON.stringify({ metodo_pagamento: baixaMetodo, valor_pago: Number(valorPago) }) 
     });
     setSaving(false);
-    setBaixaModal({ id: null, open: false });
+    setBaixaModal({ id: null, open: false, valorSugerido: 0 });
     fetchData();
   };
 
@@ -182,6 +184,14 @@ export default function Financeiro() {
             <div className="px-4 text-[10px] font-black uppercase tracking-widest min-w-[100px] text-center">{currentMonth}</div>
             <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-white hover:text-black border-l-2 border-white"><ChevronRight className="w-4 h-4" /></button>
           </div>
+
+          <button 
+            onClick={() => setDescontoDia10(!descontoDia10)} 
+            className={`p-3 border-4 font-bold uppercase text-[10px] transition-all flex items-center gap-2 ${descontoDia10 ? 'bg-[#00FF41] text-black border-black shadow-hard-black' : 'bg-black text-white border-white/20 shadow-hard'}`}
+          >
+            {descontoDia10 ? <CheckCircle2 className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-current rounded-full" />}
+            Desconto Dia 10
+          </button>
 
           <div className="flex items-center gap-3">
              <label className="cursor-pointer bg-[#1A1A1A] border-4 border-white p-3 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
@@ -301,10 +311,13 @@ export default function Financeiro() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-5 text-right">
+                    <td className="px-4 py-5 text-right flex items-center justify-end gap-2">
                       {p.status !== 'pago' ? (
                         <button 
-                          onClick={() => setBaixaModal({ id: p.id, open: true })}
+                          onClick={() => {
+                            setBaixaModal({ id: p.id, open: true, valorSugerido: Number(p.valor) });
+                            setValorPago(Number(p.valor).toFixed(2));
+                          }}
                           className="bg-white text-black px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95"
                         >
                           DAR BAIXA
@@ -312,6 +325,20 @@ export default function Financeiro() {
                       ) : (
                         <span className="text-[9px] font-black uppercase opacity-20">QUITADO</span>
                       )}
+                      <button 
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if(window.confirm('Tem certeza que deseja excluir esta fatura definitivamente?')) {
+                            const token = localStorage.getItem('acorde_token');
+                            await fetch(`/api/pagamentos/${p.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                            fetchData();
+                          }
+                        }}
+                        className="bg-[#FF0000] text-white p-2 border-2 border-[#FF0000]/50 hover:bg-[#FF0000] hover:border-white transition-all shadow-hard-black active:translate-y-1 active:translate-x-1 active:shadow-none"
+                        title="Excluir Fatura"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -411,6 +438,10 @@ export default function Financeiro() {
                <h2 className="text-xl font-black uppercase mb-8 border-b-4 border-white pb-4 tracking-tighter">Baixa de Pagamento</h2>
                <div className="space-y-6">
                  <div>
+                    <label className="text-[10px] font-black text-[#FF8A00] uppercase tracking-widest block mb-3">Valor Recebido (R$)</label>
+                    <input type="number" step="0.01" value={valorPago} onChange={e => setValorPago(e.target.value)} className="w-full bg-black border-2 border-white/20 p-3 text-[10px] font-bold uppercase focus:border-[#FF8A00] outline-none text-white mb-6" />
+                 </div>
+                 <div>
                     <label className="text-[10px] font-black text-[#FF8A00] uppercase tracking-widest block mb-3">Método de Entrada</label>
                     <div className="grid grid-cols-1 gap-2">
                       {['pix', 'dinheiro', 'cartao_credito', 'cartao_debito', 'transferencia'].map(m => (
@@ -426,7 +457,7 @@ export default function Financeiro() {
                  </div>
                </div>
                <div className="mt-10 flex gap-4">
-                  <button onClick={() => setBaixaModal({ id: null, open: false })} className="flex-1 p-4 text-[10px] font-black uppercase hover:underline">CANCELAR</button>
+                  <button onClick={() => setBaixaModal({ id: null, open: false, valorSugerido: 0 })} className="flex-1 p-4 text-[10px] font-black uppercase hover:underline">CANCELAR</button>
                   <button onClick={handleBaixa} disabled={saving} className="flex-1 bg-[#00FF41] text-black border-4 border-black p-4 shadow-hard-black font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
                      <CheckCircle2 className="w-4 h-4" /> {saving ? '...' : 'DAR BAIXA'}
                   </button>

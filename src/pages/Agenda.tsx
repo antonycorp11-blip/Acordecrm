@@ -437,9 +437,13 @@ export default function Agenda() {
                   </tr>
                 </thead>
                 <tbody>
-                  {professores.length > 0 ? professores.map((prof, pi) => (
-                    <tr key={prof.id} style={{ borderBottom: '2px solid #e2bfb0' }}>
-                      <td className="sticky left-0 z-10 px-2 py-1 align-top" style={{ background: '#fff8f6', borderRight: '3px solid #261812' }}>
+                  {professores.length > 0 ? professores.map((prof, pi) => {
+                    const dayNames = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+                    const currentDayName = dayNames[currentBaseDate.getDay()];
+                    
+                    return (
+                    <tr key={prof.id} style={{ borderBottom: '4px solid #261812' }}>
+                      <td className="sticky left-0 z-10 px-2 py-1 align-top" style={{ background: '#fff8f6', borderRight: '4px solid #261812' }}>
                         <div className="flex items-center gap-1 mt-0.5">
                           <div className="w-4 h-4 rounded-sm shrink-0 shadow-sm" style={{ background: prof.cor_agenda || '#feccba', border: '1.5px solid #261812' }}></div>
                           <span className="text-[#261812] font-black text-[9px] truncate max-w-[120px] leading-tight uppercase">{prof.nome.split(' ')[0]}</span>
@@ -473,12 +477,19 @@ export default function Agenda() {
                                   </div>
                                 );
                               })}
+                              {aulasDaHora.length === 0 && prof.disponibilidade && prof.disponibilidade.includes(`${currentDayName}-${h}`) && (
+                                <div className="px-2 py-1.5 rounded text-[8px] font-black uppercase w-full bg-[#FF8A00]/20 border-2 border-[#FF8A00] text-[#FF8A00] opacity-80 text-center flex flex-col items-center justify-center">
+                                  <div className="w-1.5 h-1.5 bg-[#FF8A00] rounded-sm mb-0.5"></div>
+                                  DISPONÍVEL
+                                </div>
+                              )}
                             </div>
                           </td>
                         );
                       })}
                     </tr>
-                  )) : (
+                    );
+                  }) : (
                     <tr>
                       <td colSpan={HOURS.length + 1} className="py-20 text-center">
                         <p className="text-[#7b5647] font-black uppercase text-xs opacity-50 tracking-widest">Nenhum professor cadastrado</p>

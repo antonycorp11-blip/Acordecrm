@@ -261,6 +261,8 @@ const getAulaLocalDateStr = (aula: any) => {
 export default function AreaProfessor() {
   const { logout } = useAuth();
   const [professorData, setProfessorData] = useState<any>(null);
+  const [disponibilidade, setDisponibilidade] = useState<string[]>([]);
+  const [salvandoDisponibilidade, setSalvandoDisponibilidade] = useState(false);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [alunosList, setAlunosList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -441,6 +443,7 @@ export default function AreaProfessor() {
     ]).then(([me, agenda, alunos]) => {
       if (me) {
         setProfessorData(me);
+        if (me.disponibilidade) setDisponibilidade(me.disponibilidade);
       }
       if (alunos) {
         // Filtra alunos arquivados ou ativos, e verifica se o aluno tem vínculo com o professor logado
@@ -3412,6 +3415,95 @@ export default function AreaProfessor() {
                         R$ {Number(professorData?.saldo || 0).toFixed(2)}
                       </p>
                     </div>
+                  </div>
+                </div>
+
+                {/* DISPONIBILIDADE */}
+                <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] mt-5">
+                  <div className="flex items-center justify-between border-b-4 border-black pb-3 mb-4">
+                    <h3 className="text-black font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-[#ff6b00]" /> MINHA DISPONIBILIDADE
+                    </h3>
+                  </div>
+                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-4 leading-relaxed">
+                    Marque os horários que você tem disponibilidade para dar aulas. <br/>Seus horários já ocupados por alunos fixos estão bloqueados em cinza.
+                  </p>
+                  
+                  <div className="overflow-x-auto pb-2">
+                    <table className="w-full text-center border-collapse">
+                      <thead>
+                        <tr>
+                          <th className="p-2 border-4 border-black bg-[#ff6b00] text-white text-[9px] font-black uppercase min-w-[60px]">HORA</th>
+                          {['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(dia => (
+                            <th key={dia} className="p-2 border-4 border-black bg-[#ff6b00] text-white text-[9px] font-black uppercase min-w-[70px]">{dia.substring(0,3)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'].map(h => (
+                          <tr key={h}>
+                            <td className="p-1 border-4 border-black bg-[#261812] text-white text-[9px] font-black uppercase">{h}</td>
+                            {['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(dia => {
+                               const key = `${dia}-${h}`;
+                               // Determine if occupied
+                               let occupied = false;
+                               alunosList.forEach(a => {
+                                  a.matriculas?.forEach((m: any) => {
+                                     if (m.status === 'ativa' && Number(m.professor_id) === Number(professorData?.id)) {
+                                        if (m.dia_semana && m.horario) {
+                                           const nDay = m.dia_semana.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace('ç', 'c');
+                                           if (nDay === dia && m.horario.substring(0,5) === h) occupied = true;
+                                        }
+                                     }
+                                  });
+                               });
+                               
+                               const isSelected = disponibilidade.includes(key);
+
+                               return (
+                                  <td 
+                                    key={dia} 
+                                    className={`p-0 border-4 border-black cursor-pointer transition-colors ${occupied ? 'bg-slate-300' : isSelected ? 'bg-[#00FF41]' : 'bg-white hover:bg-slate-100'}`}
+                                    onClick={() => {
+                                      if (occupied) return;
+                                      setDisponibilidade(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+                                    }}
+                                  >
+                                    <div className="w-full h-8 flex items-center justify-center">
+                                      {occupied ? (
+                                        <XCircle className="w-3 h-3 text-slate-500 opacity-50" />
+                                      ) : isSelected ? (
+                                        <CheckCircle2 className="w-4 h-4 text-black" />
+                                      ) : null}
+                                    </div>
+                                  </td>
+                               );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <button 
+                      disabled={salvandoDisponibilidade}
+                      onClick={async () => {
+                         setSalvandoDisponibilidade(true);
+                         const token = localStorage.getItem('acorde_token');
+                         const res = await fetch(`/api/professores/${professorData?.id}/disponibilidade`, {
+                           method: 'PATCH',
+                           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                           body: JSON.stringify({ disponibilidade })
+                         });
+                         if(res.ok) toast.success('Disponibilidade salva!');
+                         else toast.error('Erro ao salvar');
+                         setSalvandoDisponibilidade(false);
+                      }}
+                      className="bg-[#00FF41] text-black px-4 py-2 font-black uppercase text-[10px] border-4 border-black shadow-[4px_4px_0_#000] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2"
+                    >
+                      <Save className="w-3 h-3" /> {salvandoDisponibilidade ? 'SALVANDO...' : 'SALVAR GRADE'}
+                    </button>
                   </div>
                 </div>
 
