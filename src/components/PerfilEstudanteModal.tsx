@@ -1,8 +1,24 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { X, Trophy, Trash2 } from 'lucide-react';
-import { resolveTrophyImage } from '../pages/AreaAluno';
 import { toast } from 'sonner';
+
+export const resolveTrophyImage = (instrumento: string, classe: string) => {
+  const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  
+  let slugInst = normalize(instrumento || 'teoria-musical')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  if (slugInst === 'cordas-violao-guitarra-baixo') slugInst = 'cordas';
+  if (slugInst === 'teclado-piano') slugInst = 'teclado';
+  if (slugInst === 'tecnica-vocal') slugInst = 'vocal';
+
+  const slugClasse = normalize(classe || 'raro').replace(/\s+/g, '-');
+  return `/trofeus/${slugInst}-${slugClasse}.jpg`;
+};
 
 interface PerfilEstudanteModalProps {
   selectedAluno: any;
@@ -19,7 +35,7 @@ export const getClasse = (xp: number) => {
   return 'STUDENT';
 };
 
-export const getInstrumento = (aluno: any) => aluno.curso_ativo || aluno.instrumento || aluno.curso_nome || 'MÚSICA';
+export const getInstrumento = (aluno: any) => aluno.curso || aluno.curso_ativo || aluno.instrumento || aluno.curso_nome || 'MÚSICA';
 
 export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onConquistaRemoved }: PerfilEstudanteModalProps) {
   
@@ -125,28 +141,27 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
             </h4>
 
             {(selectedAluno.conquistas || []).length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-wrap gap-3">
                 {(selectedAluno.conquistas || []).map((c: any, index: number) => (
                   <div 
                     key={`${c.id}-${index}`} 
-                    className="bg-white border-4 border-black p-4 flex gap-3 relative shadow-[4px_4px_0_#000] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_#000] transition-all group"
+                    className="bg-[#ffeae1] border-4 border-black p-2 flex flex-col items-center relative shadow-[4px_4px_0_#000] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_#000] transition-all group w-24 h-28"
                   >
                     {/* Trophy Icon */}
-                    <div className="w-12 h-12 rounded border-2 border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden shrink-0 shadow-[2px_2px_0_#000]">
+                    <div className="w-12 h-12 rounded border-2 border-[#7b5647] flex items-center justify-center bg-white overflow-hidden shrink-0 shadow-[2px_2px_0_#000] mb-2">
                       {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
-                        <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-1.5" />
+                        <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-1" />
                       ) : (
                         <Trophy className="w-6 h-6 text-[#ff6b00]" />
                       )}
                     </div>
 
-                    {/* Title and points */}
-                    <div className="flex-1 min-w-0 pr-6">
-                      <h5 className="font-black text-[#261812] text-xs uppercase leading-tight truncate">{c.nome}</h5>
-                      <p className="text-[9px] text-[#7b5647] leading-tight font-medium mt-0.5">{c.descricao || 'Conquista especial por dedicação musical.'}</p>
-                      <span className="inline-block mt-2 px-2 py-0.5 bg-[#feccba] border border-black font-black text-[8px] uppercase tracking-wider text-[#ff6b00]">
-                        +{c.pontos} XP
-                      </span>
+                    {/* Title */}
+                    <h5 className="font-black text-[#261812] text-[8px] uppercase text-center leading-tight line-clamp-2 w-full px-1">{c.nome}</h5>
+
+                    {/* XP Badge */}
+                    <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-[#feccba] border-2 border-black font-black text-[7px] uppercase tracking-wider text-[#ff6b00] shadow-[1px_1px_0_#000]">
+                      +{c.pontos}
                     </div>
 
                     {/* Delete Button (Visible for Admins/Professors) */}
@@ -158,9 +173,9 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
                           handleRemoverConquistaLocal(selectedAluno.id, c.id, c.nome);
                         }}
                         title="Remover conquista do aluno"
-                        className="absolute top-2 right-2 p-1.5 bg-[#ffeae1] border border-black text-[#7b5647] hover:bg-red-500 hover:text-white transition-all shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none"
+                        className="absolute -top-2 -left-2 p-1 bg-white border-2 border-black text-[#7b5647] hover:bg-red-500 hover:text-white transition-all shadow-[1px_1px_0_#000] opacity-0 group-hover:opacity-100"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     )}
                   </div>

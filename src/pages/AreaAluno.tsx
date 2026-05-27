@@ -8,24 +8,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PwaModal } from '../components/alunos/PwaModal';
-import PerfilEstudanteModal from '../components/PerfilEstudanteModal';
-
-export const resolveTrophyImage = (instrumento: string, classe: string) => {
-  const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  
-  let slugInst = normalize(instrumento || 'teoria-musical')
-    .replace(/[^a-z0-9\s-]/g, ' ')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-
-  if (slugInst === 'cordas-violao-guitarra-baixo') slugInst = 'cordas';
-  if (slugInst === 'teclado-piano') slugInst = 'teclado';
-  if (slugInst === 'tecnica-vocal') slugInst = 'vocal';
-
-  const slugClasse = normalize(classe || 'raro').replace(/\s+/g, '-');
-  return `/trofeus/${slugInst}-${slugClasse}.jpg`;
-};
+import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 
 // Tradução de notas científicas para cifras em português brasileiro
 const translateNote = (note: string): string => {

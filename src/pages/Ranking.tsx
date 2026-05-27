@@ -3,8 +3,7 @@ import { Search, Bell, LayoutGrid, List, Trophy, Star, Zap, Target, Plus, X, Sav
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { resolveTrophyImage } from './AreaAluno';
-import PerfilEstudanteModal, { getClasse, getInstrumento } from '../components/PerfilEstudanteModal';
+import PerfilEstudanteModal, { getClasse, getInstrumento, resolveTrophyImage } from '../components/PerfilEstudanteModal';
 
 type ViewMode = 'cards' | 'lista';
 

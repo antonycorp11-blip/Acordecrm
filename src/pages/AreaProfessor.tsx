@@ -38,8 +38,7 @@ import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musi
 import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
-import { resolveTrophyImage } from './AreaAluno';
-import PerfilEstudanteModal from '../components/PerfilEstudanteModal';
+import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 
 class MelodySynth {
   private ctx: AudioContext | null = null;
