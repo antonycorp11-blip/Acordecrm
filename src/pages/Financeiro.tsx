@@ -6,6 +6,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const TIPOS_EXTRA = [
   { value: 'ensaio', label: 'Ensaio' },
@@ -16,6 +17,7 @@ const TIPOS_EXTRA = [
 ];
 
 export default function Financeiro() {
+  const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
     return `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
@@ -285,7 +287,16 @@ export default function Financeiro() {
                 ) : filtered.map((p, idx) => (
                   <tr key={`${p.id}-${idx}`} className="hover:bg-white/5 transition-colors group">
                     <td className="px-4 py-5">
-                      <p className="text-[11px] font-bold uppercase tracking-tight">{p.aluno_nome || p.descricao || '---'}</p>
+                      <p 
+                        className={`text-[11px] font-bold uppercase tracking-tight ${p.aluno_id ? 'cursor-pointer hover:text-[#FF8A00] transition-colors' : ''}`}
+                        onClick={() => {
+                          if (p.aluno_id) {
+                            navigate(`/alunos/${p.aluno_id}`);
+                          }
+                        }}
+                      >
+                        {p.aluno_nome || p.descricao || '---'}
+                      </p>
                       <p className="text-[9px] text-[#FF8A00] font-black uppercase tracking-widest mt-1 opacity-70">{p.referencia_mes_ano || ''}</p>
                     </td>
                     <td className="px-4 py-5">

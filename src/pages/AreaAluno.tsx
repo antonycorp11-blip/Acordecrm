@@ -1937,49 +1937,78 @@ export default function AreaAluno() {
 
                           {/* MELODIAS RENDERIZADAS — com suporte a blocos de frases */}
                           {Array.isArray(richData.melody) && richData.melody.length > 0 && (
-                            <div className="bg-white border-2 border-black p-2 space-y-3">
-                              <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
-                                🎹 MELODIAS DE TREINO ({richData.melody.length}):
-                              </span>
-                              {richData.melody.map((mel: any, idx: number) => (
-                                <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2 space-y-2">
-                                  <p className="text-[8px] font-black uppercase mb-1">{mel.name}</p>
-                                  {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
-                                    <div className="space-y-2">
-                                      {mel.phrases.map((phrase: string[], pIdx: number) => (
-                                        <div key={pIdx} className="space-y-1">
-                                          <div className="flex items-center gap-1">
-                                            <span className="bg-[#ff6b00] text-white font-black text-[6px] px-1 border border-black">FRASE {pIdx + 1}</span>
-                                            <div className="flex-1 border-t border-dashed border-[#ff6b00]/30"></div>
+                            <div className="bg-[#f8f9fa] border-4 border-black p-4 space-y-4 shadow-[6px_6px_0_#000] rounded-xl font-['Inter']">
+                              <div className="flex flex-col sm:flex-row gap-6">
+                                {/* Lado Esquerdo: Notas */}
+                                <div className="flex-1 space-y-5">
+                                  <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black/10 pb-2">
+                                    🎹 SOLOS E MELODIAS (BIMANUAL)
+                                  </h4>
+                                  {richData.melody.map((mel: any, idx: number) => (
+                                    <div key={idx} className="space-y-4">
+                                      {mel.name && mel.name !== 'NOVA MELODIA / GUIA' && (
+                                        <p className="text-xs font-black uppercase text-gray-500">{mel.name}</p>
+                                      )}
+                                      {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
+                                        <div className="space-y-4">
+                                          {mel.phrases.map((phrase: string[], pIdx: number) => (
+                                            <div key={pIdx} className="space-y-3">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">PARTE {pIdx + 1}</span>
+                                                <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                                              </div>
+                                              <div className="flex flex-wrap gap-2">
+                                                {phrase.map((note: string, nIdx: number) => (
+                                                  <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
+                                                    {translateNote(note)}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-3">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">MELODIA</span>
+                                            <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
                                           </div>
-                                          <div className="flex flex-wrap gap-1">
-                                            {phrase.map((note: string, nIdx: number) => (
-                                              <div key={nIdx} className="bg-[#261812] text-[#feccba] border border-black px-1.5 py-0.5 text-[8px] font-black uppercase">
+                                          <div className="flex flex-wrap gap-2">
+                                            {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
+                                              <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
                                                 {translateNote(note)}
                                               </div>
                                             ))}
                                           </div>
-                                          {pIdx < mel.phrases.length - 1 && (
-                                            <div className="flex items-center gap-1 py-0.5">
-                                              <div className="flex-1 border-t-2 border-dotted border-black/20"></div>
-                                              <span className="text-[6px] font-black text-black/30 uppercase px-1">✂ PAUSA</span>
-                                              <div className="flex-1 border-t-2 border-dotted border-black/20"></div>
-                                            </div>
-                                          )}
                                         </div>
-                                      ))}
+                                      )}
                                     </div>
-                                  ) : (
-                                    <div className="flex flex-wrap gap-1">
-                                      {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
-                                        <div key={nIdx} className="bg-[#261812] text-[#feccba] border border-black px-1.5 py-0.5 text-[8px] font-black uppercase">
-                                          {translateNote(note)}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                  ))}
                                 </div>
-                              ))}
+                                
+                                {/* Lado Direito: Checklist de Prática */}
+                                <div className="w-full sm:w-64 bg-white border-2 border-black rounded-lg p-4 shadow-[4px_4px_0_#000] shrink-0">
+                                  <h5 className="text-xs font-black text-black uppercase tracking-wider mb-4 text-center border-b-2 border-black/10 pb-2">
+                                    ✅ CHECKLIST DE PRÁTICA
+                                  </h5>
+                                  <div className="space-y-3">
+                                    {[
+                                      'Cantar as notas e bater palmas',
+                                      'Tocar só mão direita',
+                                      'Tocar só mão esquerda',
+                                      'Juntar as mãos lentamente',
+                                      'Tocar no andamento original'
+                                    ].map((step, sIdx) => (
+                                      <label key={sIdx} className="flex items-start gap-3 cursor-pointer group">
+                                        <div className="w-5 h-5 border-2 border-gray-400 rounded group-hover:border-[#ff6b00] flex items-center justify-center shrink-0 mt-0.5 bg-gray-50">
+                                          <div className="w-3 h-3 bg-[#ff6b00] rounded-sm opacity-0 active:opacity-100 transition-opacity"></div>
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-700 group-hover:text-black">{step}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>

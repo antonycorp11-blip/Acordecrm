@@ -259,10 +259,11 @@ const getAulaLocalDateStr = (aula: any) => {
 };
 
 export default function AreaProfessor() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [professorData, setProfessorData] = useState<any>(null);
   const [disponibilidade, setDisponibilidade] = useState<string[]>([]);
   const [salvandoDisponibilidade, setSalvandoDisponibilidade] = useState(false);
+  const [diaOffset, setDiaOffset] = useState(0);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
   const [alunosList, setAlunosList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -471,18 +472,24 @@ export default function AreaProfessor() {
           });
         setAgendaCompleta(sortedAgenda);
       }
-      
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      // Filtra aulas do dia
-      const hojeAulas = (Array.isArray(agenda) ? agenda : [])
-        .filter((a: any) => getAulaLocalDateStr(a) === todayStr)
-        .sort((a: any, b: any) => (a.horario || '').localeCompare(b.horario || ''));
-        
-      setAulasHoje(hojeAulas);
     })
     .catch(console.error)
     .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    if (agendaCompleta) {
+      const baseDate = new Date();
+      baseDate.setDate(baseDate.getDate() + diaOffset);
+      const todayStr = format(baseDate, 'yyyy-MM-dd');
+      
+      const hojeAulas = agendaCompleta
+        .filter((a: any) => getAulaLocalDateStr(a) === todayStr)
+        .sort((a: any, b: any) => (a.horario || '').localeCompare(b.horario || ''));
+        
+      setAulasHoje(hojeAulas);
+    }
+  }, [agendaCompleta, diaOffset]);
 
   useEffect(() => {
     loadData();
@@ -2981,10 +2988,19 @@ export default function AreaProfessor() {
                 {/* Agenda do Dia */}
                 <div className="pt-2">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white font-black text-xs uppercase tracking-widest">AGENDA_DE_HOJE</h3>
-                    <span className="bg-[#feccba] border-2 border-black text-black font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#000]">
-                      {todayMonth} {todayDay}
-                    </span>
+                    <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                      <button onClick={() => setDiaOffset(o => o - 1)} className="p-1.5 bg-[#ff6b00] text-white rounded hover:bg-[#ff8c3a] transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                      MINHA_AGENDA
+                      <button onClick={() => setDiaOffset(o => o + 1)} className="p-1.5 bg-[#ff6b00] text-white rounded hover:bg-[#ff8c3a] transition-all"><ChevronRight className="w-4 h-4" /></button>
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      {diaOffset !== 0 && (
+                        <button onClick={() => setDiaOffset(0)} className="bg-[#1a0a05] border-2 border-white text-white font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#fff] active:translate-y-1 active:shadow-none hover:bg-black transition-all">HOJE</button>
+                      )}
+                      <span className="bg-[#feccba] border-2 border-black text-black font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#000]">
+                        {format(new Date(Date.now() + diaOffset * 24 * 60 * 60 * 1000), 'MMM dd', { locale: ptBR })}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -4409,17 +4425,53 @@ export default function AreaProfessor() {
 
               {/* Melodia */}
               {mcMelody.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
-                    🎹 SEQUÊNCIA MELÓDICA
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {mcMelody.map((mel, idx) => (
-                      <div key={idx} className="border-4 border-black p-4 bg-white space-y-1">
-                        <p className="text-[10px] font-black uppercase text-[#ff6b00]">{mel.name}</p>
-                        <p className="text-xs font-mono font-black text-black tracking-widest uppercase">{mel.notes?.map(translateNote).join(' ')}</p>
-                      </div>
-                    ))}
+                <div className="bg-[#f8f9fa] border-4 border-black p-4 space-y-4 shadow-[6px_6px_0_#000] rounded-xl font-['Inter']">
+                  <div className="flex flex-col sm:flex-row gap-6">
+                    <div className="flex-1 space-y-5">
+                      <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black/10 pb-2">
+                        🎹 SOLOS E MELODIAS (BIMANUAL)
+                      </h4>
+                      {mcMelody.map((mel, idx) => (
+                        <div key={idx} className="space-y-4">
+                          {mel.name && mel.name !== 'NOVA MELODIA / GUIA' && (
+                            <p className="text-xs font-black uppercase text-gray-500">{mel.name}</p>
+                          )}
+                          {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
+                            <div className="space-y-4">
+                              {mel.phrases.map((phrase: string[], pIdx: number) => (
+                                <div key={pIdx} className="space-y-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">PARTE {pIdx + 1}</span>
+                                    <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {phrase.map((note: string, nIdx: number) => (
+                                      <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
+                                        {translateNote(note)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">MELODIA</span>
+                                <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
+                                  <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
+                                    {translateNote(note)}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

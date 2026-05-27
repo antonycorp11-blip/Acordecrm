@@ -85,143 +85,113 @@ export const KeyboardVisualizer: React.FC<{
   isCustom?: boolean;
 }> = ({ chordNotes, root, type = 'maj', ext = '', bass = 'none', notesWithIndices, isCustom }) => {
   const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  // 8 teclas brancas → cada tecla fica ~40% mais larga e legível
-  const WHITE_KEYS_COUNT = 8;
 
-  const translateNote = (note: string) => {
-    // Retorna a cifra original (ex: C, C#, G#) ao invés do solfejo falado
-    return note;
-  };
+  // Fixed 10 white keys from C to E
+  const WHITE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C', 'D', 'E'];
+  const BLACK_KEYS = [
+    { note: 'C#', afterWhiteIdx: 0 },
+    { note: 'D#', afterWhiteIdx: 1 },
+    { note: 'F#', afterWhiteIdx: 3 },
+    { note: 'G#', afterWhiteIdx: 4 },
+    { note: 'A#', afterWhiteIdx: 5 },
+    { note: 'C#', afterWhiteIdx: 7 },
+    { note: 'D#', afterWhiteIdx: 8 },
+  ];
 
-  const isWhiteKey = (absIdx: number) => {
-    const normalized = ((absIdx % 12) + 12) % 12;
-    return [0, 2, 4, 5, 7, 9, 11].includes(normalized);
-  };
+  const translateNote = (note: string) => note.replace('b', 'b');
 
-  // Algoritmo dinâmico: translada o teclado para começar na tônica (ou na tecla branca imediatamente anterior)
-  const getStartAbsIndex = (rootNote: string) => {
-    const rootEnharmonic = (rootNote || '').replace('Ab','G#').replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Bb','A#');
-    const idx = CHROMATIC_SCALE.indexOf(rootEnharmonic);
-    if (idx === -1) return 0;
-    
-    // Retorna a tecla branca inicial que contém ou antecede a tônica
-    if (idx === 0 || idx === 1) return 0;  // C, C# -> C
-    if (idx === 2 || idx === 3) return 2;  // D, D# -> D
-    if (idx === 4) return 4;               // E -> E
-    if (idx === 5 || idx === 6) return 5;  // F, F# -> F
-    if (idx === 7 || idx === 8) return 7;  // G, G# -> G
-    if (idx === 9 || idx === 10) return 9; // A, A# -> A
-    if (idx === 11) return 11;             // B -> B
-    return 0;
-  };
+  // Convert chordNotes to a set of enharmonically simplified notes
+  const simplify = (n: string) => n.replace('Ab','G#').replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Bb','A#');
+  
+  const targetNotes = new Set(chordNotes.map(simplify));
 
-  // Extrai apenas a tônica limpa (ex: 'A' de 'AMIN', 'B' de 'B7')
-  const rootClean = (root || '').match(/^([A-G][#b]?)/)?.[1] || 'C';
-  const rootEnharmonic = rootClean.replace('Ab','G#').replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Bb','A#');
-  const startAbsIndex = getStartAbsIndex(rootClean);
+  // Determine which keys to highlight.
+  // We want to highlight exactly one of each target note.
+  const highlightedWhite = new Set<number>();
+  const highlightedBlack = new Set<number>();
 
-  const whiteKeysInView: number[] = [];
-  let checkIdx = startAbsIndex;
-  while (whiteKeysInView.length < WHITE_KEYS_COUNT) {
-    if (isWhiteKey(checkIdx)) {
-      whiteKeysInView.push(checkIdx);
-    }
-    checkIdx++;
-  }
+  const notesLeft = new Set(targetNotes);
 
-  const blackKeysToRender: { absIndex: number; afterIdx: number }[] = [];
-  for (let i = 0; i < whiteKeysInView.length - 1; i++) {
-    const currentWhite = whiteKeysInView[i];
-    const nextWhite = whiteKeysInView[i + 1];
-    if (nextWhite - currentWhite === 2) {
-      blackKeysToRender.push({ absIndex: currentWhite + 1, afterIdx: i });
+  // First pass: try to find the root note
+  const rootClean = simplify((root || '').match(/^([A-G][#b]?)/)?.[1] || 'C');
+  let rootFound = false;
+
+  // We look for the root from left to right
+  for (let i = 0; i < WHITE_KEYS.length; i++) {
+    if (WHITE_KEYS[i] === rootClean) {
+      highlightedWhite.add(i);
+      notesLeft.delete(rootClean);
+      rootFound = true;
+      break;
     }
   }
-
-  // Algoritmo corrigido: ilumina as notas em POSIÇÃO FUNDAMENTAL
-  const highlightedAbsIndices = React.useMemo(() => {
-    if (isCustom && notesWithIndices) {
-      return new Set<number>(notesWithIndices);
-    }
-    const result = new Set<number>();
-    const allVisibleKeys = [...whiteKeysInView, ...blackKeysToRender.map(bk => bk.absIndex)].sort((a, b) => a - b);
-
-    // Encontra a posição da RAIZ dentro das teclas visíveis
-    const rootIndexInKeys = allVisibleKeys.findIndex(absIdx => {
-      const normalized = ((absIdx % 12) + 12) % 12;
-      return CHROMATIC_SCALE[normalized] === rootEnharmonic || CHROMATIC_SCALE[normalized] === rootClean;
-    });
-    const startFrom = rootIndexInKeys >= 0 ? rootIndexInKeys : 0;
-
-    // Escaneia da raiz em diante → posição fundamental garantida
-    const notesLeft = new Set(chordNotes);
-    const keysFromRoot = [
-      ...allVisibleKeys.slice(startFrom),
-      ...allVisibleKeys.slice(0, startFrom) // wrap para cobrir casos extremos
-    ];
-
-    for (const absIdx of keysFromRoot) {
-      const normalized = ((absIdx % 12) + 12) % 12;
-      const noteName = CHROMATIC_SCALE[normalized];
-      if (notesLeft.has(noteName)) {
-        result.add(absIdx);
-        notesLeft.delete(noteName);
+  if (!rootFound) {
+    for (let i = 0; i < BLACK_KEYS.length; i++) {
+      if (BLACK_KEYS[i].note === rootClean) {
+        highlightedBlack.add(i);
+        notesLeft.delete(rootClean);
+        rootFound = true;
+        break;
       }
-      if (notesLeft.size === 0) break;
     }
-    return result;
-  }, [isCustom, notesWithIndices, chordNotes, rootClean, rootEnharmonic, whiteKeysInView, blackKeysToRender]);
+  }
 
-  const isHighlighted = (absIdx: number) => {
-    return highlightedAbsIndices.has(absIdx);
-  };
-
-  const getNoteName = (absIdx: number) => {
-    const normalizedAbsIdx = ((absIdx % 12) + 12) % 12;
-    return CHROMATIC_SCALE[normalizedAbsIdx];
-  };
+  // Second pass: find the rest of the notes (try to keep them close to the root if possible, or just left to right)
+  Array.from(notesLeft).forEach(target => {
+    let placed = false;
+    for (let i = 0; i < WHITE_KEYS.length; i++) {
+      if (WHITE_KEYS[i] === target && !highlightedWhite.has(i)) {
+        highlightedWhite.add(i);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      for (let i = 0; i < BLACK_KEYS.length; i++) {
+        if (BLACK_KEYS[i].note === target && !highlightedBlack.has(i)) {
+          highlightedBlack.add(i);
+          placed = true;
+          break;
+        }
+      }
+    }
+  });
 
   const displayType = type === 'min' ? 'm' : (type === 'maj' ? '' : type);
   const displayExt = ext === 'none' || !ext ? '' : ext;
   const displayBass = bass && bass !== 'none' ? `/${bass}` : '';
   const fullChordName = isCustom ? root : `${root}${displayType}${displayExt}${displayBass}`;
 
-  // Mapeia cifragem legível no cabeçalho do acorde
-  const translateChordNote = (note: string) => {
-    return note;
-  };
-
   return (
-    <div className="flex flex-col bg-[#fff8f6] border-4 border-black shadow-[6px_6px_0_#000] w-full max-w-[480px] mx-auto font-['Space_Mono'] overflow-hidden">
-      {/* Header do Acorde */}
-      <div className="bg-[#261812] py-2 px-3.5 flex justify-between items-center border-b-4 border-black">
-        <h5 className="text-[11px] sm:text-xs font-black text-[#ff6b00] uppercase leading-none">{fullChordName}</h5>
-        <div className="flex gap-1.5">
+    <div className="flex flex-col bg-[#fcfcfc] border-4 border-black shadow-[6px_6px_0_#000] rounded-lg w-full max-w-[480px] mx-auto font-['Inter'] overflow-hidden">
+      {/* Header */}
+      <div className="bg-[#261812] py-4 px-5 flex justify-between items-center">
+        <h5 className="text-xl sm:text-2xl font-black text-[#ff6b00] tracking-tight">{fullChordName}</h5>
+        <div className="flex gap-2">
           {chordNotes.map((n, i) => (
-            <span key={i} className="text-[7px] sm:text-[9px] font-black text-white/95 bg-black/40 px-1 py-0.5 border border-white/10 uppercase">{translateChordNote(n)}</span>
+            <span key={i} className="text-sm sm:text-base font-black text-white uppercase">{translateNote(n)}</span>
           ))}
         </div>
       </div>
 
-      <div className="p-1 sm:p-2.5 bg-[#feccba]/20 flex justify-center">
-        <div className="relative w-full bg-[#1a0a05] rounded-none p-1 sm:p-2 border-4 border-black shadow-inner">
-          {/* Teclado responsivo usando aspect-ratio para não ficar achatado ou espremido no celular */}
-          <div className="relative w-full aspect-[1.8/1] sm:aspect-[2.6/1] flex bg-[#261812] rounded-none pt-0.5 overflow-visible">
+      <div className="p-4 sm:p-6 flex flex-col items-center">
+        <div className="relative w-full aspect-[2/1] bg-[#1a1a1a] rounded-xl p-2 sm:p-3 border-4 border-black shadow-2xl">
+          {/* Teclado */}
+          <div className="relative w-full h-full flex bg-[#261812] rounded-b-lg overflow-hidden">
             {/* White Keys */}
-            {whiteKeysInView.map((absIdx, i) => {
-              const active = isHighlighted(absIdx);
-              const noteName = getNoteName(absIdx);
+            {WHITE_KEYS.map((noteName, i) => {
+              const active = highlightedWhite.has(i);
               return (
                 <div
                   key={`w-${i}`}
-                  style={{ width: `${100 / WHITE_KEYS_COUNT}%` }}
-                  className={`h-full border-r-2 border-black relative transition-all rounded-none ${
-                    active ? 'bg-[#ff6b00]' : 'bg-white hover:bg-stone-50'
+                  style={{ width: `${100 / 10}%` }}
+                  className={`h-full border-r-2 border-black relative transition-all rounded-b-md ${
+                    active ? 'bg-[#fff5f0]' : 'bg-white'
                   }`}
                 >
                   {active && (
-                    <div className="absolute bottom-1.5 sm:bottom-2 left-1/2 -translate-x-1/2 w-[70%] max-w-[24px] aspect-square rounded-full bg-black flex items-center justify-center border-2 border-white shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
-                      <span className="text-[6px] sm:text-[7.5px] font-black text-white uppercase leading-none">{translateNote(noteName)}</span>
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#261812] flex items-center justify-center shadow-md">
+                      <span className="text-[9px] sm:text-[11px] font-black text-white uppercase">{translateNote(noteName)}</span>
                     </div>
                   )}
                 </div>
@@ -229,33 +199,38 @@ export const KeyboardVisualizer: React.FC<{
             })}
 
             {/* Black Keys */}
-            {blackKeysToRender.map((bk, i) => {
-              const whiteKeyWidth = 100 / WHITE_KEYS_COUNT;
-              const left = (bk.afterIdx + 1) * whiteKeyWidth;
-              const active = isHighlighted(bk.absIndex);
-              const noteName = getNoteName(bk.absIndex);
+            {BLACK_KEYS.map((bk, i) => {
+              const whiteKeyWidth = 100 / 10;
+              const left = (bk.afterWhiteIdx + 1) * whiteKeyWidth;
+              const active = highlightedBlack.has(i);
 
               return (
                 <div
-                  key={`b-${bk.absIndex}`}
-                  className={`absolute top-0 h-[60%] sm:h-[62%] z-30 flex items-end justify-center pb-1 sm:pb-1.5 rounded-none shadow-md transition-all ${
-                    active ? 'bg-[#ff6b00] border-b-2 border-black' : 'bg-black hover:bg-stone-900'
+                  key={`b-${i}`}
+                  className={`absolute top-0 h-[65%] z-30 flex items-end justify-center pb-3 rounded-b-md shadow-xl transition-all border-x-2 border-b-2 border-black ${
+                    active ? 'bg-[#402a20]' : 'bg-[#1a1a1a]'
                   }`}
                   style={{
                     left: `${left}%`,
-                    width: `${whiteKeyWidth * 0.65}%`,
-                    marginLeft: `-${(whiteKeyWidth * 0.65) / 2}%`
+                    width: `${whiteKeyWidth * 0.7}%`,
+                    marginLeft: `-${(whiteKeyWidth * 0.7) / 2}%`
                   }}
                 >
                   {active && (
-                    <div className="w-[85%] max-w-[20px] aspect-square rounded-full bg-white flex items-center justify-center border-2 border-black shadow-sm">
-                      <span className="text-[5px] sm:text-[6.5px] font-black text-black leading-none uppercase">{translateNote(noteName)}</span>
+                    <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white flex items-center justify-center shadow-md">
+                      <span className="text-[8px] sm:text-[10px] font-black text-[#ff6b00] uppercase">{translateNote(bk.note)}</span>
                     </div>
                   )}
                 </div>
               );
             })}
           </div>
+        </div>
+        
+        <div className="mt-4 w-full border-t-2 border-gray-100 pt-3 text-center">
+          <span className="text-[8px] sm:text-[10px] font-black text-gray-300 tracking-[0.2em] uppercase">
+            Virtual 17-Note Conservatory Layout
+          </span>
         </div>
       </div>
     </div>
