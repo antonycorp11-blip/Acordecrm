@@ -86,8 +86,7 @@ export const KeyboardVisualizer: React.FC<{
 }> = ({ chordNotes, root, type = 'maj', ext = '', bass = 'none', notesWithIndices, isCustom }) => {
   const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-  // Fixed 10 white keys from C to E
-  const WHITE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C', 'D', 'E'];
+  const WHITE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'A', 'B'];
   const BLACK_KEYS = [
     { note: 'C#', afterWhiteIdx: 0 },
     { note: 'D#', afterWhiteIdx: 1 },
@@ -96,6 +95,9 @@ export const KeyboardVisualizer: React.FC<{
     { note: 'A#', afterWhiteIdx: 5 },
     { note: 'C#', afterWhiteIdx: 7 },
     { note: 'D#', afterWhiteIdx: 8 },
+    { note: 'F#', afterWhiteIdx: 10 },
+    { note: 'G#', afterWhiteIdx: 11 },
+    { note: 'A#', afterWhiteIdx: 12 },
   ];
 
   const translateNote = (note: string) => note.replace('b', 'b');
@@ -123,7 +125,14 @@ export const KeyboardVisualizer: React.FC<{
     { type: 'black', note: 'C#', wIdx: -1, bIdx: 5 },
     { type: 'white', note: 'D', wIdx: 8, bIdx: -1 },
     { type: 'black', note: 'D#', wIdx: -1, bIdx: 6 },
-    { type: 'white', note: 'E', wIdx: 9, bIdx: -1 }
+    { type: 'white', note: 'E', wIdx: 9, bIdx: -1 },
+    { type: 'white', note: 'F', wIdx: 10, bIdx: -1 },
+    { type: 'black', note: 'F#', wIdx: -1, bIdx: 7 },
+    { type: 'white', note: 'G', wIdx: 11, bIdx: -1 },
+    { type: 'black', note: 'G#', wIdx: -1, bIdx: 8 },
+    { type: 'white', note: 'A', wIdx: 12, bIdx: -1 },
+    { type: 'black', note: 'A#', wIdx: -1, bIdx: 9 },
+    { type: 'white', note: 'B', wIdx: 13, bIdx: -1 }
   ];
 
   let currentKeyIndex = 0;
@@ -207,14 +216,14 @@ export const KeyboardVisualizer: React.FC<{
               return (
                 <div
                   key={`w-${i}`}
-                  style={{ width: `${100 / 10}%` }}
+                  style={{ width: `${100 / WHITE_KEYS.length}%` }}
                   className={`h-full border-r-2 border-black relative transition-all rounded-b-md ${
                     active ? 'bg-[#fff5f0]' : 'bg-white'
                   }`}
                 >
                   {active && (
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#261812] flex items-center justify-center shadow-md">
-                      <span className="text-[9px] sm:text-[11px] font-black text-white uppercase">{translateNote(noteName)}</span>
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-4 h-4 sm:w-6 sm:h-6 rounded-full bg-[#261812] flex items-center justify-center shadow-md">
+                      <span className="text-[7px] sm:text-[9px] font-black text-white uppercase">{translateNote(noteName)}</span>
                     </div>
                   )}
                 </div>
@@ -223,14 +232,14 @@ export const KeyboardVisualizer: React.FC<{
 
             {/* Black Keys */}
             {BLACK_KEYS.map((bk, i) => {
-              const whiteKeyWidth = 100 / 10;
+              const whiteKeyWidth = 100 / WHITE_KEYS.length;
               const left = (bk.afterWhiteIdx + 1) * whiteKeyWidth;
               const active = highlightedBlack.has(i);
 
               return (
                 <div
                   key={`b-${i}`}
-                  className={`absolute top-0 h-[65%] z-30 flex items-end justify-center pb-3 rounded-b-md shadow-xl transition-all border-x-2 border-b-2 border-black ${
+                  className={`absolute top-0 h-[60%] z-30 flex items-end justify-center pb-2 rounded-b-md shadow-xl transition-all border-x-2 border-b-2 border-black ${
                     active ? 'bg-[#402a20]' : 'bg-[#1a1a1a]'
                   }`}
                   style={{
@@ -240,8 +249,8 @@ export const KeyboardVisualizer: React.FC<{
                   }}
                 >
                   {active && (
-                    <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white flex items-center justify-center shadow-md">
-                      <span className="text-[8px] sm:text-[10px] font-black text-[#ff6b00] uppercase">{translateNote(bk.note)}</span>
+                    <div className="w-3 h-3 sm:w-5 sm:h-5 rounded-full bg-white flex items-center justify-center shadow-md">
+                      <span className="text-[6px] sm:text-[8px] font-black text-[#ff6b00] uppercase">{translateNote(bk.note)}</span>
                     </div>
                   )}
                 </div>

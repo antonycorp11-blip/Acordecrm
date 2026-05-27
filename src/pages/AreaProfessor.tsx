@@ -4353,7 +4353,7 @@ export default function AreaProfessor() {
                       <div className="bg-black text-[#ff6b00] px-2 py-0.5 text-[8px] font-black uppercase tracking-widest inline-block">
                         GRUPO: {groupName}
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-4 items-start">
                         {(chords as any[]).map((ch, idx) => {
                           const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
                           return (
