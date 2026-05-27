@@ -104,7 +104,7 @@ export default function Professores() {
       nome: p.nome || '',
       email: p.email || '',
       telefone: p.telefone || '',
-      especialidades: p.especialidades ? p.especialidades.split(',').map((e: string) => e.trim()).filter(Boolean) : [],
+      especialidades: Array.isArray(p.especialidades) ? p.especialidades : (typeof p.especialidades === 'string' ? p.especialidades.split(',').map((e: string) => e.trim()).filter(Boolean) : []),
       instrumentos: p.instrumentos || '',
       cor_agenda: p.cor_agenda || '#f97316',
       status: p.status || 'ativo',
@@ -240,7 +240,7 @@ export default function Professores() {
                 <div>
                    <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest mb-1">ESPECIALIDADES</p>
                    <div className="flex flex-wrap gap-1">
-                     {p.especialidades?.split(',').filter(Boolean).map((esp: string, i: number) => (
+                     {(Array.isArray(p.especialidades) ? p.especialidades : (typeof p.especialidades === 'string' ? p.especialidades.split(',') : [])).filter(Boolean).map((esp: string, i: number) => (
                        <span key={i} className="px-2 py-0.5 bg-[#feccba] text-black border-2 border-black text-[8px] font-black uppercase">
                          {esp.trim()}
                        </span>
