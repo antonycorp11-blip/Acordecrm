@@ -85,63 +85,59 @@ export const KeyboardVisualizer: React.FC<{
   isCustom?: boolean;
 }> = ({ chordNotes, root, type = 'maj', ext = '', bass = 'none', notesWithIndices, isCustom }) => {
   const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-  const WHITE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'A', 'B'];
-  const BLACK_KEYS = [
-    { note: 'C#', afterWhiteIdx: 0 },
-    { note: 'D#', afterWhiteIdx: 1 },
-    { note: 'F#', afterWhiteIdx: 3 },
-    { note: 'G#', afterWhiteIdx: 4 },
-    { note: 'A#', afterWhiteIdx: 5 },
-    { note: 'C#', afterWhiteIdx: 7 },
-    { note: 'D#', afterWhiteIdx: 8 },
-    { note: 'F#', afterWhiteIdx: 10 },
-    { note: 'G#', afterWhiteIdx: 11 },
-    { note: 'A#', afterWhiteIdx: 12 },
-  ];
+  const WHITE_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
   const translateNote = (note: string) => note.replace('b', 'b');
   const simplify = (n: string) => n.replace('Ab','G#').replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Bb','A#');
   
+  const rootClean = simplify((root || '').match(/^([A-G][#b]?)/)?.[1] || 'C');
+  const rootLetter = rootClean.charAt(0);
+
+  // Encontra o índice da letra raiz na escala de notas brancas
+  const rootWhiteIdx = WHITE_NOTES.indexOf(rootLetter);
+  // O teclado começa 2 notas brancas antes da raiz
+  const startWhiteIdx = (rootWhiteIdx - 2 + 7) % 7;
+
+  // Gera 10 teclas brancas
+  const WHITE_KEYS: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    WHITE_KEYS.push(WHITE_NOTES[(startWhiteIdx + i) % 7]);
+  }
+
+  // Descobre quais teclas brancas têm uma tecla preta à direita
+  const hasBlackKeyAfter = (note: string) => !['E', 'B'].includes(note);
+
+  const BLACK_KEYS: { note: string, afterWhiteIdx: number }[] = [];
+  for (let i = 0; i < WHITE_KEYS.length - 1; i++) {
+    if (hasBlackKeyAfter(WHITE_KEYS[i])) {
+      const whiteNoteIndex = CHROMATIC_SCALE.indexOf(WHITE_KEYS[i]);
+      const blackNote = CHROMATIC_SCALE[(whiteNoteIndex + 1) % 12];
+      BLACK_KEYS.push({ note: blackNote, afterWhiteIdx: i });
+    }
+  }
+
   const targetNotes = chordNotes.map(simplify);
 
   const highlightedWhite = new Set<number>();
   const highlightedBlack = new Set<number>();
 
-  const ALL_KEYS = [
-    { type: 'white', note: 'C', wIdx: 0, bIdx: -1 },
-    { type: 'black', note: 'C#', wIdx: -1, bIdx: 0 },
-    { type: 'white', note: 'D', wIdx: 1, bIdx: -1 },
-    { type: 'black', note: 'D#', wIdx: -1, bIdx: 1 },
-    { type: 'white', note: 'E', wIdx: 2, bIdx: -1 },
-    { type: 'white', note: 'F', wIdx: 3, bIdx: -1 },
-    { type: 'black', note: 'F#', wIdx: -1, bIdx: 2 },
-    { type: 'white', note: 'G', wIdx: 4, bIdx: -1 },
-    { type: 'black', note: 'G#', wIdx: -1, bIdx: 3 },
-    { type: 'white', note: 'A', wIdx: 5, bIdx: -1 },
-    { type: 'black', note: 'A#', wIdx: -1, bIdx: 4 },
-    { type: 'white', note: 'B', wIdx: 6, bIdx: -1 },
-    { type: 'white', note: 'C', wIdx: 7, bIdx: -1 },
-    { type: 'black', note: 'C#', wIdx: -1, bIdx: 5 },
-    { type: 'white', note: 'D', wIdx: 8, bIdx: -1 },
-    { type: 'black', note: 'D#', wIdx: -1, bIdx: 6 },
-    { type: 'white', note: 'E', wIdx: 9, bIdx: -1 },
-    { type: 'white', note: 'F', wIdx: 10, bIdx: -1 },
-    { type: 'black', note: 'F#', wIdx: -1, bIdx: 7 },
-    { type: 'white', note: 'G', wIdx: 11, bIdx: -1 },
-    { type: 'black', note: 'G#', wIdx: -1, bIdx: 8 },
-    { type: 'white', note: 'A', wIdx: 12, bIdx: -1 },
-    { type: 'black', note: 'A#', wIdx: -1, bIdx: 9 },
-    { type: 'white', note: 'B', wIdx: 13, bIdx: -1 }
-  ];
+  // Constroi ALL_KEYS ordenado
+  const ALL_KEYS: { type: 'white' | 'black', note: string, wIdx: number, bIdx: number }[] = [];
+  let wIdx = 0;
+  let bIdx = 0;
+  
+  for (let i = 0; i < WHITE_KEYS.length; i++) {
+    ALL_KEYS.push({ type: 'white', note: WHITE_KEYS[i], wIdx: i, bIdx: -1 });
+    if (i < WHITE_KEYS.length - 1 && hasBlackKeyAfter(WHITE_KEYS[i])) {
+      const whiteNoteIndex = CHROMATIC_SCALE.indexOf(WHITE_KEYS[i]);
+      const blackNote = CHROMATIC_SCALE[(whiteNoteIndex + 1) % 12];
+      ALL_KEYS.push({ type: 'black', note: blackNote, wIdx: -1, bIdx: bIdx });
+      bIdx++;
+    }
+  }
 
   let currentKeyIndex = 0;
 
-  // We find notes strictly from left to right (root position)
-  // If a chord has a specific bass, we might want to place it, but for standard chords, we just follow the array order
-  // For the root, let's find the first occurrence of the root, then find subsequent notes AFTER it.
-  const rootClean = simplify((root || '').match(/^([A-G][#b]?)/)?.[1] || 'C');
-  
   // Try to place root first
   let rootFoundIndex = -1;
   for (let i = 0; i < ALL_KEYS.length; i++) {
@@ -153,14 +149,11 @@ export const KeyboardVisualizer: React.FC<{
     }
   }
 
-  // If root wasn't in the chordNotes explicitly, we just use targetNotes. 
-  // We'll place all targetNotes from left to right, starting after the root if possible, or just from the beginning.
   currentKeyIndex = rootFoundIndex !== -1 ? rootFoundIndex : 0;
   
   targetNotes.forEach(target => {
     // Skip if it's the root we already placed
     if (target === rootClean && rootFoundIndex !== -1 && currentKeyIndex === rootFoundIndex) {
-      // already placed root
       currentKeyIndex++; // move past it
       return;
     }
@@ -177,7 +170,7 @@ export const KeyboardVisualizer: React.FC<{
       }
     }
     
-    // If not found to the right, we wrap around (inversion fallback if keyboard is too small)
+    // Fallback se faltar espaço (inversão)
     if (!placed) {
       for (let i = 0; i < currentKeyIndex; i++) {
         if (ALL_KEYS[i].note === target) {
@@ -206,10 +199,10 @@ export const KeyboardVisualizer: React.FC<{
         </div>
       </div>
 
-      <div className="p-4 sm:p-6 flex flex-col items-center">
-        <div className="relative w-full aspect-[2/1] bg-[#1a1a1a] rounded-xl p-2 sm:p-3 border-4 border-black shadow-2xl">
+      <div className="flex flex-col items-center">
+        <div className="relative w-full aspect-[2.5/1] bg-[#1a1a1a] border-t-4 border-black">
           {/* Teclado */}
-          <div className="relative w-full h-full flex bg-[#261812] rounded-b-lg overflow-hidden">
+          <div className="relative w-full h-full flex bg-[#261812] overflow-hidden">
             {/* White Keys */}
             {WHITE_KEYS.map((noteName, i) => {
               const active = highlightedWhite.has(i);
@@ -217,7 +210,7 @@ export const KeyboardVisualizer: React.FC<{
                 <div
                   key={`w-${i}`}
                   style={{ width: `${100 / WHITE_KEYS.length}%` }}
-                  className={`h-full border-r-2 border-black relative transition-all rounded-b-md ${
+                  className={`h-full border-r-2 border-black relative transition-all ${
                     active ? 'bg-[#fff5f0]' : 'bg-white'
                   }`}
                 >
@@ -239,7 +232,7 @@ export const KeyboardVisualizer: React.FC<{
               return (
                 <div
                   key={`b-${i}`}
-                  className={`absolute top-0 h-[60%] z-30 flex items-end justify-center pb-2 rounded-b-md shadow-xl transition-all border-x-2 border-b-2 border-black ${
+                  className={`absolute top-0 h-[60%] z-30 flex items-end justify-center pb-2 shadow-xl transition-all border-x-2 border-b-2 border-black ${
                     active ? 'bg-[#402a20]' : 'bg-[#1a1a1a]'
                   }`}
                   style={{

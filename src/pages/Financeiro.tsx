@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, Search, Filter, ArrowUpRight, ArrowDownLeft,
-  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity, Trash2
+  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity, Trash2, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -286,9 +286,9 @@ export default function Financeiro() {
                   <tr><td colSpan={6} className="py-20 text-center text-[10px] font-black uppercase opacity-50">Nenhuma transação registrada</td></tr>
                 ) : filtered.map((p, idx) => (
                   <tr key={`${p.id}-${idx}`} className="hover:bg-white/5 transition-colors group">
-                    <td className="px-4 py-5">
-                      <p 
-                        className={`text-[11px] font-bold uppercase tracking-tight ${p.aluno_id ? 'cursor-pointer hover:text-[#FF8A00] transition-colors' : ''}`}
+                    <td className="px-4 py-4">
+                      <span 
+                        className={`text-[11px] font-black uppercase tracking-tight flex items-center gap-1.5 ${p.aluno_id ? 'cursor-pointer text-[#FF8A00] hover:text-white underline decoration-2 underline-offset-4 transition-colors' : ''}`}
                         onClick={() => {
                           if (p.aluno_id) {
                             navigate(`/alunos/${p.aluno_id}`);
@@ -296,7 +296,8 @@ export default function Financeiro() {
                         }}
                       >
                         {p.aluno_nome || p.descricao || '---'}
-                      </p>
+                        {p.aluno_id && <ExternalLink className="w-3.5 h-3.5" />}
+                      </span>
                       <p className="text-[9px] text-[#FF8A00] font-black uppercase tracking-widest mt-1 opacity-70">{p.referencia_mes_ano || ''}</p>
                     </td>
                     <td className="px-4 py-5">

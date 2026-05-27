@@ -4,7 +4,7 @@ import { X, Trophy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const resolveTrophyImage = (instrumento: string, classe: string) => {
-  const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const normalize = (str: any) => String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   
   let slugInst = normalize(instrumento || 'teoria-musical')
     .replace(/[^a-z0-9\s-]/g, ' ')
@@ -99,7 +99,7 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
               {selectedAluno.foto_url ? (
                 <img src={selectedAluno.foto_url} alt={selectedAluno.nome} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-[#ff6b00] font-black text-4xl">{(selectedAluno.nome || '?').charAt(0)}</span>
+                <span className="text-[#ff6b00] font-black text-4xl">{String(selectedAluno.nome || '?').charAt(0)}</span>
               )}
             </div>
 
@@ -137,12 +137,12 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
           <div>
             <h4 className="text-xs font-black text-black uppercase tracking-widest mb-4 border-b-4 border-black pb-2 flex items-center justify-between">
               <span>Conquistas_Desbloqueadas</span>
-              <span className="bg-[#ff6b00] text-white px-2 py-0.5 text-[9px] font-bold">{(selectedAluno.conquistas || []).length} TROFÉUS</span>
+              <span className="bg-[#ff6b00] text-white px-2 py-0.5 text-[9px] font-bold">{(Array.isArray(selectedAluno.conquistas) ? selectedAluno.conquistas : []).length} TROFÉUS</span>
             </h4>
 
-            {(selectedAluno.conquistas || []).length > 0 ? (
+            {(Array.isArray(selectedAluno.conquistas) ? selectedAluno.conquistas : []).length > 0 ? (
               <div className="flex flex-wrap gap-3">
-                {(selectedAluno.conquistas || []).map((c: any, index: number) => (
+                {(Array.isArray(selectedAluno.conquistas) ? selectedAluno.conquistas : []).map((c: any, index: number) => (
                   <div 
                     key={`${c.id}-${index}`} 
                     className="bg-[#ffeae1] border-4 border-black p-2 flex flex-col items-center relative shadow-[4px_4px_0_#000] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_#000] transition-all group w-24 h-28"
