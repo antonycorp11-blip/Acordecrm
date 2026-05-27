@@ -417,8 +417,8 @@ async function startServer() {
 
             // Disparar notificação para o professor se houver
             if (req.body.professor_id) {
-                 const { data: prof } = await supabase.from('professores').select('nome, email, player_id').eq('id', req.body.professor_id).single();
-                 if (prof && prof.player_id) {
+                 const { data: prof } = await supabase.from('professores').select('id, nome, email').eq('id', req.body.professor_id).single();
+                 if (prof && prof.id) {
                      const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
                      let appId = process.env.ONESIGNAL_APP_ID;
                      let appKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -433,7 +433,7 @@ async function startServer() {
                          await sendPushNotification(
                              'Novo Aluno Matriculado! 🎉',
                              `Você tem um novo aluno: ${alunoNome} foi matriculado no seu curso de ${data.curso}. Verifique sua agenda!`,
-                             appId, appKey, prof.player_id, prof.email
+                             appId, appKey, String(prof.id), prof.email
                          );
                      }
                  }
@@ -619,8 +619,8 @@ async function startServer() {
             if (error) throw error;
 
             // Recuperar player_id para enviar parabéns
-            const { data: aluno } = await supabase.from('alunos').select('player_id, email').eq('id', req.params.id).single();
-            if (aluno && aluno.player_id) {
+            const { data: aluno } = await supabase.from('alunos').select('id, email').eq('id', req.params.id).single();
+            if (aluno && aluno.id) {
                 const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
                 let appId = process.env.ONESIGNAL_APP_ID;
                 let appKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -634,7 +634,7 @@ async function startServer() {
                     await sendPushNotification(
                         'Treino Registrado! 🎸🔥',
                         `Parabéns por praticar ${minutos} minutos hoje! Continue assim para acumular XP e subir de nível.`,
-                        appId, appKey, aluno.player_id, aluno.email
+                        appId, appKey, String(aluno.id), aluno.email
                     );
                 }
             }
@@ -1924,7 +1924,7 @@ async function startServer() {
             // Fetch pending classes
             const { data: pendentes, error: errPendentes } = await supabase
                 .from('aulas')
-                .select('id, data, horario, aluno_id, status, curso, aluno:alunos(nome, player_id, email)')
+                .select('id, data, horario, aluno_id, status, curso, aluno:alunos(id, nome, email)')
                 .eq('status', 'pendente');
 
             if (errPendentes) throw errPendentes;
@@ -1939,7 +1939,7 @@ async function startServer() {
             let count = 0;
             for (const aula of aulasToNotify) {
                 const aluno = Array.isArray(aula.aluno) ? aula.aluno[0] : aula.aluno;
-                if (aluno && aluno.player_id) {
+                if (aluno && aluno.id) {
                     const classDateStr = `${aula.data.split('T')[0]}T${aula.horario.substring(0, 8).padEnd(8, '0')}`;
                     const timeText = new Date(classDateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                     
@@ -1957,7 +1957,7 @@ async function startServer() {
                     }
 
                     if (appId && appKey) {
-                        await sendPushNotification(titulo, msg, appId, appKey, aluno.player_id, aluno.email);
+                        await sendPushNotification(titulo, msg, appId, appKey, String(aluno.id), aluno.email);
                         count++;
                     }
                 }
@@ -2086,7 +2086,7 @@ async function startServer() {
             const { id } = req.params;
             const originalId = id.replace('reg-', '').replace('exp-', '');
 
-            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome, email, player_id), professores(id, nome, email, player_id)').eq('id', originalId).single();
+            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(id, nome, email), professores(id, nome, email)').eq('id', originalId).single();
             if (errA || !aula) throw new Error('Aula não encontrada');
 
             // Atualizar status
@@ -2117,7 +2117,7 @@ async function startServer() {
                 }]);
 
                 const profEmail = aula.professores.email;
-                const pushId = aula.professores.player_id || String(aula.professores.id);
+                const pushId = String(aula.professores.id);
                 if (appId && appKey) {
                     await sendPushNotification(titulo, msg, appId, appKey, pushId, profEmail);
                 }
@@ -2128,7 +2128,7 @@ async function startServer() {
                 const tituloAluno = 'Sua aula foi confirmada! ✅';
                 const msgAluno = `Sua presença foi confirmada! Caso ocorra algum imprevisto e precise cancelar, por favor entre em contato pelo WhatsApp com até 3 horas de antecedência.`;
                 const alunoEmail = Array.isArray(aula.alunos) ? aula.alunos[0].email : aula.alunos.email;
-                const pushIdAluno = Array.isArray(aula.alunos) ? aula.alunos[0].player_id : aula.alunos.player_id;
+                const pushIdAluno = Array.isArray(aula.alunos) ? String(aula.alunos[0].id) : String(aula.alunos.id);
                 const finalPushId = pushIdAluno || String(aula.alunos.id);
                 if (appId && appKey) {
                     await sendPushNotification(tituloAluno, msgAluno, appId, appKey, finalPushId, alunoEmail);
@@ -2214,10 +2214,10 @@ async function startServer() {
         if (oldAula && updated && (data || horario)) {
              const profIdFinal = professor_id || oldAula.professor_id;
              if (profIdFinal) {
-                 const { data: prof } = await supabase.from('professores').select('player_id, email, nome').eq('id', profIdFinal).single();
+                 const { data: prof } = await supabase.from('professores').select('id, email, nome').eq('id', profIdFinal).single();
                  const { data: aluno } = await supabase.from('alunos').select('nome').eq('id', updated.aluno_id || oldAula.aluno_id).single();
                  
-                 if (prof && prof.player_id) {
+                 if (prof && prof.id) {
                      const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
                      let appId = process.env.ONESIGNAL_APP_ID;
                      let appKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -2234,7 +2234,7 @@ async function startServer() {
                          await sendPushNotification(
                              'Aula Reagendada 🔄',
                              `Atenção: A aula de ${(aluno?.nome || 'Aluno').split(' ')[0]} foi reagendada para ${dataPtBr} às ${timeText}.`,
-                             appId, appKey, prof.player_id, prof.email
+                             appId, appKey, String(prof.id), prof.email
                          );
                      }
                  }
