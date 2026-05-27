@@ -446,7 +446,17 @@ export default function AreaProfessor() {
     ]).then(([me, agenda, alunos]) => {
       if (me) {
         setProfessorData(me);
-        if (me.disponibilidade) setDisponibilidade(me.disponibilidade);
+        if (me.disponibilidade && typeof me.disponibilidade === 'object' && !Array.isArray(me.disponibilidade)) {
+          const dispArray: string[] = [];
+          Object.entries(me.disponibilidade).forEach(([dia, horas]: [string, any]) => {
+             if (Array.isArray(horas)) {
+                horas.forEach((h: string) => dispArray.push(`${dia}-${h}`));
+             }
+          });
+          setDisponibilidade(dispArray);
+        } else if (Array.isArray(me.disponibilidade)) {
+          setDisponibilidade(me.disponibilidade);
+        }
       }
       if (alunos) {
         // Filtra alunos arquivados ou ativos, e verifica se o aluno tem vínculo com o professor logado
@@ -3509,10 +3519,15 @@ export default function AreaProfessor() {
                       onClick={async () => {
                          setSalvandoDisponibilidade(true);
                          const token = localStorage.getItem('acorde_token');
+                         const dbFormat: Record<string, string[]> = { segunda: [], terca: [], quarta: [], quinta: [], sexta: [], sabado: [] };
+                         disponibilidade.forEach(item => {
+                            const [d, h] = item.split('-');
+                            if (dbFormat[d]) dbFormat[d].push(h);
+                         });
                          const res = await fetch(`/api/professores/${professorData?.id}/disponibilidade`, {
                            method: 'PATCH',
                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                           body: JSON.stringify({ disponibilidade })
+                           body: JSON.stringify({ disponibilidade: dbFormat })
                          });
                          if(res.ok) toast.success('Disponibilidade salva!');
                          else toast.error('Erro ao salvar');
