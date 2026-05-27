@@ -4338,11 +4338,11 @@ export default function AreaProfessor() {
                       <div className="bg-black text-[#ff6b00] px-2 py-0.5 text-[8px] font-black uppercase tracking-widest inline-block">
                         GRUPO: {groupName}
                       </div>
-                      <div className="flex flex-wrap gap-4">
+                      <div className="grid grid-cols-2 gap-4">
                         {(chords as any[]).map((ch, idx) => {
                           const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
                           return (
-                            <div key={idx} className={`border-2 border-black p-1 bg-white ${isTeclado ? 'w-[320px] sm:w-[340px]' : 'w-[160px]'}`}>
+                            <div key={idx} className="border-2 border-black p-1 bg-white w-full">
                               <ChordVisualizer
                                 instrument={ch.instrument || mcPlaygroundInstrument}
                                 chordNotes={ch.notes || []}

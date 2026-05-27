@@ -99,58 +99,81 @@ export const KeyboardVisualizer: React.FC<{
   ];
 
   const translateNote = (note: string) => note.replace('b', 'b');
-
-  // Convert chordNotes to a set of enharmonically simplified notes
   const simplify = (n: string) => n.replace('Ab','G#').replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Bb','A#');
   
-  const targetNotes = new Set(chordNotes.map(simplify));
+  const targetNotes = chordNotes.map(simplify);
 
-  // Determine which keys to highlight.
-  // We want to highlight exactly one of each target note.
   const highlightedWhite = new Set<number>();
   const highlightedBlack = new Set<number>();
 
-  const notesLeft = new Set(targetNotes);
+  const ALL_KEYS = [
+    { type: 'white', note: 'C', wIdx: 0, bIdx: -1 },
+    { type: 'black', note: 'C#', wIdx: -1, bIdx: 0 },
+    { type: 'white', note: 'D', wIdx: 1, bIdx: -1 },
+    { type: 'black', note: 'D#', wIdx: -1, bIdx: 1 },
+    { type: 'white', note: 'E', wIdx: 2, bIdx: -1 },
+    { type: 'white', note: 'F', wIdx: 3, bIdx: -1 },
+    { type: 'black', note: 'F#', wIdx: -1, bIdx: 2 },
+    { type: 'white', note: 'G', wIdx: 4, bIdx: -1 },
+    { type: 'black', note: 'G#', wIdx: -1, bIdx: 3 },
+    { type: 'white', note: 'A', wIdx: 5, bIdx: -1 },
+    { type: 'black', note: 'A#', wIdx: -1, bIdx: 4 },
+    { type: 'white', note: 'B', wIdx: 6, bIdx: -1 },
+    { type: 'white', note: 'C', wIdx: 7, bIdx: -1 },
+    { type: 'black', note: 'C#', wIdx: -1, bIdx: 5 },
+    { type: 'white', note: 'D', wIdx: 8, bIdx: -1 },
+    { type: 'black', note: 'D#', wIdx: -1, bIdx: 6 },
+    { type: 'white', note: 'E', wIdx: 9, bIdx: -1 }
+  ];
 
-  // First pass: try to find the root note
+  let currentKeyIndex = 0;
+
+  // We find notes strictly from left to right (root position)
+  // If a chord has a specific bass, we might want to place it, but for standard chords, we just follow the array order
+  // For the root, let's find the first occurrence of the root, then find subsequent notes AFTER it.
   const rootClean = simplify((root || '').match(/^([A-G][#b]?)/)?.[1] || 'C');
-  let rootFound = false;
-
-  // We look for the root from left to right
-  for (let i = 0; i < WHITE_KEYS.length; i++) {
-    if (WHITE_KEYS[i] === rootClean) {
-      highlightedWhite.add(i);
-      notesLeft.delete(rootClean);
-      rootFound = true;
+  
+  // Try to place root first
+  let rootFoundIndex = -1;
+  for (let i = 0; i < ALL_KEYS.length; i++) {
+    if (ALL_KEYS[i].note === rootClean) {
+      if (ALL_KEYS[i].type === 'white') highlightedWhite.add(ALL_KEYS[i].wIdx);
+      if (ALL_KEYS[i].type === 'black') highlightedBlack.add(ALL_KEYS[i].bIdx);
+      rootFoundIndex = i;
       break;
     }
   }
-  if (!rootFound) {
-    for (let i = 0; i < BLACK_KEYS.length; i++) {
-      if (BLACK_KEYS[i].note === rootClean) {
-        highlightedBlack.add(i);
-        notesLeft.delete(rootClean);
-        rootFound = true;
-        break;
-      }
-    }
-  }
 
-  // Second pass: find the rest of the notes (try to keep them close to the root if possible, or just left to right)
-  Array.from(notesLeft).forEach(target => {
+  // If root wasn't in the chordNotes explicitly, we just use targetNotes. 
+  // We'll place all targetNotes from left to right, starting after the root if possible, or just from the beginning.
+  currentKeyIndex = rootFoundIndex !== -1 ? rootFoundIndex : 0;
+  
+  targetNotes.forEach(target => {
+    // Skip if it's the root we already placed
+    if (target === rootClean && rootFoundIndex !== -1 && currentKeyIndex === rootFoundIndex) {
+      // already placed root
+      currentKeyIndex++; // move past it
+      return;
+    }
+
     let placed = false;
-    for (let i = 0; i < WHITE_KEYS.length; i++) {
-      if (WHITE_KEYS[i] === target && !highlightedWhite.has(i)) {
-        highlightedWhite.add(i);
+    // Look for the note starting from currentKeyIndex
+    for (let i = currentKeyIndex; i < ALL_KEYS.length; i++) {
+      if (ALL_KEYS[i].note === target) {
+        if (ALL_KEYS[i].type === 'white') highlightedWhite.add(ALL_KEYS[i].wIdx);
+        if (ALL_KEYS[i].type === 'black') highlightedBlack.add(ALL_KEYS[i].bIdx);
+        currentKeyIndex = i + 1;
         placed = true;
         break;
       }
     }
+    
+    // If not found to the right, we wrap around (inversion fallback if keyboard is too small)
     if (!placed) {
-      for (let i = 0; i < BLACK_KEYS.length; i++) {
-        if (BLACK_KEYS[i].note === target && !highlightedBlack.has(i)) {
-          highlightedBlack.add(i);
-          placed = true;
+      for (let i = 0; i < currentKeyIndex; i++) {
+        if (ALL_KEYS[i].note === target) {
+          if (ALL_KEYS[i].type === 'white') highlightedWhite.add(ALL_KEYS[i].wIdx);
+          if (ALL_KEYS[i].type === 'black') highlightedBlack.add(ALL_KEYS[i].bIdx);
           break;
         }
       }
@@ -227,11 +250,6 @@ export const KeyboardVisualizer: React.FC<{
           </div>
         </div>
         
-        <div className="mt-4 w-full border-t-2 border-gray-100 pt-3 text-center">
-          <span className="text-[8px] sm:text-[10px] font-black text-gray-300 tracking-[0.2em] uppercase">
-            Virtual 17-Note Conservatory Layout
-          </span>
-        </div>
       </div>
     </div>
   );
