@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PwaModal } from '../components/alunos/PwaModal';
+import PerfilEstudanteModal from '../components/PerfilEstudanteModal';
 
 export const resolveTrophyImage = (instrumento: string, classe: string) => {
   const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -307,6 +308,8 @@ export default function AreaAluno() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas' | 'perfil' | 'jogos' | 'treino'>('home');
   const [rankingData, setRankingData] = useState<any[]>([]);
+  const [isAlunoModalOpen, setIsAlunoModalOpen] = useState(false);
+  const [selectedAluno, setSelectedAluno] = useState<any | null>(null);
   const [todasConquistas, setTodasConquistas] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
   const [showTools, setShowTools] = useState(false);
@@ -1094,7 +1097,14 @@ export default function AreaAluno() {
                 const isMe = player.id === alunoData?.id;
                 const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
                 return (
-                  <div key={player.id} className={`flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] ${isMe ? 'bg-[#ff6b00]' : 'bg-[#fff8f6]'}`}>
+                  <div 
+                    key={player.id} 
+                    onClick={() => {
+                      setSelectedAluno(player);
+                      setIsAlunoModalOpen(true);
+                    }}
+                    className={`flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] cursor-pointer hover:-translate-y-0.5 transition-all ${isMe ? 'bg-[#ff6b00]' : 'bg-[#fff8f6]'}`}
+                  >
                     <div className={`w-10 h-10 border-4 border-black flex items-center justify-center font-black text-sm shrink-0 ${isMe ? 'bg-white text-[#ff6b00]' : 'bg-[#feccba] text-black'}`}>
                       {medal}
                     </div>
@@ -2373,6 +2383,15 @@ export default function AreaAluno() {
           aula={printAula} 
           alunoNome={alunoData?.nome || user?.nome} 
           onClose={() => setPrintAula(null)} 
+        />
+      )}
+
+      {/* Aluno Profile Modal */}
+      {isAlunoModalOpen && selectedAluno && (
+        <PerfilEstudanteModal 
+          selectedAluno={selectedAluno} 
+          user={user} 
+          onClose={() => setIsAlunoModalOpen(false)} 
         />
       )}
     </div>

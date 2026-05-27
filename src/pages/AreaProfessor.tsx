@@ -39,6 +39,7 @@ import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordV
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 import { resolveTrophyImage } from './AreaAluno';
+import PerfilEstudanteModal from '../components/PerfilEstudanteModal';
 
 class MelodySynth {
   private ctx: AudioContext | null = null;
@@ -335,6 +336,10 @@ export default function AreaProfessor() {
   const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
 
+  // Perfil Estudante Modal
+  const [isAlunoModalOpen, setIsAlunoModalOpen] = useState(false);
+  const [selectedAluno, setSelectedAluno] = useState<any | null>(null);
+
   const [notificacoes, setNotificacoes] = useState<any[]>([]);
   const [isNotifDrawerOpen, setIsNotifDrawerOpen] = useState(false);
 
@@ -342,6 +347,8 @@ export default function AreaProfessor() {
   const [loadingTreinos, setLoadingTreinos] = useState(false);
   const [selectedTreinoVideo, setSelectedTreinoVideo] = useState<string | null>(null);
   const [isTreinoVideoModalOpen, setIsTreinoVideoModalOpen] = useState(false);
+  const [isCheckinConfirmModalOpen, setIsCheckinConfirmModalOpen] = useState(false);
+  const [checkinConfirmData, setCheckinConfirmData] = useState<any>(null);
 
   // Estados Ricos do Musiclass compartilhados
   const [mcChords, setMcChords] = useState<any[]>([]);
@@ -3009,7 +3016,6 @@ export default function AreaProfessor() {
                           {isPendente && (
                             <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black animate-pulse">
                               AGUARDANDO
-
                             </div>
                           )}
 
@@ -3728,7 +3734,10 @@ export default function AreaProfessor() {
                         return (
                           <div 
                             key={player.id} 
-                            onClick={() => handleAbrirHistoricoAluno(player.id, player.nome)}
+                            onClick={() => {
+                              setSelectedAluno(player);
+                              setIsAlunoModalOpen(true);
+                            }}
                             className="flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] bg-[#fff8f6] cursor-pointer hover:bg-[#ffeae1] hover:-translate-y-0.5 transition-all"
                           >
                             {/* Colocação */}
@@ -4682,6 +4691,16 @@ export default function AreaProfessor() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Aluno Profile Modal */}
+      {isAlunoModalOpen && selectedAluno && (
+        <PerfilEstudanteModal 
+          selectedAluno={selectedAluno} 
+          user={user} 
+          onClose={() => setIsAlunoModalOpen(false)} 
+          onConquistaRemoved={() => fetchRanking()} 
+        />
       )}
     </div>
   );
