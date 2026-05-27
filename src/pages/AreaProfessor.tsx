@@ -3254,7 +3254,6 @@ export default function AreaProfessor() {
                       
                       if (filterAgendaStatus === 'todas') return true;
                       if (filterAgendaStatus === 'pendente') return aula.status !== 'realizada' && aula.status !== 'falta_aluno' && aula.status !== 'ausente';
-                      if (filterAgendaStatus === 'pendente') return aula.status !== 'realizada' && aula.status !== 'falta_aluno' && aula.status !== 'ausente' && aula.status !== 'confirmada';
                       if (filterAgendaStatus === 'realizada') return aula.status === 'realizada';
                       if (filterAgendaStatus === 'falta_aluno') return aula.status === 'falta_aluno' || aula.status === 'ausente';
                       return true;
