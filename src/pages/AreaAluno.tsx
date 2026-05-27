@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle } from 'lucide-react';
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
@@ -790,7 +791,7 @@ export default function AreaAluno() {
     }
 
     setUploadingVideo(true);
-    setUploadProgress(15);
+    setUploadProgress(10);
     
     try {
       const token = localStorage.getItem('acorde_token');
@@ -800,25 +801,60 @@ export default function AreaAluno() {
       if (mime.includes('mp4')) {
         extensao = 'mp4';
       } else if (mime.includes('quicktime') || mime.includes('mov')) {
-        extensao = 'mov';
+        extensao = 'mp4'; // force mp4 for ios
       }
       
-      const formData = new FormData();
-      formData.append('video', videoBlob, `treino_video.${extensao}`);
+      // 1. Fetch Supabase config
+      const configRes = await fetch('/api/supabase-config', { headers: { 'Authorization': `Bearer ${token}` } });
+      const { url: sbUrl, key: sbKey } = await configRes.json();
       
-      setUploadProgress(45);
+      let finalVideoUrl = '';
+
+      if (sbUrl && sbKey) {
+          // Direct Upload to Supabase to bypass Vercel 4.5MB limit
+          setUploadProgress(30);
+          const sbClient = createClient(sbUrl, sbKey);
+          const filename = `treinos/${alunoData?.id}_${Date.now()}_video.${extensao}`;
+          
+          const { error: uploadError } = await sbClient.storage
+              .from('uploads')
+              .upload(filename, videoBlob, { 
+                  contentType: mime, 
+                  upsert: true,
+                  cacheControl: '3600'
+              });
+              
+          if (uploadError) throw new Error('Falha ao enviar vídeo (Storage): ' + uploadError.message);
+          
+          setUploadProgress(70);
+          const { data: publicUrlData } = sbClient.storage.from('uploads').getPublicUrl(filename);
+          finalVideoUrl = publicUrlData?.publicUrl || '';
+      }
+
+      setUploadProgress(85);
+      
+      // Envia a URL pro backend para registrar o check-in (ou envia formData se falhar e precisar de fallback)
+      let reqBody, reqHeaders;
+      if (finalVideoUrl) {
+         reqBody = JSON.stringify({ video_url: finalVideoUrl });
+         reqHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+      } else {
+         const formData = new FormData();
+         formData.append('video', videoBlob, `treino_video.${extensao}`);
+         reqBody = formData;
+         reqHeaders = { 'Authorization': `Bearer ${token}` };
+      }
+
       const res = await fetch('/api/treinos/upload-video', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
+        headers: reqHeaders,
+        body: reqBody
       });
       
-      setUploadProgress(85);
+      setUploadProgress(95);
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Erro ao enviar vídeo.');
+        throw new Error(err.error || 'Erro ao registrar vídeo no sistema.');
       }
       
       const data = await res.json();
@@ -839,6 +875,17 @@ export default function AreaAluno() {
   };
 
   const handleMarcarTreino = async () => {
+    // REGRA: Dia sim, Dia não (se o último não teve vídeo, hoje é obrigatório ter vídeo)
+    const sortedTreinos = [...treinos].sort((a,b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+    const lastTreino = sortedTreinos[0];
+    const precisaDeVideo = (!lastTreino || !lastTreino.video_url);
+
+    if (precisaDeVideo) {
+      toast.error('Hoje é obrigatório o envio do VÍDEO para este check-in! (Regra: Dia sim, Dia não). Use o botão abaixo de Gravar Treino.');
+      playRetroSound(150, 'sawtooth', 0.3);
+      return;
+    }
+
     try {
       const token = localStorage.getItem('acorde_token');
       const res = await fetch('/api/treinos', {

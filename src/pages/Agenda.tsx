@@ -17,6 +17,8 @@ export default function Agenda() {
   const [viewType, setViewType] = useState<'individual' | 'grupo'>('individual');
   const [selectedAula, setSelectedAula] = useState<any>(null);
   const [menuPos, setMenuPos] = useState<{x: number, y: number} | null>(null);
+  const [reschedulingAula, setReschedulingAula] = useState<any>(null);
+  const [mousePos, setMousePos] = useState({x: 0, y: 0});
   const [isDragging, setIsDragging] = useState(false);
 
   const currentBaseDate = new Date();
@@ -104,14 +106,65 @@ export default function Agenda() {
 
   const handleAulaClick = (e: React.MouseEvent, aula: any) => {
     e.stopPropagation();
-    setMenuPos({ x: e.clientX, y: e.clientY });
+    const x = e.clientX;
+    let y = e.clientY;
+    if (y > window.innerHeight - 250) {
+      y = window.innerHeight - 250;
+    }
+    setMenuPos({ x, y });
     setSelectedAula(aula);
+  };
+
+  const handleSlotClick = async (e: React.MouseEvent, profId: string, horario: string) => {
+    if (!reschedulingAula) return;
+    e.stopPropagation();
+    
+    try {
+      const res = await fetch(`/api/agenda/${reschedulingAula.id}`, { 
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
+        },
+        body: JSON.stringify({ 
+          professor_id: profId, 
+          horario,
+          data: currentBaseDate.toLocaleDateString('en-CA')
+        })
+      });
+
+      if (res.ok) {
+        toast.success('Aula reagendada com sucesso!');
+        fetchAulas();
+      } else {
+        toast.error('Erro ao reagendar aula');
+      }
+    } catch (err) {
+      toast.error('Erro ao remarcar aula');
+    } finally {
+      setReschedulingAula(null);
+    }
   };
 
   useEffect(() => {
     const handleClickOutside = () => setSelectedAula(null);
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!reschedulingAula) return;
+    const handleMouseMove = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY });
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [reschedulingAula]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setReschedulingAula(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   return (
@@ -333,27 +386,8 @@ export default function Agenda() {
                                <button 
                                  onClick={(e) => {
                                    e.stopPropagation();
-                                   const novoHorario = window.prompt("Reagendar: Digite o novo horário (Ex: 14:00)", (aula.horario || '').substring(0, 5));
-                                   if (!novoHorario) return;
-                                   const novaData = window.prompt("Reagendar: Digite a nova data (AAAA-MM-DD)", aula.data ? aula.data.split('T')[0] : currentBaseDate.toLocaleDateString('en-CA'));
-                                   if (!novaData) return;
-
-                                   fetch(`/api/agenda/${aula.id}`, { 
-                                     method: 'PATCH',
-                                     headers: { 
-                                       'Content-Type': 'application/json',
-                                       'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` 
-                                     },
-                                     body: JSON.stringify({ horario: novoHorario, data: novaData })
-                                   }).then(res => {
-                                     if(res.ok){
-                                        toast.success('Aula reagendada com sucesso!');
-                                        fetchAulas();
-                                        setSelectedAula(null);
-                                     } else {
-                                        toast.error('Erro ao reagendar aula.');
-                                     }
-                                   });
+                                   setReschedulingAula(aula);
+                                   setSelectedAula(null);
                                  }}
                                  className="w-full px-4 py-3 bg-blue-500 text-white border-4 border-black font-black text-xs uppercase text-left hover:bg-blue-600 transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
                                >
@@ -416,10 +450,11 @@ export default function Agenda() {
                         return (
                           <td 
                             key={h} 
-                            className={`px-1 py-1 text-center align-top min-h-[60px] transition-colors ${isDragging ? 'bg-[#feccba]/30' : ''}`} 
+                            className={`px-1 py-1 text-center align-top min-h-[60px] transition-colors ${reschedulingAula ? 'hover:bg-[#feccba]/50 cursor-crosshair' : (isDragging ? 'bg-[#feccba]/30' : '')}`} 
                             style={{ borderRight: '1px solid #e2bfb0' }}
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => handleDrop(e, prof.id, h)}
+                            onClick={(e) => handleSlotClick(e, prof.id, h)}
                           >
                             <div className="flex flex-col gap-1 min-h-full">
                               {aulasDaHora.map(aula => {
@@ -484,10 +519,46 @@ export default function Agenda() {
           onClick={e => e.stopPropagation()}
         >
           <button 
+             onClick={(e) => {
+               e.stopPropagation();
+               if (selectedAula.status !== 'confirmada') {
+                 if (window.confirm('Tem certeza que deseja confirmar esta aula para o professor? (Isso enviará uma notificação a ele)')) {
+                   fetch(`/api/agenda/${selectedAula.id}/confirmar`, { 
+                     method: 'POST',
+                     headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
+                   }).then(res => {
+                     if(res.ok) {
+                       toast.success('Aula confirmada com sucesso!');
+                       fetchAulas();
+                       setSelectedAula(null);
+                     } else {
+                       toast.error('Erro ao confirmar aula.');
+                     }
+                   });
+                 }
+               } else {
+                 toast.info('Esta aula já está confirmada.');
+               }
+             }}
+            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
+          >
+            <Zap className="w-3.5 h-3.5" /> Confirmar Aula
+          </button>
+          <button 
             onClick={() => navigate(`/alunos/${selectedAula.aluno_id}`)}
             className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
           >
             <Users className="w-3.5 h-3.5" /> Ver Perfil
+          </button>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setReschedulingAula(selectedAula);
+              setSelectedAula(null);
+            }}
+            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-blue-600"
+          >
+            <RefreshCcw className="w-3.5 h-3.5" /> Reagendar
           </button>
           <button 
             onClick={() => {
@@ -546,6 +617,21 @@ export default function Agenda() {
           </button>
         </div>
       )}
+      {/* FLOATING PROXY PARA REAGENDAMENTO */}
+      {reschedulingAula && (
+        <div 
+          className="fixed z-[9999] pointer-events-none opacity-90 transition-transform duration-75"
+          style={{ top: mousePos.y + 15, left: mousePos.x + 15 }}
+        >
+          <div className="bg-[#feccba] border-4 border-black p-3 shadow-[6px_6px_0_#000]">
+             <p className="text-[10px] font-black uppercase tracking-wider text-[#ff6b00]">Movendo aula:</p>
+             <p className="text-sm font-black uppercase text-black">{reschedulingAula.aluno_nome?.split(' ')[0]}</p>
+             <p className="text-[9px] font-black mt-2 text-black/60 italic">Navegue pelas datas se desejar e clique num horário vazio para soltar</p>
+             <p className="text-[9px] text-red-600 font-black mt-1">Aperte ESC para cancelar</p>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -142,6 +142,13 @@ async function startServer() {
     // --- API ROUTES ---
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
     
+    app.get('/api/supabase-config', authenticateToken, (req, res) => {
+        res.json({
+            url: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+            key: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+        });
+    });
+    
     app.get('/api/health', (req, res) => {
         res.json({
             status: 'ok',
@@ -252,6 +259,8 @@ async function startServer() {
             res.status(500).json({ error: 'Erro interno no servidor ao registrar usuário: ' + error.message }); 
         }
     });
+
+
     // --- Recompensa Push PWA ---
     app.post('/api/alunos/recompensa-push', async (req: any, res) => {
         try {
@@ -3006,8 +3015,11 @@ async function startServer() {
 
     // 3. Upload de vídeo curto de treino (24h de duração)
     app.post('/api/treinos/upload-video', upload.single('video'), async (req: any, res) => {
-        if (!req.file) {
-            return res.status(400).json({ error: 'Nenhum arquivo de vídeo enviado.' });
+        const hasVideoFile = !!req.file;
+        const clientVideoUrl = req.body.video_url;
+        
+        if (!hasVideoFile && !clientVideoUrl) {
+            return res.status(400).json({ error: 'Nenhum vídeo enviado.' });
         }
         try {
             const email = req.user?.email;
@@ -3035,41 +3047,45 @@ async function startServer() {
                 treino = novoTreino;
             }
 
-            let ext = path.extname(req.file.originalname) || '.mp4';
-            let mimeType = req.file.mimetype || 'video/mp4';
-            const extLower = ext.toLowerCase();
+            let finalUrl = clientVideoUrl || '';
+            
+            if (hasVideoFile) {
+                let ext = path.extname(req.file.originalname) || '.mp4';
+                let mimeType = req.file.mimetype || 'video/mp4';
+                const extLower = ext.toLowerCase();
 
-            // Bypass incondicional para iOS:
-            if (mimeType.includes('quicktime') || extLower === '.mov' || extLower === '.qt') {
-                mimeType = 'video/mp4';
-                ext = '.mp4';
-            } else if (!mimeType.startsWith('video/') || mimeType.includes('octet-stream')) {
-                // Se cair de pára-quedas como octet-stream, preservamos a extensão para adivinhar
-                if (extLower === '.webm') mimeType = 'video/webm';
-                else mimeType = 'video/mp4';
+                // Bypass incondicional para iOS:
+                if (mimeType.includes('quicktime') || extLower === '.mov' || extLower === '.qt') {
+                    mimeType = 'video/mp4';
+                    ext = '.mp4';
+                } else if (!mimeType.startsWith('video/') || mimeType.includes('octet-stream')) {
+                    if (extLower === '.webm') mimeType = 'video/webm';
+                    else mimeType = 'video/mp4';
+                }
+
+                const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
+                const fileBuffer = fs.readFileSync(req.file.path);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('uploads')
+                    .upload(filename, fileBuffer, { 
+                        contentType: mimeType, 
+                        upsert: true,
+                        cacheControl: '3600'
+                    });
+
+                try { fs.unlinkSync(req.file.path); } catch {}
+
+                if (uploadError) {
+                    console.error('[TREINO_VIDEO_UPLOAD] Erro Storage:', uploadError.message);
+                    return res.status(500).json({ error: 'Falha ao salvar vídeo: ' + uploadError.message });
+                }
+
+                const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+                finalUrl = publicUrlData?.publicUrl || '';
             }
 
-            const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
-            const fileBuffer = fs.readFileSync(req.file.path);
-
-            // O supabase client precisa do contentType certo para o player Web Mobile não quebrar.
-            const { error: uploadError } = await supabase.storage
-                .from('uploads')
-                .upload(filename, fileBuffer, { 
-                    contentType: mimeType, 
-                    upsert: true,
-                    cacheControl: '3600'
-                });
-
-            try { fs.unlinkSync(req.file.path); } catch {}
-
-            if (uploadError) {
-                console.error('[TREINO_VIDEO_UPLOAD] Erro Storage:', uploadError.message);
-                return res.status(500).json({ error: 'Falha ao salvar vídeo: ' + uploadError.message });
-            }
-
-            const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
-            const url = publicUrlData?.publicUrl || '';
+            const url = finalUrl;
 
             if (treino.video_url) {
                 try {
