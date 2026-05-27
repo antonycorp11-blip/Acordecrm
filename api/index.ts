@@ -433,7 +433,7 @@ async function startServer() {
                          await sendPushNotification(
                              'Novo Aluno Matriculado! 🎉',
                              `Você tem um novo aluno: ${alunoNome} foi matriculado no seu curso de ${data.curso}. Verifique sua agenda!`,
-                             appId, appKey, String(prof.id), prof.email
+                             String(prof.id), prof.email
                          );
                      }
                  }
@@ -634,7 +634,7 @@ async function startServer() {
                     await sendPushNotification(
                         'Treino Registrado! 🎸🔥',
                         `Parabéns por praticar ${minutos} minutos hoje! Continue assim para acumular XP e subir de nível.`,
-                        appId, appKey, String(aluno.id), aluno.email
+                        String(aluno.id), aluno.email
                     );
                 }
             }
@@ -1957,7 +1957,7 @@ async function startServer() {
                     }
 
                     if (appId && appKey) {
-                        await sendPushNotification(titulo, msg, appId, appKey, String(aluno.id), aluno.email);
+                        await sendPushNotification(titulo, msg, String(aluno.id), aluno.email);
                         count++;
                     }
                 }
@@ -2119,7 +2119,7 @@ async function startServer() {
                 const profEmail = aula.professores.email;
                 const pushId = String(aula.professores.id);
                 if (appId && appKey) {
-                    await sendPushNotification(titulo, msg, appId, appKey, pushId, profEmail);
+                    await sendPushNotification(titulo, msg, pushId, profEmail);
                 }
             }
 
@@ -2131,7 +2131,7 @@ async function startServer() {
                 const pushIdAluno = Array.isArray(aula.alunos) ? String(aula.alunos[0].id) : String(aula.alunos.id);
                 const finalPushId = pushIdAluno || String(aula.alunos.id);
                 if (appId && appKey) {
-                    await sendPushNotification(tituloAluno, msgAluno, appId, appKey, finalPushId, alunoEmail);
+                    await sendPushNotification(tituloAluno, msgAluno, finalPushId, alunoEmail);
                 }
             }
 
@@ -2234,7 +2234,7 @@ async function startServer() {
                          await sendPushNotification(
                              'Aula Reagendada 🔄',
                              `Atenção: A aula de ${(aluno?.nome || 'Aluno').split(' ')[0]} foi reagendada para ${dataPtBr} às ${timeText}.`,
-                             appId, appKey, String(prof.id), prof.email
+                             String(prof.id), prof.email
                          );
                      }
                  }
