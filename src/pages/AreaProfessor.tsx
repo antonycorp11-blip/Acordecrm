@@ -38,6 +38,7 @@ import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musi
 import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
+import { resolveTrophyImage } from './AreaAluno';
 
 class MelodySynth {
   private ctx: AudioContext | null = null;
@@ -429,16 +430,25 @@ export default function AreaProfessor() {
     
     Promise.all([
       fetch('/api/professores/me', { headers }).then(r => r.ok ? r.json() : null),
-      fetch('/api/agenda', { headers }).then(r => r.ok ? r.json() : []),
+      fetch(`/api/agenda?start=${format(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')}&end=${format(new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')}`, { headers }).then(r => r.ok ? r.json() : []),
       fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : [])
     ]).then(([me, agenda, alunos]) => {
       if (me) {
         setProfessorData(me);
       }
       if (alunos) {
-        // Filtra e ordena alunos arquivados ou ativos
+        // Filtra alunos arquivados ou ativos, e verifica se o aluno tem vínculo com o professor logado
+        const profId = me ? me.id : (professorData ? professorData.id : null);
         const sortedAlunos = Array.isArray(alunos) 
-          ? alunos.filter((a: any) => a.status !== 'arquivado').sort((a: any, b: any) => (a.nome || '').localeCompare(b.nome || '')) 
+          ? alunos.filter((a: any) => {
+              if (a.status === 'arquivado') return false;
+              if (!profId) return true;
+              
+              const ehMeuAluno = a.matriculas?.some((m: any) => Number(m.professor_id) === Number(profId));
+              const naAgenda = agenda ? (Array.isArray(agenda) ? agenda : []).some((ag: any) => Number(ag.aluno_id) === Number(a.id) && Number(ag.professor_id) === Number(profId)) : false;
+              
+              return ehMeuAluno || naAgenda;
+            }).sort((a: any, b: any) => (a.nome || '').localeCompare(b.nome || '')) 
           : [];
         setAlunosList(sortedAlunos);
       }
@@ -3422,10 +3432,10 @@ export default function AreaProfessor() {
                         <div key={conq.id} className="flex items-center gap-3 p-2.5 border-4 border-black bg-white shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all">
                           {/* Ícone */}
                           <div className="w-10 h-10 border-2 border-black bg-[#fff8f6] flex items-center justify-center shrink-0 shadow-[2px_2px_0_#000]">
-                            {conq.icone_url ? (
-                              <img src={conq.icone_url} alt="" className="w-full h-full object-cover" />
+                            {conq.icone_url || resolveTrophyImage(conq.instrumento, conq.classe) ? (
+                              <img src={conq.icone_url || resolveTrophyImage(conq.instrumento, conq.classe)} alt="" className="w-full h-full object-cover p-1" />
                             ) : (
-                              <span className="text-sm">🏆</span>
+                              <span className="text-sm">{conq.icone || '🏆'}</span>
                             )}
                           </div>
 
@@ -3520,11 +3530,11 @@ export default function AreaProfessor() {
                           <div className="flex items-center gap-3">
                             {/* Foto ou Inicial */}
                             <div className="w-12 h-12 bg-[#feccba] border-4 border-black text-black overflow-hidden flex items-center justify-center shrink-0 shadow-[2px_2px_0_#000]">
-                              {treino.aluno?.foto_url ? (
-                                <img src={treino.aluno.foto_url} alt="" className="w-full h-full object-cover" />
+                              {(treino.alunos || treino.aluno)?.foto_url ? (
+                                <img src={(treino.alunos || treino.aluno).foto_url} alt="" className="w-full h-full object-cover" />
                               ) : (
                                 <span className="font-black text-lg text-black">
-                                  {(treino.aluno?.nome || 'A').charAt(0).toUpperCase()}
+                                  {((treino.alunos || treino.aluno)?.nome || 'A').charAt(0).toUpperCase()}
                                 </span>
                               )}
                             </div>
@@ -3536,12 +3546,12 @@ export default function AreaProfessor() {
                               <h4 
                                 onClick={() => {
                                   if (treino.aluno_id) {
-                                    handleAbrirHistoricoAluno(treino.aluno_id, treino.aluno?.nome || 'ALUNO');
+                                    handleAbrirHistoricoAluno(treino.aluno_id, (treino.alunos || treino.aluno)?.nome || 'ALUNO');
                                   }
                                 }}
                                 className="text-black font-black text-sm uppercase italic leading-none my-1.5 truncate cursor-pointer hover:text-[#ff6b00] underline decoration-dashed decoration-1 hover:decoration-solid transition-colors"
                               >
-                                {treino.aluno?.nome || 'ALUNO DESCONHECIDO'}
+                                {(treino.alunos || treino.aluno)?.nome || 'ALUNO DESCONHECIDO'}
                               </h4>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="bg-[#402a20] text-[#feccba] border border-black px-1 font-black text-[6.5px] uppercase leading-none">
@@ -3716,7 +3726,11 @@ export default function AreaProfessor() {
                       rankingData.map((player: any, idx: number) => {
                         const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
                         return (
-                          <div key={player.id} className="flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] bg-[#fff8f6]">
+                          <div 
+                            key={player.id} 
+                            onClick={() => handleAbrirHistoricoAluno(player.id, player.nome)}
+                            className="flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] bg-[#fff8f6] cursor-pointer hover:bg-[#ffeae1] hover:-translate-y-0.5 transition-all"
+                          >
                             {/* Colocação */}
                             <div className="w-10 h-10 border-4 border-black flex items-center justify-center font-black text-sm shrink-0 bg-[#feccba] text-black">
                               {medal}
@@ -3746,8 +3760,8 @@ export default function AreaProfessor() {
                                         className="w-5 h-5 border-2 border-black bg-white flex items-center justify-center shadow-[1px_1px_0_#000] shrink-0" 
                                         title={c.nome}
                                       >
-                                        {c.icone_url ? (
-                                          <img src={c.icone_url} alt={c.nome} className="w-full h-full object-cover" />
+                                        {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                                          <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-cover" />
                                         ) : (
                                           <span className="text-[8px]">🏆</span>
                                         )}
@@ -3771,7 +3785,8 @@ export default function AreaProfessor() {
                               <p className="font-black text-xs italic text-[#ff6b00] leading-none">{player.xp} XP</p>
                               
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setAssignData({ aluno_id: String(player.id), conquista_id: '' });
                                   setIsAssignModalOpen(true);
                                   fetchConquistas();

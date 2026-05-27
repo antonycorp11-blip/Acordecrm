@@ -3,6 +3,7 @@ import { Search, Bell, LayoutGrid, List, Trophy, Star, Zap, Target, Plus, X, Sav
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import { resolveTrophyImage } from './AreaAluno';
 
 type ViewMode = 'cards' | 'lista';
 
@@ -219,8 +220,8 @@ export default function Ranking() {
                             <div className="flex gap-1.5 shrink-0">
                               {(mockRanking[0].conquistas || []).map((c: any, idx: number) => (
                                 <div key={idx} className="w-8 h-8 rounded border border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden" title={`${c.nome} (+${c.pontos} XP)`}>
-                                  {c.icone_url ? (
-                                    <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-1" />
+                                  {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                                    <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-1" />
                                   ) : (
                                     <Trophy className="w-4 h-4 text-[#ff6b00]" />
                                   )}
@@ -281,8 +282,8 @@ export default function Ranking() {
                               <div className="flex gap-0.5 shrink-0">
                                 {(aluno.conquistas || []).slice(0, 3).map((c: any, j: number) => (
                                   <div key={j} className="w-5 h-5 rounded border border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden" title={c.nome}>
-                                    {c.icone_url ? (
-                                      <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-0.5" />
+                                    {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                                      <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-0.5" />
                                     ) : (
                                       <Trophy className="w-3 h-3 text-[#ff6b00]" />
                                     )}
@@ -357,8 +358,8 @@ export default function Ranking() {
                           <div className="flex items-center gap-1.5">
                             {(aluno.conquistas || []).map((c: any, idx: number) => (
                               <div key={idx} className="w-6 h-6 rounded border border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden" title={`${c.nome} (+${c.pontos} XP)`}>
-                                {c.icone_url ? (
-                                  <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-0.5" />
+                                {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                                  <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-0.5" />
                                 ) : (
                                   <Trophy className="w-3 h-3 text-[#ff6b00]" />
                                 )}
@@ -531,8 +532,8 @@ export default function Ranking() {
                       >
                         {/* Trophy Icon */}
                         <div className="w-12 h-12 rounded border-2 border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden shrink-0 shadow-[2px_2px_0_#000]">
-                          {c.icone_url ? (
-                            <img src={c.icone_url} alt={c.nome} className="w-full h-full object-contain p-1.5" />
+                          {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                            <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-1.5" />
                           ) : (
                             <Trophy className="w-6 h-6 text-[#ff6b00]" />
                           )}

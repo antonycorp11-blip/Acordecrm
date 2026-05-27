@@ -1157,24 +1157,10 @@ export default function AreaAluno() {
                 </div>
                 <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
               </div>
-              {[...aulasRealizadas].concat(aulasHoje).sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()).map((aula: any) => (
-                <div key={aula.id} className={`flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] ${aula.status === 'realizada' ? 'bg-[#fff8f6]' : aula.status === 'falta_aluno' ? 'bg-red-50' : 'bg-[#261812]'}`}>
-                  <div className={`w-10 h-10 border-4 border-black flex flex-col items-center justify-center font-black shrink-0 ${aula.status === 'realizada' ? 'bg-[#ff6b00] text-white' : aula.status === 'falta_aluno' ? 'bg-red-500 text-white' : 'bg-[#feccba] text-black'}`}>
-                    <span className="text-[10px] leading-none">{new Date(aula.data + 'T12:00:00').getDate().toString().padStart(2,'0')}</span>
-                    <span className="text-[7px] leading-none uppercase">{new Date(aula.data + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'short' })}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-black text-[10px] uppercase ${aula.status !== 'pendente' ? 'text-black' : 'text-[#feccba]'}`}>{aula.curso_nome || 'AULA DE MÚSICA'}</p>
-                    <p className={`text-[7px] font-black uppercase ${aula.status !== 'pendente' ? 'text-[#8e7164]' : 'text-[#feccba]/70'}`}>{aula.horario?.substring(0,5)} • {aula.professor_nome || 'PROFESSOR'}</p>
-                  </div>
-                  <span className={`text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black ${aula.status === 'realizada' ? 'bg-[#ff6b00] text-white' : aula.status === 'falta_aluno' ? 'bg-red-500 text-white' : 'bg-[#ffd700] text-black'}`}>
-                    {aula.status === 'realizada' ? 'FEITA' : aula.status === 'falta_aluno' ? 'FALTA' : 'AGENDADA'}
-                  </span>
-                </div>
-              ))}
-              {aulasRealizadas.length === 0 && aulasHoje.length === 0 && (
-                <div className="text-center py-8 text-[#8e7164] font-black text-[9px] uppercase">Nenhuma aula registrada</div>
-              )}
+              <div className="text-center py-8 bg-[#261812] border-4 border-black shadow-[4px_4px_0_#000]">
+                <p className="text-[#8e7164] font-black text-[10px] uppercase">🚧 AGUARDE: EM DESENVOLVIMENTO 🚧</p>
+                <p className="text-[#8e7164]/60 font-black text-[8px] uppercase mt-2">EM BREVE SUAS VIDEOAULAS E MATERIAIS DE APOIO ESTARÃO AQUI!</p>
+              </div>
             </div>
           )}
 
@@ -1683,41 +1669,7 @@ export default function AreaAluno() {
               </div>
             </div>
 
-            {/* Próxima Sessão */}
-            {aulasHoje[0] ? (
-              <div className={`p-5 flex flex-col gap-3 border-8 border-black shadow-[10px_10px_0_#000] transition-colors duration-500 ${aulasHoje[0].status === 'confirmada' ? 'bg-[#00cc00]' : 'bg-[#ff6b00]'}`}>
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-[#261812] border-4 border-black text-[#ff6b00] flex items-center justify-center shrink-0 shadow-[4px_4px_0_#000]">
-                    <span className="font-black text-2xl">♪</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-black text-[8px] uppercase tracking-widest mb-1 ${aulasHoje[0].status === 'confirmada' ? 'text-black' : 'text-white/80'}`}>&gt;&gt; PRÓXIMA_AULA</p>
-                    <p className={`font-black text-sm uppercase italic leading-none mb-1 ${aulasHoje[0].status === 'confirmada' ? 'text-black' : 'text-white'}`}>
-                      {new Date(aulasHoje[0].data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} @ {aulasHoje[0].horario?.substring(0,5)}
-                    </p>
-                    <span className={`text-[7px] font-black px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block mt-0.5 ${aulasHoje[0].status === 'confirmada' ? 'bg-black text-[#00cc00]' : 'bg-black text-white'}`}>
-                      STATUS: {aulasHoje[0].status === 'confirmada' ? 'CONFIRMADA' : 'PENDENTE'}
-                    </span>
-                  </div>
-                </div>
-                {aulasHoje[0].status === 'confirmada' ? (
-                  <div className="bg-black text-[#00cc00] border-4 border-black text-center font-black text-[8px] uppercase tracking-wider py-1.5 shadow-[2px_2px_0_#000]">
-                    ✔️ AULA CONFIRMADA!
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleConfirmarPresenca(aulasHoje[0].id)}
-                    className="w-full bg-white hover:bg-black hover:text-white text-black border-4 border-black text-center font-black text-[8px] uppercase tracking-wider py-2 shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
-                  >
-                    👍 EU VOU! CONFIRMAR PRESENÇA
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="p-6 text-center bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000]">
-                <p className="text-[#8e7164] font-black text-[10px] uppercase italic">&gt;&gt; NENHUMA_AULA_AGENDADA</p>
-              </div>
-            )}
+            {/* Próxima Sessão foi removida a pedido do admin para ceder espaço a futuras features */}
 
             {/* Diário de Evolução (Musiclass feedbacks) */}
             <div className="pt-2">
@@ -2247,15 +2199,15 @@ export default function AreaAluno() {
                               let customStyle: React.CSSProperties = {};
 
                               if (conquistado) {
-                                cardStyle = `bg-gradient-to-r ${categoria.bgGrad} border-4 ${categoria.border} p-3 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3 transition-all min-w-[260px] sm:min-w-[320px] shrink-0 snap-center relative`;
-                                badgeIconStyle = `w-14 h-14 bg-[#2d211b] border-2 ${categoria.border} flex items-center justify-center text-2xl shrink-0`;
+                                cardStyle = `bg-gradient-to-r ${categoria.bgGrad} border-4 ${categoria.border} p-2 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-2 transition-all min-w-[200px] sm:min-w-[240px] shrink-0 snap-center relative`;
+                                badgeIconStyle = `w-10 h-10 bg-[#2d211b] border-2 ${categoria.border} flex items-center justify-center text-xl shrink-0`;
                                 customStyle = { boxShadow: `0 0 12px ${categoria.glow}` };
                               } else if (solicitacaoPendente) {
-                                cardStyle = "bg-[#1f1510] border-4 border-dashed border-[#8e7164] opacity-80 p-3 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3 transition-all min-w-[260px] sm:min-w-[320px] shrink-0 snap-center relative";
-                                badgeIconStyle = "w-14 h-14 bg-[#2d211b] border-2 border-[#8e7164] flex items-center justify-center text-2xl shrink-0 grayscale opacity-60";
+                                cardStyle = "bg-[#1f1510] border-4 border-dashed border-[#8e7164] opacity-80 p-2 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-2 transition-all min-w-[200px] sm:min-w-[240px] shrink-0 snap-center relative";
+                                badgeIconStyle = "w-10 h-10 bg-[#2d211b] border-2 border-[#8e7164] flex items-center justify-center text-xl shrink-0 grayscale opacity-60";
                               } else {
-                                cardStyle = "bg-[#1f1510] border-4 border-black/80 opacity-90 p-3 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3 hover:border-white/20 transition-all min-w-[260px] sm:min-w-[320px] shrink-0 snap-center relative";
-                                badgeIconStyle = "w-14 h-14 bg-[#2d211b] border-2 border-black flex items-center justify-center text-2xl shrink-0 grayscale opacity-40";
+                                cardStyle = "bg-[#1f1510] border-4 border-black/80 opacity-90 p-2 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-2 hover:border-white/20 transition-all min-w-[200px] sm:min-w-[240px] shrink-0 snap-center relative";
+                                badgeIconStyle = "w-10 h-10 bg-[#2d211b] border-2 border-black flex items-center justify-center text-xl shrink-0 grayscale opacity-40";
                               }
 
                               return (
