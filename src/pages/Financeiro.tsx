@@ -38,6 +38,67 @@ export default function Financeiro() {
   const [valorPago, setValorPago] = useState<string>('');
   const [descontoDia10, setDescontoDia10] = useState(false);
 
+  // Modal de Folha do Professor
+  const [folhaModal, setFolhaModal] = useState<{ profId: number | null, nome: string, open: boolean }>({ profId: null, nome: '', open: false });
+  const [aulasFolha, setAulasFolha] = useState<any[]>([]);
+  const [loadingFolha, setLoadingFolha] = useState(false);
+  const [novaAulaFolha, setNovaAulaFolha] = useState({ aluno_id: '', data: new Date().toISOString().split('T')[0], horario: '10:00' });
+
+  const abrirFolha = async (profId: number, profNome: string) => {
+    setFolhaModal({ profId, nome: profNome, open: true });
+    carregarAulasFolha(profId);
+  };
+
+  const carregarAulasFolha = async (profId: number) => {
+    setLoadingFolha(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [m, y] = currentMonth.split('/');
+      const startDate = `${y}-${m}-01`;
+      const endDate = new Date(Number(y), Number(m), 0).toISOString().split('T')[0];
+      const res = await fetch(`/api/agenda?start=${startDate}&end=${endDate}&professor_id=${profId}`, { headers });
+      if (res.ok) {
+        let aulas = await res.json();
+        if (Array.isArray(aulas)) {
+           aulas = aulas.filter(a => a.status === 'realizada' || a.status === 'falta_aluno');
+           setAulasFolha(aulas);
+        }
+      }
+    } catch (e) {}
+    setLoadingFolha(false);
+  };
+
+  const removerAulaFolha = async (aulaId: number) => {
+     if(!window.confirm('Deseja excluir permanentemente esta aula da folha?')) return;
+     try {
+       const token = localStorage.getItem('acorde_token');
+       await fetch(`/api/aulas/${aulaId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+       if (folhaModal.profId) carregarAulasFolha(folhaModal.profId);
+       fetchData(); // recarrega a remuneração
+     } catch(e) {}
+  };
+
+  const adicionarAulaFolha = async (e: React.FormEvent) => {
+     e.preventDefault();
+     try {
+       const token = localStorage.getItem('acorde_token');
+       await fetch(`/api/aulas`, {
+         method: 'POST',
+         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           professor_id: folhaModal.profId,
+           aluno_id: novaAulaFolha.aluno_id ? Number(novaAulaFolha.aluno_id) : null,
+           data: novaAulaFolha.data,
+           horario: novaAulaFolha.horario,
+           status: 'realizada'
+         })
+       });
+       if (folhaModal.profId) carregarAulasFolha(folhaModal.profId);
+       fetchData(); // recarrega a remuneração
+     } catch(e) {}
+  };
+
   const fetchData = async () => {
     const token = localStorage.getItem('acorde_token');
     const headers = { 'Authorization': `Bearer ${token}` };
@@ -411,11 +472,15 @@ export default function Financeiro() {
                   {remuneracao.length === 0 ? (
                     <tr><td colSpan={4} className="py-20 text-center text-[10px] font-black uppercase opacity-50">Sem registros para o período</td></tr>
                   ) : remuneracao.map((r, i) => (
-                    <tr key={`prof-${r.professor_id}-${i}`} className="hover:bg-white/5 transition-colors">
-                      <td className="px-4 py-5 font-bold uppercase text-[11px]">{r.professor_nome}</td>
+                    <tr 
+                      key={`prof-${r.professor_id}-${i}`} 
+                      className="hover:bg-white/5 transition-colors cursor-pointer group"
+                      onClick={() => abrirFolha(r.professor_id, r.professor_nome)}
+                    >
+                      <td className="px-4 py-5 font-bold uppercase text-[11px] group-hover:text-[#FF8A00] transition-colors">{r.professor_nome}</td>
                       <td className="px-4 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{r.total_aulas} AULAS</td>
                       <td className="px-4 py-5 text-[12px] font-black text-[#00FF41]">R$ {r.valor_estimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="px-4 py-5 text-right font-black uppercase text-[9px] text-[#FF8A00] animate-pulse">PENDENTE</td>
+                      <td className="px-4 py-5 text-right font-black uppercase text-[9px] text-[#FF8A00] animate-pulse">GERENCIAR <ChevronRight className="inline w-3 h-3"/></td>
                     </tr>
                   ))}
                </tbody>
@@ -423,6 +488,79 @@ export default function Financeiro() {
            </div>
         </div>
       )}
+
+      {/* Modal de Folha do Professor */}
+      <AnimatePresence>
+        {folhaModal.open && (
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1A1A1A] border-4 border-white p-6 md:p-8 w-full max-w-2xl shadow-hard relative max-h-[90vh] overflow-y-auto">
+              <button onClick={() => setFolhaModal({ ...folhaModal, open: false })} className="absolute -top-6 -right-6 bg-[#FF0000] border-4 border-black p-2 shadow-hard-black transition-all hover:translate-x-1 hover:translate-y-1 hover:shadow-none">
+                 <X className="w-6 h-6 text-white" />
+              </button>
+              
+              <h2 className="text-xl md:text-2xl font-black uppercase mb-6 border-b-4 border-white pb-4 tracking-tighter flex items-center gap-3">
+                 <Users className="w-6 h-6 text-[#FF8A00]" />
+                 Folha: {folhaModal.nome}
+              </h2>
+
+              {/* Lista de Aulas */}
+              <div className="mb-8">
+                <h3 className="text-[10px] font-black text-[#FF8A00] uppercase tracking-widest mb-3">Aulas Realizadas no Período</h3>
+                <div className="bg-black border-2 border-white/20 p-2 max-h-60 overflow-y-auto">
+                  {loadingFolha ? (
+                    <div className="p-4 text-center text-[10px] uppercase font-bold animate-pulse">Carregando aulas...</div>
+                  ) : aulasFolha.length === 0 ? (
+                    <div className="p-4 text-center text-[10px] uppercase font-bold text-white/50">Nenhuma aula registrada neste mês.</div>
+                  ) : (
+                    <table className="w-full text-left">
+                      <tbody>
+                        {aulasFolha.map(aula => (
+                          <tr key={aula.id} className="border-b border-white/10 hover:bg-white/5">
+                            <td className="p-2 text-[10px] font-bold uppercase">{aula.data.split('-').reverse().join('/')}</td>
+                            <td className="p-2 text-[10px] font-mono text-white/50">{aula.horario?.substring(0,5)}</td>
+                            <td className="p-2 text-[10px] font-bold uppercase truncate max-w-[120px]">{aula.alunos?.nome || 'Avulso'}</td>
+                            <td className="p-2 text-right">
+                              <button onClick={() => removerAulaFolha(aula.id)} className="text-red-500 hover:text-red-400 p-1">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Form Add Aula */}
+              <form onSubmit={adicionarAulaFolha} className="bg-black/50 border-2 border-white/20 p-4">
+                <h3 className="text-[10px] font-black text-[#00FF41] uppercase tracking-widest mb-4 flex items-center gap-2"><Plus className="w-3 h-3"/> Incluir Aula Retroativa</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="text-[9px] font-bold text-white/50 block mb-1">DATA</label>
+                    <input type="date" required value={novaAulaFolha.data} onChange={e => setNovaAulaFolha({...novaAulaFolha, data: e.target.value})} className="w-full bg-black border border-white/20 p-2 text-[10px] text-white outline-none focus:border-[#00FF41]" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-white/50 block mb-1">HORÁRIO</label>
+                    <input type="time" required value={novaAulaFolha.horario} onChange={e => setNovaAulaFolha({...novaAulaFolha, horario: e.target.value})} className="w-full bg-black border border-white/20 p-2 text-[10px] text-white outline-none focus:border-[#00FF41]" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-white/50 block mb-1">ALUNO (Opcional)</label>
+                    <select value={novaAulaFolha.aluno_id} onChange={e => setNovaAulaFolha({...novaAulaFolha, aluno_id: e.target.value})} className="w-full bg-black border border-white/20 p-2 text-[10px] uppercase text-white outline-none focus:border-[#00FF41]">
+                      <option value="">Nenhum / Avulso</option>
+                      {alunos.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <button type="submit" className="w-full bg-[#00FF41] text-black font-black uppercase text-[10px] py-3 shadow-hard hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all">
+                  Adicionar à Folha
+                </button>
+              </form>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal Entrada Extra */}
       <AnimatePresence>

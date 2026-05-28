@@ -2988,14 +2988,16 @@ export default function AreaProfessor() {
                 </div>
 
                 {/* Criar Aula Avulsa - Musiclass Fiel */}
-                <div className="p-1">
-                  <button
-                    onClick={openCreateModal}
-                    className="w-full bg-[#ff6b00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 hover:bg-[#ff8c3a]"
-                  >
-                    ⚔️ REGISTRAR NOVA AULA MUSICLASS
-                  </button>
-                </div>
+                {localStorage.getItem('acorde_role') === 'admin' && (
+                  <div className="p-1">
+                    <button
+                      onClick={openCreateModal}
+                      className="w-full bg-[#ff6b00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 hover:bg-[#ff8c3a]"
+                    >
+                      ⚔️ REGISTRAR NOVA AULA MUSICLASS
+                    </button>
+                  </div>
+                )}
 
                 {/* Agenda do Dia */}
                 <div className="pt-2">
@@ -3156,16 +3158,18 @@ export default function AreaProfessor() {
                           <span className="text-[7px] font-mono text-[#8e7164] uppercase truncate max-w-[150px]">
                             {aluno.email}
                           </span>
-                          <button
-                            onClick={() => {
-                              setNewAulaAlunoId(aluno.id);
-                              setNewAulaCurso(aluno.curso_ativo || 'Piano');
-                              openCreateModal();
-                            }}
-                            className="bg-[#ff6b00] text-white px-2 py-1.5 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
-                          >
-                            <Plus className="w-3 h-3" /> AULA AVULSA
-                          </button>
+                          {localStorage.getItem('acorde_role') === 'admin' && (
+                            <button
+                              onClick={() => {
+                                setNewAulaAlunoId(aluno.id);
+                                setNewAulaCurso(aluno.curso_ativo || 'Piano');
+                                openCreateModal();
+                              }}
+                              className="bg-[#ff6b00] text-white px-2 py-1.5 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" /> AULA AVULSA
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))

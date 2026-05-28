@@ -919,19 +919,26 @@ async function startServer() {
 
     app.post('/api/aulas', async (req: any, res) => {
         try {
-            const { aluno_id, data, horario, horario_fim, curso_nome, status, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
+            const { aluno_id, data, horario, horario_fim, curso_nome, status, conteudo, tarefa_casa, midias, xp_ganho, professor_id } = req.body;
             
             if (!req.user) {
                 return res.status(401).json({ error: 'Não autorizado' });
             }
             
-            const { data: prof, error: profErr } = await supabase.from('professores')
-                .select('*')
-                .ilike('email', req.user.email)
-                .maybeSingle();
-                
-            if (profErr || !prof) {
-                return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
+            let finalProfId = null;
+
+            if (req.user.role === 'admin' && professor_id) {
+                finalProfId = professor_id;
+            } else {
+                const { data: prof, error: profErr } = await supabase.from('professores')
+                    .select('id')
+                    .ilike('email', req.user.email)
+                    .maybeSingle();
+                    
+                if (profErr || !prof) {
+                    return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
+                }
+                finalProfId = prof.id;
             }
 
             // Calcular horario_fim de forma segura, evitando NaN:00
@@ -948,7 +955,7 @@ async function startServer() {
 
             const newAula = {
                 aluno_id,
-                professor_id: prof.id,
+                professor_id: finalProfId,
                 data,
                 horario: horario || '12:00',
                 horario_fim: calcHorarioFim(horario, horario_fim),
@@ -1425,6 +1432,24 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
+    app.delete('/api/aulas/:id', async (req: any, res) => {
+        try {
+            if (!req.user || req.user.role !== 'admin') {
+                return res.status(403).json({ error: 'Acesso negado. Apenas admin.' });
+            }
+            const { error } = await supabase.from('aulas').delete().eq('id', req.params.id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.get('/api/horarios-disponiveis', async (req, res) => {
+        const data = [
+            "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"
+        ];
+        res.json(data);
+    });
+
     app.get('/api/professores', async (req, res) => {
         const { data } = await supabase.from('professores').select('*').order('nome');
         // Filter out duplicates by nome
@@ -1687,28 +1712,33 @@ async function startServer() {
             const startDate = `${y}-${m}-01`;
             const endDate = new Date(Number(y), Number(m), 0).toISOString().split('T')[0];
 
+            const { data: todosProfessores, error: errProf } = await supabase.from('professores').select('id, nome');
+            if (errProf) throw errProf;
+
+            const remunByProf: Record<number, any> = {};
+            (todosProfessores || []).forEach(prof => {
+                remunByProf[prof.id] = {
+                    professor_id: prof.id,
+                    professor_nome: prof.nome,
+                    total_aulas: 0,
+                    valor_estimado: 0
+                };
+            });
+
             const { data: aulas, error } = await supabase.from('aulas')
-                .select('*, professor:professor_id(*)')
+                .select('professor_id, status')
                 .gte('data', startDate)
                 .lte('data', endDate)
                 .in('status', ['realizada', 'falta_aluno']);
 
             if (error) throw error;
 
-            const remunByProf: Record<number, any> = {};
             (aulas || []).forEach(aula => {
-                if (!aula.professor) return;
-                if (!remunByProf[aula.professor_id]) {
-                    remunByProf[aula.professor_id] = {
-                        professor_id: aula.professor_id,
-                        professor_nome: aula.professor.nome,
-                        total_aulas: 0,
-                        valor_estimado: 0
-                    };
+                if (!aula.professor_id) return;
+                if (remunByProf[aula.professor_id]) {
+                    remunByProf[aula.professor_id].total_aulas++;
+                    remunByProf[aula.professor_id].valor_estimado += 35; // Valor padrão arbitrário por aula
                 }
-                remunByProf[aula.professor_id].total_aulas++;
-                // Valor padrão arbitrário por aula (pode ser ajustado futuramente)
-                remunByProf[aula.professor_id].valor_estimado += 35; 
             });
 
             res.json(Object.values(remunByProf));
