@@ -2017,8 +2017,7 @@ async function startServer() {
             }
 
             let query = supabase.from('aulas')
-                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos!inner(nome, status), professores(nome), cursos(nome)')
-                .eq('alunos.status', 'ativo')
+                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos(nome, status), professores(nome), cursos(nome)')
                 .order('data', { ascending: true });
             
             if (start) query = query.gte('data', start);
@@ -2026,9 +2025,10 @@ async function startServer() {
             if (filterProfId) query = query.eq('professor_id', filterProfId);
             if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
 
-            const { data: aulas, error: errA } = await query;
+            const { data: rawAulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
             
+            const aulas = (rawAulas || []).filter(a => !a.alunos || a.alunos.status !== 'arquivado');
             console.log(`[AGENDA] Retornadas ${aulas?.length || 0} aulas regulares`);
 
             let expQuery = supabase.from('aulas_experimentais')
