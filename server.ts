@@ -723,7 +723,8 @@ async function startServer() {
             const { 
                 nome, email, telefone, cpf, endereco, 
                 responsavel_nome, responsavel_telefone, 
-                curso_id, dia_semana, horario
+                curso_id, dia_semana, horario,
+                valor_parcela, valor_com_desconto
             } = req.body;
             
             console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id, dia_semana, horario });
@@ -746,6 +747,8 @@ async function startServer() {
             if (curso_id && !isNaN(Number(curso_id))) matUpdate.curso_id = Number(curso_id);
             if (dia_semana !== undefined && dia_semana !== '' && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
             if (horario !== undefined && horario !== '') matUpdate.horario = horario;
+            if (valor_parcela !== undefined && valor_parcela !== '') matUpdate.valor_parcela = Number(valor_parcela);
+            if (valor_com_desconto !== undefined && valor_com_desconto !== '') matUpdate.valor_com_desconto = Number(valor_com_desconto);
 
             console.log(`[MATRICULA_UPDATE] Aluno ${studentId}, payload:`, matUpdate);
 
@@ -794,6 +797,22 @@ async function startServer() {
                         return res.status(500).json({ error: matError.message, stage: 'matricula' });
                     }
                     console.log(`[MATRICULA_UPDATE] Sucesso! Matrícula ${matriculaId} atualizada com:`, matUpdate);
+
+                    // Atualizar pagamentos pendentes
+                    if (matUpdate.valor_parcela !== undefined) {
+                        const { error: pagError } = await supabase
+                            .from('pagamentos')
+                            .update({ valor: matUpdate.valor_parcela })
+                            .eq('aluno_id', studentId)
+                            .eq('status', 'pendente')
+                            .eq('tipo_receita', 'mensalidade');
+                            
+                        if (pagError) {
+                            console.error('[PAGAMENTOS_UPDATE_ERROR]:', pagError);
+                        } else {
+                            console.log(`[PAGAMENTOS_UPDATE] Pagamentos pendentes atualizados para ${matUpdate.valor_parcela}.`);
+                        }
+                    }
 
                     // PASSO 3: Reagendar Aulas Pendentes se o dia ou horário mudou
                     if (matUpdate.dia_semana !== undefined || matUpdate.horario !== undefined) {

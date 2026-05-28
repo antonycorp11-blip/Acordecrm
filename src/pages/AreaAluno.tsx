@@ -781,10 +781,10 @@ export default function AreaAluno() {
   const uploadVideo = async () => {
     if (!videoBlob) return;
     
-    // VERIFICAÇÃO DE SEGURANÇA VERCEL: Se passar de 4.5MB, a Vercel corta (413 Payload Too Large)
-    const MAX_SIZE = 4.5 * 1024 * 1024; // 4.5MB
+    // Limite aumentado para 100MB para permitir upload direto ao Supabase em celulares
+    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
     if (videoBlob.size > MAX_SIZE) {
-      toast.error('O vídeo ficou muito pesado! Grave no máximo 15 a 20 segundos em baixa resolução.');
+      toast.error('O vídeo ficou muito pesado! Grave no máximo 1 minuto.');
       setVideoBlob(null);
       setVideoPreviewUrl('');
       return;
@@ -1625,8 +1625,9 @@ export default function AreaAluno() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            if (file.size > 4.5 * 1024 * 1024) {
-                              toast.error('O arquivo da câmera excedeu o limite! Grave no máximo 15 segundos ou reduza a resolução da câmera no Android.');
+                            // Limite aumentado para 100MB
+                            if (file.size > 100 * 1024 * 1024) {
+                              toast.error('O arquivo da câmera excedeu o limite de 100MB.');
                               return;
                             }
                             setVideoBlob(file);
