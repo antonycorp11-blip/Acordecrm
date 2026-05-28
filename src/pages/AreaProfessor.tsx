@@ -423,9 +423,9 @@ export default function AreaProfessor() {
   const [isAILoading, setIsAILoading] = useState(false);
 
 
-  const xp = professorData?.xp || 8450;
+  const xp = Number(professorData?.xp) || 8450;
   const xpMax = 10000;
-  const nivel = 42;
+  const nivel = Math.floor(xp / 1000) + 1;
   const xpPct = Math.min(100, (xp / xpMax) * 100);
   const hoje = format(new Date(), "d 'de' MMM", { locale: ptBR }).toUpperCase();
   const todayDay = format(new Date(), 'dd');
@@ -3400,7 +3400,7 @@ export default function AreaProfessor() {
                   <div className="flex items-center gap-4 mb-6">
                     <div className="w-14 h-14 rounded-none border-4 border-black overflow-hidden bg-[#ff6b00] shadow-[4px_4px_0_#000] flex-shrink-0">
                       <div className="w-full h-full flex items-center justify-center text-white font-black text-2xl">
-                        {(professorData?.nome || 'P').charAt(0).toUpperCase()}
+                        {String(professorData?.nome || 'P').charAt(0).toUpperCase()}
                       </div>
                     </div>
                     <div className="min-w-0">
@@ -3479,8 +3479,8 @@ export default function AreaProfessor() {
                                   a.matriculas?.forEach((m: any) => {
                                      if (m.status === 'ativa' && Number(m.professor_id) === Number(professorData?.id)) {
                                         if (m.dia_semana && m.horario) {
-                                           const nDay = m.dia_semana.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace('ç', 'c');
-                                           if (nDay === dia && m.horario.substring(0,5) === h) occupied = true;
+                                           const nDay = String(m.dia_semana || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace('ç', 'c');
+                                           if (nDay === dia && String(m.horario || '').substring(0,5) === h) occupied = true;
                                         }
                                      }
                                   });

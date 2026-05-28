@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, Search, Filter, ArrowUpRight, ArrowDownLeft,
-  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity, Trash2, ExternalLink
+  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity, Trash2, ExternalLink, Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -142,6 +142,34 @@ export default function Financeiro() {
     return !term || p.aluno_nome?.toLowerCase().includes(term) || p.referencia_mes_ano?.includes(term) || p.tipo_receita?.toLowerCase().includes(term) || p.descricao?.toLowerCase().includes(term);
   });
 
+  const handleDownloadCSV = () => {
+    const headers = ["ID", "Aluno / Descrição", "Tipo Receita", "Referência (Mês/Ano)", "Vencimento", "Valor (R$)", "Status"];
+    
+    const rows = filtered.map(p => {
+      const nomeOuDesc = p.aluno_nome || p.descricao || '---';
+      const vencimento = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM/yyyy') : '---';
+      const valor = Number(p.valor).toFixed(2).replace('.', ',');
+      return [
+        p.id,
+        `"${nomeOuDesc.replace(/"/g, '""')}"`,
+        p.tipo_receita || 'mensalidade',
+        `"${(p.referencia_mes_ano || '').replace(/"/g, '""')}"`,
+        vencimento,
+        `"${valor}"`,
+        p.status
+      ].join(';');
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(';'), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `financeiro_${currentMonth.replace('/', '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex flex-col flex-1 p-6 md:p-10 bg-[#0A0A0A] retro-font text-white overflow-y-auto">
       <style>{`
@@ -201,6 +229,9 @@ export default function Financeiro() {
                {importing ? '...' : 'PDF'}
                <input type="file" accept=".pdf" className="hidden" onChange={handleImportPDF} disabled={importing} />
              </label>
+             <button onClick={handleDownloadCSV} className="bg-white text-black border-4 border-black p-3 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
+               <Download className="w-4 h-4" /> Baixar Excel (CSV)
+             </button>
              <button onClick={() => setShowExtraModal(true)} className="bg-[#FF8A00] text-black border-4 border-black p-3 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
                <Plus className="w-4 h-4" /> Entrada Extra
              </button>
