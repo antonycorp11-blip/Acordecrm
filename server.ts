@@ -816,10 +816,12 @@ async function startServer() {
 
                     // PASSO 3: Reagendar Aulas Pendentes se o dia ou horário mudou
                     if (matUpdate.dia_semana !== undefined || matUpdate.horario !== undefined) {
+                        const hoje = new Date().toISOString().split('T')[0];
                         const { data: aulasFuturas } = await supabase.from('aulas')
                             .select('id, data')
                             .eq('matricula_id', matriculaId)
-                            .eq('status', 'pendente');
+                            .eq('status', 'pendente')
+                            .gte('data', hoje);
                             
                         if (aulasFuturas && aulasFuturas.length > 0) {
                             console.log(`[MATRICULA_UPDATE] Reagendando ${aulasFuturas.length} aulas pendentes na agenda...`);
@@ -1759,7 +1761,7 @@ async function startServer() {
 
             let query = supabase.from('aulas')
                 .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos!inner(nome, status), professores(nome), cursos(nome)')
-                .eq('alunos.status', 'ativo')
+                .neq('alunos.status', 'arquivado')
                 .order('data', { ascending: true });
             
             if (start) query = query.gte('data', start);
