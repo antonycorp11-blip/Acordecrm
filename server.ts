@@ -926,12 +926,15 @@ async function startServer() {
             }
             
             let finalProfId = null;
+            let profObj: any = null;
 
             if (req.user.role === 'admin' && professor_id) {
                 finalProfId = professor_id;
+                const { data: fetchedProf } = await supabase.from('professores').select('*').eq('id', professor_id).single();
+                profObj = fetchedProf;
             } else {
                 const { data: prof, error: profErr } = await supabase.from('professores')
-                    .select('id')
+                    .select('*')
                     .ilike('email', req.user.email)
                     .maybeSingle();
                     
@@ -939,6 +942,7 @@ async function startServer() {
                     return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
                 }
                 finalProfId = prof.id;
+                profObj = prof;
             }
 
             // Calcular horario_fim de forma segura, evitando NaN:00
@@ -971,9 +975,11 @@ async function startServer() {
             if (createErr) throw createErr;
 
             if (newAula.status === 'realizada') {
-                const valorAula = Number(prof.valor_aula) || 0;
-                const novoSaldo = (Number(prof.saldo) || 0) + valorAula;
-                await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', prof.id);
+                const valorAula = Number(profObj?.valor_aula) || 0;
+                const novoSaldo = (Number(profObj?.saldo) || 0) + valorAula;
+                if (profObj?.id) {
+                    await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', profObj.id);
+                }
 
                 const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', aluno_id).single();
                 if (aluno) {
@@ -1801,7 +1807,10 @@ async function startServer() {
             const { data: rawAulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
             
-            const aulas = (rawAulas || []).filter(a => !a.alunos || a.alunos.status !== 'arquivado');
+            const aulas = (rawAulas || []).filter((a: any) => {
+                const aluno = Array.isArray(a.alunos) ? a.alunos[0] : a.alunos;
+                return !aluno || aluno.status !== 'arquivado';
+            });
             console.log(`[AGENDA] Retornadas ${aulas.length} aulas regulares`);
 
             let expQuery = supabase.from('aulas_experimentais')

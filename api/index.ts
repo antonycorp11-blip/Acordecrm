@@ -2028,7 +2028,10 @@ async function startServer() {
             const { data: rawAulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
             
-            const aulas = (rawAulas || []).filter(a => !a.alunos || a.alunos.status !== 'arquivado');
+            const aulas = (rawAulas || []).filter((a: any) => {
+                const aluno = Array.isArray(a.alunos) ? a.alunos[0] : a.alunos;
+                return !aluno || aluno.status !== 'arquivado';
+            });
             console.log(`[AGENDA] Retornadas ${aulas?.length || 0} aulas regulares`);
 
             let expQuery = supabase.from('aulas_experimentais')
