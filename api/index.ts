@@ -49,18 +49,31 @@ const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', 
 });
 
 const fetchAllGamificacaoProgresso = async (supabaseClient: any) => {
-    let allData: any[] = [];
-    let from = 0;
+    // 1. Obter o total de registros para paginar em paralelo
+    const { count, error: countError } = await supabaseClient
+        .from('gamificacao_progresso')
+        .select('*', { count: 'exact', head: true });
+        
+    if (countError || count === null || count === 0) return [];
+
     const step = 1000;
-    while (true) {
-        const { data, error } = await supabaseClient
-            .from('gamificacao_progresso')
-            .select('*, conquista:conquista_id(*)')
-            .range(from, from + step - 1);
-        if (error || !data || data.length === 0) break;
-        allData = allData.concat(data);
-        if (data.length < step) break;
-        from += step;
+    const promises = [];
+    
+    for (let from = 0; from < count; from += step) {
+        promises.push(
+            supabaseClient
+                .from('gamificacao_progresso')
+                .select('*, conquista:conquista_id(*)')
+                .order('id', { ascending: true })
+                .range(from, from + step - 1)
+        );
+    }
+    
+    // Executar todas as requisições simultaneamente (bypass Vercel timeout)
+    const results = await Promise.all(promises);
+    let allData: any[] = [];
+    for (const res of results) {
+        if (res.data) allData = allData.concat(res.data);
     }
     return allData;
 };
@@ -396,7 +409,7 @@ async function startServer() {
             // 2. Calcular Ranking e XP real (baseado em conquistas)
             const { data: allAlunos } = await supabase.from('alunos').select('id, xp');
             const progresso = await fetchAllGamificacaoProgresso(supabase);
-            const { data: meuProgresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)').eq('aluno_id', aluno.id);
+            const meuProgresso = progresso.filter((p: any) => p.aluno_id === aluno.id);
             
             const rankingList = (allAlunos || []).map(al => {
                 const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
