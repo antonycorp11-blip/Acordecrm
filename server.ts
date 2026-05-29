@@ -1862,6 +1862,7 @@ async function startServer() {
                     originalId: a.id,
                     type: 'regular',
                     nome: a.alunos?.nome,
+                    aluno_nome: a.alunos?.nome,
                     professor_nome: a.professores?.nome,
                     curso_nome: a.cursos?.nome || 'Curso'
                 })) || []),
@@ -1871,6 +1872,7 @@ async function startServer() {
                     originalId: e.id,
                     type: 'experimental',
                     nome: e.leads?.nome,
+                    aluno_nome: e.leads?.nome,
                     professor_nome: e.professores?.nome,
                     curso_nome: 'Experimental'
                 })) || [])
