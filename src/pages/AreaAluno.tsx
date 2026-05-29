@@ -942,7 +942,7 @@ export default function AreaAluno() {
           .then(r => r.ok ? r.json() : null)
           .then(me => { if (me) setAlunoData(me); });
       } else {
-        toast.error(data.error || 'Erro ao solicitar troféu');
+        toast.error(typeof data.error === 'string' ? data.error : 'Erro ao solicitar troféu');
         playRetroSound(220, 'sawtooth', 0.3);
       }
     } catch (e) {

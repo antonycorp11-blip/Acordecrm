@@ -464,7 +464,8 @@ export default function AreaProfessor() {
         const sortedAlunos = Array.isArray(alunos) 
           ? alunos.filter((a: any) => {
               if (a.status === 'arquivado') return false;
-              if (!profId) return true;
+              if (user?.role === 'admin') return true;
+              if (!profId) return false;
               
               const ehMeuAluno = a.matriculas?.some((m: any) => Number(m.professor_id) === Number(profId));
               const naAgenda = agenda ? (Array.isArray(agenda) ? agenda : []).some((ag: any) => Number(ag.aluno_id) === Number(a.id) && Number(ag.professor_id) === Number(profId)) : false;
@@ -2872,6 +2873,9 @@ export default function AreaProfessor() {
     );
   };
 
+  const filteredSolicitacoes = user?.role === 'admin' ? solicitacoesList : solicitacoesList.filter(s => alunosList.some((a: any) => a.id === s.aluno_id));
+  const filteredTreinos = user?.role === 'admin' ? treinosAlunos : treinosAlunos.filter(t => alunosList.some((a: any) => a.id === t.aluno_id));
+
   return (
     <div className="min-h-screen bg-[#110804] flex items-center justify-center p-0 md:p-8 overflow-hidden font-['Space_Mono']">
       
@@ -3625,14 +3629,14 @@ export default function AreaProfessor() {
                         &gt;&gt; CARREGANDO TREINOS DIÁRIOS...
                       </p>
                     </div>
-                  ) : treinosAlunos.length === 0 ? (
+                  ) : filteredTreinos.length === 0 ? (
                     <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
                       <p className="text-[#8e7164] font-black text-[9px] uppercase italic">
                         &gt;&gt; NENHUM TREINO REGISTRADO ATÉ O MOMENTO
                       </p>
                     </div>
                   ) : (
-                    treinosAlunos.map((treino: any) => {
+                    filteredTreinos.map((treino: any) => {
                       const dataFormatada = new Date(treino.created_at).toLocaleDateString('pt-BR', {
                         day: '2-digit',
                         month: '2-digit',
@@ -3740,17 +3744,17 @@ export default function AreaProfessor() {
             {activeProfessorTab === 'ranking' && (
               <div className="space-y-5 animate-fade-in pb-10">
                 {/* PENDÊNCIAS DE GAMIFICAÇÃO */}
-                {solicitacoesList.filter((s: any) => s.status === 'pendente').length > 0 && (
+                {filteredSolicitacoes.filter((s: any) => s.status === 'pendente').length > 0 && (
                   <div className="border-8 border-black bg-[#261812] text-white p-4 shadow-[8px_8px_0_#000] space-y-4">
                     <div className="flex items-center gap-2 border-b-4 border-black pb-2">
                       <div className="w-3.5 h-3.5 bg-yellow-400 border-2 border-black animate-pulse rounded-full shrink-0" />
                       <h4 className="font-black text-[10px] tracking-widest uppercase text-yellow-400">
-                        🔔 SOLICITAÇÕES PENDENTES DE TROFÉUS ({solicitacoesList.filter((s: any) => s.status === 'pendente').length})
+                        🔔 SOLICITAÇÕES PENDENTES DE TROFÉUS ({filteredSolicitacoes.filter((s: any) => s.status === 'pendente').length})
                       </h4>
                     </div>
 
                     <div className="space-y-3">
-                      {solicitacoesList
+                      {filteredSolicitacoes
                         .filter((s: any) => s.status === 'pendente')
                         .map((sol: any) => {
                           const alunoCompleto = alunosList.find((a: any) => a.id === sol.aluno_id);
