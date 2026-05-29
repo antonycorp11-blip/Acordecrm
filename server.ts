@@ -2230,14 +2230,14 @@ async function startServer() {
             // Buscar alunos ativos (exclui arquivados e testes)
             const { data: alunos } = await supabase
                 .from('alunos')
-                .select('id, nome, xp, foto_url, curso_ativo')
+                .select('id, nome, xp, foto_url')
                 .neq('status', 'arquivado');
 
             const { data: progresso } = await supabase
                 .from('gamificacao_progresso')
                 .select('*, conquista:conquista_id(*)');
             
-            const ranking = alunos?.map(al => {
+            const ranking = (alunos || []).map(al => {
                 const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
                 // XP unificado: XP de aulas realizadas + XP de conquistas manuais
                 const xpConquistas = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
@@ -2262,7 +2262,7 @@ async function startServer() {
                     curso_ativo: al.curso_ativo,
                     conquistas: Object.values(conquistasMap)
                 };
-            }).sort((a, b) => b.xp - a.xp) || [];
+            }).sort((a: any, b: any) => b.xp - a.xp);
 
             res.json(ranking);
         } catch (error) { res.status(500).json({ error: 'Erro ao gerar ranking' }); }
