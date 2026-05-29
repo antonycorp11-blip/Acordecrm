@@ -48,6 +48,23 @@ const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', 
   }
 });
 
+const fetchAllGamificacaoProgresso = async (supabaseClient: any) => {
+    let allData: any[] = [];
+    let from = 0;
+    const step = 1000;
+    while (true) {
+        const { data, error } = await supabaseClient
+            .from('gamificacao_progresso')
+            .select('*, conquista:conquista_id(*)')
+            .range(from, from + step - 1);
+        if (error || !data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < step) break;
+        from += step;
+    }
+    return allData;
+};
+
 // Middleware JWT
 const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
@@ -378,7 +395,7 @@ async function startServer() {
 
             // 2. Calcular Ranking e XP real (baseado em conquistas)
             const { data: allAlunos } = await supabase.from('alunos').select('id, xp');
-            const { data: progresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)');
+            const progresso = await fetchAllGamificacaoProgresso(supabase);
             const { data: meuProgresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)').eq('aluno_id', aluno.id);
             
             const rankingList = (allAlunos || []).map(al => {
@@ -2233,9 +2250,7 @@ async function startServer() {
                 .select('id, nome, xp, foto_url')
                 .neq('status', 'arquivado');
 
-            const { data: progresso } = await supabase
-                .from('gamificacao_progresso')
-                .select('*, conquista:conquista_id(*)');
+            const progresso = await fetchAllGamificacaoProgresso(supabase);
             
             const ranking = (alunos || []).map(al => {
                 const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
@@ -2259,7 +2274,7 @@ async function startServer() {
                     xp: xpTotal,
                     xp_aulas: Number(al.xp) || 0,
                     xp_conquistas: xpConquistas,
-                    curso_ativo: al.curso_ativo,
+                    curso_ativo: 'MÚSICA',
                     conquistas: Object.values(conquistasMap)
                 };
             }).sort((a: any, b: any) => b.xp - a.xp);
