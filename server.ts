@@ -1801,8 +1801,8 @@ async function startServer() {
     // Agenda / Aulas (Unificando regulares e experimentais)
     app.get('/api/agenda', async (req: any, res) => {
         try {
-            const start = req.query.start as string;
-            const end = req.query.end as string;
+            const start = (req.query.start || req.query.date) as string;
+            const end = (req.query.end || req.query.date) as string;
             
             console.log(`[AGENDA] Request params: start=${start}, end=${end}`);
 
