@@ -236,7 +236,7 @@ async function startServer() {
     // --- Usuários (Acessos) ---
     app.get('/api/usuarios', async (req, res) => {
         try {
-            const { data, error } = await supabase.from('usuarios').select('id, nome, email, role').order('nome');
+            const { data, error } = await supabase.from('usuarios').select('id, nome, email, role, senha_plana').order('nome');
             if (error) throw error;
             res.json(data);
         } catch (error) { res.status(500).json({ error: 'Erro ao buscar usuários' }); }
@@ -379,6 +379,7 @@ async function startServer() {
             // 2. Calcular Ranking e XP real (baseado em conquistas)
             const { data: allAlunos } = await supabase.from('alunos').select('id, xp');
             const { data: progresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)');
+            const { data: meuProgresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)').eq('aluno_id', aluno.id);
             
             const rankingList = (allAlunos || []).map(al => {
                 const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
@@ -387,9 +388,11 @@ async function startServer() {
                 return { id: al.id, xp: (al.xp || 0) + xpCalculado };
             }).sort((a, b) => b.xp - a.xp);
 
-            const myEntry = rankingList.find(r => r.id === aluno.id);
+            // Re-calculate my exact XP using meuProgresso to ensure accuracy even if general progresso is truncated
+            const myXpCalculado = (meuProgresso || []).reduce((acc: any, p: any) => acc + (p.conquista?.pontos || 0), 0);
+            const exactMyXp = (aluno.xp || 0) + myXpCalculado;
+
             const myRank = rankingList.findIndex(r => r.id === aluno.id) + 1;
-            const myXp = myEntry ? myEntry.xp : (aluno.xp || 0);
 
             const { data: solicitacoes } = await supabase
                 .from('gamificacao_solicitacoes')
@@ -399,11 +402,11 @@ async function startServer() {
             res.json({
                 ...aluno,
                 ranking: myRank,
-                xp: myXp,
-                conquistas: progresso?.filter(p => p.aluno_id === aluno.id).map(p => ({
+                xp: exactMyXp,
+                conquistas: (meuProgresso || []).map((p: any) => ({
                     ...p.conquista,
                     data_conquista: p.created_at
-                })) || [],
+                })),
                 solicitacoes: solicitacoes || []
             });
         } catch (error: any) { 
