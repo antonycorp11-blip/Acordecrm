@@ -952,6 +952,24 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
+    app.get('/api/aulas', async (req: any, res) => {
+        try {
+            const { professor_id, start, end } = req.query;
+            let query = supabase.from('aulas').select('id, data, horario, status, professor_id, aluno_id, alunos(nome)');
+            
+            if (professor_id) query = query.eq('professor_id', professor_id);
+            if (start) query = query.gte('data', start);
+            if (end) query = query.lte('data', end);
+            
+            const { data, error } = await query.order('data', { ascending: false });
+            if (error) throw error;
+            
+            res.json(data);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.post('/api/aulas', async (req: any, res) => {
         try {
             const { aluno_id, data, horario, horario_fim, curso_nome, status, conteudo, tarefa_casa, midias, xp_ganho, professor_id } = req.body;
@@ -1016,10 +1034,12 @@ async function startServer() {
                     await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', profObj.id);
                 }
 
-                const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', aluno_id).single();
-                if (aluno) {
-                    const novoXp = (Number(aluno.xp) || 0) + Number(newAula.xp_ganho);
-                    await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno_id);
+                if (aluno_id) {
+                    const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', aluno_id).single();
+                    if (aluno) {
+                        const novoXp = (Number(aluno.xp) || 0) + Number(newAula.xp_ganho);
+                        await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno_id);
+                    }
                 }
             }
 
