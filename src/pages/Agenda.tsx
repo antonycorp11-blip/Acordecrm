@@ -42,7 +42,7 @@ export default function Agenda() {
       fetch('/api/professores', { headers }).then(r => r.ok ? r.json() : []),
       fetch(`/api/agenda?date=${start}`, { headers }).then(r => r.ok ? r.json() : []),
     ]).then(([profs, ag]) => {
-      setProfessores(Array.isArray(profs) ? profs.slice(0, 15) : []);
+      setProfessores(Array.isArray(profs) ? profs : []);
       setAulas(Array.isArray(ag) ? ag : []);
     }).catch(console.error).finally(() => setLoading(false));
   };

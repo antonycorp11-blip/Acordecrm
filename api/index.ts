@@ -193,11 +193,13 @@ async function startServer() {
         try {
             const { email } = req.query;
             if (!email) return res.status(400).json({ error: 'Email não fornecido' });
+            
+            const cleanEmail = String(email).trim();
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').ilike('email', cleanEmail).single();
             if (!aluno) return res.json({ exists: false });
 
-            const { data: usuario } = await supabase.from('usuarios').select('id').eq('email', email).single();
+            const { data: usuario } = await supabase.from('usuarios').select('id').ilike('email', cleanEmail).single();
             
             res.json({ 
                 exists: true, 
