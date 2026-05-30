@@ -1010,9 +1010,31 @@ async function startServer() {
                 return `${String(newH).padStart(2, '0')}:${String(mNum).padStart(2, '0')}`;
             };
 
+            let finalAlunoId = aluno_id;
+            if (!finalAlunoId) {
+                const { data: avulso } = await supabase.from('alunos').select('id').ilike('nome', '%Avulso%').limit(1).maybeSingle();
+                if (avulso) {
+                    finalAlunoId = avulso.id;
+                } else {
+                    const { data: newAvulso } = await supabase.from('alunos').insert([{ nome: 'Aluno Avulso', email: 'avulso@acorde.com', telefone: '00000000000' }]).select().single();
+                    if (newAvulso) finalAlunoId = newAvulso.id;
+                }
+            }
+
+            let cursoIdToInsert = req.body.curso_id || null;
+            if (!cursoIdToInsert && finalAlunoId) {
+                const { data: mat } = await supabase.from('matriculas').select('curso_id').eq('aluno_id', finalAlunoId).order('data_inicio', { ascending: false }).limit(1).maybeSingle();
+                if (mat && mat.curso_id) cursoIdToInsert = mat.curso_id;
+            }
+            if (!cursoIdToInsert) {
+                const { data: cur } = await supabase.from('cursos').select('id').limit(1).maybeSingle();
+                if (cur && cur.id) cursoIdToInsert = cur.id;
+            }
+
             const newAula = {
-                aluno_id,
+                aluno_id: finalAlunoId,
                 professor_id: finalProfId,
+                curso_id: cursoIdToInsert,
                 data,
                 horario: horario || '12:00',
                 status: status || 'realizada',
