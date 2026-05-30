@@ -1015,13 +1015,11 @@ async function startServer() {
                 professor_id: finalProfId,
                 data,
                 horario: horario || '12:00',
-                horario_fim: calcHorarioFim(horario, horario_fim),
-                curso_nome: curso_nome || 'Música',
                 status: status || 'realizada',
                 conteudo: conteudo || '',
                 tarefa_casa: tarefa_casa || '',
                 midias: midias || [],
-                xp_ganho: xp_ganho || 50
+                xp_ganho: xp_ganho !== undefined ? xp_ganho : 50
             };
 
             const { data: createdAula, error: createErr } = await supabase.from('aulas').insert([newAula]).select().single();
