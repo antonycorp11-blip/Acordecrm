@@ -91,7 +91,8 @@ export default function Financeiro() {
            aluno_id: novaAulaFolha.aluno_id ? Number(novaAulaFolha.aluno_id) : null,
            data: novaAulaFolha.data,
            horario: novaAulaFolha.horario,
-           status: 'realizada'
+           status: 'realizada',
+           xp_ganho: 0
          })
        });
        if (folhaModal.profId) carregarAulasFolha(folhaModal.profId);
