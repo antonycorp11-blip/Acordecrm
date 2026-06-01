@@ -393,6 +393,14 @@ async function startServer() {
         }
     });
 
+    // Endpoint for frontend to fetch supabase config and upload videos directly to storage
+    app.get('/api/supabase-config', (req, res) => {
+        res.json({
+            url: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+            key: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+        });
+    });
+
     // --- ALUNOS & CURSOS ENDPOINTS ---
     app.get('/api/alunos/me', async (req: any, res) => {
         try {
