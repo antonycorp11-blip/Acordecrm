@@ -11,6 +11,12 @@ import { dirname, join, resolve } from 'path';
 import multer from 'multer';
 import { execSync } from 'child_process';
 import nodemailer from 'nodemailer';
+import rateLimit from 'express-rate-limit';
+
+function getDateBR() {
+    return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+}
+
 // pdf-parse é importado dinamicamente para evitar crash no módulo
 
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
@@ -860,7 +866,7 @@ async function startServer() {
 
                     // PASSO 3: Reagendar Aulas Pendentes se o dia ou horário mudou
                     if (matUpdate.dia_semana !== undefined || matUpdate.horario !== undefined) {
-                        const hoje = new Date().toISOString().split('T')[0];
+                        const hoje = getDateBR();
                         const { data: aulasFuturas } = await supabase.from('aulas')
                             .select('id, data')
                             .eq('matricula_id', matriculaId)
@@ -903,7 +909,7 @@ async function startServer() {
 
                 // PASSO 3: Reagendar aulas futuras pendentes se o dia da semana mudou
                 if (matUpdate.dia_semana !== undefined) {
-                    const hoje = new Date().toISOString().split('T')[0];
+                    const hoje = getDateBR();
                     const { data: aulasFuturas } = await supabase.from('aulas')
                         .select('id, data')
                         .eq('aluno_id', studentId)
@@ -936,7 +942,7 @@ async function startServer() {
                     }
                 } else if (matUpdate.horario) {
                     // Só mudou o horário, manter os dias das aulas
-                    const hoje = new Date().toISOString().split('T')[0];
+                    const hoje = getDateBR();
                     await supabase.from('aulas')
                         .update({ horario: matUpdate.horario })
                         .eq('aluno_id', studentId)
@@ -1398,7 +1404,7 @@ async function startServer() {
                 pacote_id,
                 dia_vencimento: dia_vencimento || 10,
                 valor_parcela: valor_parcela || 0,
-                data_inicio: new Date().toISOString().split('T')[0]
+                data_inicio: getDateBR()
             }]).select().single();
             if (errM) {
                 await supabase.from('alunos').delete().eq('id', aluno.id);
@@ -1701,7 +1707,7 @@ async function startServer() {
         try {
             const { id } = req.params;
             const { metodo_pagamento } = req.body;
-            const today = new Date().toISOString().split('T')[0];
+            const today = getDateBR();
             const { data, error } = await supabase.from('pagamentos')
                 .update({ status: 'pago', data_pagamento: today, metodo_pagamento: metodo_pagamento || 'dinheiro' })
                 .eq('id', id).select().single();
@@ -2178,7 +2184,7 @@ async function startServer() {
                             .from('pagamentos')
                             .update({ 
                                 status: isPaid ? 'pago' : 'pendente',
-                                data_pagamento: isPaid ? (dates && dates[1] ? dates[1].split('/').reverse().join('-') : new Date().toISOString().split('T')[0]) : null,
+                                data_pagamento: isPaid ? (dates && dates[1] ? dates[1].split('/').reverse().join('-') : getDateBR()) : null,
                                 valor: valor > 0 ? valor : undefined
                             })
                             .eq('aluno_id', currentStudentId)
@@ -2194,8 +2200,8 @@ async function startServer() {
                                 valor: valor,
                                 status: isPaid ? 'pago' : 'pendente',
                                 referencia_mes_ano: ref,
-                                data_vencimento: dates && dates[0] ? dates[0].split('/').reverse().join('-') : new Date().toISOString().split('T')[0],
-                                data_pagamento: isPaid ? (dates && dates[1] ? dates[1].split('/').reverse().join('-') : new Date().toISOString().split('T')[0]) : null,
+                                data_vencimento: dates && dates[0] ? dates[0].split('/').reverse().join('-') : getDateBR(),
+                                data_pagamento: isPaid ? (dates && dates[1] ? dates[1].split('/').reverse().join('-') : getDateBR()) : null,
                                 tipo_receita: 'mensalidade',
                                 descricao: `Importado via PDF: Parcela ${ref}`
                             }]);
@@ -2208,8 +2214,8 @@ async function startServer() {
                             aluno_id: currentStudentId,
                             valor: valor,
                             status: isPaid ? 'pago' : 'pendente',
-                            data_vencimento: dates && dates[0] ? dates[0].split('/').reverse().join('-') : new Date().toISOString().split('T')[0],
-                            data_pagamento: isPaid ? (dates && dates[1] ? dates[1].split('/').reverse().join('-') : new Date().toISOString().split('T')[0]) : null,
+                            data_vencimento: dates && dates[0] ? dates[0].split('/').reverse().join('-') : getDateBR(),
+                            data_pagamento: isPaid ? (dates && dates[1] ? dates[1].split('/').reverse().join('-') : getDateBR()) : null,
                             referencia_mes_ano: `${(new Date().getMonth() + 1).toString().padStart(2, '0')}/${new Date().getFullYear()}`,
                             tipo_receita: line.toUpperCase().includes('ENSAIO') ? 'ensaio' : 'outros',
                             descricao: descricao
@@ -2458,12 +2464,15 @@ async function startServer() {
                             </div>
                         `;
 
-                        await transporter.sendMail({
-                            from: `"Studio Acorde" <${smtpEmail}>`,
-                            to: emailTo,
-                            subject: titulo,
-                            html: emailHtml
-                        });
+                        await Promise.race([
+                            transporter.sendMail({
+                                from: `"Studio Acorde" <${smtpEmail}>`,
+                                to: emailTo,
+                                subject: titulo,
+                                html: emailHtml
+                            }),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP Timeout - Email cancelado mas API continua')), 5000))
+                        ]).catch(e => console.error('[SMTP_TIMEOUT_HANDLED]', e.message));
                         console.log('[PUSH_NOTIFICATION] E-mail do Gmail disparado para', emailTo);
                     } else {
                         console.log('[PUSH_NOTIFICATION] SMTP_EMAIL ou SMTP_PASSWORD não configurado no env ou BD. E-mail ignorado.');
@@ -2992,6 +3001,12 @@ async function startServer() {
             });
         }
     }
+
+    // Error Handler Global
+    app.use((err: any, req: any, res: any, next: any) => {
+        console.error('[GLOBAL_ERROR]', err);
+        res.status(500).json({ error: 'Erro Interno do Servidor (Global Handler)' });
+    });
 
     return app;
 }
