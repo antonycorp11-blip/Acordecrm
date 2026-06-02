@@ -40,8 +40,8 @@ export default function Agenda() {
     
     setLoading(true);
     Promise.all([
-      fetch('/api/professores', { headers }).then(r => r.ok ? r.json() : []),
-      fetch(`/api/agenda?date=${start}`, { headers }).then(r => r.ok ? r.json() : []),
+      fetch(`/api/professores?_t=${Date.now()}`, { headers: { ...headers, 'Cache-Control': 'no-cache, no-store, must-revalidate' } }).then(r => r.ok ? r.json() : []),
+      fetch(`/api/agenda?date=${start}&_t=${Date.now()}`, { headers: { ...headers, 'Cache-Control': 'no-cache, no-store, must-revalidate' } }).then(r => r.ok ? r.json() : []),
     ]).then(([profs, ag]) => {
       setProfessores(Array.isArray(profs) ? profs : []);
       setAulas(Array.isArray(ag) ? ag : []);
