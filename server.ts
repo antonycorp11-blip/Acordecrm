@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import { dirname, join, resolve } from 'path';
 import multer from 'multer';
 import { execSync } from 'child_process';
+import nodemailer from 'nodemailer';
 // pdf-parse é importado dinamicamente para evitar crash no módulo
 
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
@@ -1055,6 +1056,7 @@ async function startServer() {
             const { data: createdAula, error: createErr } = await supabase.from('aulas').insert([newAula]).select().single();
             if (createErr) throw createErr;
 
+            
             if (newAula.status === 'realizada') {
                 const valorAula = Number(profObj?.valor_aula) || 0;
                 const novoSaldo = (Number(profObj?.saldo) || 0) + valorAula;
@@ -1069,6 +1071,14 @@ async function startServer() {
                         await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno_id);
                     }
                 }
+            }
+
+            // Avisar o professor sobre a nova aula
+            if (profObj?.id && profObj?.email) {
+                const titulo = 'Nova aula agendada!';
+                const msg = `Uma nova aula foi adicionada na sua agenda para o dia ${data} às ${horario}.`;
+                await sendPushNotification(titulo, msg, String(profObj.id), profObj.email);
+            }
             }
 
             res.json({ success: true, data: createdAula });
@@ -1949,10 +1959,10 @@ async function startServer() {
 
             // Enviar Push para o Aluno
             if (aula.alunos?.id) {
+                const { data: alunoData } = await supabase.from('alunos').select('email').eq('id', aula.alunos.id).single();
                 const titulo = 'Confirme sua próxima aula! 🎸';
                 const msg = `Olá ${aula.alunos.nome.split(' ')[0]}, precisamos confirmar sua presença na próxima aula. Toque aqui e acesse sua Área do Aluno!`;
-                
-                await sendPushNotification(titulo, msg, String(aula.alunos.id));
+                await sendPushNotification(titulo, msg, String(aula.alunos.id), alunoData?.email);
             }
 
             res.json({ success: true, status: 'aguardando_confirmacao' });
@@ -1973,6 +1983,7 @@ async function startServer() {
 
             // Enviar Notificação Interna e Push para o Professor
             if (aula.professores?.id) {
+                const { data: profData } = await supabase.from('professores').select('email').eq('id', aula.professores.id).single();
                 const titulo = 'Aula Confirmada! ✅';
                 const msg = `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`;
                 
@@ -1980,7 +1991,7 @@ async function startServer() {
                     titulo, mensagem: msg, tipo: 'agenda', professor_id: aula.professores.id
                 }]);
 
-                await sendPushNotification(titulo, msg, String(aula.professores.id));
+                await sendPushNotification(titulo, msg, String(aula.professores.id), profData?.email);
             }
 
             res.json({ success: true, status: 'confirmada' });
@@ -2375,7 +2386,7 @@ async function startServer() {
     // ==========================================
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
-    async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string) {
+    async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string | string[], emailTo?: string) {
         // Agora busca a chave inviolável no Supabase via MCP para não depender da Vercel
         const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'ONESIGNAL_REST_API_KEY').maybeSingle();
         const appKey = config?.key_value || process.env.ONESIGNAL_REST_API_KEY;
@@ -2409,8 +2420,59 @@ async function startServer() {
                 body: JSON.stringify(bodyPayload)
             });
 
-            const data = await response.json();
+                        const data = await response.json();
             console.log('[PUSH_NOTIFICATION] OneSignal Push enviado com sucesso:', data);
+            
+            // Disparo de E-MAIL via Nodemailer (Gmail)
+            if (emailTo) {
+                try {
+                    const { data: smtpConfig } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['SMTP_EMAIL', 'SMTP_PASSWORD']);
+                    let smtpEmail = process.env.SMTP_EMAIL;
+                    let smtpPass = process.env.SMTP_PASSWORD;
+
+                    if (smtpConfig) {
+                        const dbEmail = smtpConfig.find(c => c.key_name === 'SMTP_EMAIL')?.key_value;
+                        const dbPass = smtpConfig.find(c => c.key_name === 'SMTP_PASSWORD')?.key_value;
+                        if (dbEmail) smtpEmail = dbEmail;
+                        if (dbPass) smtpPass = dbPass;
+                    }
+
+                    if (smtpEmail && smtpPass) {
+                        const transporter = nodemailer.createTransport({
+                            service: 'gmail',
+                            auth: {
+                                user: smtpEmail,
+                                pass: smtpPass
+                            }
+                        });
+
+                        const emailHtml = `
+                            <div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812;">
+                                <h2 style="color: #ff6b00; text-transform: uppercase;">STUDIO ACORDE - AVISO DA ESCOLA</h2>
+                                <p style="font-size: 16px; font-weight: bold;">${titulo}</p>
+                                <p>${mensagem}</p>
+                                <br/>
+                                <a href="https://acordecrm.vercel.app" style="display: inline-block; padding: 15px 30px; background: #ff6b00; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px; border: 2px solid #261812; box-shadow: 4px 4px 0 #261812;">ACESSAR MEU APLICATIVO</a>
+                                <br/><br/>
+                                <hr style="border: 1px dashed #7b5647;" />
+                                <small style="color: #8e7164;">Esta é uma mensagem automática do Studio Acorde CRM. Não responda este e-mail.</small>
+                            </div>
+                        `;
+
+                        await transporter.sendMail({
+                            from: \`"Studio Acorde" <${smtpEmail}>\`,
+                            to: emailTo,
+                            subject: titulo,
+                            html: emailHtml
+                        });
+                        console.log('[PUSH_NOTIFICATION] E-mail do Gmail disparado para', emailTo);
+                    } else {
+                        console.log('[PUSH_NOTIFICATION] SMTP_EMAIL ou SMTP_PASSWORD não configurado no env ou BD. E-mail ignorado.');
+                    }
+                } catch (emailErr) {
+                    console.error('[PUSH_NOTIFICATION] Erro ao enviar E-mail via Nodemailer:', emailErr);
+                }
+            }
         } catch (err) {
             console.error('[PUSH_NOTIFICATION] Erro ao enviar push OneSignal:', err);
         }
