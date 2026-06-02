@@ -1079,7 +1079,6 @@ async function startServer() {
                 const msg = `Uma nova aula foi adicionada na sua agenda para o dia ${data} às ${horario}.`;
                 await sendPushNotification(titulo, msg, String(profObj.id), profObj.email);
             }
-            }
 
             res.json({ success: true, data: createdAula });
         } catch (error: any) {
@@ -2460,7 +2459,7 @@ async function startServer() {
                         `;
 
                         await transporter.sendMail({
-                            from: \`"Studio Acorde" <${smtpEmail}>\`,
+                            from: `"Studio Acorde" <${smtpEmail}>`,
                             to: emailTo,
                             subject: titulo,
                             html: emailHtml
