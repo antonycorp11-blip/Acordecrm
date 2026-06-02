@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, HelpCircle, Search, ChevronLeft, ChevronRight, Zap, Users, AlertTriangle, Trash2, RefreshCcw, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00'];
 
@@ -35,7 +36,7 @@ export default function Agenda() {
   const fetchAulas = () => {
     const token = localStorage.getItem('acorde_token');
     const headers = { Authorization: `Bearer ${token}` };
-    const start = getDisplayDate(0).toLocaleDateString('en-CA');
+    const start = format(getDisplayDate(0), 'yyyy-MM-dd');
     
     setLoading(true);
     Promise.all([
@@ -53,7 +54,7 @@ export default function Agenda() {
 
   // Map aula to grid position - simplificado para o dia atual exibido (ou lógica de semana se fosse o caso)
   const getAulaForProfHour = (profId: number, hour: string) => {
-    const targetDate = currentBaseDate.toLocaleDateString('en-CA');
+    const targetDate = format(currentBaseDate, 'yyyy-MM-dd');
     return aulas.filter(a => {
       const h = (a.horario || '').substring(0, 5);
       const d = a.data ? a.data.split('T')[0] : '';
@@ -91,7 +92,7 @@ export default function Agenda() {
         body: JSON.stringify({ 
           professor_id: profId, 
           horario,
-          data: currentBaseDate.toLocaleDateString('en-CA')
+          data: format(currentBaseDate, 'yyyy-MM-dd')
         })
       });
 
@@ -129,7 +130,7 @@ export default function Agenda() {
         body: JSON.stringify({ 
           professor_id: profId, 
           horario,
-          data: currentBaseDate.toLocaleDateString('en-CA')
+          data: format(currentBaseDate, 'yyyy-MM-dd')
         })
       });
 
@@ -343,7 +344,7 @@ export default function Agenda() {
                                <button 
                                  onClick={(e) => {
                                    e.stopPropagation();
-                                   const isToday = aula.data === currentBaseDate.toLocaleDateString('en-CA');
+                                   const isToday = aula.data === format(currentBaseDate, 'yyyy-MM-dd');
                                    const hour = parseInt((aula.horario || '00:00:00').substring(0, 2), 10);
                                    const isMorning = hour < 12;
                                    const timeText = isToday ? `hoje às ${(aula.horario || '').substring(0, 5)}` : `amanhã às ${(aula.horario || '').substring(0, 5)}${isMorning ? ' da manhã' : ''}`;
@@ -573,7 +574,7 @@ export default function Agenda() {
           </button>
           <button 
             onClick={() => {
-              const isToday = selectedAula.data === currentBaseDate.toLocaleDateString('en-CA');
+              const isToday = selectedAula.data === format(currentBaseDate, 'yyyy-MM-dd');
               const hour = parseInt((selectedAula.horario || '00:00:00').substring(0, 2), 10);
               const isMorning = hour < 12;
               const timeText = isToday ? `hoje às ${(selectedAula.horario || '').substring(0, 5)}` : `amanhã às ${(selectedAula.horario || '').substring(0, 5)}${isMorning ? ' da manhã' : ''}`;

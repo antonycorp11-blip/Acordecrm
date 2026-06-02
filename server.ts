@@ -345,7 +345,7 @@ async function startServer() {
             targetDate.setDate(today.getDate() + (diff === 0 ? 7 : diff)); // Próxima ocorrência do dia
             
             // Usar data local para evitar problemas de fuso horário (UTC)
-            const dateStr = targetDate.toLocaleDateString('en-CA'); // en-CA retorna YYYY-MM-DD
+            const dateStr = targetDate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
             console.log(`Buscando vagas para: ${dateStr} (${dia_semana})`);
 
             const result = [];
@@ -1151,7 +1151,7 @@ async function startServer() {
 
     app.get('/api/dashboard/stats', async (req, res) => {
         try {
-            const today = new Date().toLocaleDateString('en-CA');
+            const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
             const now = new Date();
             const mesAtual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
 
@@ -1635,7 +1635,7 @@ async function startServer() {
 
     app.get('/api/leads/experimentais-pendentes', async (req, res) => {
         try {
-            const today = new Date().toLocaleDateString('en-CA');
+            const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
             const { data, error } = await supabase
                 .from('aulas_experimentais')
                 .select('*, leads(nome, telefone), professores(nome), cursos(nome)')

@@ -726,7 +726,7 @@ export default function AlunoPerfil() {
                  <Card className="bg-black text-white border-white">
                     <h3 className="text-[9px] font-black uppercase tracking-widest text-[#ff6b00] mb-4">PRÓXIMA_AULA</h3>
                     {(() => {
-                      const todayStr = new Date().toLocaleDateString('en-CA');
+                      const todayStr = format(new Date(), 'yyyy-MM-dd');
                       const futuras = agenda.filter(a => (a.data || '') >= todayStr && !a.data?.includes('2099'));
                       if (futuras.length > 0) {
                         const prox = futuras[0];
