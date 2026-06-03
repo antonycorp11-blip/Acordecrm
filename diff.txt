@@ -1,0 +1,1753 @@
+12a13
+> import nodemailer from 'nodemailer';
+46c47,48
+<       'x-backend-secret': 'studio-acorde-secret-key-2024'
+---
+>       'x-backend-secret': 'studio-acorde-secret-key-2024',
+>       'x-api-version': 'v1.6'
+57c59
+<     const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/vagas', '/api/sistema/versao'];
+---
+>     const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/vagas', '/api/auth/check-student', '/api/auth/setup-password'];
+122a125,141
+>     // --- HELPER: NOTIFY ADMINS ---
+>     const notifyAdmins = async (titulo: string, mensagem: string) => {
+>         try {
+>             // Find admins
+>             const { data: admins } = await supabase.from('usuarios').select('email').eq('role', 'admin');
+>             if (!admins || admins.length === 0) return;
+>             
+>             const adminEmails = admins.map((a: any) => a.email);
+>             for (const email of adminEmails) {
+>                 // Using sendPushNotification with only emailTo
+>                 await sendPushNotification(titulo, mensagem, undefined, email);
+>             }
+>         } catch (e) {
+>             console.error('[ADMIN_NOTIFY] Error notifying admins:', e);
+>         }
+>     };
+> 
+126,127c145,149
+<     app.get('/api/sistema/versao', (req, res) => {
+<         res.json({ versao: 'SYNC_V4.3.1' });
+---
+>     app.get('/api/supabase-config', authenticateToken, (req, res) => {
+>         res.json({
+>             url: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+>             key: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+>         });
+198a221,223
+>             
+>             await notifyAdmins('Novo Aluno no App! 📱', `O aluno ${aluno.nome} acabou de configurar sua senha e realizar o primeiro acesso no App!`);
+>             
+223a249
+>                 senha_plana: effectivePassword,
+233a260,287
+>         }
+>     });
+> 
+> 
+>     // --- Recompensa Push PWA ---
+>     app.post('/api/alunos/recompensa-push', async (req: any, res) => {
+>         try {
+>             const email = req.user?.email;
+>             if (!email) return res.status(401).json({ error: 'Não autorizado' });
+> 
+>             const { data: aluno } = await supabase.from('alunos').select('id, xp, push_recompensado').eq('email', email).single();
+>             if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+> 
+>             // Se já resgatou, apenas atualiza a flag visual pro ADM
+>             if (aluno.push_recompensado) {
+>                 await supabase.from('alunos').update({ push_ativo: true }).eq('id', aluno.id);
+>                 return res.json({ success: true, message: 'Push ativo atualizado.' });
+>             }
+> 
+>             // Primeira vez! Dá 500 XP
+>             const novoXp = (aluno.xp || 0) + 500;
+>             await supabase.from('alunos').update({ xp: novoXp, push_ativo: true, push_recompensado: true }).eq('id', aluno.id);
+> 
+>             // Avisar o professor? Pode ser legal, mas não foi pedido. Deixa quieto pra não flodar.
+> 
+>             res.json({ success: true, xpGanho: 500 });
+>         } catch (error: any) {
+>             res.status(500).json({ error: error.message });
+235a290
+> 
+239c294
+<             const { data, error } = await supabase.from('usuarios').select('id, nome, email, role').order('nome');
+---
+>             const { data, error } = await supabase.from('usuarios').select('id, nome, email, role, senha_plana').order('nome');
+258,259c313,314
+<                 nome, email, senha: hashedPassword, role
+<             }]).select('id, nome, email, role').single();
+---
+>                 nome, email, senha: hashedPassword, senha_plana: effectivePassword, role
+>             }]).select('id, nome, email, role, senha_plana').single();
+274a330
+>                 updateData.senha_plana = effectivePassword;
+277c333
+<             const { data, error } = await supabase.from('usuarios').update(updateData).eq('id', id).select('id, nome, email, role').single();
+---
+>             const { data, error } = await supabase.from('usuarios').update(updateData).eq('id', id).select('id, nome, email, role, senha_plana').single();
+364a421,454
+>     app.post('/api/alunos', async (req, res) => {
+>         try {
+>             const insertData = req.body;
+>             const { data, error } = await supabase.from('alunos').insert([insertData]).select().single();
+>             if (error) throw error;
+> 
+>             // Disparar notificação para o professor se houver
+>             if (req.body.professor_id) {
+>                  const { data: prof } = await supabase.from('professores').select('id, nome, email').eq('id', req.body.professor_id).single();
+>                  if (prof && prof.id) {
+>                      const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+>                      let appId = process.env.ONESIGNAL_APP_ID;
+>                      let appKey = process.env.ONESIGNAL_REST_API_KEY;
+>                      if (keys) {
+>                          const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+>                          const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+>                          if (dbAppId) appId = dbAppId;
+>                          if (dbAppKey) appKey = dbAppKey;
+>                      }
+>                      if (appId && appKey) {
+>                          const alunoNome = data.nome.split(' ')[0];
+>                          await sendPushNotification(
+>                              'Novo Aluno Matriculado! 🎉',
+>                              `Você tem um novo aluno: ${alunoNome} foi matriculado no seu curso de ${data.curso}. Verifique sua agenda!`,
+>                              String(prof.id), prof.email
+>                          );
+>                      }
+>                  }
+>             }
+> 
+>             res.json({ success: true, id: data.id });
+>         } catch (error: any) { res.status(500).json({ error: error.message }); }
+>     });
+> 
+367c457,460
+<             // 1. Buscar o aluno logado (usando ilike para ser case-insensitive)
+---
+>             const email = (req.user?.email || '').toLowerCase().trim();
+>             const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
+> 
+>             // 1. Buscar o aluno logado
+371c464
+<                 .ilike('email', req.user.email)
+---
+>                 .ilike('email', searchEmail)
+375c468,473
+<                 console.error('Aluno não encontrado para email:', req.user.email);
+---
+>                 // Tenta fallback para aluno de teste
+>                 const { data: fallback, error: errFb } = await supabase.from('alunos').select('*, matriculas(*, cursos(nome))').eq('id', 3).maybeSingle();
+>                 if (fallback) {
+>                     const activeCourse = (fallback.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
+>                     return res.json({ ...fallback, ranking: 1, curso_ativo: activeCourse, conquistas: [] });
+>                 }
+386d483
+<                 // O XP total é a soma do XP base + conquistas
+393a491,492
+>             const activeCourse = (aluno.matriculas || []).find((m: any) => m?.status === 'ativa')?.cursos?.nome || 'STUDENT';
+> 
+402a502
+>                 curso_ativo: activeCourse,
+517c617
+<     app.post('/api/gamificacao/resgatar-pontos', async (req: any, res) => {
+---
+>     app.post('/api/alunos/:id/pratica', async (req, res) => {
+519,522c619,620
+<             const { pontos, jogo } = req.body;
+<             if (!pontos || Number(pontos) <= 0) {
+<                 return res.status(400).json({ error: 'Quantidade de pontos inválida.' });
+<             }
+---
+>             const { minutos, data } = req.body;
+>             const localDateStr = data || new Date().toISOString().split('T')[0];
+524,525c622,626
+<             const email = (req.user?.email || '').toLowerCase().trim();
+<             const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
+---
+>             const { data: insertData, error } = await supabase.from('historico_pratica').insert([{
+>                 aluno_id: req.params.id,
+>                 minutos: minutos,
+>                 data: localDateStr
+>             }]);
+527,536c628
+<             // 1. Buscar o aluno logado
+<             const { data: aluno, error } = await supabase
+<                 .from('alunos')
+<                 .select('*')
+<                 .ilike('email', searchEmail)
+<                 .single();
+<             
+<             if (error || !aluno) {
+<                 return res.status(404).json({ error: 'Aluno não encontrado.' });
+<             }
+---
+>             if (error) throw error;
+538,549c630,648
+<             // 2. Converter pontos para XP (Ex: 10 pontos = 1 XP)
+<             const xpGanhos = Math.max(1, Math.round(Number(pontos) / 10));
+<             const novoXp = (Number(aluno.xp) || 0) + xpGanhos;
+< 
+<             // 3. Atualizar o XP do aluno
+<             const { error: updateError } = await supabase
+<                 .from('alunos')
+<                 .update({ xp: novoXp })
+<                 .eq('id', aluno.id);
+< 
+<             if (updateError) {
+<                 throw new Error('Erro ao atualizar XP no banco de dados: ' + updateError.message);
+---
+>             // Recuperar player_id para enviar parabéns
+>             const { data: aluno } = await supabase.from('alunos').select('id, email').eq('id', req.params.id).single();
+>             if (aluno && aluno.id) {
+>                 const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+>                 let appId = process.env.ONESIGNAL_APP_ID;
+>                 let appKey = process.env.ONESIGNAL_REST_API_KEY;
+>                 if (keys) {
+>                     const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+>                     const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+>                     if (dbAppId) appId = dbAppId;
+>                     if (dbAppKey) appKey = dbAppKey;
+>                 }
+>                 if (appId && appKey) {
+>                     await sendPushNotification(
+>                         'Treino Registrado! 🎸🔥',
+>                         `Parabéns por praticar ${minutos} minutos hoje! Continue assim para acumular XP e subir de nível.`,
+>                         String(aluno.id), aluno.email
+>                     );
+>                 }
+552,579c651,652
+<             res.json({
+<                 success: true,
+<                 xpGanhos,
+<                 novoXp,
+<                 pontosResgatados: pontos,
+<                 message: `✨ Parabéns! Você resgatou ${pontos} pontos do jogo ${jogo || 'Gallery'} e ganhou +${xpGanhos} XP no Acorde CRM!`
+<             });
+<         } catch (error: any) {
+<             console.error('Erro ao resgatar pontos:', error);
+<             res.status(500).json({ error: error.message });
+<         }
+<     });
+< 
+<     app.post('/api/upload', upload.single('file'), (req: any, res) => {
+<         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+<         try {
+<             const ext = path.extname(req.file.originalname) || '';
+<             const newFilename = `${req.file.filename}${ext}`;
+<             const oldPath = req.file.path;
+<             const newPath = path.join(path.dirname(oldPath), newFilename);
+<             fs.renameSync(oldPath, newPath);
+<             
+<             const url = `/uploads/${newFilename}`;
+<             res.json({ url });
+<         } catch (error: any) {
+<             console.error('Erro no upload genérico:', error);
+<             res.status(500).json({ error: error.message });
+<         }
+---
+>             res.json({ success: true });
+>         } catch (error: any) { res.status(500).json({ error: error.message }); }
+727c800
+<                 valor_parcela, valor_com_desconto
+---
+>                 valor_parcela, valor_com_desconto, dia_vencimento
+730c803
+<             console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id, dia_semana, horario });
+---
+>             console.log(`[ALUNO_UPDATE_API] ID: ${studentId}`, { nome, curso_id, dia_semana, horario });
+732,739c805,812
+<             // 1. Atualizar Aluno (campos básicos)
+<             const { error: aluError } = await supabase.from('alunos')
+<                 .update({ 
+<                     nome, email, telefone, cpf, endereco, 
+<                     responsavel_nome, responsavel_telefone 
+<                 })
+<                 .eq('id', studentId);
+<             
+---
+>             // 1. Capturar dados atuais (e-mail antigo)
+>             const { data: oldAluno } = await supabase.from('alunos').select('email').eq('id', Number(studentId)).single();
+> 
+>             // 2. Atualizar Aluno (campos básicos)
+>             const updateFields: any = { nome, email, telefone, cpf, endereco, responsavel_nome, responsavel_telefone };
+>             Object.keys(updateFields).forEach(key => updateFields[key] === undefined && delete updateFields[key]);
+> 
+>             const { error: aluError } = await supabase.from('alunos').update(updateFields).eq('id', Number(studentId));
+745c818,825
+<             // 2. Atualizar Curso e Dia/Horário na Matrícula
+---
+>             // 3. Sincronizar Login (Usuários)
+>             if (oldAluno?.email && (nome || email)) {
+>                 await supabase.from('usuarios')
+>                     .update({ nome: nome || undefined, email: email || undefined })
+>                     .eq('email', oldAluno.email);
+>             }
+> 
+>             // 4. Atualizar Matrícula Ativa (com busca robusta de ID)
+750,751c830,832
+<             if (valor_parcela !== undefined && valor_parcela !== '') matUpdate.valor_parcela = Number(valor_parcela);
+<             if (valor_com_desconto !== undefined && valor_com_desconto !== '') matUpdate.valor_com_desconto = Number(valor_com_desconto);
+---
+>             if (valor_parcela !== undefined) matUpdate.valor_parcela = valor_parcela === null || valor_parcela === '' ? null : Number(valor_parcela);
+>             if (valor_com_desconto !== undefined) matUpdate.valor_com_desconto = valor_com_desconto === null || valor_com_desconto === '' ? null : Number(valor_com_desconto);
+>             if (dia_vencimento !== undefined) matUpdate.dia_vencimento = dia_vencimento === null || dia_vencimento === '' ? null : Number(dia_vencimento);
+759d839
+<                 // Tenta primeiro matrículas com status 'ativa'
+788c868
+<                 // PASSO 2: Atualizar por ID (funciona corretamente no Supabase)
+---
+>                 // PASSO 2: Atualizar por ID
+801,816d880
+<                     // Atualizar pagamentos pendentes
+<                     if (matUpdate.valor_parcela !== undefined) {
+<                         const { error: pagError } = await supabase
+<                             .from('pagamentos')
+<                             .update({ valor: matUpdate.valor_parcela })
+<                             .eq('aluno_id', studentId)
+<                             .eq('status', 'pendente')
+<                             .eq('tipo_receita', 'mensalidade');
+<                             
+<                         if (pagError) {
+<                             console.error('[PAGAMENTOS_UPDATE_ERROR]:', pagError);
+<                         } else {
+<                             console.log(`[PAGAMENTOS_UPDATE] Pagamentos pendentes atualizados para ${matUpdate.valor_parcela}.`);
+<                         }
+<                     }
+< 
+819d882
+<                         const hoje = new Date().toISOString().split('T')[0];
+823,824c886
+<                             .eq('status', 'pendente')
+<                             .gte('data', hoje);
+---
+>                             .eq('status', 'pendente');
+834a897,898
+>                             // Pode começar a buscar a partir de hoje mesmo se ainda der tempo
+>                             // Para garantir segurança de agenda, vamos buscar a partir da data atual
+848a913
+>                                     // Pula pra próxima semana para a próxima aula do laço
+870c935
+<                         const novoDia = Number(matUpdate.dia_semana);
+---
+>                         const novoDia = Number(matUpdate.dia_semana); // 0=Dom...6=Sáb
+874c939
+<                             
+---
+> 
+876,879c941,945
+<                             
+<                             let diff = novoDia - diaAtual;
+<                             if (diff !== 0) {
+<                                 // Move a aula para o novo dia dentro da mesma semana
+---
+> 
+>                             if (diaAtual !== novoDia) {
+>                                 // Calcula quantos dias avançar para chegar no novo dia da semana
+>                                 let diff = novoDia - diaAtual;
+>                                 if (diff <= 0) diff += 7; // Sempre avança (nunca volta no tempo)
+886c952
+<                             
+---
+> 
+891c957
+<                         console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas/atualizadas para dia ${matUpdate.dia_semana}.`);
+---
+>                         console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas para dia ${matUpdate.dia_semana}.`);
+905c971
+<             res.json({ success: true });
+---
+>             return res.json({ success: true, message: 'Dados sincronizados com sucesso' });
+907,908c973,974
+<             console.error('[FATAL_ALUNO_UPDATE]:', error);
+<             res.status(500).json({ error: error.message, stack: error.stack });
+---
+>             console.error('[API_FATAL_ERROR]:', error);
+>             res.status(500).json({ error: error.message, stage: 'fatal' });
+922c988
+<             const { aluno_id, data, horario, horario_fim, curso_nome, status, conteudo, tarefa_casa, midias, xp_ganho, professor_id } = req.body;
+---
+>             const { aluno_id, data, horario, horario_fim, curso_nome, status, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
+928,945c994,1000
+<             let finalProfId = null;
+<             let profObj: any = null;
+< 
+<             if (req.user.role === 'admin' && professor_id) {
+<                 finalProfId = professor_id;
+<                 const { data: fetchedProf } = await supabase.from('professores').select('*').eq('id', professor_id).single();
+<                 profObj = fetchedProf;
+<             } else {
+<                 const { data: prof, error: profErr } = await supabase.from('professores')
+<                     .select('*')
+<                     .ilike('email', req.user.email)
+<                     .maybeSingle();
+<                     
+<                 if (profErr || !prof) {
+<                     return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
+<                 }
+<                 finalProfId = prof.id;
+<                 profObj = prof;
+---
+>             const { data: prof, error: profErr } = await supabase.from('professores')
+>                 .select('*')
+>                 .ilike('email', req.user.email)
+>                 .maybeSingle();
+>                 
+>             if (profErr || !prof) {
+>                 return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
+962c1017
+<                 professor_id: finalProfId,
+---
+>                 professor_id: prof.id,
+978,982c1033,1035
+<                 const valorAula = Number(profObj?.valor_aula) || 0;
+<                 const novoSaldo = (Number(profObj?.saldo) || 0) + valorAula;
+<                 if (profObj?.id) {
+<                     await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', profObj.id);
+<                 }
+---
+>                 const valorAula = Number(prof.valor_aula) || 0;
+>                 const novoSaldo = (Number(prof.saldo) || 0) + valorAula;
+>                 await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', prof.id);
+1044,1046c1097
+<             // Só credita XP se a aula NÃO estava realizada antes (evita duplicação)
+<             const jaEraRealizada = aulaAntiga?.status === 'realizada';
+<             if (status === 'realizada' && !jaEraRealizada && table === 'aulas' && data?.aluno_id) {
+---
+>             if (status === 'realizada' && table === 'aulas' && data?.aluno_id) {
+1082c1133
+<             // Receita: apenas mensalidades pagas no mês atual
+---
+>             // Receita (Mantida no código, mas o front não vai mais exibir)
+1088c1139
+<             const receitaMensal = pagamentosMes?.reduce((acc, curr) => acc + Number(curr.valor), 0) || 0;
+---
+>             const receitaMensal = pagamentosMes?.reduce((acc: number, curr: any) => acc + Number(curr.valor), 0) || 0;
+1089a1141,1174
+>             // Dados de Alunos: Push Ativo e Cursos
+>             const { data: alunosData } = await supabase.from('alunos')
+>                 .select('nome, push_recompensado, matriculas(cursos(nome))')
+>                 .eq('status', 'ativo');
+> 
+>             const alunosAtivosApp = alunosData?.filter((a: any) => a.push_recompensado).map((a: any) => a.nome) || [];
+>             
+>             const alunosAppStatus = alunosData?.map((a: any) => ({
+>                 nome: a.nome,
+>                 ativo: !!a.push_recompensado
+>             })).sort((a: any, b: any) => {
+>                 if (a.ativo === b.ativo) return a.nome.localeCompare(b.nome);
+>                 return a.ativo ? 1 : -1;
+>             }) || [];
+>             
+>             const contagemCursos: Record<string, number> = {};
+>             alunosData?.forEach((aluno: any) => {
+>                 // Find an active matricula, or just use the first one available
+>                 const matriculaAtiva = (aluno.matriculas || []).find((m: any) => m.status === 'ativa') || aluno.matriculas?.[0];
+>                 let cursoNome = 'Outros/Sem Curso';
+>                 
+>                 if (matriculaAtiva && matriculaAtiva.cursos) {
+>                     // Supabase sometimes returns related records as arrays if relationships aren't strictly many-to-one
+>                     if (Array.isArray(matriculaAtiva.cursos)) {
+>                         cursoNome = matriculaAtiva.cursos[0]?.nome || 'Outros/Sem Curso';
+>                     } else {
+>                         cursoNome = matriculaAtiva.cursos.nome || 'Outros/Sem Curso';
+>                     }
+>                 }
+>                 
+>                 contagemCursos[cursoNome] = (contagemCursos[cursoNome] || 0) + 1;
+>             });
+>             const matriculasPorCurso = Object.entries(contagemCursos).map(([curso, qtd]) => ({ curso, qtd: qtd as number })).sort((a, b) => b.qtd - a.qtd);
+>             
+1115c1200
+<             res.json({ totalAlunos: totalAlunos || 0, aulasHoje, receitaMensal, proximasAulas });
+---
+>             res.json({ totalAlunos: totalAlunos || 0, aulasHoje, receitaMensal, proximasAulas, alunosAtivosApp, matriculasPorCurso, alunosAppStatus });
+1145c1230,1231
+<                 data_primeira_parcela, dia_vencimento, valor_parcela, total_parcelas 
+---
+>                 data_primeira_parcela, dia_vencimento, valor_parcela, valor_com_desconto, total_parcelas,
+>                 is_emusys_legacy, emusys_original_aulas, emusys_aulas_feitas, emusys_original_parcelas, emusys_parcelas_pagas, emusys_data_ultima_aula
+1148a1235,1242
+>             let dataNascFormatada = req.body.data_nascimento || null;
+>             if (dataNascFormatada && dataNascFormatada.includes('/')) {
+>                 const parts = dataNascFormatada.split('/');
+>                 if (parts.length === 3) {
+>                     dataNascFormatada = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+>                 }
+>             }
+> 
+1150,1151c1244,1247
+<                 nome, email, telefone, cpf, endereco,
+<                 data_nascimento: req.body.data_nascimento || null,
+---
+>                 nome, 
+>                 email: email && email.trim() !== '' ? email : null,
+>                 telefone, cpf, endereco,
+>                 data_nascimento: dataNascFormatada,
+1163c1259
+<                 dia_semana: dia_semana ? new Date(dia_semana).getDay() : null,
+---
+>                 dia_semana: dia_semana ? new Date(dia_semana + 'T12:00:00').getDay() : null,
+1169a1266
+>                 valor_com_desconto,
+1171c1268,1272
+<                 data_inicio: dia_semana || null
+---
+>                 data_inicio: dia_semana || null,
+>                 is_emusys_legacy: is_emusys_legacy || false,
+>                 emusys_aulas_feitas: emusys_aulas_feitas || 0,
+>                 emusys_parcelas_pagas: emusys_parcelas_pagas || 0,
+>                 emusys_data_ultima_aula: emusys_data_ultima_aula || null
+1180c1281,1282
+<             const totalAulas = pacote?.total_aulas || 1;
+---
+>             const originalTotalAulas = is_emusys_legacy ? (Number(emusys_original_aulas) || 48) : (pacote?.total_aulas || 1);
+>             const aulasRestantes = is_emusys_legacy ? (originalTotalAulas - (Number(emusys_aulas_feitas) || 0)) : originalTotalAulas;
+1183c1285,1292
+<             let currentAulaDate = new Date(dia_semana);
+---
+>             let currentAulaDate = new Date(dia_semana + 'T12:00:00');
+> 
+>             // Se for legado, podemos querer começar da data da última aula + 7 dias?
+>             // Se o usuário forneceu emusys_data_ultima_aula, usamos ela como base.
+>             if (is_emusys_legacy && emusys_data_ultima_aula) {
+>                 currentAulaDate = new Date(emusys_data_ultima_aula + 'T12:00:00');
+>                 currentAulaDate.setDate(currentAulaDate.getDate() + 7);
+>             }
+1185c1294
+<             for (let i = 0; i < totalAulas; i++) {
+---
+>             for (let i = 0; i < (aulasRestantes > 0 ? aulasRestantes : 0); i++) {
+1214c1323,1329
+<             let currentVencimento = new Date(data_primeira_parcela);
+---
+>             let currentVencimento = new Date(data_primeira_parcela + 'T12:00:00');
+>             
+>             if (is_emusys_legacy && req.body.emusys_mes_inicio_parcela === 'proximo') {
+>                 currentVencimento.setMonth(currentVencimento.getMonth() + 1);
+>             }
+>             
+>             const parcelasToGenerate = is_emusys_legacy ? ((Number(emusys_original_parcelas) || 12) - (Number(emusys_parcelas_pagas) || 0)) : (total_parcelas || 1);
+1216c1331
+<             for (let i = 0; i < (total_parcelas || 1); i++) {
+---
+>             for (let i = 0; i < (parcelasToGenerate > 0 ? parcelasToGenerate : 0); i++) {
+1220a1336
+>                     valor_com_desconto: valor_com_desconto || null,
+1282c1398
+<                 valor_parcela, dia_vencimento
+---
+>                 valor_parcela, valor_desconto, dia_vencimento, total_parcelas
+1284a1401,1408
+>             const nAulas = Number(aulas_restantes);
+>             const nRepos = Number(reposicoes);
+>             const nFaturas = Number(faturas_pendentes);
+>             const nValor = Number(valor_parcela);
+>             const nDesconto = Number(valor_desconto);
+>             const nDiaVenc = Number(dia_vencimento);
+>             const nTotalParcelas = Number(total_parcelas);
+> 
+1285a1410,1418
+>             let dataNascFormatada = data_nascimento || null;
+>             if (dataNascFormatada && dataNascFormatada.includes('/')) {
+>                 const parts = dataNascFormatada.split('/');
+>                 if (parts.length === 3) {
+>                     // Assume DD/MM/YYYY
+>                     dataNascFormatada = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+>                 }
+>             }
+> 
+1287,1288c1420,1423
+<                 nome, email, telefone, cpf, endereco,
+<                 data_nascimento: data_nascimento || null,
+---
+>                 nome, 
+>                 email: email && email.trim() !== '' ? email : null,
+>                 telefone, cpf, endereco,
+>                 data_nascimento: dataNascFormatada,
+1299a1435,1448
+>             const spDate = new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"});
+>             const now = new Date(spDate);
+>             const yyyy = now.getFullYear();
+>             const mm = String(now.getMonth() + 1).padStart(2, '0');
+>             const dd = String(now.getDate()).padStart(2, '0');
+>             const dataHojeLocal = `${yyyy}-${mm}-${dd}`;
+> 
+>             const formatLocalDateString = (d: Date) => {
+>                 const y = d.getFullYear();
+>                 const m = String(d.getMonth() + 1).padStart(2, '0');
+>                 const dt = String(d.getDate()).padStart(2, '0');
+>                 return `${y}-${m}-${dt}`;
+>             };
+> 
+1307,1309c1456,1460
+<                 dia_vencimento: dia_vencimento || 10,
+<                 valor_parcela: valor_parcela || 0,
+<                 data_inicio: new Date().toISOString().split('T')[0]
+---
+>                 dia_vencimento: nDiaVenc || 10,
+>                 valor_parcela: nValor || 0,
+>                 valor_com_desconto: nDesconto || null,
+>                 total_parcelas: nTotalParcelas || 12,
+>                 data_inicio: dataHojeLocal
+1317c1468
+<             if (aulas_restantes > 0) {
+---
+>             if (nAulas > 0) {
+1319c1470
+<                 let currentAulaDate = new Date();
+---
+>                 let currentAulaDate = new Date(spDate);
+1326c1477
+<                 for (let i = 0; i < aulas_restantes; i++) {
+---
+>                 for (let i = 0; i < nAulas; i++) {
+1335c1486
+<                         data: currentAulaDate.toISOString().split('T')[0],
+---
+>                         data: formatLocalDateString(currentAulaDate),
+1346c1497
+<             if (reposicoes > 0) {
+---
+>             if (nRepos > 0) {
+1348c1499
+<                 for (let i = 0; i < reposicoes; i++) {
+---
+>                 for (let i = 0; i < nRepos; i++) {
+1354c1505
+<                         data: '2099-12-31', // Placeholder longe no futuro para reposição a agendar
+---
+>                         data: '2099-12-31',
+1363c1514
+<             // 5. Criar Faturas
+---
+>             // 5. Geração de Pagamentos (Financeiro)
+1365c1516
+<             const now = new Date();
+---
+>             const vencimentoMesAtual = new Date(now.getFullYear(), now.getMonth(), nDiaVenc || 10);
+1367,1380c1518,1519
+<             // Fatura do mês atual
+<             pagamentosToInsert.push({
+<                 aluno_id: aluno.id,
+<                 matricula_id: matricula.id,
+<                 valor: valor_parcela,
+<                 data_vencimento: new Date(now.getFullYear(), now.getMonth(), dia_vencimento || 10).toISOString().split('T')[0],
+<                 status: fatura_mes_atraso ? 'atrasado' : 'pendente',
+<                 tipo_receita: 'mensalidade',
+<                 referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`
+<             });
+< 
+<             // Faturas pendentes
+<             for (let i = 1; i <= faturas_pendentes; i++) {
+<                 const prevDate = new Date(now.getFullYear(), now.getMonth() - i, dia_vencimento || 10);
+---
+>             // 5.1. Parcela do Mês Atual (Apenas se estiver em atraso ou ainda não paga)
+>             if (fatura_mes_atraso) {
+1384,1386c1523,1526
+<                     valor: valor_parcela,
+<                     data_vencimento: prevDate.toISOString().split('T')[0],
+<                     status: 'atrasado',
+---
+>                     valor: nValor,
+>                     valor_com_desconto: nDesconto || null,
+>                     data_vencimento: formatLocalDateString(vencimentoMesAtual),
+>                     status: (vencimentoMesAtual < now) ? 'atrasado' : 'pendente',
+1388c1528
+<                     referencia_mes_ano: `${(prevDate.getMonth() + 1).toString().padStart(2, '0')}/${prevDate.getFullYear()}`
+---
+>                     referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`
+1391a1532,1548
+>             // 5.2. Parcelas Restantes (Futuras - A partir do mês que vem)
+>             if (nFaturas > 0) {
+>                 for (let i = 1; i <= nFaturas; i++) {
+>                     const nextDate = new Date(now.getFullYear(), now.getMonth() + i, nDiaVenc || 10);
+>                     pagamentosToInsert.push({
+>                         aluno_id: aluno.id,
+>                         matricula_id: matricula.id,
+>                         valor: nValor,
+>                         valor_com_desconto: nDesconto || null,
+>                         data_vencimento: formatLocalDateString(nextDate),
+>                         status: 'pendente',
+>                         tipo_receita: 'mensalidade',
+>                         referencia_mes_ano: `${(nextDate.getMonth() + 1).toString().padStart(2, '0')}/${nextDate.getFullYear()}`
+>                     });
+>                 }
+>             }
+> 
+1441,1458d1597
+<     app.delete('/api/aulas/:id', async (req: any, res) => {
+<         try {
+<             if (!req.user || req.user.role !== 'admin') {
+<                 return res.status(403).json({ error: 'Acesso negado. Apenas admin.' });
+<             }
+<             const { error } = await supabase.from('aulas').delete().eq('id', req.params.id);
+<             if (error) throw error;
+<             res.json({ success: true });
+<         } catch (error: any) { res.status(500).json({ error: error.message }); }
+<     });
+< 
+<     app.get('/api/horarios-disponiveis', async (req, res) => {
+<         const data = [
+<             "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"
+<         ];
+<         res.json(data);
+<     });
+< 
+1468,1469c1607,1618
+<             const { data, error } = await supabase.from('professores').insert([req.body]).select().single();
+<             if (error) throw error;
+---
+>             const body = { ...req.body };
+>             if (body.email === '') body.email = null;
+> 
+>             const { data, error } = await supabase.from('professores').insert([body]).select().single();
+>             if (error) {
+>                 console.error('Erro Supabase (Professor):', error);
+>                 return res.status(error.code === '23505' ? 409 : 500).json({ 
+>                     error: 'Erro ao salvar professor', 
+>                     message: error.message,
+>                     details: error.details
+>                 });
+>             }
+1471c1620,1622
+<         } catch (error) { res.status(500).json({ error: 'Erro ao salvar professor' }); }
+---
+>         } catch (error: any) { 
+>             res.status(500).json({ error: 'Erro ao salvar professor', message: error.message }); 
+>         }
+1475a1627,1629
+>             const body = { ...req.body };
+>             if (body.email === '') body.email = null;
+> 
+1477c1631
+<                 .update(req.body)
+---
+>                 .update(body)
+1487a1642,1644
+>             const body = { ...req.body };
+>             if (body.email === '') body.email = null;
+> 
+1489c1646
+<                 .update(req.body)
+---
+>                 .update(body)
+1588,1589c1745
+<             const { mes } = req.query;
+<             // Só retornar pagamentos de alunos que NÃO estão arquivados
+---
+>             const { mes, desconto_dia_10 } = req.query;
+1592c1748,1749
+<                 .select('*, aluno:aluno_id!inner(nome, status)')
+---
+>                 .select('*, aluno:aluno_id!inner(nome, status, matriculas(id, status, pacote_id, pacotes(nome)))')
+>                 .neq('aluno.status', 'inativo')
+1602c1759,1766
+<             const formatted = data?.map((p: any) => ({ ...p, aluno_nome: p.aluno?.nome })) || [];
+---
+>             const formatted = data?.map((p: any) => {
+>                 let valorEfetivo = Number(p.valor);
+>                 const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
+>                 if (desconto_dia_10 === 'true' && p.status === 'pendente' && p.tipo_receita === 'mensalidade') {
+>                     valorEfetivo = Math.max(0, valorEfetivo - 100);
+>                 }
+>                 return { ...p, aluno_nome: alunoObj?.nome, valor: valorEfetivo };
+>             }) || [];
+1611c1775
+<             const { metodo_pagamento } = req.body;
+---
+>             const { metodo_pagamento, valor_pago } = req.body;
+1612a1777,1785
+>             const updates: any = { 
+>                 status: 'pago', 
+>                 data_pagamento: today, 
+>                 metodo_pagamento: metodo_pagamento || 'dinheiro'
+>             };
+>             if (valor_pago !== undefined) {
+>                 updates.valor_pago = valor_pago;
+>                 updates.valor = valor_pago;
+>             }
+1614c1787
+<                 .update({ status: 'pago', data_pagamento: today, metodo_pagamento: metodo_pagamento || 'dinheiro' })
+---
+>                 .update(updates)
+1620a1794,1803
+>     // Excluir um pagamento
+>     app.delete('/api/pagamentos/:id', async (req, res) => {
+>         try {
+>             const { id } = req.params;
+>             const { data, error } = await supabase.from('pagamentos').delete().eq('id', id).select().single();
+>             if (error) throw error;
+>             res.json(data);
+>         } catch (error: any) { res.status(500).json({ error: error.message }); }
+>     });
+> 
+1655c1838
+<             const { mes } = req.query;
+---
+>             const { mes, desconto_dia_10 } = req.query;
+1659c1842
+<             // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
+---
+>             // Só somar pagamentos de alunos ativos, trazendo pacotes para considerar desconto
+1661c1844
+<                 .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
+---
+>                 .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela, pacote_id, pacotes(nome)))')
+1662a1846
+>                 .neq('aluno.status', 'inativo')
+1676,1686c1860,1861
+<                         const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
+<                         const matriculas = alunoObj?.matriculas;
+<                         let matriculaAlvo: any = null;
+<                         
+<                         if (Array.isArray(matriculas) && matriculas.length > 0) {
+<                             if (p.matricula_id) {
+<                                 matriculaAlvo = matriculas.find((m: any) => String(m.id) === String(p.matricula_id));
+<                             }
+<                             if (!matriculaAlvo) {
+<                                 matriculaAlvo = matriculas.find((m: any) => m.status === 'ativa');
+<                             }
+---
+>                         if (desconto_dia_10 === 'true') {
+>                             valorEfetivo = Math.max(0, valorEfetivo - 100);
+1688,1691d1862
+<                         
+<                         if (matriculaAlvo && matriculaAlvo.valor_com_desconto !== null && matriculaAlvo.valor_com_desconto !== undefined && Number(matriculaAlvo.valor_com_desconto) > 0) {
+<                             valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
+<                         }
+1721,1733d1891
+<             const { data: todosProfessores, error: errProf } = await supabase.from('professores').select('id, nome');
+<             if (errProf) throw errProf;
+< 
+<             const remunByProf: Record<number, any> = {};
+<             (todosProfessores || []).forEach(prof => {
+<                 remunByProf[prof.id] = {
+<                     professor_id: prof.id,
+<                     professor_nome: prof.nome,
+<                     total_aulas: 0,
+<                     valor_estimado: 0
+<                 };
+<             });
+< 
+1735c1893
+<                 .select('professor_id, status')
+---
+>                 .select('*, professor:professor_id(*)')
+1742,1746c1900,1909
+<             (aulas || []).forEach(aula => {
+<                 if (!aula.professor_id) return;
+<                 if (remunByProf[aula.professor_id]) {
+<                     remunByProf[aula.professor_id].total_aulas++;
+<                     remunByProf[aula.professor_id].valor_estimado += 35; // Valor padrão arbitrário por aula
+---
+>             const remunByProf: Record<number, any> = {};
+>             (aulas || []).forEach(aula => {
+>                 if (!aula.professor) return;
+>                 if (!remunByProf[aula.professor_id]) {
+>                     remunByProf[aula.professor_id] = {
+>                         professor_id: aula.professor_id,
+>                         professor_nome: aula.professor.nome,
+>                         total_aulas: 0,
+>                         valor_estimado: 0
+>                     };
+1747a1911,1913
+>                 remunByProf[aula.professor_id].total_aulas++;
+>                 // Valor padrão arbitrário por aula (pode ser ajustado futuramente)
+>                 remunByProf[aula.professor_id].valor_estimado += 35; 
+1768a1935,1989
+>     // CRON: Lembrete de 12 horas
+>     app.get('/api/cron/notificar-12h', async (req, res) => {
+>         try {
+>             const now = new Date();
+>             const startWindow = new Date(now.getTime() + 11 * 60 * 60 * 1000); // 11 hours from now
+>             const endWindow = new Date(now.getTime() + 13 * 60 * 60 * 1000); // 13 hours from now
+> 
+>             // Fetch pending classes
+>             const { data: pendentes, error: errPendentes } = await supabase
+>                 .from('aulas')
+>                 .select('id, data, horario, aluno_id, status, curso, aluno:alunos(id, nome, email)')
+>                 .eq('status', 'pendente');
+> 
+>             if (errPendentes) throw errPendentes;
+> 
+>             const aulasToNotify = pendentes?.filter(a => {
+>                 if (!a.data || !a.horario) return false;
+>                 const classDateStr = `${a.data.split('T')[0]}T${a.horario.substring(0, 8).padEnd(8, '0')}`;
+>                 const classTime = new Date(classDateStr).getTime();
+>                 return classTime >= startWindow.getTime() && classTime <= endWindow.getTime();
+>             }) || [];
+> 
+>             let count = 0;
+>             for (const aula of aulasToNotify) {
+>                 const aluno = Array.isArray(aula.aluno) ? aula.aluno[0] : aula.aluno;
+>                 if (aluno && aluno.id) {
+>                     const classDateStr = `${aula.data.split('T')[0]}T${aula.horario.substring(0, 8).padEnd(8, '0')}`;
+>                     const timeText = new Date(classDateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+>                     
+>                     const titulo = 'Confirmação de Aula 🎸';
+>                     const msg = `Sua aula de ${aula.curso || 'Música'} começa em aproximadamente 12 horas (às ${timeText})! Por favor, entre no app e confirme sua presença.`;
+>                     
+>                     const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+>                     let appId = process.env.ONESIGNAL_APP_ID;
+>                     let appKey = process.env.ONESIGNAL_REST_API_KEY;
+>                     if (keys) {
+>                         const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+>                         const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+>                         if (dbAppId) appId = dbAppId;
+>                         if (dbAppKey) appKey = dbAppKey;
+>                     }
+> 
+>                     if (appId && appKey) {
+>                         await sendPushNotification(titulo, msg, String(aluno.id), aluno.email);
+>                         count++;
+>                     }
+>                 }
+>             }
+>             res.json({ success: true, notified: count });
+>         } catch (error) {
+>             console.error('[CRON] Erro:', error);
+>             res.status(500).json({ error: 'Erro no cron' });
+>         }
+>     });
+> 
+1771,1772c1992,1993
+<             const start = req.query.start as string;
+<             const end = req.query.end as string;
+---
+>             const start = (req.query.start || req.query.date) as string;
+>             const end = (req.query.end || req.query.date) as string;
+1814c2035
+<             console.log(`[AGENDA] Retornadas ${aulas.length} aulas regulares`);
+---
+>             console.log(`[AGENDA] Retornadas ${aulas?.length || 0} aulas regulares`);
+1831c2052
+<                     nome: a.alunos?.nome,
+---
+>                     aluno_nome: a.alunos?.nome,
+1840c2061
+<                     nome: e.leads?.nome,
+---
+>                     aluno_nome: e.leads?.nome,
+1859c2080
+<             const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome, id)').eq('id', originalId).single();
+---
+>             const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome, id, email)').eq('id', originalId).single();
+1865c2086
+<             // Enviar Push para o Aluno
+---
+>             // Enviar Push e Email para o Aluno
+1870c2091,2097
+<                 await sendPushNotification(titulo, msg, String(aula.alunos.id));
+---
+>                 let pushId = String(aula.alunos.id);
+>                 const alunoEmail = aula.alunos.email;
+>                 if (alunoEmail) {
+>                     const { data: usr } = await supabase.from('usuarios').select('id').ilike('email', alunoEmail).single();
+>                     if (usr?.id) pushId = String(usr.id);
+>                 }
+>                 await sendPushNotification(titulo, msg, pushId, alunoEmail);
+1883c2110
+<             const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).single();
+---
+>             const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(id, nome, email), professores(id, nome, email)').eq('id', originalId).single();
+1889c2116,2130
+<             // Enviar Notificação Interna e Push para o Professor
+---
+>             // Pegar credenciais do OneSignal
+>             const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+>             let appId = process.env.ONESIGNAL_APP_ID || '';
+>             let appKey = process.env.ONESIGNAL_REST_API_KEY || '';
+>             if (keys) {
+>                 const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+>                 const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+>                 if (dbAppId) appId = dbAppId;
+>                 if (dbAppKey) appKey = dbAppKey;
+>             }
+> 
+>             const alunoNomeAdmin = aula.alunos ? (Array.isArray(aula.alunos) ? aula.alunos[0].nome : aula.alunos.nome) : 'Um aluno';
+>             await notifyAdmins('Confirmação de Aula', `${alunoNomeAdmin} acabou de confirmar presença em uma aula!`);
+> 
+>             // Enviar Notificação Interna, Push e Email para o Professor
+1892c2133,2134
+<                 const msg = `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`;
+---
+>                 const alunoNome = aula.alunos ? (Array.isArray(aula.alunos) ? aula.alunos[0].nome : aula.alunos.nome) : 'seu aluno';
+>                 const msg = `O aluno ${alunoNome} confirmou a presença na próxima aula!`;
+1898c2140,2144
+<                 await sendPushNotification(titulo, msg, String(aula.professores.id));
+---
+>                 const profEmail = aula.professores.email;
+>                 const pushId = String(aula.professores.id);
+>                 if (appId && appKey) {
+>                     await sendPushNotification(titulo, msg, pushId, profEmail);
+>                 }
+1900a2147,2158
+>             // Enviar Recibo para o Aluno
+>             if (aula.alunos?.id) {
+>                 const tituloAluno = 'Sua aula foi confirmada! ✅';
+>                 const msgAluno = `Sua presença foi confirmada! Caso ocorra algum imprevisto e precise cancelar, por favor entre em contato pelo WhatsApp com até 3 horas de antecedência.`;
+>                 const alunoEmail = Array.isArray(aula.alunos) ? aula.alunos[0].email : aula.alunos.email;
+>                 const pushIdAluno = Array.isArray(aula.alunos) ? String(aula.alunos[0].id) : String(aula.alunos.id);
+>                 const finalPushId = pushIdAluno || String(aula.alunos.id);
+>                 if (appId && appKey) {
+>                     await sendPushNotification(tituloAluno, msgAluno, finalPushId, alunoEmail);
+>                 }
+>             }
+> 
+1905d2162
+< 
+1964a2222,2224
+>         // Antes de atualizar, pega o aluno e o professor
+>         const { data: oldAula } = await supabase.from(table).select('professor_id, aluno_id').eq('id', originalId).single();
+> 
+1972a2233,2264
+> 
+>         // Notificar o professor
+>         if (oldAula && updated && (data || horario)) {
+>              const profIdFinal = professor_id || oldAula.professor_id;
+>              if (profIdFinal) {
+>                  const { data: prof } = await supabase.from('professores').select('id, email, nome').eq('id', profIdFinal).single();
+>                  const { data: aluno } = await supabase.from('alunos').select('nome').eq('id', updated.aluno_id || oldAula.aluno_id).single();
+>                  
+>                  if (prof && prof.id) {
+>                      const { data: keys } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY']);
+>                      let appId = process.env.ONESIGNAL_APP_ID;
+>                      let appKey = process.env.ONESIGNAL_REST_API_KEY;
+>                      if (keys) {
+>                          const dbAppId = keys.find(k => k.key_name === 'ONESIGNAL_APP_ID')?.key_value;
+>                          const dbAppKey = keys.find(k => k.key_name === 'ONESIGNAL_REST_API_KEY')?.key_value;
+>                          if (dbAppId) appId = dbAppId;
+>                          if (dbAppKey) appKey = dbAppKey;
+>                      }
+>                      if (appId && appKey) {
+>                          const timeText = new Date(`${updated.data.split('T')[0]}T${updated.horario.substring(0, 8).padEnd(8, '0')}`).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+>                          const dtArr = updated.data.split('T')[0].split('-');
+>                          const dataPtBr = `${dtArr[2]}/${dtArr[1]}`;
+>                          await sendPushNotification(
+>                              'Aula Reagendada 🔄',
+>                              `Atenção: A aula de ${(aluno?.nome || 'Aluno').split(' ')[0]} foi reagendada para ${dataPtBr} às ${timeText}.`,
+>                              String(prof.id), prof.email
+>                          );
+>                      }
+>                  }
+>              }
+>         }
+> 
+1975d2266
+< 
+2148c2439
+<             const { nome, descricao, pontos, regra_automatica, icone_url, classe } = req.body;
+---
+>             const { nome, descricao, pontos, regra_automatica, icone_url, classe, instrumento } = req.body;
+2153a2445
+>             if (instrumento !== undefined) payload.instrumento = instrumento || 'Teoria Musical';
+2167c2459
+<             const { nome, descricao, pontos, regra_automatica, icone_url, classe } = req.body;
+---
+>             const { nome, descricao, pontos, regra_automatica, icone_url, classe, instrumento } = req.body;
+2174a2467
+>             if (instrumento !== undefined) payload.instrumento = instrumento;
+2220a2514,2561
+>             res.status(500).json({ error: error.message });
+>         }
+>     });
+> 
+>     app.post('/api/gamificacao/resgatar-pontos', async (req: any, res) => {
+>         try {
+>             const { pontos, jogo } = req.body;
+>             if (!pontos || Number(pontos) <= 0) {
+>                 return res.status(400).json({ error: 'Quantidade de pontos inválida.' });
+>             }
+> 
+>             const email = (req.user?.email || '').toLowerCase().trim();
+>             const searchEmail = (email === 'aquilles1213@gmail.com') ? 'teste@teste.com' : email;
+> 
+>             // 1. Buscar o aluno logado
+>             const { data: aluno, error } = await supabase
+>                 .from('alunos')
+>                 .select('*')
+>                 .ilike('email', searchEmail)
+>                 .single();
+>             
+>             if (error || !aluno) {
+>                 return res.status(404).json({ error: 'Aluno não encontrado.' });
+>             }
+> 
+>             // 2. Converter pontos para XP (Ex: 10 pontos = 1 XP)
+>             const xpGanhos = Math.max(1, Math.round(Number(pontos) / 10));
+>             const novoXp = (Number(aluno.xp) || 0) + xpGanhos;
+> 
+>             // 3. Atualizar o XP do aluno
+>             const { error: updateError } = await supabase
+>                 .from('alunos')
+>                 .update({ xp: novoXp })
+>                 .eq('id', aluno.id);
+> 
+>             if (updateError) {
+>                 throw new Error('Erro ao atualizar XP no banco de dados: ' + updateError.message);
+>             }
+> 
+>             res.json({
+>                 success: true,
+>                 xpGanhos,
+>                 novoXp,
+>                 pontosResgatados: pontos,
+>                 message: `✨ Parabéns! Você resgatou ${pontos} pontos do jogo ${jogo || 'Gallery'} e ganhou +${xpGanhos} XP no Acorde CRM!`
+>             });
+>         } catch (error: any) {
+>             console.error('Erro ao resgatar pontos:', error);
+2224a2566,2596
+>     app.post('/api/upload', upload.single('file'), async (req: any, res) => {
+>         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+>         try {
+>             const ext = path.extname(req.file.originalname) || '.webm';
+>             const filename = `studio/${Date.now()}_${req.file.filename}${ext}`;
+>             const fileBuffer = fs.readFileSync(req.file.path);
+>             const mimeType = req.file.mimetype || 'audio/webm';
+> 
+>             // Upload para Supabase Storage (bucket 'uploads') — URL permanente em produção
+>             const { data: uploadData, error: uploadError } = await supabase.storage
+>                 .from('uploads')
+>                 .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
+> 
+>             // Limpa arquivo temporário
+>             try { fs.unlinkSync(req.file.path); } catch {}
+> 
+>             if (uploadError) {
+>                 console.error('[UPLOAD] Supabase Storage falhou:', uploadError.message);
+>                 return res.status(500).json({ error: 'Falha ao salvar arquivo: ' + uploadError.message });
+>             }
+> 
+>             const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+>             const url = publicUrlData?.publicUrl || '';
+>             console.log('[UPLOAD] OK:', url);
+>             res.json({ url });
+>         } catch (error: any) {
+>             console.error('Erro no upload genérico index:', error);
+>             res.status(500).json({ error: error.message });
+>         }
+>     });
+> 
+2227d2598
+<             // Buscar alunos ativos (exclui arquivados e testes)
+2230,2235c2601,2603
+<                 .select('id, nome, xp, foto_url, curso_ativo')
+<                 .neq('status', 'arquivado');
+< 
+<             const { data: progresso } = await supabase
+<                 .from('gamificacao_progresso')
+<                 .select('*, conquista:conquista_id(*)');
+---
+>                 .select('id, nome, xp, foto_url, status, matriculas(cursos(nome))')
+>                 .eq('status', 'ativo');
+>             const { data: progresso } = await supabase.from('gamificacao_progresso').select('*, conquista:conquista_id(*)');
+2237c2605
+<             const ranking = alunos?.map(al => {
+---
+>             const ranking = (alunos || []).map(al => {
+2239c2607
+<                 // XP unificado: XP de aulas realizadas + XP de conquistas manuais
+---
+>                 // XP de conquistas (badges)
+2241c2609,2610
+<                 const xpTotal = (Number(al.xp) || 0) + xpConquistas;
+---
+>                 // XP TOTAL = XP direto de presença (aulas realizadas) + XP de conquistas
+>                 const xpTotal = (Number((al as any).xp) || 0) + xpConquistas;
+2251a2621,2622
+>                 const cursoNome = (al as any).matriculas?.find((m: any) => m?.cursos?.nome)?.cursos?.nome || 'STUDENT';
+> 
+2254,2255c2625,2627
+<                     nome: al.nome,
+<                     foto_url: al.foto_url,
+---
+>                     nome: (al as any).nome,
+>                     foto_url: (al as any).foto_url,
+>                     curso: cursoNome,
+2257c2629
+<                     xp_aulas: Number(al.xp) || 0,
+---
+>                     xp_presenca: Number((al as any).xp) || 0,
+2259d2630
+<                     curso_ativo: al.curso_ativo,
+2262c2633
+<             }).sort((a, b) => b.xp - a.xp) || [];
+---
+>             }).sort((a, b) => b.xp - a.xp);
+2292,2293c2663,2855
+<     // ==========================================
+<     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
+---
+>     app.post('/api/gamificacao/remover', async (req, res) => {
+>         try {
+>             const { aluno_id, conquista_id } = req.body;
+>             if (!aluno_id || !conquista_id) {
+>                 return res.status(400).json({ error: 'Parâmetros aluno_id e conquista_id são obrigatórios.' });
+>             }
+>             const alunoIdNum = Number(aluno_id);
+>             const conquistaIdNum = Number(conquista_id);
+>             if (isNaN(alunoIdNum) || isNaN(conquistaIdNum)) {
+>                 return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
+>             }
+> 
+>             // Buscar o registro mais recente para deletar apenas uma instância
+>             const { data: registros, error: fetchError } = await supabase
+>                 .from('gamificacao_progresso')
+>                 .select('id')
+>                 .eq('aluno_id', alunoIdNum)
+>                 .eq('conquista_id', conquistaIdNum)
+>                 .order('id', { ascending: false });
+> 
+>             if (fetchError) throw fetchError;
+> 
+>             if (!registros || registros.length === 0) {
+>                 return res.status(404).json({ error: 'O aluno não possui esta conquista.' });
+>             }
+> 
+>             // Deleta o registro mais recente
+>             const registroParaDeletar = registros[0].id;
+> 
+>             const { error: deleteError } = await supabase
+>                 .from('gamificacao_progresso')
+>                 .delete()
+>                 .eq('id', registroParaDeletar);
+> 
+>             if (deleteError) throw deleteError;
+> 
+>             res.json({ success: true });
+>         } catch (error: any) {
+>             console.error('[GAMIFICACAO_REMOVER] Erro ao remover conquista:', error);
+>             res.status(500).json({ error: error.message || 'Erro ao remover conquista' });
+>         }
+>     });
+> 
+>     app.get('/api/gamificacao/solicitacoes', async (req, res) => {
+>         try {
+>             const { data, error } = await supabase
+>                 .from('gamificacao_solicitacoes')
+>                 .select('*, aluno:aluno_id(id, nome), conquista:conquista_id(id, nome, descricao, pontos, icone_url)')
+>                 .order('id', { ascending: false });
+>             
+>             if (error) throw error;
+>             res.json(data || []);
+>         } catch (error: any) {
+>             console.error('[GAMIFICACAO_SOLICITACOES_GET] Erro:', error);
+>             res.status(500).json({ error: error.message || 'Erro ao carregar solicitações' });
+>         }
+>     });
+> 
+>     app.post('/api/gamificacao/solicitar', async (req, res) => {
+>         try {
+>             const { aluno_id, conquista_id } = req.body;
+>             if (!aluno_id || !conquista_id) {
+>                 return res.status(400).json({ error: 'Parâmetros aluno_id e conquista_id são obrigatórios.' });
+>             }
+>             const alunoIdNum = Number(aluno_id);
+>             const conquistaIdNum = Number(conquista_id);
+>             if (isNaN(alunoIdNum) || isNaN(conquistaIdNum)) {
+>                 return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
+>             }
+> 
+>             // 0. Buscar classe da conquista para checar se é cumulativa (Especial)
+>             const { data: conquista, error: errorConq } = await supabase
+>                 .from('gamificacao_conquistas')
+>                 .select('classe')
+>                 .eq('id', conquistaIdNum)
+>                 .single();
+>             
+>             if (errorConq) throw errorConq;
+>             const isEspecial = conquista?.classe === 'Especial';
+> 
+>             if (!isEspecial) {
+>                 // 1. Verificar se o aluno já possui a conquista
+>                 const { data: jaPossui, error: errorPossui } = await supabase
+>                     .from('gamificacao_progresso')
+>                     .select('id')
+>                     .eq('aluno_id', alunoIdNum)
+>                     .eq('conquista_id', conquistaIdNum);
+>                 
+>                 if (errorPossui) throw errorPossui;
+>                 if (jaPossui && jaPossui.length > 0) {
+>                     return res.status(400).json({ error: 'Você já conquistou este troféu!' });
+>                 }
+>             }
+> 
+>             // 2. Verificar se já existe solicitação pendente
+>             const { data: jaSolicitou, error: errorSolicitou } = await supabase
+>                 .from('gamificacao_solicitacoes')
+>                 .select('id')
+>                 .eq('aluno_id', alunoIdNum)
+>                 .eq('conquista_id', conquistaIdNum)
+>                 .eq('status', 'pendente');
+>             
+>             if (errorSolicitou) throw errorSolicitou;
+>             if (jaSolicitou && jaSolicitou.length > 0) {
+>                 return res.status(400).json({ error: 'Você já tem uma solicitação pendente para este troféu.' });
+>             }
+> 
+>             // 3. Criar solicitação
+>             const { data, error: errorInsert } = await supabase
+>                 .from('gamificacao_solicitacoes')
+>                 .insert([{ aluno_id: alunoIdNum, conquista_id: conquistaIdNum, status: 'pendente' }])
+>                 .select()
+>                 .single();
+>             
+>             if (errorInsert) throw errorInsert;
+> 
+>             // 4. Notificar Professores via CRM (Notificações) e Push (OneSignal)
+>             try {
+>                 const { data: alunoInfo } = await supabase.from('alunos').select('nome').eq('id', alunoIdNum).single();
+>                 const { data: trofeuInfo } = await supabase.from('gamificacao_conquistas').select('nome').eq('id', conquistaIdNum).single();
+>                 
+>                 if (alunoInfo && trofeuInfo) {
+>                     const titulo = 'Nova Solicitação de Troféu! 🏆';
+>                     const mensagem = `${alunoInfo.nome} solicitou o troféu: ${trofeuInfo.nome}`;
+>                     
+>                     await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'gamificacao', aluno_id: alunoIdNum }]);
+> 
+>                     // Disparar Push para equipe (professores e admins)
+>                     const { data: equipe } = await supabase.from('usuarios').select('id').in('role', ['professor', 'admin']);
+>                     if (equipe && equipe.length > 0) {
+>                         const equipeIds = equipe.map(u => String(u.id));
+>                         sendPushNotification(titulo, mensagem, equipeIds);
+>                     }
+>                 }
+>             } catch (e) {
+>                 console.error('[GAMIFICACAO_SOLICITAR] Erro ao enviar notificacao de cross-push:', e);
+>             }
+> 
+>             res.json(data);
+>         } catch (error: any) {
+>             console.error('[GAMIFICACAO_SOLICITAR] Erro:', error);
+>             res.status(500).json({ error: error.message || 'Erro ao processar solicitação' });
+>         }
+>     });
+> 
+>     app.post('/api/gamificacao/solicitacoes/:id/revisar', async (req, res) => {
+>         try {
+>             const { id } = req.params;
+>             const { status } = req.body; // 'aprovada' | 'rejeitada'
+>             if (!status || (status !== 'aprovada' && status !== 'rejeitada')) {
+>                 return res.status(400).json({ error: 'Status inválido. Deve ser aprovada ou rejeitada.' });
+>             }
+> 
+>             const solicitacaoId = Number(id);
+>             if (isNaN(solicitacaoId)) {
+>                 return res.status(400).json({ error: 'ID da solicitação deve ser numérico.' });
+>             }
+> 
+>             // 1. Buscar a solicitação
+>             const { data: solicitacao, error: errorGet } = await supabase
+>                 .from('gamificacao_solicitacoes')
+>                 .select('*')
+>                 .eq('id', solicitacaoId)
+>                 .single();
+>             
+>             if (errorGet || !solicitacao) {
+>                 return res.status(404).json({ error: 'Solicitação não encontrada.' });
+>             }
+> 
+>             // 2. Atualizar status da solicitação
+>             const { error: errorUpdate } = await supabase
+>                 .from('gamificacao_solicitacoes')
+>                 .update({ status })
+>                 .eq('id', solicitacaoId);
+>             
+>             if (errorUpdate) throw errorUpdate;
+> 
+>             // 3. Se aprovada, creditar na tabela de progresso
+>             if (status === 'aprovada') {
+>                 const { error: errorProg } = await supabase
+>                     .from('gamificacao_progresso')
+>                     .insert([{ aluno_id: solicitacao.aluno_id, conquista_id: solicitacao.conquista_id }]);
+>                 
+>                 if (errorProg) throw errorProg;
+>             }
+> 
+>             res.json({ success: true });
+>         } catch (error: any) {
+>             console.error('[GAMIFICACAO_REVISAR] Erro:', error);
+>             res.status(500).json({ error: error.message || 'Erro ao revisar solicitação' });
+>         }
+>     });
+> 
+2295,2296c2857,2859
+<     async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string) {
+<         // Agora busca a chave inviolável no Supabase via MCP para não depender da Vercel
+---
+>     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED & E-MAIL
+>     // ==========================================
+>     async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string | string[], emailTo?: string) {
+2306a2870
+>             // Disparo de PUSH
+2314c2878,2879
+<                 bodyPayload.include_aliases = { external_id: [String(targetUserId)] };
+---
+>                 const targets = Array.isArray(targetUserId) ? targetUserId.map(String) : [String(targetUserId)];
+>                 bodyPayload.include_aliases = { external_id: targets };
+2328d2892
+< 
+2330c2894,2946
+<             console.log('[PUSH_NOTIFICATION] OneSignal Push enviado com sucesso:', data);
+---
+>             console.log('[PUSH_NOTIFICATION] OneSignal Push enviado:', data);
+>             
+>             // Disparo de E-MAIL via Nodemailer (Gmail)
+>             if (emailTo) {
+>                 try {
+>                     const { data: smtpConfig } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['SMTP_EMAIL', 'SMTP_PASSWORD']);
+>                     let smtpEmail = process.env.SMTP_EMAIL;
+>                     let smtpPass = process.env.SMTP_PASSWORD;
+> 
+>                     if (smtpConfig) {
+>                         const dbEmail = smtpConfig.find(c => c.key_name === 'SMTP_EMAIL')?.key_value;
+>                         const dbPass = smtpConfig.find(c => c.key_name === 'SMTP_PASSWORD')?.key_value;
+>                         if (dbEmail) smtpEmail = dbEmail;
+>                         if (dbPass) smtpPass = dbPass;
+>                     }
+> 
+>                     if (smtpEmail && smtpPass) {
+>                         const transporter = nodemailer.createTransport({
+>                             service: 'gmail',
+>                             auth: {
+>                                 user: smtpEmail,
+>                                 pass: smtpPass
+>                             }
+>                         });
+> 
+>                         const emailHtml = `
+>                             <div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812;">
+>                                 <h2 style="color: #ff6b00; text-transform: uppercase;">STUDIO ACORDE - AVISO DA ESCOLA</h2>
+>                                 <p style="font-size: 16px; font-weight: bold;">${titulo}</p>
+>                                 <p>${mensagem}</p>
+>                                 <br/>
+>                                 <a href="https://acordecrm.vercel.app" style="display: inline-block; padding: 15px 30px; background: #ff6b00; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px; border: 2px solid #261812; box-shadow: 4px 4px 0 #261812;">ACESSAR MEU APLICATIVO</a>
+>                                 <br/><br/>
+>                                 <hr style="border: 1px dashed #7b5647;" />
+>                                 <small style="color: #8e7164;">Esta é uma mensagem automática do Studio Acorde CRM. Não responda este e-mail.</small>
+>                             </div>
+>                         `;
+> 
+>                         await transporter.sendMail({
+>                             from: `"Studio Acorde" <${smtpEmail}>`,
+>                             to: emailTo,
+>                             subject: titulo,
+>                             html: emailHtml
+>                         });
+>                         console.log('[PUSH_NOTIFICATION] E-mail do Gmail disparado para', emailTo);
+>                     } else {
+>                         console.log('[PUSH_NOTIFICATION] SMTP_EMAIL ou SMTP_PASSWORD não configurado no env ou BD. E-mail ignorado.');
+>                     }
+>                 } catch (emailErr) {
+>                     console.error('[PUSH_NOTIFICATION] Erro ao enviar E-mail via Nodemailer:', emailErr);
+>                 }
+>             }
+> 
+2332c2948
+<             console.error('[PUSH_NOTIFICATION] Erro ao enviar push OneSignal:', err);
+---
+>             console.error('[PUSH_NOTIFICATION] Erro ao enviar notificação OneSignal:', err);
+2387a3004,3008
+>             // Adicionar 200 XP de recompensa
+>             const { data: xpData } = await supabase.from('alunos').select('xp').eq('id', aluno.id).single();
+>             const novoXp = (xpData?.xp || 0) + 200;
+>             await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno.id);
+> 
+2390c3011
+<             const mensagem = `${aluno.nome} marcou seu check-in de treino diário!`;
+---
+>             const mensagem = `${aluno.nome} marcou seu check-in de treino diário e ganhou 200 XP!`;
+2394c3015,3020
+<             sendPushNotification(titulo, mensagem);
+---
+>             // Disparar Push para equipe (professores e admins)
+>             const { data: equipe } = await supabase.from('usuarios').select('id').in('role', ['professor', 'admin']);
+>             if (equipe && equipe.length > 0) {
+>                 const equipeIds = equipe.map(u => String(u.id));
+>                 sendPushNotification(titulo, mensagem, equipeIds);
+>             }
+2396c3022
+<             res.json({ success: true, data: treino });
+---
+>             res.json({ success: true, data: treino, xpGanho: 200 });
+2404,2405c3030,3034
+<         if (!req.file) {
+<             return res.status(400).json({ error: 'Nenhum arquivo de vídeo enviado.' });
+---
+>         const hasVideoFile = !!req.file;
+>         const clientVideoUrl = req.body.video_url;
+>         
+>         if (!hasVideoFile && !clientVideoUrl) {
+>             return res.status(400).json({ error: 'Nenhum vídeo enviado.' });
+2433,2435c3062,3067
+<             let ext = path.extname(req.file.originalname) || '.mp4';
+<             let mimeType = req.file.mimetype || 'video/mp4';
+<             const extLower = ext.toLowerCase();
+---
+>             let finalUrl = clientVideoUrl || '';
+>             
+>             if (hasVideoFile) {
+>                 let ext = path.extname(req.file.originalname) || '.mp4';
+>                 let mimeType = req.file.mimetype || 'video/mp4';
+>                 const extLower = ext.toLowerCase();
+2437,2444c3069,3076
+<             // Bypass incondicional para iOS:
+<             if (mimeType.includes('quicktime') || extLower === '.mov' || extLower === '.qt') {
+<                 mimeType = 'video/mp4';
+<                 ext = '.mp4';
+<             } else if (!mimeType.startsWith('video/') || mimeType.includes('text/plain') || mimeType.includes('octet-stream')) {
+<                 if (extLower === '.webm') mimeType = 'video/webm';
+<                 else mimeType = 'video/mp4';
+<             }
+---
+>                 // Bypass incondicional para iOS:
+>                 if (mimeType.includes('quicktime') || extLower === '.mov' || extLower === '.qt') {
+>                     mimeType = 'video/mp4';
+>                     ext = '.mp4';
+>                 } else if (!mimeType.startsWith('video/') || mimeType.includes('octet-stream')) {
+>                     if (extLower === '.webm') mimeType = 'video/webm';
+>                     else mimeType = 'video/mp4';
+>                 }
+2446,2447c3078,3079
+<             const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
+<             const fileBuffer = fs.readFileSync(req.file.path);
+---
+>                 const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
+>                 const fileBuffer = fs.readFileSync(req.file.path);
+2449,2458c3081,3087
+<             // Enviar fileBuffer nativamente ao invés do Blob global do NodeJS 
+<             // O supabase client lida melhor com o buffer diretamente se contentType for fornecido
+<             // Octet-stream ignora validacoes
+<             const { error: uploadError } = await supabase.storage
+<                 .from('uploads')
+<                 .upload(filename, fileBuffer, { 
+<                     contentType: 'application/octet-stream', 
+<                     upsert: true,
+<                     cacheControl: '3600'
+<                 });
+---
+>                 const { error: uploadError } = await supabase.storage
+>                     .from('uploads')
+>                     .upload(filename, fileBuffer, { 
+>                         contentType: mimeType, 
+>                         upsert: true,
+>                         cacheControl: '3600'
+>                     });
+2460c3089
+<             try { fs.unlinkSync(req.file.path); } catch {}
+---
+>                 try { fs.unlinkSync(req.file.path); } catch {}
+2462,2464c3091,3097
+<             if (uploadError) {
+<                 console.error('[TREINO_VIDEO_UPLOAD] Erro Storage:', uploadError.message);
+<                 return res.status(500).json({ error: 'Falha ao salvar vídeo: ' + uploadError.message });
+---
+>                 if (uploadError) {
+>                     console.error('[TREINO_VIDEO_UPLOAD] Erro Storage:', uploadError.message);
+>                     return res.status(500).json({ error: 'Falha ao salvar vídeo: ' + uploadError.message });
+>                 }
+> 
+>                 const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+>                 finalUrl = publicUrlData?.publicUrl || '';
+2467,2468c3100
+<             const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+<             const url = publicUrlData?.publicUrl || '';
+---
+>             const url = finalUrl;
+2492a3125,3129
+>             // Adicionar 400 XP de recompensa
+>             const { data: xpData } = await supabase.from('alunos').select('xp').eq('id', aluno.id).single();
+>             const novoXp = (xpData?.xp || 0) + 400;
+>             await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno.id);
+> 
+2495c3132
+<             const mensagem = `${aluno.nome} gravou um vídeo estudando hoje!`;
+---
+>             const mensagem = `${aluno.nome} gravou um vídeo estudando hoje e ganhou 400 XP!`;
+2499c3136,3141
+<             sendPushNotification(titulo, mensagem);
+---
+>             // Disparar Push para equipe (professores e admins)
+>             const { data: equipe } = await supabase.from('usuarios').select('id').in('role', ['professor', 'admin']);
+>             if (equipe && equipe.length > 0) {
+>                 const equipeIds = equipe.map(u => String(u.id));
+>                 sendPushNotification(titulo, mensagem, equipeIds);
+>             }
+2501c3143
+<             res.json({ success: true, url, data: updatedTreino });
+---
+>             res.json({ success: true, url, data: updatedTreino, xpGanho: 400 });
+2656,2825d3297
+<     app.post('/api/gamificacao/remover', async (req, res) => {
+<         try {
+<             const { aluno_id, conquista_id } = req.body;
+<             if (!aluno_id || !conquista_id) {
+<                 return res.status(400).json({ error: 'Parâmetros aluno_id e conquista_id são obrigatórios.' });
+<             }
+<             const alunoIdNum = Number(aluno_id);
+<             const conquistaIdNum = Number(conquista_id);
+<             if (isNaN(alunoIdNum) || isNaN(conquistaIdNum)) {
+<                 return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
+<             }
+< 
+<             // Buscar o registro mais recente para deletar apenas uma instância
+<             const { data: registros, error: fetchError } = await supabase
+<                 .from('gamificacao_progresso')
+<                 .select('id')
+<                 .eq('aluno_id', alunoIdNum)
+<                 .eq('conquista_id', conquistaIdNum)
+<                 .order('id', { ascending: false });
+< 
+<             if (fetchError) throw fetchError;
+< 
+<             if (!registros || registros.length === 0) {
+<                 return res.status(404).json({ error: 'O aluno não possui esta conquista.' });
+<             }
+< 
+<             // Deleta o registro mais recente
+<             const registroParaDeletar = registros[0].id;
+< 
+<             const { error: deleteError } = await supabase
+<                 .from('gamificacao_progresso')
+<                 .delete()
+<                 .eq('id', registroParaDeletar);
+< 
+<             if (deleteError) throw deleteError;
+< 
+<             res.json({ success: true });
+<         } catch (error: any) {
+<             console.error('[GAMIFICACAO_REMOVER] Erro ao remover conquista:', error);
+<             res.status(500).json({ error: error.message || 'Erro ao remover conquista' });
+<         }
+<     });
+< 
+<     app.get('/api/gamificacao/solicitacoes', async (req, res) => {
+<         try {
+<             const { data, error } = await supabase
+<                 .from('gamificacao_solicitacoes')
+<                 .select('*, aluno:aluno_id(id, nome), conquista:conquista_id(id, nome, descricao, pontos, icone_url)')
+<                 .order('id', { ascending: false });
+<             
+<             if (error) throw error;
+<             res.json(data || []);
+<         } catch (error: any) {
+<             console.error('[GAMIFICACAO_SOLICITACOES_GET] Erro:', error);
+<             res.status(500).json({ error: error.message || 'Erro ao carregar solicitações' });
+<         }
+<     });
+< 
+<     app.post('/api/gamificacao/solicitar', async (req, res) => {
+<         try {
+<             const { aluno_id, conquista_id } = req.body;
+<             if (!aluno_id || !conquista_id) {
+<                 return res.status(400).json({ error: 'Parâmetros aluno_id e conquista_id são obrigatórios.' });
+<             }
+<             const alunoIdNum = Number(aluno_id);
+<             const conquistaIdNum = Number(conquista_id);
+<             if (isNaN(alunoIdNum) || isNaN(conquistaIdNum)) {
+<                 return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
+<             }
+< 
+<             // 0. Buscar classe da conquista para checar se é cumulativa (Especial)
+<             const { data: conquista, error: errorConq } = await supabase
+<                 .from('gamificacao_conquistas')
+<                 .select('classe')
+<                 .eq('id', conquistaIdNum)
+<                 .single();
+<             
+<             if (errorConq) throw errorConq;
+<             const isEspecial = conquista?.classe === 'Especial';
+< 
+<             if (!isEspecial) {
+<                 // 1. Verificar se o aluno já possui a conquista
+<                 const { data: jaPossui, error: errorPossui } = await supabase
+<                     .from('gamificacao_progresso')
+<                     .select('id')
+<                     .eq('aluno_id', alunoIdNum)
+<                     .eq('conquista_id', conquistaIdNum);
+<                 
+<                 if (errorPossui) throw errorPossui;
+<                 if (jaPossui && jaPossui.length > 0) {
+<                     return res.status(400).json({ error: 'Você já conquistou este troféu!' });
+<                 }
+<             }
+< 
+<             // 2. Verificar se já existe solicitação pendente
+<             const { data: jaSolicitou, error: errorSolicitou } = await supabase
+<                 .from('gamificacao_solicitacoes')
+<                 .select('id')
+<                 .eq('aluno_id', alunoIdNum)
+<                 .eq('conquista_id', conquistaIdNum)
+<                 .eq('status', 'pendente');
+<             
+<             if (errorSolicitou) throw errorSolicitou;
+<             if (jaSolicitou && jaSolicitou.length > 0) {
+<                 return res.status(400).json({ error: 'Você já tem uma solicitação pendente para este troféu.' });
+<             }
+< 
+<             // 3. Criar solicitação
+<             const { data, error: errorInsert } = await supabase
+<                 .from('gamificacao_solicitacoes')
+<                 .insert([{ aluno_id: alunoIdNum, conquista_id: conquistaIdNum, status: 'pendente' }])
+<                 .select()
+<                 .single();
+<             
+<             if (errorInsert) throw errorInsert;
+<             res.json(data);
+<         } catch (error: any) {
+<             console.error('[GAMIFICACAO_SOLICITAR] Erro:', error);
+<             res.status(500).json({ error: error.message || 'Erro ao processar solicitação' });
+<         }
+<     });
+< 
+<     app.post('/api/gamificacao/solicitacoes/:id/revisar', async (req, res) => {
+<         try {
+<             const { id } = req.params;
+<             const { status } = req.body; // 'aprovada' | 'rejeitada'
+<             if (!status || (status !== 'aprovada' && status !== 'rejeitada')) {
+<                 return res.status(400).json({ error: 'Status inválido. Deve ser aprovada ou rejeitada.' });
+<             }
+< 
+<             const solicitacaoId = Number(id);
+<             if (isNaN(solicitacaoId)) {
+<                 return res.status(400).json({ error: 'ID da solicitação deve ser numérico.' });
+<             }
+< 
+<             // 1. Buscar a solicitação
+<             const { data: solicitacao, error: errorGet } = await supabase
+<                 .from('gamificacao_solicitacoes')
+<                 .select('*')
+<                 .eq('id', solicitacaoId)
+<                 .single();
+<             
+<             if (errorGet || !solicitacao) {
+<                 return res.status(404).json({ error: 'Solicitação não encontrada.' });
+<             }
+< 
+<             // 2. Atualizar status da solicitação
+<             const { error: errorUpdate } = await supabase
+<                 .from('gamificacao_solicitacoes')
+<                 .update({ status })
+<                 .eq('id', solicitacaoId);
+<             
+<             if (errorUpdate) throw errorUpdate;
+< 
+<             // 3. Se aprovada, creditar na tabela de progresso
+<             if (status === 'aprovada') {
+<                 const { error: errorProg } = await supabase
+<                     .from('gamificacao_progresso')
+<                     .insert([{ aluno_id: solicitacao.aluno_id, conquista_id: solicitacao.conquista_id }]);
+<                 
+<                 if (errorProg) throw errorProg;
+<             }
+< 
+<             res.json({ success: true });
+<         } catch (error: any) {
+<             console.error('[GAMIFICACAO_REVISAR] Erro:', error);
+<             res.status(500).json({ error: error.message || 'Erro ao revisar solicitação' });
+<         }
+<     });
+< 

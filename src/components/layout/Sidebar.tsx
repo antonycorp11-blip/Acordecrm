@@ -11,6 +11,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Início', path: '/' },
   { icon: Users, label: 'Alunos', path: '/alunos' },
   { icon: Music, label: 'Aulas', path: '/agenda' },
+  { icon: RefreshCcw, label: 'Reposições', path: '/reposicoes' },
   { icon: CreditCard, label: 'Financeiro', path: '/financeiro' },
   { icon: Settings, label: 'Ajustes', path: '/usuarios' },
 ];

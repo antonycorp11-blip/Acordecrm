@@ -1,0 +1,83 @@
+import React, { useEffect, useState } from 'react';
+import { Calendar, Clock, RefreshCcw, User } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+
+export function Reposicoes() {
+  const [reposicoes, setReposicoes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchReposicoes = async () => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch('/api/agenda', { 
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Filtrar apenas aulas com status = 'reposicao'
+        const apenasReposicoes = data.filter((a: any) => a.status === 'reposicao');
+        setReposicoes(apenasReposicoes);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReposicoes();
+  }, []);
+
+  return (
+    <div className="p-8 font-['Space_Mono'] h-full flex flex-col bg-[#fff8f6]">
+      <div className="flex items-center gap-4 mb-8 border-b-4 border-black pb-4">
+        <div className="bg-[#ff6b00] p-4 border-4 border-black shadow-[4px_4px_0_#000]">
+          <RefreshCcw className="w-8 h-8 text-white" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-black uppercase text-black">Fila de Reposições</h1>
+          <p className="text-[#8e7164] font-bold text-sm uppercase">Alunos aguardando reagendamento de aulas canceladas</p>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <p className="text-center font-bold">CARREGANDO FILA...</p>
+        ) : reposicoes.length === 0 ? (
+          <div className="text-center p-12 border-4 border-dashed border-[#8e7164]/30">
+            <p className="text-2xl font-black text-[#8e7164] uppercase">NENHUMA REPOSIÇÃO PENDENTE</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {reposicoes.map(aula => (
+              <div key={aula.id} className="bg-white border-4 border-black shadow-[8px_8px_0_#000] p-6 flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-black text-white font-black flex items-center justify-center text-xl">
+                    {(aula.aluno_nome || 'A')[0]}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg uppercase truncate">{aula.aluno_nome}</h3>
+                    <p className="text-xs font-bold text-[#8e7164] uppercase flex items-center gap-1">
+                      <User className="w-3 h-3" /> Prof. {aula.professor_nome || '?'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t-4 border-dashed border-[#ff6b00]/20 pt-4 mt-2">
+                  <p className="text-xs font-black uppercase text-[#ff6b00] mb-2">Aguardando reagendamento</p>
+                  <button 
+                    onClick={() => toast('Em breve: Reagendamento direto por aqui!', { icon: '🚧' })}
+                    className="w-full py-3 bg-[#ff6b00] text-white font-black uppercase border-4 border-black shadow-[4px_4px_0_#000] hover:-translate-y-1 hover:shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                  >
+                    Agendar Horário
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

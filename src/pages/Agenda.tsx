@@ -398,16 +398,8 @@ export default function Agenda() {
                                <button 
                                  onClick={(e) => {
                                    e.stopPropagation();
-                                   if (window.confirm('Tem certeza que deseja cancelar e desmarcar esta aula?')) {
-                                     fetch(`/api/agenda/${aula.id}`, { 
-                                       method: 'DELETE',
-                                       headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
-                                     }).then(() => {
-                                       toast.success('Aula cancelada e removida da agenda.');
-                                       fetchAulas();
-                                       setSelectedAula(null);
-                                     });
-                                   }
+                                   setCancelModalAula(aula);
+                                   setSelectedAula(null);
                                  }}
                                  className="w-full px-4 py-3 bg-red-500 text-white border-4 border-black font-black text-xs uppercase text-left hover:bg-red-600 transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
                                >
@@ -640,6 +632,57 @@ export default function Agenda() {
              <p className="text-sm font-black uppercase text-black">{reschedulingAula.aluno_nome?.split(' ')[0]}</p>
              <p className="text-[9px] font-black mt-2 text-black/60 italic">Navegue pelas datas se desejar e clique num horário vazio para soltar</p>
              <p className="text-[9px] text-red-600 font-black mt-1">Aperte ESC para cancelar</p>
+          </div>
+        </div>
+      )}
+
+
+      {/* CANCEL MODAL */}
+      {cancelModalAula && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-[#1a0f0a] border-4 border-[#3d2d26] p-6 max-w-sm w-full flex flex-col gap-4">
+            <h3 className="text-xl font-black text-[#ff6b00] uppercase text-center">Cancelar Aula</h3>
+            <p className="text-white text-sm text-center">O aluno terá direito a reposição desta aula?</p>
+            <div className="flex flex-col gap-2 mt-4">
+              <button 
+                onClick={() => {
+                  fetch(`/api/agenda/${cancelModalAula.id}/cancelar`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
+                    body: JSON.stringify({ reposicao: true })
+                  }).then(() => {
+                    toast.success('Aula enviada para a fila de reposição.');
+                    fetchAulas();
+                    setCancelModalAula(null);
+                  });
+                }}
+                className="w-full px-4 py-3 bg-green-500 text-black border-4 border-black font-black uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-green-400"
+              >
+                SIM (Mover para Reposição)
+              </button>
+              <button 
+                onClick={() => {
+                  fetch(`/api/agenda/${cancelModalAula.id}/cancelar`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
+                    body: JSON.stringify({ reposicao: false })
+                  }).then(() => {
+                    toast.success('Aula cancelada (Registrada como Falta).');
+                    fetchAulas();
+                    setCancelModalAula(null);
+                  });
+                }}
+                className="w-full px-4 py-3 bg-red-500 text-white border-4 border-black font-black uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-red-400"
+              >
+                NÃO (Registrar como Falta)
+              </button>
+              <button 
+                onClick={() => setCancelModalAula(null)}
+                className="w-full mt-4 text-[#8e7164] font-bold text-sm uppercase hover:text-white"
+              >
+                Voltar
+              </button>
+            </div>
           </div>
         </div>
       )}

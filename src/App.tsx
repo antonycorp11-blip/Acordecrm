@@ -106,6 +106,7 @@ export default function App() {
                       <Route path="/ranking" element={<Ranking />} />
                       <Route path="/usuarios" element={<Usuarios />} />
                       <Route path="/migracao" element={<Migracao />} />
+                <Route path="/reposicoes" element={<Reposicoes />} />
                     </Routes>
                   </MainLayout>
                 } />

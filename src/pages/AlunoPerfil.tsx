@@ -202,6 +202,116 @@ function ProgressTracker({ aulas, total }: { aulas: any[], total: number }) {
   );
 }
 
+// --- CALENDAR COMPONENTS ---
+function MonthlyCalendar({ monthStr, aulas, onUpdateAttendance }: { monthStr: string, aulas: any[], onUpdateAttendance: (id: string, status: string) => Promise<void> | void, key?: string | number }) {
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  
+  const [yearStr, mStr] = monthStr.split('-');
+  const year = parseInt(yearStr);
+  const month = parseInt(mStr) - 1;
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay(); 
+  
+  const monthName = format(firstDay, 'MMMM yyyy', { locale: ptBR });
+  
+  const days = [];
+  for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  const reposicoesPendentes = aulas.filter(a => a.status === 'a_repor' || a.tipo === 'reposicao');
+
+  const getDayClasses = (d: number) => {
+    const dateStr = `${yearStr}-${mStr}-${d.toString().padStart(2, '0')}`;
+    return aulas.filter(a => a.data === dateStr);
+  };
+
+  return (
+    <Card className="p-4 flex flex-col gap-4">
+      <h3 className="font-black text-black uppercase text-sm border-b-2 border-black pb-2">{monthName}</h3>
+      <div className="grid grid-cols-7 gap-1 text-[8px] font-black text-center text-[#8e7164]">
+        <div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((d, i) => {
+          if (!d) return <div key={i} className="aspect-square" />;
+          
+          const dayAulas = getDayClasses(d);
+          const hasAula = dayAulas.length > 0;
+          
+          let bgClass = "bg-[#fff8f6] border border-[#e2bfb0] text-black";
+          if (hasAula) {
+            const a = dayAulas[0];
+            if (a.status === 'realizada' || a.status === 'presente') bgClass = "bg-emerald-500 text-white border-black";
+            else if (a.status === 'falta_aluno' || a.status === 'ausente') bgClass = "bg-red-500 text-white border-black";
+            else if (a.status === 'a_repor' || a.tipo === 'reposicao') bgClass = "bg-amber-500 text-white border-black";
+            else bgClass = "bg-[#ff6b00] text-white border-black";
+          }
+          
+          return (
+            <div key={i} className="relative group">
+              <div 
+                className={`aspect-square flex items-center justify-center font-black text-[10px] cursor-pointer hover:scale-110 transition-transform ${bgClass}`}
+                onClick={() => hasAula && setSelectedDay(selectedDay === d ? null : d)}
+              >
+                {d}
+              </div>
+              {hasAula && selectedDay !== d && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-32 p-2 bg-black text-white text-[8px] text-left opacity-0 group-hover:opacity-100 z-10 pointer-events-none transition-opacity shadow-[2px_2px_0_#ff6b00]">
+                  {dayAulas.map((da: any, idx: number) => (
+                    <div key={idx} className="mb-1 border-b border-white/20 pb-1 last:border-0 last:mb-0 last:pb-0">
+                      <p className="text-[#ff6b00]">{da.horario?.substring(0,5)} • {da.professor_nome?.split(' ')[0]}</p>
+                      <p>{da.tipo === 'reposicao' ? 'Reposição' : 'Regular'} - {da.status?.replace('_', ' ')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      
+      {selectedDay && getDayClasses(selectedDay).length > 0 && (
+        <div className="mt-2 p-2 bg-[#ffeae1] border-2 border-black flex flex-col gap-2 animate-in fade-in zoom-in duration-200">
+          <p className="text-[10px] font-black uppercase text-black border-b-2 border-[#e2bfb0] pb-1 flex justify-between items-center">
+            DIA {selectedDay.toString().padStart(2, '0')}
+            <button onClick={() => setSelectedDay(null)}><X className="w-3 h-3" /></button>
+          </p>
+          {getDayClasses(selectedDay).map((da: any, idx: number) => (
+             <div key={idx} className="flex flex-col gap-2 border-b border-[#e2bfb0] pb-2 last:border-0 last:pb-0">
+               <div className="flex justify-between items-center text-[9px] font-black">
+                 <span className="text-[#ff6b00]">{da.horario?.substring(0,5)} • {da.professor_nome?.split(' ')[0]}</span>
+                 <span>{da.tipo === 'reposicao' ? 'REPOSIÇÃO' : 'REGULAR'}</span>
+               </div>
+               <div className="flex gap-2">
+                 <Button variant="dark" className="flex-1 py-1 px-1 text-[7px]" onClick={(e: any) => { e.stopPropagation(); onUpdateAttendance(da.id, 'realizada'); setSelectedDay(null); }}>PRESENÇA</Button>
+                 <Button variant="outline" className="flex-1 py-1 px-1 text-[7px]" onClick={(e: any) => { e.stopPropagation(); onUpdateAttendance(da.id, 'falta_aluno'); setSelectedDay(null); }}>FALTA</Button>
+               </div>
+             </div>
+          ))}
+        </div>
+      )}
+      
+      {reposicoesPendentes.length > 0 && (
+        <div className="mt-2 pt-2 border-t-2 border-dashed border-[#e2bfb0]">
+          <p className="text-[9px] font-black text-black uppercase mb-1 flex items-center gap-1">
+             <Clock className="w-3 h-3 text-amber-500" /> REPOSIÇÕES DO MÊS
+          </p>
+          <div className="flex flex-col gap-1 text-[8px] font-black uppercase text-[#8e7164]">
+            {reposicoesPendentes.map((r, i) => (
+              <div key={i} className="flex justify-between items-center bg-[#fff8f6] p-1.5 border border-[#e2bfb0]">
+                <span>{r.data ? format(new Date(r.data + 'T12:00:00'), 'dd/MM') : 'S/ DATA'} • {r.horario?.substring(0,5)}</span>
+                <span className="text-amber-600">{r.status?.replace('_', ' ')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // --- TABS ---
 
 function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas }: { financeiro: any[], alunoId: string, onRefresh: () => void, total_parcelas?: number }) {
@@ -803,27 +913,38 @@ export default function AlunoPerfil() {
           {activeTab === 'frequencia' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                <ProgressTracker aulas={frequencia} total={agenda.length} />
-               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {frequencia.slice().reverse().map(aula => (
-                   <Card key={aula.id} className="group hover:border-[#ff6b00] transition-colors relative overflow-hidden">
-                     <div className="flex justify-between items-start mb-4">
-                       <div>
-                         <p className="text-[8px] font-black text-[#8e7164] uppercase mb-1">{format(new Date(aula.data + 'T12:00:00'), 'EEEE, dd/MM', { locale: ptBR })}</p>
-                         <p className="font-black text-black uppercase italic">{aula.horario?.substring(0,5)} • {aula.professor_nome?.split(' ')[0]}</p>
-                       </div>
-                       <Badge color={
-                         (aula.status === 'realizada' || aula.status === 'presente') ? 'green' : 
-                         (aula.status === 'falta_aluno' || aula.status === 'ausente') ? 'red' : 'orange'
-                       }>{aula.status?.replace('_', ' ')}</Badge>
+               
+               {(() => {
+                 const aulasPorMes = agenda.reduce((acc: any, aula) => {
+                   if (!aula.data || aula.data.includes('2099')) return acc;
+                   const monthStr = aula.data.substring(0, 7); // yyyy-MM
+                   if (!acc[monthStr]) acc[monthStr] = [];
+                   acc[monthStr].push(aula);
+                   return acc;
+                 }, {});
+                 const sortedMonths = Object.keys(aulasPorMes).sort().reverse();
+                 
+                 if (sortedMonths.length === 0) {
+                   return (
+                     <div className="text-center py-10 opacity-50">
+                       <p className="font-black text-black uppercase italic">Nenhuma aula registrada</p>
                      </div>
-                     
-                     <div className="flex gap-2 mt-4 pt-4 border-t-2 border-[#e2bfb0]">
-                        <Button variant="dark" className="flex-1" onClick={() => updateAttendance(aula.id, 'realizada')}>PRESENÇA</Button>
-                        <Button variant="outline" className="flex-1" onClick={() => updateAttendance(aula.id, 'falta_aluno')}>FALTA</Button>
-                     </div>
-                   </Card>
-                 ))}
-               </div>
+                   );
+                 }
+                 
+                 return (
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                     {sortedMonths.map(monthStr => (
+                       <MonthlyCalendar 
+                         key={monthStr} 
+                         monthStr={monthStr} 
+                         aulas={aulasPorMes[monthStr]} 
+                         onUpdateAttendance={updateAttendance} 
+                       />
+                     ))}
+                   </div>
+                 );
+               })()}
             </motion.div>
           )}
 

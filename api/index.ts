@@ -11,6 +11,7 @@ import { dirname, join, resolve } from 'path';
 import multer from 'multer';
 import { execSync } from 'child_process';
 import nodemailer from 'nodemailer';
+import { GoogleAuth } from 'google-auth-library';
 import rateLimit from 'express-rate-limit';
 
 function getDateBR() {
@@ -2074,6 +2075,32 @@ async function startServer() {
         res.json(updated);
     });
 
+    
+    app.patch('/api/agenda/:id/cancelar', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { reposicao } = req.body;
+            let type = 'reg';
+            let originalId = id;
+            if (id.includes('-')) {
+                [type, originalId] = id.split('-');
+            }
+            if (type !== 'reg') {
+                await supabase.from('aulas_experimentais').delete().eq('id', originalId);
+                return res.json({ success: true, action: 'deleted' });
+            }
+
+            if (reposicao) {
+                await supabase.from('aulas').update({ status: 'reposicao', data: null, horario: null }).eq('id', originalId);
+            } else {
+                await supabase.from('aulas').update({ status: 'falta' }).eq('id', originalId);
+            }
+            res.json({ success: true, action: 'updated' });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.delete('/api/agenda/:id', async (req, res) => {
         const { id } = req.params;
         let type = 'reg';
@@ -2553,6 +2580,81 @@ async function startServer() {
     });
 
     // 3. Upload de vídeo curto de treino (24h de duração)
+    
+    const driveFolderId = '1EHXi800HrwkDWOgd-l0lXKtQZkMlSFyV';
+    
+    app.post('/api/drive/upload-url', authenticate, async (req, res) => {
+        try {
+            const { filename, mimeType } = req.body;
+            const auth = new GoogleAuth({
+                keyFile: './google-credentials.json',
+                scopes: ['https://www.googleapis.com/auth/drive.file']
+            });
+            const client = await auth.getClient();
+            const token = await client.getAccessToken();
+
+            const metadata = {
+                name: filename,
+                parents: [driveFolderId]
+            };
+
+            const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.token}`,
+                    'Content-Type': 'application/json',
+                    'X-Upload-Content-Type': mimeType
+                },
+                body: JSON.stringify(metadata)
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error('Google Drive Error: ' + text);
+            }
+
+            const resumableUrl = response.headers.get('Location');
+            res.json({ uploadUrl: resumableUrl });
+        } catch (error: any) {
+            console.error('Drive API Error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/drive/finish-upload', authenticate, async (req, res) => {
+        try {
+            const { fileId } = req.body;
+            const auth = new GoogleAuth({
+                keyFile: './google-credentials.json',
+                scopes: ['https://www.googleapis.com/auth/drive.file']
+            });
+            const client = await auth.getClient();
+            const token = await client.getAccessToken();
+
+            // Set file to anyone with link can view (so professor can see it)
+            await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    role: 'reader',
+                    type: 'anyone'
+                })
+            });
+
+            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=webViewLink`, {
+                headers: { 'Authorization': `Bearer ${token.token}` }
+            });
+            
+            const fileData = await fileRes.json();
+            res.json({ url: fileData.webViewLink });
+        } catch(err: any) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     app.post('/api/treinos/upload-video', upload.single('video'), async (req: any, res) => {
         if (!req.file && !req.body.video_url) {
             return res.status(400).json({ error: 'Nenhum arquivo de vídeo enviado.' });

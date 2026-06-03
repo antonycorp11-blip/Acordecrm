@@ -781,10 +781,9 @@ export default function AreaAluno() {
   const uploadVideo = async () => {
     if (!videoBlob) return;
     
-    // Limite aumentado para 100MB para permitir upload direto ao Supabase em celulares
-    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+      const MAX_SIZE = 2000 * 1024 * 1024; // 2GB
     if (videoBlob.size > MAX_SIZE) {
-      toast.error('O vídeo ficou muito pesado! Grave no máximo 1 minuto.');
+      toast.error('O vídeo ficou muito pesado (acima de 2GB)! Grave mais curto.');
       setVideoBlob(null);
       setVideoPreviewUrl('');
       return;
@@ -804,32 +803,47 @@ export default function AreaAluno() {
         extensao = 'mp4'; // force mp4 for ios
       }
       
-      // 1. Fetch Supabase config
-      const configRes = await fetch('/api/supabase-config', { headers: { 'Authorization': `Bearer ${token}` } });
-      const { url: sbUrl, key: sbKey } = await configRes.json();
-      
       let finalVideoUrl = '';
-
-      if (sbUrl && sbKey) {
-          // Direct Upload to Supabase to bypass Vercel 4.5MB limit
-          setUploadProgress(30);
-          const sbClient = createClient(sbUrl, sbKey);
-          const filename = `treinos/${alunoData?.id}_${Date.now()}_video.${extensao}`;
-          
-          const { error: uploadError } = await sbClient.storage
-              .from('uploads')
-              .upload(filename, videoBlob, { 
-                  contentType: mime, 
-                  upsert: true,
-                  cacheControl: '3600'
-              });
-              
-          if (uploadError) throw new Error('Falha ao enviar vídeo (Storage): ' + uploadError.message);
-          
-          setUploadProgress(70);
-          const { data: publicUrlData } = sbClient.storage.from('uploads').getPublicUrl(filename);
-          finalVideoUrl = publicUrlData?.publicUrl || '';
-      }
+      setUploadProgress(20);
+      
+      // 1. Pede URL de Upload do Google Drive pro backend
+      const nomeAlunoSafe = (alunoData?.nome || 'Aluno').replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `Treino_${nomeAlunoSafe}_${Date.now()}.${extensao}`;
+      const urlRes = await fetch('/api/drive/upload-url', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename, mimeType: mime })
+      });
+      
+      if (!urlRes.ok) throw new Error('Falha ao gerar link seguro de upload no Google Drive.');
+      const { uploadUrl } = await urlRes.json();
+      
+      setUploadProgress(40);
+      
+      // 2. Faz o PUT direto no Google Drive
+      const driveRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: videoBlob,
+          headers: { 'Content-Type': mime }
+      });
+      
+      if (!driveRes.ok) throw new Error('Falha ao enviar arquivo para a nuvem.');
+      
+      setUploadProgress(80);
+      
+      const driveData = await driveRes.json();
+      const fileId = driveData.id;
+      
+      // 3. Finaliza no backend para dar permissão pública e pegar o webViewLink
+      const finishRes = await fetch('/api/drive/finish-upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileId })
+      });
+      
+      if (!finishRes.ok) throw new Error('Falha ao gerar link público do vídeo.');
+      const finishData = await finishRes.json();
+      finalVideoUrl = finishData.url;
 
       setUploadProgress(85);
       
