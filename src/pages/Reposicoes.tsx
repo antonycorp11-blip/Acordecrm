@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Calendar, Clock, RefreshCcw, User } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export function Reposicoes() {
   const [reposicoes, setReposicoes] = useState<any[]>([]);
