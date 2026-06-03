@@ -514,6 +514,7 @@ export default function AlunoPerfil() {
   const [editFormData, setEditFormData] = useState<any>({});
   const [cursos, setCursos] = useState<any[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [showAgendaList, setShowAgendaList] = useState(false);
 
   // Reagendamento
   const [rescheduleModal, setRescheduleModal] = useState<{ open: boolean, aulaId: string | null, type: 'emergencial' | 'permanente', data: string, horario: string }>({ open: false, aulaId: null, type: 'emergencial', data: '', horario: '' });
@@ -695,7 +696,6 @@ export default function AlunoPerfil() {
   const tabs = [
     { id: 'geral', label: 'INFO', icon: User },
     { id: 'agenda', label: 'AGENDA', icon: Calendar },
-    { id: 'frequencia', label: 'HISTORY', icon: CheckCircle2 },
     { id: 'financeiro', label: 'MONEY', icon: CreditCard },
     { id: 'materiais', label: 'FILES', icon: BookOpen },
   ];
@@ -704,16 +704,16 @@ export default function AlunoPerfil() {
     <div className="flex flex-col flex-1 h-screen overflow-hidden bg-[#1a0f0a]" style={{ fontFamily: "'Space Mono', monospace" }}>
       
       {/* HEADER SECTION */}
-      <header className="bg-[#fff8f6] border-b-4 border-black p-8 shadow-[0_4px_0_rgba(0,0,0,0.1)] relative z-10 shrink-0">
+      <header className="bg-[#fff8f6] border-b-4 border-black p-4 sm:p-6 shadow-[0_4px_0_rgba(0,0,0,0.1)] relative z-10 shrink-0">
         <button 
           onClick={() => navigate('/alunos')}
-          className="flex items-center gap-2 text-[#8e7164] hover:text-black transition-all font-black text-[10px] uppercase tracking-widest mb-6"
+          className="flex items-center gap-2 text-[#8e7164] hover:text-black transition-all font-black text-[10px] uppercase tracking-widest mb-4"
         >
           <ArrowLeft className="w-4 h-4" /> VOLTAR_LISTA
         </button>
 
-        <div className="flex flex-col md:flex-row md:items-center gap-8">
-          <label className="w-32 h-32 bg-[#feccba] border-4 border-black shadow-[4px_4px_0_#000] flex items-center justify-center text-black text-5xl font-black relative overflow-hidden group cursor-pointer shrink-0">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4 sm:gap-6">
+          <label className="w-20 h-20 sm:w-24 sm:h-24 bg-[#feccba] border-4 border-black shadow-[4px_4px_0_#000] flex items-center justify-center text-black text-3xl sm:text-4xl font-black relative overflow-hidden group cursor-pointer shrink-0">
             {uploadingAvatar && <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center text-white text-[10px] font-bold">...</div>}
             {aluno.foto_url ? (
                <img src={aluno.foto_url} alt="Avatar" className="w-full h-full object-cover z-10" />
@@ -721,29 +721,29 @@ export default function AlunoPerfil() {
                (aluno.nome || '?').charAt(0).toUpperCase()
             )}
             <div className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center text-white text-[8px] font-black z-20 text-center px-2 uppercase">
-              UPLOAD_FOTO
+              UPLOAD
             </div>
             <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           </label>
 
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-3 mb-2">
-              <h1 className="text-4xl font-black text-black tracking-tighter uppercase italic">{aluno.nome}</h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-black tracking-tighter uppercase italic truncate">{aluno.nome}</h1>
               <Badge color={aluno.status === 'ativo' ? 'green' : 'black'}>{aluno.status}</Badge>
             </div>
-            <div className="flex flex-wrap items-center gap-4 text-[#8e7164] text-[10px] font-black uppercase tracking-widest">
-               <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-black" /> {aluno.email || 'NO_MAIL'}</span>
-               <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-black" /> {aluno.telefone || 'NO_PHONE'}</span>
-               <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5 text-black" /> {aluno.matriculas?.[0]?.cursos?.nome || 'SEM_CURSO'}</span>
-               <div className="bg-black text-white px-3 py-1 border border-black flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3 text-[#8e7164] text-[9px] sm:text-[10px] font-black uppercase tracking-widest">
+               <span className="flex items-center gap-1.5 whitespace-nowrap"><Mail className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-black" /> <span className="truncate max-w-[150px] sm:max-w-none">{aluno.email || 'NO_MAIL'}</span></span>
+               <span className="flex items-center gap-1.5 whitespace-nowrap"><Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-black" /> {aluno.telefone || 'NO_PHONE'}</span>
+               <span className="flex items-center gap-1.5 whitespace-nowrap"><BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-black" /> {aluno.matriculas?.[0]?.cursos?.nome || 'SEM_CURSO'}</span>
+               <div className="bg-black text-white px-2 py-1 border border-black flex items-center gap-2 whitespace-nowrap">
                   SALDO: {agenda.filter(a => a.status?.toLowerCase() === 'pendente').length} AULAS
                </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Button variant="dark" onClick={() => setContratoModal(true)}>
-              <FileText className="w-4 h-4 mr-2" /> GERAR_CONTRATO
+          <div className="flex flex-row lg:flex-col gap-2 shrink-0 overflow-x-auto pb-1 no-scrollbar">
+            <Button variant="dark" onClick={() => setContratoModal(true)} className="whitespace-nowrap flex-1">
+              <FileText className="w-4 h-4 mr-2" /> CONTRATO
             </Button>
             <Button variant="secondary" onClick={() => {
               const m = aluno.matriculas?.[0];
@@ -757,8 +757,8 @@ export default function AlunoPerfil() {
                 horario: m?.horario || ''
               });
               setIsEditModalOpen(true);
-            }}>
-              <Edit className="w-4 h-4 mr-2" /> EDITAR_PERFIL
+            }} className="whitespace-nowrap flex-1">
+              <Edit className="w-4 h-4 mr-2" /> EDITAR
             </Button>
           </div>
         </div>
@@ -862,92 +862,101 @@ export default function AlunoPerfil() {
           )}
 
           {activeTab === 'agenda' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <Card className="p-0 overflow-hidden">
-                <div className="p-4 bg-black flex flex-wrap items-center justify-between gap-4">
-                   <h3 className="font-black text-white text-[10px] uppercase tracking-widest">Cronograma de Aulas</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-[#feccba] border-b-2 border-black">
-                      <tr>
-                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">DATA</th>
-                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">TIPO</th>
-                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">HORA</th>
-                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">PROFESSOR</th>
-                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">STATUS</th>
-                        <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-right tracking-widest">AÇÕES</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y-2 divide-[#e2bfb0]">
-                      {agenda.map(aula => (
-                        <tr key={aula.id} className={`hover:bg-[#ffeae1] ${aula.tipo === 'reposicao' ? 'bg-orange-50/50' : ''}`}>
-                          <td className="px-6 py-4 font-black text-black uppercase text-sm">
-                            {aula.data?.includes('2099') ? 'A DEFINIR' : format(new Date(aula.data + 'T12:00:00'), 'dd/MM/yyyy')}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`text-[8px] font-black uppercase px-2 py-1 border-2 ${aula.tipo === 'reposicao' ? 'bg-orange-500 text-white border-black' : 'bg-black text-white border-black'}`}>
-                              {aula.tipo || 'regular'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 font-black text-[#8e7164]">{aula.horario?.includes('00:00') && aula.data?.includes('2099') ? '--:--' : aula.horario?.substring(0, 5)}</td>
-                          <td className="px-6 py-4 font-black text-black uppercase text-[10px]">{aula.professor_nome}</td>
-                          <td className="px-6 py-4">
-                             <Badge color={
-                               (aula.status === 'realizada' || aula.status === 'presente') ? 'green' : 
-                               (aula.status === 'falta_aluno' || aula.status === 'ausente') ? 'red' : 
-                               aula.status === 'a_repor' ? 'orange' : 'bege'
-                             }>{aula.status?.replace('_', ' ')}</Badge>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                             <Button variant="outline" onClick={() => setRescheduleModal({ open: true, aulaId: aula.id, type: 'emergencial', data: aula.data, horario: aula.horario })}>
-                               REMARCAR
-                             </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            </motion.div>
-          )}
-
-          {activeTab === 'frequencia' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-               <ProgressTracker aulas={frequencia} total={agenda.length} />
-               
-               {(() => {
-                 const aulasPorMes = agenda.reduce((acc: any, aula) => {
-                   if (!aula.data || aula.data.includes('2099')) return acc;
-                   const monthStr = aula.data.substring(0, 7); // yyyy-MM
-                   if (!acc[monthStr]) acc[monthStr] = [];
-                   acc[monthStr].push(aula);
-                   return acc;
-                 }, {});
-                 const sortedMonths = Object.keys(aulasPorMes).sort().reverse();
-                 
-                 if (sortedMonths.length === 0) {
-                   return (
-                     <div className="text-center py-10 opacity-50">
-                       <p className="font-black text-black uppercase italic">Nenhuma aula registrada</p>
-                     </div>
-                   );
-                 }
-                 
-                 return (
-                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                     {sortedMonths.map(monthStr => (
-                       <MonthlyCalendar 
-                         key={monthStr} 
-                         monthStr={monthStr} 
-                         aulas={aulasPorMes[monthStr]} 
-                         onUpdateAttendance={updateAttendance} 
-                       />
-                     ))}
-                   </div>
-                 );
-               })()}
+              <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-4">
+                <h2 className="text-xl font-black text-black uppercase italic">Aulas do Aluno</h2>
+                <Button onClick={() => setShowAgendaList(!showAgendaList)} variant="dark">
+                  {showAgendaList ? 'VER CALENDÁRIOS' : 'VER LISTA TRADICIONAL'}
+                </Button>
+              </div>
+
+              {!showAgendaList ? (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                   <ProgressTracker aulas={frequencia} total={agenda.length} />
+                   
+                   {(() => {
+                     const aulasPorMes = agenda.reduce((acc: any, aula) => {
+                       if (!aula.data || aula.data.includes('2099')) return acc;
+                       const monthStr = aula.data.substring(0, 7); // yyyy-MM
+                       if (!acc[monthStr]) acc[monthStr] = [];
+                       acc[monthStr].push(aula);
+                       return acc;
+                     }, {});
+                     const sortedMonths = Object.keys(aulasPorMes).sort().reverse();
+                     
+                     if (sortedMonths.length === 0) {
+                       return (
+                         <div className="text-center py-10 opacity-50">
+                           <p className="font-black text-black uppercase italic">Nenhuma aula registrada</p>
+                         </div>
+                       );
+                     }
+                     
+                     return (
+                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                         {sortedMonths.map(monthStr => (
+                           <MonthlyCalendar 
+                             key={monthStr} 
+                             monthStr={monthStr} 
+                             aulas={aulasPorMes[monthStr]} 
+                             onUpdateAttendance={updateAttendance} 
+                           />
+                         ))}
+                       </div>
+                     );
+                   })()}
+                </div>
+              ) : (
+                <div className="animate-in fade-in duration-300">
+                  <Card className="p-0 overflow-hidden">
+                    <div className="p-4 bg-black flex flex-wrap items-center justify-between gap-4">
+                       <h3 className="font-black text-white text-[10px] uppercase tracking-widest">Cronograma de Aulas</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-[#feccba] border-b-2 border-black">
+                          <tr>
+                            <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">DATA</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">TIPO</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">HORA</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">PROFESSOR</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-left tracking-widest">STATUS</th>
+                            <th className="px-6 py-4 text-[9px] font-black text-black uppercase text-right tracking-widest">AÇÕES</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y-2 divide-[#e2bfb0]">
+                          {agenda.map(aula => (
+                            <tr key={aula.id} className={`hover:bg-[#ffeae1] ${aula.tipo === 'reposicao' ? 'bg-orange-50/50' : ''}`}>
+                              <td className="px-6 py-4 font-black text-black uppercase text-sm">
+                                {aula.data?.includes('2099') ? 'A DEFINIR' : format(new Date(aula.data + 'T12:00:00'), 'dd/MM/yyyy')}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`text-[8px] font-black uppercase px-2 py-1 border-2 ${aula.tipo === 'reposicao' ? 'bg-orange-500 text-white border-black' : 'bg-black text-white border-black'}`}>
+                                  {aula.tipo || 'regular'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 font-black text-[#8e7164]">{aula.horario?.includes('00:00') && aula.data?.includes('2099') ? '--:--' : aula.horario?.substring(0, 5)}</td>
+                              <td className="px-6 py-4 font-black text-black uppercase text-[10px]">{aula.professor_nome}</td>
+                              <td className="px-6 py-4">
+                                 <Badge color={
+                                   (aula.status === 'realizada' || aula.status === 'presente') ? 'green' : 
+                                   (aula.status === 'falta_aluno' || aula.status === 'ausente' || aula.status === 'falta') ? 'red' : 
+                                   aula.status === 'a_repor' ? 'orange' : 'bege'
+                                 }>{aula.status?.replace('_', ' ')}</Badge>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                 <Button variant="outline" onClick={() => setRescheduleModal({ open: true, aulaId: aula.id, type: 'emergencial', data: aula.data, horario: aula.horario })}>
+                                   REMARCAR
+                                 </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </div>
+              )}
             </motion.div>
           )}
 
