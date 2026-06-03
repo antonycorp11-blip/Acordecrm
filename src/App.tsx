@@ -20,6 +20,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Usuarios from './pages/Usuarios';
 import Migracao from './pages/Migracao';
+import { Reposicoes } from './pages/Reposicoes';
 
 import { Toaster } from 'sonner';
 
