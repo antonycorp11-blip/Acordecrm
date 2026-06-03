@@ -882,7 +882,7 @@ export default function AlunoPerfil() {
                        acc[monthStr].push(aula);
                        return acc;
                      }, {});
-                     const sortedMonths = Object.keys(aulasPorMes).sort().reverse();
+                     const sortedMonths = Object.keys(aulasPorMes).sort();
                      
                      if (sortedMonths.length === 0) {
                        return (
