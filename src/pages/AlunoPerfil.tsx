@@ -287,6 +287,9 @@ function MonthlyCalendar({ monthStr, aulas, onUpdateAttendance }: { monthStr: st
                <div className="flex gap-2">
                  <Button variant="dark" className="flex-1 py-1 px-1 text-[7px]" onClick={(e: any) => { e.stopPropagation(); onUpdateAttendance(da.id, 'realizada'); setSelectedDay(null); }}>PRESENÇA</Button>
                  <Button variant="outline" className="flex-1 py-1 px-1 text-[7px]" onClick={(e: any) => { e.stopPropagation(); onUpdateAttendance(da.id, 'falta_aluno'); setSelectedDay(null); }}>FALTA</Button>
+                 {(da.status === 'falta_aluno' || da.status === 'ausente' || da.status === 'falta') && (
+                   <Button variant="primary" className="flex-1 py-1 px-1 text-[7px]" onClick={(e: any) => { e.stopPropagation(); onUpdateAttendance(da.id, 'reposicao'); setSelectedDay(null); }}>LIBERAR REPOSIÇÃO</Button>
+                 )}
                </div>
              </div>
           ))}
