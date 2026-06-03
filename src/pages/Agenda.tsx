@@ -17,6 +17,7 @@ export default function Agenda() {
   const [navType, setNavType] = useState<'dia' | 'semana'>('dia');
   const [viewType, setViewType] = useState<'individual' | 'grupo'>('individual');
   const [selectedAula, setSelectedAula] = useState<any>(null);
+  const [cancelModalAula, setCancelModalAula] = useState<any>(null);
   const [menuPos, setMenuPos] = useState<{x: number, y: number} | null>(null);
   const [reschedulingAula, setReschedulingAula] = useState<any>(null);
   const [mousePos, setMousePos] = useState({x: 0, y: 0});

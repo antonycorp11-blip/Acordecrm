@@ -2583,7 +2583,7 @@ async function startServer() {
     
     const driveFolderId = '1EHXi800HrwkDWOgd-l0lXKtQZkMlSFyV';
     
-    app.post('/api/drive/upload-url', authenticate, async (req, res) => {
+    app.post('/api/drive/upload-url', async (req, res) => {
         try {
             const { filename, mimeType } = req.body;
             const auth = new GoogleAuth({
@@ -2621,7 +2621,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/drive/finish-upload', authenticate, async (req, res) => {
+    app.post('/api/drive/finish-upload', async (req, res) => {
         try {
             const { fileId } = req.body;
             const auth = new GoogleAuth({
