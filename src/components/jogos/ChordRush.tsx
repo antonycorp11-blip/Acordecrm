@@ -7,12 +7,12 @@ interface ChordRushProps {
 }
 
 const CHORDS = [
-  { name: 'C', notes: 'C - E - G', fakeNotes: ['C - D - G', 'C - F - A', 'C - E - A'] },
-  { name: 'G', notes: 'G - B - D', fakeNotes: ['G - C - D', 'G - A - D', 'G - B - E'] },
-  { name: 'Am', notes: 'A - C - E', fakeNotes: ['A - B - E', 'A - C - F', 'A - D - E'] },
-  { name: 'F', notes: 'F - A - C', fakeNotes: ['F - G - C', 'F - Bb - C', 'F - A - D'] },
-  { name: 'Em', notes: 'E - G - B', fakeNotes: ['E - A - B', 'E - F - B', 'E - G - C'] },
-  { name: 'D', notes: 'D - F# - A', fakeNotes: ['D - G - A', 'D - E - A', 'D - F - A'] },
+  { name: 'Dó Maior', notes: 'C', fakeNotes: ['Cm', 'C7', 'G'] },
+  { name: 'Sol Maior', notes: 'G', fakeNotes: ['Gm', 'G7', 'C'] },
+  { name: 'Lá Menor', notes: 'Am', fakeNotes: ['A', 'Am7', 'Em'] },
+  { name: 'Fá Maior', notes: 'F', fakeNotes: ['Fm', 'F7', 'C'] },
+  { name: 'Mi Menor', notes: 'Em', fakeNotes: ['E', 'Em7', 'Am'] },
+  { name: 'Ré Maior', notes: 'D', fakeNotes: ['Dm', 'D7', 'A'] },
 ];
 
 export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playRetroSound }) => {
@@ -121,7 +121,7 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
             CHORD RUSH
           </h2>
           <p className="text-[#feccba] font-black text-[10px] uppercase max-w-[200px] leading-relaxed">
-            Identifique as notas corretas do acorde antes que o tempo acabe!
+            Identifique o acorde correto pelo nome antes que o tempo acabe!
           </p>
           <button
             onClick={startGame}

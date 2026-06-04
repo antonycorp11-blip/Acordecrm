@@ -1533,6 +1533,42 @@ async function startServer() {
             if (!prof) {
                 return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
             }
+
+            // Cálculo do mês atual
+            const now = new Date();
+            const year = now.getFullYear();
+            const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+            const startOfMonth = `${year}-${monthStr}-01`;
+            const endOfMonth = `${year}-${monthStr}-31`; // 31 funciona para query no db no gte/lte
+
+            const { data: aulasDoMes } = await supabase.from('aulas')
+                .select('id')
+                .eq('professor_id', prof.id)
+                .in('status', ['realizada', 'falta_aluno'])
+                .gte('data', startOfMonth)
+                .lte('data', endOfMonth);
+
+            const numAulas = aulasDoMes ? aulasDoMes.length : 0;
+            prof.saldo = numAulas * (Number(prof.valor_aula) || 0);
+
+            // Cálculo do mês passado
+            const prevMonthDate = new Date(year, now.getMonth() - 1, 1);
+            const prevYear = prevMonthDate.getFullYear();
+            const prevMonthStr = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+            const prevMonthLastDay = new Date(prevYear, prevMonthDate.getMonth() + 1, 0).getDate();
+            const startOfPrevMonth = `${prevYear}-${prevMonthStr}-01`;
+            const endOfPrevMonth = `${prevYear}-${prevMonthStr}-${String(prevMonthLastDay).padStart(2, '0')}`;
+
+            const { data: aulasMesPassado } = await supabase.from('aulas')
+                .select('id')
+                .eq('professor_id', prof.id)
+                .in('status', ['realizada', 'falta_aluno'])
+                .gte('data', startOfPrevMonth)
+                .lte('data', endOfPrevMonth);
+            
+            const numAulasPrev = aulasMesPassado ? aulasMesPassado.length : 0;
+            prof.saldo_mes_passado = numAulasPrev * (Number(prof.valor_aula) || 0);
+
             res.json(prof);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
