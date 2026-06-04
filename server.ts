@@ -1509,8 +1509,11 @@ async function startServer() {
 
             // Cálculo dinâmico do saldo do mês atual
             const now = new Date();
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
-            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+            const year = now.getFullYear();
+            const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+            const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+            const startOfMonth = `${year}-${monthStr}-01`;
+            const endOfMonth = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
 
             const { data: aulasDoMes } = await supabase.from('aulas')
                 .select('id')
@@ -1521,6 +1524,24 @@ async function startServer() {
 
             const numAulas = aulasDoMes ? aulasDoMes.length : 0;
             prof.saldo = numAulas * (Number(prof.valor_aula) || 0);
+
+            // Cálculo do mês passado
+            const prevMonthDate = new Date(year, now.getMonth() - 1, 1);
+            const prevYear = prevMonthDate.getFullYear();
+            const prevMonthStr = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+            const prevMonthLastDay = new Date(prevYear, prevMonthDate.getMonth() + 1, 0).getDate();
+            const startOfPrevMonth = `${prevYear}-${prevMonthStr}-01`;
+            const endOfPrevMonth = `${prevYear}-${prevMonthStr}-${String(prevMonthLastDay).padStart(2, '0')}`;
+
+            const { data: aulasMesPassado } = await supabase.from('aulas')
+                .select('id')
+                .eq('professor_id', prof.id)
+                .in('status', ['realizada', 'falta_aluno'])
+                .gte('data', startOfPrevMonth)
+                .lte('data', endOfPrevMonth);
+            
+            const numAulasPrev = aulasMesPassado ? aulasMesPassado.length : 0;
+            prof.saldo_mes_passado = numAulasPrev * (Number(prof.valor_aula) || 0);
 
             res.json(prof);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
@@ -1556,7 +1577,16 @@ async function startServer() {
             const { data, error } = await supabase.from('professores').insert([req.body]).select().single();
             if (error) throw error;
             res.json(data);
-        } catch (error) { res.status(500).json({ error: 'Erro ao salvar professor' }); }
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/professores/:id/disponibilidade', async (req, res) => {
+        try {
+            const { disponibilidade } = req.body;
+            const { data, error } = await supabase.from('professores').update({ disponibilidade }).eq('id', req.params.id).select().single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
     app.put('/api/professores/:id', async (req, res) => {

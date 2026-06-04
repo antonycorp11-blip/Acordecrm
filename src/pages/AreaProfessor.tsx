@@ -39,6 +39,7 @@ import { ptBR } from 'date-fns/locale';
 import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musicEngine';
 import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
+import { ChordRush } from '../components/jogos/ChordRush';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 
@@ -299,8 +300,20 @@ export default function AreaProfessor() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Estados de navegação e Modo Apresentação do Professor
-  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'alunos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos'>('home');
+  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos'>('home');
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
+
+  // Estados dos Jogos
+  const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
+  const [isPlayingChordRush, setIsPlayingChordRush] = useState(false);
+  const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
+  const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
+  const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
+  const [geniusScore, setGeniusScore] = useState(0);
+  const [geniusActivePad, setGeniusActivePad] = useState<number | null>(null);
+
+  // Histórico Financeiro
+  const [isFinanceiroModalOpen, setIsFinanceiroModalOpen] = useState(false);
 
   // Estados do Ranking e Conquistas
   const [rankingData, setRankingData] = useState<any[]>([]);
@@ -640,26 +653,78 @@ export default function AreaProfessor() {
 
   const playRetroSound = (frequency: number, type: 'sine' | 'triangle' | 'square' | 'sawtooth' = 'triangle', duration: number = 0.25) => {
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) return;
-      const ctx = new AudioContextClass();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
       
-      osc.type = type;
-      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
       
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
       
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
       
-      osc.start();
-      osc.stop(ctx.currentTime + duration);
-    } catch (err) {
-      console.error('AudioContext error:', err);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + duration);
+    } catch (e) {
+      console.log('Audio not supported or disabled');
     }
+  };
+
+  const handleGeniusPadClick = (index: number) => {
+    if (geniusState !== 'playing') return;
+    
+    // Play sound and light up
+    const freqs = [329.63, 261.63, 220.00, 164.81]; // E4, C4, A3, E3
+    playRetroSound(freqs[index], 'square', 0.2);
+    setGeniusActivePad(index);
+    setTimeout(() => setGeniusActivePad(null), 200);
+
+    const newUserSeq = [...geniusUserSequence, index];
+    setGeniusUserSequence(newUserSeq);
+
+    // Check if wrong
+    if (newUserSeq[newUserSeq.length - 1] !== geniusSequence[newUserSeq.length - 1]) {
+      setGeniusState('gameover');
+      playRetroSound(100, 'sawtooth', 0.5); // erro
+      return;
+    }
+
+    // Check if sequence completed
+    if (newUserSeq.length === geniusSequence.length) {
+      setGeniusScore(s => s + 1);
+      setGeniusState('playback');
+      setTimeout(() => {
+        const nextSeq = [...geniusSequence, Math.floor(Math.random() * 4)];
+        setGeniusSequence(nextSeq);
+        setGeniusUserSequence([]);
+        playGeniusSequence(nextSeq);
+      }, 1000);
+    }
+  };
+
+  const playGeniusSequence = async (seq: number[]) => {
+    setGeniusState('playback');
+    const freqs = [329.63, 261.63, 220.00, 164.81];
+    for (let i = 0; i < seq.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const padIndex = seq[i];
+      setGeniusActivePad(padIndex);
+      playRetroSound(freqs[padIndex], 'square', 0.25);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setGeniusActivePad(null);
+    }
+    setGeniusState('playing');
+  };
+
+  const startGeniusGame = () => {
+    setGeniusScore(0);
+    setGeniusUserSequence([]);
+    const firstSeq = [Math.floor(Math.random() * 4)];
+    setGeniusSequence(firstSeq);
+    playGeniusSequence(firstSeq);
   };
 
   const playSuccessSound = () => {
@@ -2973,8 +3038,9 @@ export default function AreaProfessor() {
 
                 {/* Widget de Saldo do Mestre */}
                 <div className="p-5 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000] transform -rotate-1">
-                  <h3 className="text-white font-black text-[9px] uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <span className="text-[#ff6b00]">💳</span> MEU SALDO DE REMUNERAÇÃO
+                  <h3 className="text-white font-black text-[9px] uppercase tracking-widest mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-2"><span className="text-[#ff6b00]">💳</span> MEU SALDO DE REMUNERAÇÃO</span>
+                    <button onClick={() => setIsFinanceiroModalOpen(true)} className="bg-[#ff6b00] text-white font-black text-[7px] px-2 py-1 border-2 border-black active:translate-y-1 active:shadow-none shadow-[2px_2px_0_#000] cursor-pointer">HISTÓRICO FINANCEIRO</button>
                   </h3>
                   <div className="flex items-end justify-between">
                     <div>
@@ -3123,69 +3189,141 @@ export default function AreaProfessor() {
               </>
             )}
 
-            {activeProfessorTab === 'alunos' && (
-              <div className="space-y-4 animate-fade-in">
-                <div className="bg-[#feccba] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
-                  <h3 className="text-black font-black text-xs uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <span>🔍</span> BUSCAR ALUNO
-                  </h3>
-                  <input
-                    type="text"
-                    placeholder="DIGITE O NOME DO ALUNO..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/35 focus:outline-none"
-                  />
+            {activeProfessorTab === 'jogos' && (
+              <div className="px-4 py-5 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
+                    <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
+                      🕹️ FLIPERAMA ACORDE (MODO PROFESSOR)
+                    </h3>
+                  </div>
+                  <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                 </div>
-                
-                <div className="space-y-4">
-                  {alunosList
-                    .filter(aluno => (aluno.nome || '').toLowerCase().includes(searchTerm.toLowerCase()))
-                    .map(aluno => (
-                      <div key={aluno.id} className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative overflow-hidden">
-                        <div className="absolute top-0 right-0 px-2 py-0.5 bg-black text-[#feccba] font-black text-[7px] border-l-2 border-b-2 border-black uppercase">
-                          {aluno.curso_ativo || 'MÚSICA'}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 border-4 border-black bg-[#ff6b00] text-white font-black text-lg flex items-center justify-center shadow-[2px_2px_0_#000]">
-                            {aluno.nome.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <h4 className="text-black font-black text-sm uppercase italic">{aluno.nome}</h4>
-                            <p className="text-[#8e7164] font-bold text-[7px] uppercase mt-0.5">
-                              XP: {aluno.xp || 0} • LEVEL {aluno.nivel || 1}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="mt-3 pt-3 border-t-2 border-black/10 flex justify-between items-center">
-                          <span className="text-[7px] font-mono text-[#8e7164] uppercase truncate max-w-[150px]">
-                            {aluno.email}
-                          </span>
-                          {localStorage.getItem('acorde_role') === 'admin' && (
-                            <button
-                              onClick={() => {
-                                setNewAulaAlunoId(aluno.id);
-                                setNewAulaCurso(aluno.curso_ativo || 'Piano');
-                                openCreateModal();
-                              }}
-                              className="bg-[#ff6b00] text-white px-2 py-1.5 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
-                            >
-                              <Plus className="w-3 h-3" /> AULA AVULSA
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  }
-                  {alunosList.filter(aluno => (aluno.nome || '').toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-                    <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
-                      <p className="text-[#8e7164] font-black text-[10px] uppercase italic">
-                        &gt;&gt; NENHUM ALUNO ENCONTRADO
+
+                {!isPlayingAcordeGenius && !isPlayingChordRush ? (
+                  <>
+                    <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
+                      <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest">
+                        ÁREA DE TESTES 
+                      </p>
+                      <p className="text-white/50 font-black text-[7px] uppercase mt-1">
+                        Jogue à vontade! Os pontos não são acumulados no modo professor. Use para testar e recomendar aos alunos!
                       </p>
                     </div>
-                  )}
-                </div>
+
+                    <div className="space-y-4 pt-2">
+                      <div className="grid grid-cols-1 gap-4">
+                        {/* Jogo 1: Genius */}
+                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="bg-[#ff6b00] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
+                                DISPONÍVEL 🎮
+                              </span>
+                              <h3 className="text-black font-black text-xs uppercase tracking-tight">
+                                ACORDE GENIUS (8-BIT)
+                              </h3>
+                            </div>
+                          </div>
+                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
+                            Treine seu ouvido musical repetindo as sequências.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setIsPlayingAcordeGenius(true);
+                              playRetroSound(880, 'square', 0.1);
+                              setTimeout(() => playRetroSound(1760, 'square', 0.25), 100);
+                            }}
+                            className="w-full bg-[#ff6b00] text-white hover:bg-black font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
+                          >
+                            🕹️ INICIAR PARTIDA
+                          </button>
+                        </div>
+
+                        {/* Jogo 2: Chord Rush */}
+                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="bg-[#00ff66] text-black text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
+                                NOVO! 🎸
+                              </span>
+                              <h3 className="text-black font-black text-xs uppercase tracking-tight">
+                                CHORD RUSH
+                              </h3>
+                            </div>
+                          </div>
+                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
+                            Identifique as notas corretas de cada acorde antes que o tempo acabe.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setIsPlayingChordRush(true);
+                              playRetroSound(880, 'square', 0.1);
+                            }}
+                            className="w-full bg-[#00ff66] text-black hover:bg-black hover:text-[#00ff66] font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
+                          >
+                            🕹️ INICIAR PARTIDA
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : isPlayingChordRush ? (
+                  <ChordRush 
+                    onClose={() => setIsPlayingChordRush(false)}
+                    onGameOver={(score) => {
+                      // Modo professor não salva pontos
+                      toast.info(`Fim de jogo! Pontuação: ${score}. (Modo Professor)`);
+                    }}
+                    playRetroSound={playRetroSound}
+                  />
+                ) : (
+                  <div className="bg-black border-8 border-[#3d2d26] p-4 shadow-[8px_8px_0_#000] flex flex-col gap-4 relative">
+                    <div className="flex justify-between items-center">
+                      <button
+                        onClick={() => {
+                          setIsPlayingAcordeGenius(false);
+                          setGeniusState('idle');
+                          setGeniusSequence([]);
+                          setGeniusUserSequence([]);
+                          setGeniusScore(0);
+                          setGeniusActivePad(null);
+                        }}
+                        className="bg-[#261812] text-[#feccba] border-2 border-[#feccba] font-black text-[7px] uppercase px-2.5 py-1 hover:bg-black active:translate-y-[1px] transition-all cursor-pointer"
+                      >
+                        ← SAIR DO FLIPERAMA
+                      </button>
+                      <span className="text-[#ff6b00] font-black text-[8px] uppercase tracking-widest animate-pulse">
+                        GENIUS_GABINETE_v1.0
+                      </span>
+                    </div>
+
+                    <div className="bg-[#1a0a05] border-4 border-[#3d2d26] p-3 font-mono text-center space-y-1">
+                      <div className="flex justify-between text-[7px] text-[#feccba] font-black uppercase">
+                        <span>NÍVEL: {geniusScore + 1}</span>
+                        <span>SCORE: {geniusScore}</span>
+                      </div>
+                      <div className="h-6 flex items-center justify-center">
+                        {geniusState === 'idle' && <p className="text-amber-500 font-black text-[8px] uppercase tracking-widest animate-pulse">🎮 PRESS START TO PLAY! 🎮</p>}
+                        {geniusState === 'playback' && <p className="text-cyan-400 font-black text-[8px] uppercase tracking-widest animate-bounce">🔊 PRESTE ATENÇÃO NA SEQUÊNCIA...</p>}
+                        {geniusState === 'playing' && <p className="text-green-400 font-black text-[8px] uppercase tracking-widest animate-pulse">👉 REPRODUZA A SEQUÊNCIA DE NOTAS!</p>}
+                        {geniusState === 'gameover' && <p className="text-red-500 font-black text-[8px] uppercase tracking-widest animate-pulse">🚨 GAME OVER! 🚨</p>}
+                      </div>
+                    </div>
+
+                    {/* Pad area simplificada para o replace não ficar imenso, o professor não precisa do pad gigante no plano de agora se quisermos economizar linhas no patch. Vou colocar os pads. */}
+                    <div className="grid grid-cols-2 gap-3 max-w-[200px] mx-auto w-full mt-2">
+                      <button onClick={() => handleGeniusPadClick(0)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 0 ? 'bg-[#00ff66]' : 'bg-[#006622]'}`} />
+                      <button onClick={() => handleGeniusPadClick(1)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 1 ? 'bg-[#ff9900]' : 'bg-[#995c00]'}`} />
+                      <button onClick={() => handleGeniusPadClick(2)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 2 ? 'bg-[#ff0000]' : 'bg-[#990000]'}`} />
+                      <button onClick={() => handleGeniusPadClick(3)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 3 ? 'bg-[#00ccff]' : 'bg-[#007a99]'}`} />
+                    </div>
+
+                    <div className="mt-4 flex justify-center gap-4">
+                      <button onClick={startGeniusGame} disabled={geniusState === 'playback' || geniusState === 'playing'} className="bg-[#ff6b00] text-black border-4 border-black px-6 py-3 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 hover:bg-white transition-all disabled:opacity-50">🕹️ INICIAR</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -3548,53 +3686,7 @@ export default function AreaProfessor() {
                   </div>
                 </div>
 
-                {/* GALERIA DE CONSULTA DE TROFÉUS (SISTEMA DE GAMIFICAÇÃO) */}
-                <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] space-y-4">
-                  <div className="flex items-center justify-between border-b-4 border-black pb-3">
-                    <h3 className="text-black font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
-                      <Trophy className="w-4 h-4 text-[#ff6b00]" /> DIRETÓRIO DE TROFÉUS
-                    </h3>
-                    <span className="bg-[#ff6b00] text-white border-2 border-black px-1.5 py-0.5 font-black text-[7px] uppercase tracking-tighter shadow-[2px_2px_0_#000]">
-                      {conquistasList.length} CADASTRADOS
-                    </span>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
-                    {conquistasList.length === 0 ? (
-                      <div className="col-span-full text-center py-6 text-[#8e7164] font-black text-[8px] uppercase">
-                        Nenhum troféu cadastrado.
-                      </div>
-                    ) : (
-                      conquistasList.map((conq: any) => (
-                        <div key={conq.id} className="flex items-center gap-3 p-2.5 border-4 border-black bg-white shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all">
-                          {/* Ícone */}
-                          <div className="w-10 h-10 border-2 border-black bg-[#fff8f6] flex items-center justify-center shrink-0 shadow-[2px_2px_0_#000]">
-                            {conq.icone_url || resolveTrophyImage(conq.instrumento, conq.classe) ? (
-                              <img src={conq.icone_url || resolveTrophyImage(conq.instrumento, conq.classe)} alt="" className="w-full h-full object-cover p-1" />
-                            ) : (
-                              <span className="text-sm">{conq.icone || '🏆'}</span>
-                            )}
-                          </div>
-
-                          {/* Detalhes */}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <p className="font-black text-[9px] uppercase truncate text-black mb-0 leading-none">
-                                {conq.nome}
-                              </p>
-                              <span className="bg-yellow-400 text-black border border-black px-1 font-black text-[6px] uppercase tracking-tighter shrink-0">
-                                {conq.pontos} XP
-                              </span>
-                            </div>
-                            <p className="text-[7px] text-[#8e7164] font-semibold mt-1.5 mb-0 leading-tight">
-                              {conq.descricao || 'Sem descrição.'}
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
 
                 {/* Botão Logout Vermelho Gigante */}
                 <button
@@ -3953,7 +4045,7 @@ export default function AreaProfessor() {
         <nav className="fixed md:absolute bottom-0 left-0 right-0 md:left-auto md:right-auto md:w-full h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-50">
           {[
             { id: 'home', icon: Home, label: 'HOME' },
-            { id: 'alunos', icon: Users, label: 'ALUNOS' },
+            { id: 'jogos', icon: Gamepad2, label: 'JOGOS' },
             { id: 'agenda', icon: Calendar, label: 'AGENDA' },
             { id: 'treinos', icon: Flame, label: 'TREINOS' },
             { id: 'ranking', icon: Trophy, label: 'RANKING' },
@@ -4868,6 +4960,36 @@ export default function AreaProfessor() {
           onClose={() => setIsAlunoModalOpen(false)} 
           onConquistaRemoved={() => fetchRanking()} 
         />
+      )}
+
+      {/* MODAL HISTÓRICO FINANCEIRO */}
+      {isFinanceiroModalOpen && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 font-['Space_Mono']">
+          <div className="bg-[#261812] border-8 border-black p-6 w-full max-w-sm relative shadow-[8px_8px_0_#000]">
+            <button 
+              onClick={() => setIsFinanceiroModalOpen(false)}
+              className="absolute -top-4 -right-4 bg-[#ff6b00] text-black w-8 h-8 rounded-full border-4 border-black font-black flex items-center justify-center active:translate-y-1 shadow-[2px_2px_0_#000]"
+            >
+              X
+            </button>
+            
+            <h2 className="text-[#ff6b00] font-black text-xl uppercase italic mb-4 border-b-4 border-black pb-2 flex items-center gap-2">
+              <span>💰</span> HISTÓRICO DE SALÁRIO
+            </h2>
+            
+            <div className="space-y-4">
+              <div className="bg-[#1a0a05] border-4 border-black p-4 text-center">
+                <p className="text-[#8e7164] font-black text-[10px] uppercase mb-1">MÊS ANTERIOR</p>
+                <p className="text-white font-black text-2xl italic">
+                  R$ {Number(professorData?.saldo_mes_passado || 0).toFixed(2)}
+                </p>
+                <p className="text-[#feccba] text-[8px] uppercase mt-2 font-bold tracking-widest">
+                  Cálculo referente a aulas concluídas no último mês.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
