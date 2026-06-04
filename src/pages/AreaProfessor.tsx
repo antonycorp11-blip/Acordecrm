@@ -29,7 +29,8 @@ import {
   PenTool,
   CheckCircle,
   Flame,
-  Video
+  Video,
+  Gamepad2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
