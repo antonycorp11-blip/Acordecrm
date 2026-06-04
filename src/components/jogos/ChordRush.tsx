@@ -7,12 +7,30 @@ interface ChordRushProps {
 }
 
 const CHORDS = [
-  { name: 'Dó Maior', notes: 'C', fakeNotes: ['Cm', 'C7', 'G'] },
-  { name: 'Sol Maior', notes: 'G', fakeNotes: ['Gm', 'G7', 'C'] },
-  { name: 'Lá Menor', notes: 'Am', fakeNotes: ['A', 'Am7', 'Em'] },
-  { name: 'Fá Maior', notes: 'F', fakeNotes: ['Fm', 'F7', 'C'] },
-  { name: 'Mi Menor', notes: 'Em', fakeNotes: ['E', 'Em7', 'Am'] },
-  { name: 'Ré Maior', notes: 'D', fakeNotes: ['Dm', 'D7', 'A'] },
+  // Maiores
+  { name: 'Dó Maior', notes: 'C', fakeNotes: ['Cm', 'C7', 'G', 'C9'] },
+  { name: 'Ré Maior', notes: 'D', fakeNotes: ['Dm', 'D7', 'A', 'D9'] },
+  { name: 'Mi Maior', notes: 'E', fakeNotes: ['Em', 'E7', 'B', 'E9'] },
+  { name: 'Fá Maior', notes: 'F', fakeNotes: ['Fm', 'F7', 'C', 'F9'] },
+  { name: 'Sol Maior', notes: 'G', fakeNotes: ['Gm', 'G7', 'D', 'G9'] },
+  { name: 'Lá Maior', notes: 'A', fakeNotes: ['Am', 'A7', 'E', 'A9'] },
+  { name: 'Si Maior', notes: 'B', fakeNotes: ['Bm', 'B7', 'F#', 'B9'] },
+  // Menores
+  { name: 'Dó Menor', notes: 'Cm', fakeNotes: ['C', 'Cm7', 'Gm', 'Cdim'] },
+  { name: 'Ré Menor', notes: 'Dm', fakeNotes: ['D', 'Dm7', 'Am', 'Ddim'] },
+  { name: 'Mi Menor', notes: 'Em', fakeNotes: ['E', 'Em7', 'Bm', 'Edim'] },
+  { name: 'Fá Menor', notes: 'Fm', fakeNotes: ['F', 'Fm7', 'Cm', 'Fdim'] },
+  { name: 'Sol Menor', notes: 'Gm', fakeNotes: ['G', 'Gm7', 'Dm', 'Gdim'] },
+  { name: 'Lá Menor', notes: 'Am', fakeNotes: ['A', 'Am7', 'Em', 'Adim'] },
+  { name: 'Si Menor', notes: 'Bm', fakeNotes: ['B', 'Bm7', 'F#m', 'Bdim'] },
+  // Com Sétima
+  { name: 'Dó com Sétima', notes: 'C7', fakeNotes: ['C', 'Cmaj7', 'Cm7', 'G7'] },
+  { name: 'Ré com Sétima', notes: 'D7', fakeNotes: ['D', 'Dmaj7', 'Dm7', 'A7'] },
+  { name: 'Mi com Sétima', notes: 'E7', fakeNotes: ['E', 'Emaj7', 'Em7', 'B7'] },
+  { name: 'Fá com Sétima', notes: 'F7', fakeNotes: ['F', 'Fmaj7', 'Fm7', 'C7'] },
+  { name: 'Sol com Sétima', notes: 'G7', fakeNotes: ['G', 'Gmaj7', 'Gm7', 'D7'] },
+  { name: 'Lá com Sétima', notes: 'A7', fakeNotes: ['A', 'Amaj7', 'Am7', 'E7'] },
+  { name: 'Si com Sétima', notes: 'B7', fakeNotes: ['B', 'Bmaj7', 'Bm7', 'F#7'] },
 ];
 
 export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playRetroSound }) => {
@@ -22,17 +40,25 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
   const [currentChord, setCurrentChord] = useState(CHORDS[0]);
   const [options, setOptions] = useState<string[]>([]);
   const [isCorrectFeedback, setIsCorrectFeedback] = useState<boolean | null>(null);
+  const [availableChords, setAvailableChords] = useState<typeof CHORDS>([]);
 
   const generateLevel = useCallback(() => {
-    const randomChord = CHORDS[Math.floor(Math.random() * CHORDS.length)];
-    setCurrentChord(randomChord);
-    
-    // Pick 3 random wrong options
-    const shuffledFakes = [...randomChord.fakeNotes].sort(() => 0.5 - Math.random());
-    const levelOptions = [randomChord.notes, ...shuffledFakes.slice(0, 3)];
-    // Shuffle all options
-    setOptions(levelOptions.sort(() => 0.5 - Math.random()));
-    setIsCorrectFeedback(null);
+    setAvailableChords((prevAvailable) => {
+      let pool = prevAvailable.length > 0 ? prevAvailable : [...CHORDS];
+      
+      const randomIndex = Math.floor(Math.random() * pool.length);
+      const randomChord = pool[randomIndex];
+      const newPool = pool.filter((_, i) => i !== randomIndex);
+      
+      setCurrentChord(randomChord);
+      
+      const shuffledFakes = [...randomChord.fakeNotes].sort(() => 0.5 - Math.random());
+      const levelOptions = [randomChord.notes, ...shuffledFakes.slice(0, 3)];
+      setOptions(levelOptions.sort(() => 0.5 - Math.random()));
+      setIsCorrectFeedback(null);
+      
+      return newPool;
+    });
   }, []);
 
   useEffect(() => {

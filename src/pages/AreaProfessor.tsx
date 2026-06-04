@@ -41,6 +41,7 @@ import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musi
 import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { ChordRush } from '../components/jogos/ChordRush';
+import { TriadeNinja } from '../components/jogos/TriadeNinja';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 
@@ -307,6 +308,7 @@ export default function AreaProfessor() {
   // Estados dos Jogos
   const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
   const [isPlayingChordRush, setIsPlayingChordRush] = useState(false);
+  const [isPlayingTriadeNinja, setIsPlayingTriadeNinja] = useState(false);
   const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
   const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
   const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
@@ -3181,7 +3183,7 @@ export default function AreaProfessor() {
                   <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                 </div>
 
-                {!isPlayingAcordeGenius && !isPlayingChordRush ? (
+                {!isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja ? (
                   <>
                     <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
                       <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest">
@@ -3246,6 +3248,36 @@ export default function AreaProfessor() {
                             🕹️ INICIAR PARTIDA
                           </button>
                         </div>
+
+                        {/* Jogo 3: Triade Ninja */}
+                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="bg-[#a855f7] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
+                                NOVO 🎮
+                              </span>
+                              <h4 className="text-black font-black text-sm uppercase italic leading-none mt-1">
+                                TRÍADE NINJA
+                              </h4>
+                            </div>
+                            <div className="w-8 h-8 bg-[#a855f7] border-4 border-black flex items-center justify-center shrink-0">
+                              <span className="text-white text-xs">⚔️</span>
+                            </div>
+                          </div>
+                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
+                            Identifique os acordes apenas por suas 3 notas. Treino de percepção teórica.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setIsPlayingTriadeNinja(true);
+                              playRetroSound(880, 'square', 0.1);
+                            }}
+                            className="w-full bg-[#a855f7] text-white hover:bg-black hover:text-[#a855f7] font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
+                          >
+                            🕹️ INICIAR PARTIDA
+                          </button>
+                        </div>
+
                       </div>
                     </div>
                   </>
@@ -3253,7 +3285,14 @@ export default function AreaProfessor() {
                   <ChordRush 
                     onClose={() => setIsPlayingChordRush(false)}
                     onGameOver={(score) => {
-                      // Modo professor não salva pontos
+                      toast.info(`Fim de jogo! Pontuação: ${score}. (Modo Professor)`);
+                    }}
+                    playRetroSound={playRetroSound}
+                  />
+                ) : isPlayingTriadeNinja ? (
+                  <TriadeNinja
+                    onClose={() => setIsPlayingTriadeNinja(false)}
+                    onGameOver={(score) => {
                       toast.info(`Fim de jogo! Pontuação: ${score}. (Modo Professor)`);
                     }}
                     playRetroSound={playRetroSound}

@@ -1508,40 +1508,47 @@ async function startServer() {
             }
 
             // Cálculo dinâmico do saldo do mês atual
+            // Cálculo do histórico financeiro (últimos 6 meses)
             const now = new Date();
             const year = now.getFullYear();
             const monthStr = String(now.getMonth() + 1).padStart(2, '0');
-            const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
-            const endOfMonth = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
-            const startOfMonth = `${year}-${monthStr}-01`;
+            const currentMonthKey = `${year}-${monthStr}`;
 
-            const { data: aulasDoMes } = await supabase.from('aulas')
-                .select('id')
+            const sixMonthsAgo = new Date(year, now.getMonth() - 5, 1);
+            const { data: todasAulas } = await supabase.from('aulas')
+                .select('data')
                 .eq('professor_id', prof.id)
                 .in('status', ['realizada', 'falta_aluno'])
-                .gte('data', startOfMonth)
-                .lte('data', endOfMonth);
+                .gte('data', sixMonthsAgo.toISOString().split('T')[0]);
 
-            const numAulas = aulasDoMes ? aulasDoMes.length : 0;
-            prof.saldo = numAulas * (Number(prof.valor_aula) || 0);
+            const history: Record<string, number> = {};
+            for(let i=0; i<6; i++) {
+                const d = new Date(year, now.getMonth() - i, 1);
+                const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}`;
+                history[k] = 0;
+            }
 
-            // Cálculo do mês passado
-            const prevMonthDate = new Date(year, now.getMonth() - 1, 1);
-            const prevYear = prevMonthDate.getFullYear();
-            const prevMonthStr = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
-            const prevMonthLastDay = new Date(prevYear, prevMonthDate.getMonth() + 1, 0).getDate();
-            const startOfPrevMonth = `${prevYear}-${prevMonthStr}-01`;
-            const endOfPrevMonth = `${prevYear}-${prevMonthStr}-${String(prevMonthLastDay).padStart(2, '0')}`;
+            if (todasAulas) {
+                todasAulas.forEach((aula: any) => {
+                    const mk = aula.data.substring(0, 7);
+                    if (history[mk] !== undefined) {
+                        history[mk]++;
+                    }
+                });
+            }
 
-            const { data: aulasMesPassado } = await supabase.from('aulas')
-                .select('id')
-                .eq('professor_id', prof.id)
-                .in('status', ['realizada', 'falta_aluno'])
-                .gte('data', startOfPrevMonth)
-                .lte('data', endOfPrevMonth);
-            
-            const numAulasPrev = aulasMesPassado ? aulasMesPassado.length : 0;
-            prof.saldo_mes_passado = numAulasPrev * (Number(prof.valor_aula) || 0);
+            const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+            const historico = Object.keys(history).sort().reverse().map(k => {
+                const [y, m] = k.split('-');
+                return {
+                    mes_ano: `${monthNames[Number(m)-1]} ${y}`,
+                    aulas: history[k],
+                    valor: history[k] * (Number(prof.valor_aula) || 0)
+                };
+            });
+
+            prof.saldo = (history[currentMonthKey] || 0) * (Number(prof.valor_aula) || 0);
+            prof.historico_financeiro = historico;
 
             res.json(prof);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
