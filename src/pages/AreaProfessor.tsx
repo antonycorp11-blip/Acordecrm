@@ -3037,26 +3037,6 @@ export default function AreaProfessor() {
                   </button>
                 </div>
 
-                {/* Widget de Saldo do Mestre */}
-                <div className="p-5 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000] transform -rotate-1">
-                  <h3 className="text-white font-black text-[9px] uppercase tracking-widest mb-2 flex items-center justify-between">
-                    <span className="flex items-center gap-2"><span className="text-[#ff6b00]">💳</span> MEU SALDO DE REMUNERAÇÃO</span>
-                    <button onClick={() => setIsFinanceiroModalOpen(true)} className="bg-[#ff6b00] text-white font-black text-[7px] px-2 py-1 border-2 border-black active:translate-y-1 active:shadow-none shadow-[2px_2px_0_#000] cursor-pointer">HISTÓRICO FINANCEIRO</button>
-                  </h3>
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-[#ff6b00] font-black text-3xl italic">
-                        R$ {Number(professorData?.saldo || 0).toFixed(2)}
-                      </p>
-                      <p className="text-white/60 font-bold text-[8px] uppercase tracking-widest mt-1">
-                        TAXA/AULA DEFINIDA: R$ {Number(professorData?.valor_aula || 0).toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="bg-[#ff6b00] text-black font-black text-[8px] px-2 py-1 rounded border border-black animate-pulse">
-                      SALDO REAL ⚡
-                    </div>
-                  </div>
-                </div>
 
                 {/* Criar Aula Avulsa - Musiclass Fiel */}
                 {localStorage.getItem('acorde_role') === 'admin' && (
@@ -3574,8 +3554,9 @@ export default function AreaProfessor() {
 
                 {/* Bloco de Informações Financeiras */}
                 <div className="p-6 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000] text-white">
-                  <h3 className="font-black text-[9px] uppercase tracking-widest text-[#ff6b00] mb-4 flex items-center gap-2">
-                    <span>⚡</span> MINHAS INFORMAÇÕES FINANCEIRAS
+                  <h3 className="font-black text-[9px] uppercase tracking-widest text-[#ff6b00] mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2"><span>⚡</span> MINHAS INFORMAÇÕES FINANCEIRAS</span>
+                    <button onClick={() => setIsFinanceiroModalOpen(true)} className="bg-[#ff6b00] text-white font-black text-[7px] px-2 py-1 border-2 border-black active:translate-y-1 active:shadow-none shadow-[2px_2px_0_#000] cursor-pointer">HISTÓRICO COMPLETO</button>
                   </h3>
                   <div className="space-y-4">
                     <div>
@@ -4978,16 +4959,31 @@ export default function AreaProfessor() {
               <span>💰</span> HISTÓRICO DE SALÁRIO
             </h2>
             
-            <div className="space-y-4">
-              <div className="bg-[#1a0a05] border-4 border-black p-4 text-center">
-                <p className="text-[#8e7164] font-black text-[10px] uppercase mb-1">MÊS ANTERIOR</p>
-                <p className="text-white font-black text-2xl italic">
-                  R$ {Number(professorData?.saldo_mes_passado || 0).toFixed(2)}
-                </p>
-                <p className="text-[#feccba] text-[8px] uppercase mt-2 font-bold tracking-widest">
-                  Cálculo referente a aulas concluídas no último mês.
-                </p>
-              </div>
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+              {professorData?.historico_financeiro?.length > 0 ? (
+                professorData.historico_financeiro.map((mesData: any, idx: number) => (
+                  <div key={idx} className="bg-[#1a0a05] border-4 border-black p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-[#8e7164] font-black text-[10px] uppercase mb-1">{mesData.mes_ano}</p>
+                      <p className="text-[#feccba] text-[8px] uppercase font-bold tracking-widest">
+                        {mesData.aulas} aulas registradas
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white font-black text-xl italic">
+                        R$ {Number(mesData.valor).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="bg-[#1a0a05] border-4 border-black p-4 text-center">
+                  <p className="text-[#8e7164] font-black text-[10px] uppercase mb-1">MÊS ANTERIOR</p>
+                  <p className="text-white font-black text-2xl italic">
+                    R$ {Number(professorData?.saldo_mes_passado || 0).toFixed(2)}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
