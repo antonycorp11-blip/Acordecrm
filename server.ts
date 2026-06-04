@@ -1512,8 +1512,8 @@ async function startServer() {
             const year = now.getFullYear();
             const monthStr = String(now.getMonth() + 1).padStart(2, '0');
             const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
-            const startOfMonth = `${year}-${monthStr}-01`;
             const endOfMonth = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+            const startOfMonth = `${year}-${monthStr}-01`;
 
             const { data: aulasDoMes } = await supabase.from('aulas')
                 .select('id')

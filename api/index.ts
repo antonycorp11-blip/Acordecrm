@@ -1539,7 +1539,8 @@ async function startServer() {
             const year = now.getFullYear();
             const monthStr = String(now.getMonth() + 1).padStart(2, '0');
             const startOfMonth = `${year}-${monthStr}-01`;
-            const endOfMonth = `${year}-${monthStr}-31`; // 31 funciona para query no db no gte/lte
+            const endOfMonthDate = new Date(year, now.getMonth() + 1, 0).getDate();
+            const endOfMonth = `${year}-${monthStr}-${String(endOfMonthDate).padStart(2, '0')}`;
 
             const { data: aulasDoMes } = await supabase.from('aulas')
                 .select('id')
