@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle } from 'lucide-react';
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
+import { ChordRush } from '../components/jogos/ChordRush';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
@@ -309,8 +310,9 @@ export default function AreaAluno() {
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Estados para o Jogo "Acorde Genius"
+  // Estados para o Jogo "Acorde Genius" e "Chord Rush"
   const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
+  const [isPlayingChordRush, setIsPlayingChordRush] = useState(false);
   const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
   const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
   const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
@@ -1231,7 +1233,7 @@ export default function AreaAluno() {
                 <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
               </div>
 
-              {!isPlayingAcordeGenius ? (
+              {!isPlayingAcordeGenius && !isPlayingChordRush ? (
                 <>
                   {/* Banner Retro de Boas-vindas */}
                   <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
@@ -1326,19 +1328,33 @@ export default function AreaAluno() {
                         </button>
                       </div>
 
-                      {/* Jogo 2: Fretboard Invaders (Em Breve) */}
-                      <div className="bg-[#261812] border-4 border-black p-4 flex flex-col gap-2 opacity-50 relative group">
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-white/60 font-black text-xs uppercase">
-                            FRETBOARD INVADERS
-                          </h3>
-                          <span className="bg-[#3d2d26] text-white/50 text-[6px] font-black uppercase px-1.5 py-0.5 border border-black">
-                            EM BREVE 🔒
+                      {/* Jogo 2: Chord Rush */}
+                      <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="bg-[#00ff66] text-black text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
+                              NOVO! 🎸
+                            </span>
+                            <h3 className="text-black font-black text-xs uppercase tracking-tight">
+                              CHORD RUSH
+                            </h3>
+                          </div>
+                          <span className="text-[#00ff66] font-black text-[8px] bg-black border border-black px-1.5 py-0.5 shrink-0">
+                            +10 PONTOS / ACERTO
                           </span>
                         </div>
-                        <p className="text-white/40 font-black text-[8px] uppercase">
-                          Defenda a galáxia acertando a posição das notas na escala da guitarra e violão contra a invasão alienígena!
+                        <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
+                          Identifique as notas corretas de cada acorde antes que o tempo acabe. Pense rápido!
                         </p>
+                        <button
+                          onClick={() => {
+                            setIsPlayingChordRush(true);
+                            playRetroSound(880, 'square', 0.1);
+                          }}
+                          className="w-full bg-[#00ff66] text-black hover:bg-black hover:text-[#00ff66] font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
+                        >
+                          🕹️ INICIAR PARTIDA
+                        </button>
                       </div>
 
                       {/* Jogo 3: Rhythm Hero (Em Breve) */}
@@ -1358,6 +1374,16 @@ export default function AreaAluno() {
                     </div>
                   </div>
                 </>
+              ) : isPlayingChordRush ? (
+                <ChordRush 
+                  onClose={() => setIsPlayingChordRush(false)}
+                  onGameOver={(score) => {
+                    if (score > 0) {
+                      setGamePoints(prev => prev + score);
+                    }
+                  }}
+                  playRetroSound={playRetroSound}
+                />
               ) : (
                 /* ÁREA DO MINIJOGO: ACORDE GENIUS */
                 <div className="bg-black border-8 border-[#3d2d26] p-4 shadow-[8px_8px_0_#000] flex flex-col gap-4 relative">

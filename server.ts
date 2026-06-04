@@ -1065,12 +1065,6 @@ async function startServer() {
 
             
             if (newAula.status === 'realizada') {
-                const valorAula = Number(profObj?.valor_aula) || 0;
-                const novoSaldo = (Number(profObj?.saldo) || 0) + valorAula;
-                if (profObj?.id) {
-                    await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', profObj.id);
-                }
-
                 if (aluno_id) {
                     const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', aluno_id).single();
                     if (aluno) {
@@ -1116,28 +1110,7 @@ async function startServer() {
             const { data, error } = await supabase.from(table).update(updatePayload).eq('id', req.params.id).select().single();
             if (error) throw error;
 
-            // Lógica de Saldo de Professor por Presença/Falta
-            if (aulaAntiga && aulaAntiga.professor_id) {
-                const { data: prof } = await supabase.from('professores').select('valor_aula, saldo').eq('id', aulaAntiga.professor_id).single();
-                if (prof) {
-                    const valorAula = Number(prof.valor_aula) || 0;
-                    let difSaldo = 0;
-                    
-                    const eraAtiva = ['realizada', 'falta_aluno'].includes(aulaAntiga.status);
-                    const ehAtiva = ['realizada', 'falta_aluno'].includes(status);
-                    
-                    if (!eraAtiva && ehAtiva) {
-                        difSaldo = valorAula;
-                    } else if (eraAtiva && !ehAtiva) {
-                        difSaldo = -valorAula;
-                    }
-                    
-                    if (difSaldo !== 0) {
-                        const novoSaldo = (Number(prof.saldo) || 0) + difSaldo;
-                        await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', aulaAntiga.professor_id);
-                    }
-                }
-            }
+            // Lógica de Saldo de Professor por Presença/Falta foi movida para cálculo dinâmico na leitura.
 
             // Lógica de conceder XP para o aluno quando a aula é realizada
             // Só credita XP se a aula NÃO estava realizada antes (evita duplicação)
@@ -1533,6 +1506,22 @@ async function startServer() {
             if (!prof) {
                 return res.status(404).json({ error: 'Professor não cadastrado com este e-mail' });
             }
+
+            // Cálculo dinâmico do saldo do mês atual
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+
+            const { data: aulasDoMes } = await supabase.from('aulas')
+                .select('id')
+                .eq('professor_id', prof.id)
+                .in('status', ['realizada', 'falta_aluno'])
+                .gte('data', startOfMonth)
+                .lte('data', endOfMonth);
+
+            const numAulas = aulasDoMes ? aulasDoMes.length : 0;
+            prof.saldo = numAulas * (Number(prof.valor_aula) || 0);
+
             res.json(prof);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
@@ -2586,10 +2575,15 @@ async function startServer() {
     app.post('/api/drive/upload-url', async (req, res) => {
         try {
             const { filename, mimeType } = req.body;
-            const auth = new GoogleAuth({
-                keyFile: './google-credentials.json',
-                scopes: ['https://www.googleapis.com/auth/drive.file']
-            });
+            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+            let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
+            if (credsStr) {
+                authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+            } else {
+                authOptions.keyFile = './google-credentials.json';
+            }
+            const auth = new GoogleAuth(authOptions);
             const client = await auth.getClient();
             const token = await client.getAccessToken();
 
@@ -2624,10 +2618,15 @@ async function startServer() {
     app.post('/api/drive/finish-upload', async (req, res) => {
         try {
             const { fileId } = req.body;
-            const auth = new GoogleAuth({
-                keyFile: './google-credentials.json',
-                scopes: ['https://www.googleapis.com/auth/drive.file']
-            });
+            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+            let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
+            if (credsStr) {
+                authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+            } else {
+                authOptions.keyFile = './google-credentials.json';
+            }
+            const auth = new GoogleAuth(authOptions);
             const client = await auth.getClient();
             const token = await client.getAccessToken();
 
