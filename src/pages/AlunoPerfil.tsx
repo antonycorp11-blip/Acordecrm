@@ -85,7 +85,7 @@ function ProgressTracker({ aulas, total }: { aulas: any[], total: number }) {
     return 'bg-[#e2bfb0]';
   };
 
-  const sortedAulas = [...aulas].sort((a, b) => new Date(((a.data || '2099-12-31') + 'T12:00:00').replace(/-/g, '/').replace('T', ' ')).getTime() - new Date(((b.data || '2099-12-31') + 'T12:00:00').replace(/-/g, '/').replace('T', ' ')).getTime());
+  const sortedAulas = [...aulas].sort((a, b) => (a.data || '2099-12-31').localeCompare(b.data || '2099-12-31'));
 
   return (
     <Card className="mb-8">
@@ -220,7 +220,7 @@ function MonthlyCalendar({ monthStr, aulas, onUpdateAttendance }: { monthStr: st
   for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
-  const reposicoesPendentes = aulas.filter(a => a.status === 'a_repor' || a.tipo === 'reposicao');
+  const reposicoesPendentes = aulas.filter(a => a.status === 'a_repor' || a.status === 'reposicao' || a.tipo === 'reposicao');
 
   const getDayClasses = (d: number) => {
     const dateStr = `${yearStr}-${mStr}-${d.toString().padStart(2, '0')}`;
@@ -304,7 +304,7 @@ function MonthlyCalendar({ monthStr, aulas, onUpdateAttendance }: { monthStr: st
           <div className="flex flex-col gap-1 text-[8px] font-black uppercase text-[#8e7164]">
             {reposicoesPendentes.map((r, i) => (
               <div key={i} className="flex justify-between items-center bg-[#fff8f6] p-1.5 border border-[#e2bfb0]">
-                <span>{r.data ? format(new Date((r.data + 'T12:00:00').replace(/-/g, '/').replace('T', ' ')), 'dd/MM') : 'S/ DATA'} • {r.horario?.substring(0,5)}</span>
+                <span>{r.data ? format(new Date(r.data + 'T12:00:00Z'), 'dd/MM') : 'S/ DATA'} • {r.horario?.substring(0,5)}</span>
                 <span className="text-amber-600">{r.status?.replace('_', ' ')}</span>
               </div>
             ))}
@@ -532,7 +532,7 @@ export default function AlunoPerfil() {
       headers: { 'Authorization': `Bearer ${token}` }
     }).then(r => r.json());
     setAgenda(res);
-    setFrequencia(res.filter((a: any) => new Date((a.data + 'T23:59:59').replace(/-/g, '/').replace('T', ' ')) < new Date() || a.status !== 'pendente'));
+    setFrequencia(res.filter((a: any) => (a.data || '2099-12-31') < new Date().toISOString().substring(0, 10) || a.status !== 'pendente'));
   };
 
   const fetchData = async () => {
@@ -553,7 +553,7 @@ export default function AlunoPerfil() {
       setFinanceiro(Array.isArray(fData) ? fData : []);
       setMateriais(Array.isArray(mData) ? mData : []);
       setCursos(Array.isArray(cData) ? cData : []);
-      setFrequencia((Array.isArray(aData) ? aData : []).filter((a: any) => new Date((a.data + 'T23:59:59').replace(/-/g, '/').replace('T', ' ')) < new Date() || a.status !== 'pendente'));
+      setFrequencia((Array.isArray(aData) ? aData : []).filter((a: any) => (a.data || '2099-12-31') < new Date().toISOString().substring(0, 10) || a.status !== 'pendente'));
     } catch (err) {
       console.error(err);
     }
@@ -847,7 +847,7 @@ export default function AlunoPerfil() {
                         return (
                           <div>
                             <p className="text-3xl font-black italic tracking-tighter uppercase">
-                              {format(new Date((prox.data + 'T12:00:00').replace(/-/g, '/').replace('T', ' ')), "dd/MM")}
+                              {format(new Date(prox.data + 'T12:00:00Z'), "dd/MM")}
                             </p>
                             <p className="font-black text-[#feccba] mt-1 flex items-center gap-2">
                               <Clock className="w-4 h-4" /> {prox.horario?.substring(0, 5)}
@@ -929,7 +929,7 @@ export default function AlunoPerfil() {
                           {agenda.map(aula => (
                             <tr key={aula.id} className={`hover:bg-[#ffeae1] ${aula.tipo === 'reposicao' ? 'bg-orange-50/50' : ''}`}>
                               <td className="px-6 py-4 font-black text-black uppercase text-sm">
-                                {aula.data?.includes('2099') ? 'A DEFINIR' : format(new Date((aula.data + 'T12:00:00').replace(/-/g, '/').replace('T', ' ')), 'dd/MM/yyyy')}
+                                {aula.data?.includes('2099') ? 'A DEFINIR' : format(new Date(aula.data + 'T12:00:00Z'), 'dd/MM/yyyy')}
                               </td>
                               <td className="px-6 py-4">
                                 <span className={`text-[8px] font-black uppercase px-2 py-1 border-2 ${aula.tipo === 'reposicao' ? 'bg-orange-500 text-white border-black' : 'bg-black text-white border-black'}`}>

@@ -643,10 +643,10 @@ export default function Agenda() {
             <div className="flex flex-col gap-3">
               <button 
                 onClick={() => {
-                  fetch(`/api/agenda/${cancelModalAula.id}`, {
+                  fetch(`/api/agenda/${cancelModalAula.id}/cancelar`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
-                    body: JSON.stringify({ status: 'reposicao', data: null, horario: null })
+                    body: JSON.stringify({ reposicao: true })
                   }).then(() => {
                     toast.success('Aula enviada para a fila de reposição.');
                     fetchAulas();
