@@ -640,17 +640,19 @@ export default function Agenda() {
 
       {/* CANCEL MODAL */}
       {cancelModalAula && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-[#1a0f0a] border-4 border-[#3d2d26] p-6 max-w-sm w-full flex flex-col gap-4">
-            <h3 className="text-xl font-black text-[#ff6b00] uppercase text-center">Cancelar Aula</h3>
-            <p className="text-white text-sm text-center">O aluno terá direito a reposição desta aula?</p>
-            <div className="flex flex-col gap-2 mt-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-white border-4 border-black p-6 w-full max-w-sm font-['Space_Mono'] shadow-[8px_8px_0_#000]">
+            <h3 className="text-xl font-black uppercase text-black mb-4">Cancelar Aula?</h3>
+            <p className="text-xs font-bold text-black mb-6 uppercase">
+              Deseja apenas cancelar esta aula ou enviá-la para a fila de reposições do aluno?
+            </p>
+            <div className="flex flex-col gap-3">
               <button 
                 onClick={() => {
-                  fetch(`/api/agenda/${cancelModalAula.id}/cancelar`, {
+                  fetch(`/api/agenda/${cancelModalAula.id}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
-                    body: JSON.stringify({ reposicao: true })
+                    body: JSON.stringify({ status: 'reposicao', data: null, horario: null })
                   }).then(() => {
                     toast.success('Aula enviada para a fila de reposição.');
                     fetchAulas();

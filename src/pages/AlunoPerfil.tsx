@@ -1038,6 +1038,20 @@ export default function AlunoPerfil() {
                    ))}
                    
                    <div className="md:col-span-2">
+                      <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">PROFESSOR</label>
+                      <select 
+                        className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none"
+                        value={editFormData.professor_id || ''}
+                        onChange={e => setEditFormData({ ...editFormData, professor_id: e.target.value })}
+                      >
+                        <option value="">SELECIONE UM PROFESSOR</option>
+                        {professores.map(prof => (
+                          <option key={prof.id} value={prof.id}>{prof.nome.toUpperCase()}</option>
+                        ))}
+                      </select>
+                   </div>
+                   
+                   <div className="md:col-span-2">
                       <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">CURSO_MATRICULADO</label>
                       <select 
                         className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none"

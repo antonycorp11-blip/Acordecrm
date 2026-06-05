@@ -773,8 +773,8 @@ async function startServer() {
             const studentId = req.params.id;
             const { 
                 nome, email, telefone, cpf, endereco, 
-                responsavel_nome, responsavel_telefone, 
-                curso_id, dia_semana, horario,
+                responsavel_nome, responsavel_telefone, responsavel_cpf,
+                curso_id, professor_id, dia_semana, horario,
                 valor_parcela, valor_com_desconto
             } = req.body;
             
@@ -796,6 +796,7 @@ async function startServer() {
             // 2. Atualizar Curso e Dia/Horário na Matrícula
             const matUpdate: any = {};
             if (curso_id && !isNaN(Number(curso_id))) matUpdate.curso_id = Number(curso_id);
+            if (professor_id && !isNaN(Number(professor_id))) matUpdate.professor_id = Number(professor_id);
             if (dia_semana !== undefined && dia_semana !== '' && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
             if (horario !== undefined && horario !== '') matUpdate.horario = horario;
             if (valor_parcela !== undefined && valor_parcela !== '') matUpdate.valor_parcela = Number(valor_parcela);
