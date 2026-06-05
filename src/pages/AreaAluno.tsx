@@ -1208,17 +1208,41 @@ export default function AreaAluno() {
 
           {/* ===== ABA: TODAS AS AULAS ===== */}
           {activeTab === 'aulas' && (
-            <div className="px-4 py-5 space-y-3">
+            <div className="px-4 py-5 space-y-4">
               <div className="flex items-center gap-3 mb-4">
                 <div className="bg-[#261812] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
                   <h3 className="text-[#feccba] font-black text-xs uppercase tracking-widest">📚 MINHAS AULAS</h3>
                 </div>
                 <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
               </div>
-              <div className="text-center py-8 bg-[#261812] border-4 border-black shadow-[4px_4px_0_#000]">
-                <p className="text-[#8e7164] font-black text-[10px] uppercase">🚧 AGUARDE: EM DESENVOLVIMENTO 🚧</p>
-                <p className="text-[#8e7164]/60 font-black text-[8px] uppercase mt-2">EM BREVE SUAS VIDEOAULAS E MATERIAIS DE APOIO ESTARÃO AQUI!</p>
-              </div>
+
+              {aulasHoje.length === 0 ? (
+                <div className="text-center py-8 bg-[#261812] border-4 border-black shadow-[4px_4px_0_#000]">
+                  <p className="text-[#8e7164] font-black text-[10px] uppercase">NENHUMA AULA AGENDADA</p>
+                  <p className="text-[#8e7164]/60 font-black text-[8px] uppercase mt-2">Você não possui aulas futuras marcadas.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {aulasHoje.map((aula: any, index: number) => (
+                    <div key={aula.id || index} className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="bg-[#ff6b00] text-white text-[8px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block">
+                          AGENDADA
+                        </span>
+                        <span className="text-black font-black text-[10px] uppercase">
+                          {aula.data ? format(new Date(aula.data + 'T12:00:00'), 'dd/MM/yyyy') : ''} às {aula.horario}
+                        </span>
+                      </div>
+                      <h4 className="text-black font-black text-sm uppercase italic">
+                        {aula.cursos?.nome || 'MÚSICA'}
+                      </h4>
+                      <p className="text-[#8e7164] font-black text-[8px] uppercase mt-1">
+                        Prof. {aula.professores?.nome || 'A definir'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1791,7 +1815,31 @@ export default function AreaAluno() {
               </div>
             </div>
 
-            {/* Próxima Sessão foi removida a pedido do admin para ceder espaço a futuras features */}
+            {/* Próxima Sessão */}
+            {aulasHoje.length > 0 && (
+              <div className="bg-[#ff6b00] p-4 border-4 border-black shadow-[4px_4px_0_#000] flex items-center justify-between hover:translate-y-[-2px] transition-all">
+                <div className="flex items-center gap-4">
+                  <div className="bg-black text-[#ff6b00] p-2 border-2 border-[#feccba]">
+                    <span className="text-2xl">🎹</span>
+                  </div>
+                  <div>
+                    <p className="font-black text-[8px] text-black uppercase tracking-widest">PRÓXIMA SESSÃO</p>
+                    <h3 className="font-black text-white text-lg leading-tight">
+                      {aulasHoje[0].data ? format(new Date(aulasHoje[0].data + 'T12:00:00'), 'dd/MM') : ''} às {aulasHoje[0].horario}
+                    </h3>
+                    <p className="text-black font-black text-[9px] mt-0.5 uppercase">
+                      {aulasHoje[0].cursos?.nome || 'MÚSICA'} • Prof. {aulasHoje[0].professores?.nome || 'A definir'}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setActiveTab('aulas')}
+                  className="bg-black text-white p-2 border-2 border-black hover:bg-[#fff8f6] hover:text-black hover:border-black active:translate-y-1 transition-all flex items-center justify-center shrink-0"
+                >
+                  <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
+                </button>
+              </div>
+            )}
 
             {/* Diário de Evolução (Musiclass feedbacks) */}
             <div className="pt-2">
