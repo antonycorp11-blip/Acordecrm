@@ -605,20 +605,14 @@ export default function Agenda() {
             </button>
           )}
           <button 
-            onClick={() => {
-              if (confirm('Deseja desmarcar esta aula?')) {
-                fetch(`/api/agenda/${selectedAula.id}`, { 
-                  method: 'DELETE',
-                  headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
-                }).then(() => {
-                  fetchAulas();
-                  setSelectedAula(null);
-                });
-              }
+            onClick={(e) => {
+              e.stopPropagation();
+              setCancelModalAula(selectedAula);
+              setSelectedAula(null);
             }}
             className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black"
           >
-            <Trash2 className="w-3.5 h-3.5" /> Desmarcar
+            <Trash2 className="w-3.5 h-3.5" /> Cancelar Aula
           </button>
         </div>
       )}
