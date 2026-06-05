@@ -929,7 +929,7 @@ export default function AlunoPerfil() {
                           {agenda.map(aula => (
                             <tr key={aula.id} className={`hover:bg-[#ffeae1] ${aula.tipo === 'reposicao' ? 'bg-orange-50/50' : ''}`}>
                               <td className="px-6 py-4 font-black text-black uppercase text-sm">
-                                {aula.data?.includes('2099') ? 'A DEFINIR' : format(new Date(aula.data + 'T12:00:00Z'), 'dd/MM/yyyy')}
+                                {(!aula.data || aula.data.includes('2099')) ? 'A DEFINIR' : format(new Date(aula.data + 'T12:00:00Z'), 'dd/MM/yyyy')}
                               </td>
                               <td className="px-6 py-4">
                                 <span className={`text-[8px] font-black uppercase px-2 py-1 border-2 ${aula.tipo === 'reposicao' ? 'bg-orange-500 text-white border-black' : 'bg-black text-white border-black'}`}>

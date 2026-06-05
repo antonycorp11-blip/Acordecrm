@@ -177,7 +177,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
             </div>
             <div className="text-right">
               <p className="font-black text-sm uppercase italic">AULA DE {aula.curso_nome || 'MÚSICA'}</p>
-              <p className="text-[10px] font-black">{format(new Date(aula.data + 'T12:00:00'), 'dd/MM/yyyy')}</p>
+              <p className="text-[10px] font-black">{format(new Date(aula.data + 'T12:00:00Z'), 'dd/MM/yyyy')}</p>
             </div>
           </div>
 
@@ -1837,7 +1837,7 @@ export default function AreaAluno() {
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider">
-                            {format(new Date(aula.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR }).toUpperCase()}
+                            {format(new Date(aula.data + 'T12:00:00Z'), "dd 'de' MMMM", { locale: ptBR }).toUpperCase()}
                           </p>
                           <h4 className="text-black font-black text-sm uppercase italic">
                             AULA DE {aula.curso_nome || 'MÚSICA'}
@@ -2459,8 +2459,8 @@ export default function AreaAluno() {
                       <div key={aula.id} className="flex items-center justify-between p-4 bg-[#fff8f6] border-4 border-black shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 border-4 border-black flex flex-col items-center justify-center font-black bg-[#ff6b00] text-white shrink-0">
-                            <span className="text-[10px] leading-none">{new Date(aula.data + 'T12:00:00').getDate().toString().padStart(2,'0')}</span>
-                            <span className="text-[7px] leading-none uppercase">{new Date(aula.data + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                            <span className="text-[10px] leading-none">{new Date(aula.data + 'T12:00:00Z').getDate().toString().padStart(2,'0')}</span>
+                            <span className="text-[7px] leading-none uppercase">{new Date(aula.data + 'T12:00:00Z').toLocaleDateString('pt-BR', { month: 'short' })}</span>
                           </div>
                           <div>
                             <p className="font-black text-[10px] uppercase text-black">{aula.curso_nome || 'AULA DE MÚSICA'}</p>
