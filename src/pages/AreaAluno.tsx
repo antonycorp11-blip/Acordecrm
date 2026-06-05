@@ -521,14 +521,18 @@ export default function AreaAluno() {
           
           const futureAulas = allAulas
             .filter((a: any) => {
-              const aulaDate = new Date(`${a.data}T${a.horario || '00:00:00'}`);
+              const aulaDate = new Date((a.data + 'T' + (a.horario || '00:00:00')).replace(/-/g, '/').replace('T', ' '));
               return aulaDate >= now && a.status !== 'realizada';
             })
-            .sort((a: any, b: any) => new Date(`${a.data}T${a.horario}`).getTime() - new Date(`${b.data}T${b.horario}`).getTime());
+            .sort((a: any, b: any) => { const timeA = new Date((a.data + 'T' + (a.horario || '00:00:00')).replace(/-/g, '/').replace('T', ' ')).getTime() || 0; const timeB = new Date((b.data + 'T' + (b.horario || '00:00:00')).replace(/-/g, '/').replace('T', ' ')).getTime() || 0; return timeA - timeB; });
 
           const pastAulas = allAulas
             .filter((a: any) => a.status === 'realizada')
-            .sort((a: any, b: any) => new Date(`${b.data}T${b.horario}`).getTime() - new Date(`${a.data}T${a.horario}`).getTime());
+            .sort((a: any, b: any) => {
+               const timeA = new Date((a.data + 'T' + (a.horario || '00:00:00')).replace(/-/g, '/').replace('T', ' ')).getTime() || 0;
+               const timeB = new Date((b.data + 'T' + (b.horario || '00:00:00')).replace(/-/g, '/').replace('T', ' ')).getTime() || 0;
+               return timeB - timeA;
+            });
 
           setAulasHoje(futureAulas);
           setAulasRealizadas(pastAulas);
@@ -617,10 +621,10 @@ export default function AreaAluno() {
           
           const futureAulas = allAulas
             .filter((a: any) => {
-              const aulaDate = new Date(`${a.data}T${a.horario || '00:00:00'}`);
+              const aulaDate = new Date((a.data + 'T' + (a.horario || '00:00:00')).replace(/-/g, '/').replace('T', ' '));
               return aulaDate >= now && a.status !== 'realizada';
             })
-            .sort((a: any, b: any) => new Date(`${a.data}T${a.horario}`).getTime() - new Date(`${b.data}T${b.horario}`).getTime());
+            .sort((a: any, b: any) => { const timeA = new Date((a.data + 'T' + (a.horario || '00:00:00')).replace(/-/g, '/').replace('T', ' ')).getTime() || 0; const timeB = new Date((b.data + 'T' + (b.horario || '00:00:00')).replace(/-/g, '/').replace('T', ' ')).getTime() || 0; return timeA - timeB; });
 
           setAulasHoje(futureAulas);
         }
