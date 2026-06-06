@@ -1940,7 +1940,7 @@ async function startServer() {
             }
 
             let query = supabase.from('aulas')
-                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos(nome, status), professores(nome), cursos(nome)')
+                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, alunos(nome, status), professores(nome), cursos(nome)')
                 .order('data', { ascending: true });
             
             if (start) query = query.gte('data', start);
@@ -2137,7 +2137,14 @@ async function startServer() {
             }
 
             if (reposicao) {
-                const { error: err } = await supabase.from('aulas').update({ status: 'reposicao', data: '2099-12-31', horario: '00:00:00' }).eq('id', originalId);
+                const { data: currentAula } = await supabase.from('aulas').select('data').eq('id', originalId).single();
+                const { error: err } = await supabase.from('aulas').update({ 
+                    status: 'reposicao', 
+                    data: '2099-12-31', 
+                    horario: '00:00:00',
+                    data_original: currentAula?.data,
+                    motivo_cancelamento: req.body.motivo_cancelamento || null
+                }).eq('id', originalId);
                 if (err) throw err;
             } else {
                 const { error: err } = await supabase.from('aulas').update({ status: 'falta' }).eq('id', originalId);

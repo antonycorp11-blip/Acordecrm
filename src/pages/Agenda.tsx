@@ -18,6 +18,7 @@ export default function Agenda() {
   const [viewType, setViewType] = useState<'individual' | 'grupo'>('individual');
   const [selectedAula, setSelectedAula] = useState<any>(null);
   const [cancelModalAula, setCancelModalAula] = useState<any>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState('');
   const [menuPos, setMenuPos] = useState<{x: number, y: number} | null>(null);
   const [reschedulingAula, setReschedulingAula] = useState<any>(null);
   const [mousePos, setMousePos] = useState({x: 0, y: 0});
@@ -636,21 +637,37 @@ export default function Agenda() {
       {cancelModalAula && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-white border-4 border-black p-6 w-full max-w-sm font-['Space_Mono'] shadow-[8px_8px_0_#000]">
+            
             <h3 className="text-xl font-black uppercase text-black mb-4">Cancelar Aula?</h3>
-            <p className="text-xs font-bold text-black mb-6 uppercase">
+            <p className="text-xs font-bold text-black mb-4 uppercase">
               Deseja apenas cancelar esta aula ou enviá-la para a fila de reposições do aluno?
             </p>
+            <div className="mb-6">
+              <label className="block text-[10px] font-black text-black uppercase mb-2">Motivo / Observação (Opcional se for Falta):</label>
+              <textarea 
+                value={motivoCancelamento}
+                onChange={(e) => setMotivoCancelamento(e.target.value)}
+                placeholder="Ex: Professor faltou, Atestado Médico..."
+                className="w-full bg-[#f4f4f5] border-2 border-black p-3 text-xs font-bold text-black focus:outline-none focus:ring-2 focus:ring-[#ff6b00]"
+                rows={2}
+              />
+            </div>
             <div className="flex flex-col gap-3">
               <button 
                 onClick={() => {
+                  if (!motivoCancelamento.trim()) {
+                    toast.error('Informe o motivo para enviar para reposição!');
+                    return;
+                  }
+
                   fetch(`/api/agenda/${cancelModalAula.id}/cancelar`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
-                    body: JSON.stringify({ reposicao: true })
+                    body: JSON.stringify({ reposicao: true, motivo_cancelamento: motivoCancelamento })
                   }).then(() => {
                     toast.success('Aula enviada para a fila de reposição.');
                     fetchAulas();
-                    setCancelModalAula(null);
+                    setCancelModalAula(null); setMotivoCancelamento('');;
                   });
                 }}
                 className="w-full px-4 py-3 bg-green-500 text-black border-4 border-black font-black uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-green-400"
@@ -666,7 +683,7 @@ export default function Agenda() {
                   }).then(() => {
                     toast.success('Aula cancelada (Registrada como Falta).');
                     fetchAulas();
-                    setCancelModalAula(null);
+                    setCancelModalAula(null); setMotivoCancelamento('');;
                   });
                 }}
                 className="w-full px-4 py-3 bg-red-500 text-white border-4 border-black font-black uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-red-400"
@@ -674,7 +691,7 @@ export default function Agenda() {
                 NÃO (Registrar como Falta)
               </button>
               <button 
-                onClick={() => setCancelModalAula(null)}
+                onClick={() => { setCancelModalAula(null); setMotivoCancelamento(''); }}
                 className="w-full mt-4 text-[#8e7164] font-bold text-sm uppercase hover:text-white"
               >
                 Voltar
