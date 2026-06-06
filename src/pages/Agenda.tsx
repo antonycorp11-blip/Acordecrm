@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Bell, HelpCircle, Search, ChevronLeft, ChevronRight, Zap, Users, AlertTriangle, Trash2, RefreshCcw, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -10,6 +10,15 @@ const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','
 export default function Agenda() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.rescheduleAula) {
+      setReschedulingAula(location.state.rescheduleAula);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   const [professores, setProfessores] = useState<any[]>([]);
   const [aulas, setAulas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

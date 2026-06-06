@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Calendar, Clock, RefreshCcw, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 export function Reposicoes() {
+  const navigate = useNavigate();
   const [reposicoes, setReposicoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -81,7 +83,7 @@ export function Reposicoes() {
                 <div className="border-t-4 border-dashed border-[#ff6b00]/20 pt-4 mt-auto">
                   <p className="text-xs font-black uppercase text-[#ff6b00] mb-2">Aguardando reagendamento</p>
                   <button 
-                    onClick={() => toast('Em breve: Reagendamento direto por aqui!', { icon: '🚧' })}
+                    onClick={() => navigate('/agenda', { state: { rescheduleAula: aula } })}
                     className="w-full py-3 bg-[#ff6b00] text-white font-black uppercase border-4 border-black shadow-[4px_4px_0_#000] hover:-translate-y-1 hover:shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all"
                   >
                     Agendar Horário
