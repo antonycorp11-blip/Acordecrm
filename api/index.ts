@@ -1947,6 +1947,7 @@ async function startServer() {
             if (end) query = query.lte('data', end);
             if (filterProfId) query = query.eq('professor_id', filterProfId);
             if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
+            if (req.query.status) query = query.eq('status', req.query.status);
 
             const { data: rawAulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);

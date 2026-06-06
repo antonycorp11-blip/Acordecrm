@@ -9,7 +9,7 @@ export function Reposicoes() {
   const fetchReposicoes = async () => {
     try {
       const token = localStorage.getItem('acorde_token');
-      const res = await fetch('/api/agenda', { 
+      const res = await fetch('/api/agenda?status=reposicao', { 
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
