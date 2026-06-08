@@ -1728,7 +1728,7 @@ async function startServer() {
             
             const formatted = data?.map((p: any) => {
                 let valorEfetivo = Number(p.valor);
-                if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
+                if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status !== 'pago') {
                     const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
                     const matriculas = alunoObj?.matriculas;
                     let matriculaAlvo: any = null;
@@ -1815,7 +1815,7 @@ async function startServer() {
                 for (const p of pags) {
                     let valorEfetivo = Number(p.valor);
                     
-                    if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
+                    if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status !== 'pago') {
                         const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
                         const matriculas = alunoObj?.matriculas;
                         let matriculaAlvo: any = null;
