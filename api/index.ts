@@ -1205,11 +1205,11 @@ async function startServer() {
 
             // Receita: apenas mensalidades pagas no mês atual
             const { data: pagamentosMes } = await supabase.from('pagamentos')
-                .select('valor')
+                .select('valor, valor_pago')
                 .eq('status', 'pago')
                 .eq('tipo_receita', 'mensalidade')
                 .eq('referencia_mes_ano', mesAtual);
-            const receitaMensal = pagamentosMes?.reduce((acc, curr) => acc + Number(curr.valor), 0) || 0;
+            const receitaMensal = pagamentosMes?.reduce((acc, curr) => acc + (curr.valor_pago != null ? Number(curr.valor_pago) : Number(curr.valor)), 0) || 0;
             
             // Aulas do dia (regulares)
             const { data: aulasRegData } = await supabase.from('aulas')
@@ -1776,10 +1776,18 @@ async function startServer() {
     app.patch('/api/pagamentos/:id/baixa', async (req, res) => {
         try {
             const { id } = req.params;
-            const { metodo_pagamento } = req.body;
+            const { metodo_pagamento, valor_pago } = req.body;
             const today = getDateBR();
+            
+            const updatePayload: any = { 
+                status: 'pago', 
+                data_pagamento: today, 
+                metodo_pagamento: metodo_pagamento || 'dinheiro' 
+            };
+            if (valor_pago !== undefined) updatePayload.valor_pago = valor_pago;
+
             const { data, error } = await supabase.from('pagamentos')
-                .update({ status: 'pago', data_pagamento: today, metodo_pagamento: metodo_pagamento || 'dinheiro' })
+                .update(updatePayload)
                 .eq('id', id).select().single();
             if (error) throw error;
             res.json(data);
@@ -1826,7 +1834,7 @@ async function startServer() {
             
             // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
             const { data: pags, error } = await supabase.from('pagamentos')
-                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
+                .select('valor, valor_pago, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
                 .eq('referencia_mes_ano', mesRef)
                 .neq('aluno.status', 'arquivado');
             
@@ -1837,7 +1845,8 @@ async function startServer() {
             let pendentes = 0;
 
             if (pags) {
-                for (const p of pags) {
+                for (const item of pags) {
+                    const p: any = item;
                     let valorEfetivo = Number(p.valor);
                     
                     if (p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
@@ -1859,12 +1868,13 @@ async function startServer() {
                         }
                     }
 
+                    let vp = p.valor_pago != null ? Number(p.valor_pago) : Number(p.valor);
                     if (p.status === 'pago') {
-                        receitaMes += Number(p.valor);
+                        receitaMes += vp;
                     } else {
                         pendentes += valorEfetivo;
                     }
-                    faturamentoPrevisto += (p.status === 'pago' ? Number(p.valor) : valorEfetivo);
+                    faturamentoPrevisto += (p.status === 'pago' ? vp : valorEfetivo);
                 }
             }
             

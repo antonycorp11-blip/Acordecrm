@@ -417,7 +417,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas }: { fin
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 font-black text-black text-lg italic">R$ {Number(fat.valor).toFixed(2).replace('.', ',')}</td>
+                  <td className="px-6 py-4 font-black text-black text-lg italic">R$ {Number(fat.status === 'pago' ? (fat.valor_pago != null ? fat.valor_pago : fat.valor) : fat.valor).toFixed(2).replace('.', ',')}</td>
                   <td className="px-6 py-4">
                     <Badge color={fat.status === 'pago' ? 'green' : 'red'}>{fat.status}</Badge>
                   </td>

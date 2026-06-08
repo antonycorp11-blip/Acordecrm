@@ -397,7 +397,7 @@ export default function Financeiro() {
                       <span className="text-[9px] font-black uppercase bg-[#333] px-2 py-1 border border-white/10">{p.tipo_receita || 'mensalidade'}</span>
                     </td>
                     <td className="px-4 py-5">
-                      <span className="text-[12px] font-black">R$ {Number(p.valor).toFixed(2).replace('.', ',')}</span>
+                      <span className="text-[12px] font-black">R$ {Number(p.status === 'pago' ? (p.valor_pago != null ? p.valor_pago : p.valor) : p.valor).toFixed(2).replace('.', ',')}</span>
                     </td>
                     <td className="px-4 py-5">
                       <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
