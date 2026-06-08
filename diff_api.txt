@@ -1,0 +1,219 @@
+776,777c776,777
+<                 responsavel_nome, responsavel_telefone, 
+<                 curso_id, dia_semana, horario,
+---
+>                 responsavel_nome, responsavel_telefone, responsavel_cpf,
+>                 curso_id, professor_id, dia_semana, horario,
+798a799
+>             if (professor_id && !isNaN(Number(professor_id))) matUpdate.professor_id = Number(professor_id);
+1067a1069,1074
+>                 const valorAula = Number(profObj?.valor_aula) || 0;
+>                 const novoSaldo = (Number(profObj?.saldo) || 0) + valorAula;
+>                 if (profObj?.id) {
+>                     await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', profObj.id);
+>                 }
+> 
+1113c1120,1141
+<             // Lógica de Saldo de Professor por Presença/Falta foi movida para cálculo dinâmico na leitura.
+---
+>             // Lógica de Saldo de Professor por Presença/Falta
+>             if (aulaAntiga && aulaAntiga.professor_id) {
+>                 const { data: prof } = await supabase.from('professores').select('valor_aula, saldo').eq('id', aulaAntiga.professor_id).single();
+>                 if (prof) {
+>                     const valorAula = Number(prof.valor_aula) || 0;
+>                     let difSaldo = 0;
+>                     
+>                     const eraAtiva = ['realizada', 'falta_aluno'].includes(aulaAntiga.status);
+>                     const ehAtiva = ['realizada', 'falta_aluno'].includes(status);
+>                     
+>                     if (!eraAtiva && ehAtiva) {
+>                         difSaldo = valorAula;
+>                     } else if (eraAtiva && !ehAtiva) {
+>                         difSaldo = -valorAula;
+>                     }
+>                     
+>                     if (difSaldo !== 0) {
+>                         const novoSaldo = (Number(prof.saldo) || 0) + difSaldo;
+>                         await supabase.from('professores').update({ saldo: novoSaldo }).eq('id', aulaAntiga.professor_id);
+>                     }
+>                 }
+>             }
+1138a1167,1189
+>     });
+> 
+> 
+>     app.get('/api/dashboard/faturas-pendentes', async (req, res) => {
+>         try {
+>             const dataHoje = new Date();
+>             const startOfMonth = new Date(dataHoje.getFullYear(), dataHoje.getMonth(), 1).toLocaleDateString('pt-BR').split('/').reverse().join('-');
+>             const endOfMonth = new Date(dataHoje.getFullYear(), dataHoje.getMonth() + 1, 0).toLocaleDateString('pt-BR').split('/').reverse().join('-');
+> 
+>             const { data: faturas, error } = await supabase
+>                 .from('pagamentos')
+>                 .select('id, aluno_id, valor, data_vencimento, status, alunos(nome)')
+>                 .in('status', ['pendente', 'atrasado'])
+>                 .gte('data_vencimento', startOfMonth)
+>                 .lte('data_vencimento', endOfMonth)
+>                 .order('data_vencimento', { ascending: true });
+> 
+>             if (error) throw error;
+>             res.json(faturas || []);
+>         } catch (error: any) {
+>             console.error('Erro faturas-pendentes:', error);
+>             res.status(500).json({ error: error.message });
+>         }
+1141a1193
+> 
+1156c1208
+<                 .select('valor')
+---
+>                 .select('valor, valor_pago')
+1160c1212
+<             const receitaMensal = pagamentosMes?.reduce((acc, curr) => acc + Number(curr.valor), 0) || 0;
+---
+>             const receitaMensal = pagamentosMes?.reduce((acc, curr) => acc + (curr.valor_pago != null ? Number(curr.valor_pago) : Number(curr.valor)), 0) || 0;
+1510c1562
+<             // Cálculo dinâmico do saldo do mês atual
+---
+>             // Cálculo do mês atual
+1587c1639
+<         } catch (error: any) { res.status(500).json({ error: error.message }); }
+---
+>         } catch (error) { res.status(500).json({ error: 'Erro ao salvar professor' }); }
+1590,1598d1641
+<     app.post('/api/professores/:id/disponibilidade', async (req, res) => {
+<         try {
+<             const { disponibilidade } = req.body;
+<             const { data, error } = await supabase.from('professores').update({ disponibilidade }).eq('id', req.params.id).select().single();
+<             if (error) throw error;
+<             res.json(data);
+<         } catch (error: any) { res.status(500).json({ error: error.message }); }
+<     });
+< 
+1713,1715c1756
+<             const { mes, desconto_dia_10 } = req.query;
+<             const applyDiscount = desconto_dia_10 === 'true';
+< 
+---
+>             const { mes } = req.query;
+1719c1760
+<                 .select('*, aluno:aluno_id!inner(nome, status, matriculas(id, status, valor_com_desconto))')
+---
+>                 .select('*, aluno:aluno_id!inner(nome, status)')
+1729,1744c1770
+<             const formatted = data?.map((p: any) => {
+<                 let valorEfetivo = Number(p.valor);
+<                 if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status !== 'pago') {
+<                     const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
+<                     const matriculas = alunoObj?.matriculas;
+<                     let matriculaAlvo: any = null;
+<                     if (Array.isArray(matriculas) && matriculas.length > 0) {
+<                         matriculaAlvo = p.matricula_id ? matriculas.find((m: any) => String(m.id) === String(p.matricula_id)) : null;
+<                         if (!matriculaAlvo) matriculaAlvo = matriculas.find((m: any) => m.status === 'ativa');
+<                     }
+<                     if (matriculaAlvo && matriculaAlvo.valor_com_desconto != null && Number(matriculaAlvo.valor_com_desconto) > 0) {
+<                         valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
+<                     }
+<                 }
+<                 return { ...p, aluno_nome: p.aluno?.nome, valor: valorEfetivo };
+<             }) || [];
+---
+>             const formatted = data?.map((p: any) => ({ ...p, aluno_nome: p.aluno?.nome })) || [];
+1753c1779
+<             const { metodo_pagamento } = req.body;
+---
+>             const { metodo_pagamento, valor_pago } = req.body;
+1754a1781,1788
+>             
+>             const updatePayload: any = { 
+>                 status: 'pago', 
+>                 data_pagamento: today, 
+>                 metodo_pagamento: metodo_pagamento || 'dinheiro' 
+>             };
+>             if (valor_pago !== undefined) updatePayload.valor_pago = valor_pago;
+> 
+1756c1790
+<                 .update({ status: 'pago', data_pagamento: today, metodo_pagamento: metodo_pagamento || 'dinheiro' })
+---
+>                 .update(updatePayload)
+1797,1798c1831
+<             const { mes, desconto_dia_10 } = req.query;
+<             const applyDiscount = desconto_dia_10 === 'true';
+---
+>             const { mes } = req.query;
+1804c1837
+<                 .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
+---
+>                 .select('valor, valor_pago, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
+1815c1848,1849
+<                 for (const p of pags) {
+---
+>                 for (const item of pags) {
+>                     const p: any = item;
+1818c1852
+<                     if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status !== 'pago') {
+---
+>                     if (p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
+1836a1871
+>                     let vp = p.valor_pago != null ? Number(p.valor_pago) : Number(p.valor);
+1838c1873
+<                         receitaMes += Number(p.valor);
+---
+>                         receitaMes += vp;
+1842c1877
+<                     faturamentoPrevisto += (p.status === 'pago' ? Number(p.valor) : valorEfetivo);
+---
+>                     faturamentoPrevisto += (p.status === 'pago' ? vp : valorEfetivo);
+1942c1977
+<                 .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos(nome, status), professores(nome), cursos(nome)')
+---
+>                 .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, alunos(nome, status), professores(nome), cursos(nome)')
+1948a1984
+>             if (req.query.status) query = query.eq('status', req.query.status);
+2138c2174,2182
+<                 await supabase.from('aulas').update({ status: 'reposicao', data: null, horario: null }).eq('id', originalId);
+---
+>                 const { data: currentAula } = await supabase.from('aulas').select('data').eq('id', originalId).single();
+>                 const { error: err } = await supabase.from('aulas').update({ 
+>                     status: 'reposicao', 
+>                     data: '2099-12-31', 
+>                     horario: '00:00:00',
+>                     data_original: currentAula?.data,
+>                     motivo_cancelamento: req.body.motivo_cancelamento || null
+>                 }).eq('id', originalId);
+>                 if (err) throw err;
+2140c2184,2185
+<                 await supabase.from('aulas').update({ status: 'falta' }).eq('id', originalId);
+---
+>                 const { error: err } = await supabase.from('aulas').update({ status: 'falta' }).eq('id', originalId);
+>                 if (err) throw err;
+2633,2641c2678,2681
+<             const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+<             const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+<             let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
+<             if (credsStr) {
+<                 authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+<             } else {
+<                 authOptions.keyFile = './google-credentials.json';
+<             }
+<             const auth = new GoogleAuth(authOptions);
+---
+>             const auth = new GoogleAuth({
+>                 keyFile: './google-credentials.json',
+>                 scopes: ['https://www.googleapis.com/auth/drive.file']
+>             });
+2676,2684c2716,2719
+<             const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+<             const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+<             let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
+<             if (credsStr) {
+<                 authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+<             } else {
+<                 authOptions.keyFile = './google-credentials.json';
+<             }
+<             const auth = new GoogleAuth(authOptions);
+---
+>             const auth = new GoogleAuth({
+>                 keyFile: './google-credentials.json',
+>                 scopes: ['https://www.googleapis.com/auth/drive.file']
+>             });

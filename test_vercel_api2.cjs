@@ -1,40 +1,16 @@
 require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  global: { headers: { 'x-backend-secret': 'studio-acorde-secret-key-2024' } }
-});
 
-async function check() {
-  const { data: prog } = await supabase.from('gamificacao_progresso').select('aluno_id').limit(1);
-  const { data: aluno } = await supabase.from('alunos').select('*').eq('id', prog[0].aluno_id).single();
-
-  const token = jwt.sign(
-        { email: aluno.email, role: 'aluno', name: aluno.nome },
-        'studio-acorde-secret-key-2024',
-        { expiresIn: '7d' }
-  );
-  
-  const https = require('https');
-  const makeReq = (path) => new Promise(resolve => {
-      const req = https.request(`https://acordecrm.vercel.app${path}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => resolve({ status: res.statusCode, data }));
-      });
-      req.on('error', (e) => resolve({ status: 500, error: e.message }));
-      req.end();
-  });
-
-  const res1 = await makeReq('/api/agenda');
-  console.log('Vercel AGENDA Status:', res1.status, 'Data:', res1.data.substring(0, 100));
-
-  const res2 = await makeReq('/api/gamificacao/conquistas');
-  console.log('Vercel CONQUISTAS Status:', res2.status, 'Data:', res2.data.substring(0, 100));
+async function run() {
+    const token = jwt.sign({ id: 1, email: 'admin@acorde.com', role: 'admin' }, process.env.JWT_SECRET || 'studio-acorde-secret-key-2024');
+    
+    const res = await fetch("https://acordecrm.vercel.app/api/pagamentos?mes=06/2026&desconto_dia_10=true", {
+        headers: {
+            "Authorization": "Bearer " + token
+        }
+    });
+    const data = await res.json();
+    const anna = data.find(p => p.aluno_nome && p.aluno_nome.includes("ANNA SOFIA"));
+    console.log("Anna Sofia in API:", anna);
 }
-check();
+run();
