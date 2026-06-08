@@ -307,33 +307,21 @@ export default function Financeiro() {
       </header>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard relative overflow-hidden group">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-[#1A1A1A] border-4 border-white p-4 shadow-hard relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 -rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Faturamento Previsto</p>
-          <h3 className="text-3xl font-black text-white">R$ {(resumo?.faturamentoPrevisto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-          <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-[#FF8A00]">
-            <TrendingUp className="w-3 h-3" />
-            <span>ESTIMATIVA MENSAL</span>
-          </div>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Faturamento Previsto</p>
+          <h3 className="text-2xl font-black text-white">R$ {(resumo?.faturamentoPrevisto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
         </div>
-        <div className="bg-[#00FF41] border-4 border-black p-6 shadow-hard-black relative overflow-hidden group text-black">
+        <div className="bg-[#00FF41] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black">
           <div className="absolute top-0 right-0 w-24 h-24 bg-black/5 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2 text-black">Recebido Real</p>
-          <h3 className="text-3xl font-black">R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-          <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-            <CheckCircle2 className="w-3 h-3" />
-            <span>EM CAIXA AGORA</span>
-          </div>
+          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1 text-black">Recebido Real</p>
+          <h3 className="text-2xl font-black">R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
         </div>
-        <div className="bg-[#FF0000] border-4 border-black p-6 shadow-hard-black relative overflow-hidden group text-white">
+        <div className="bg-[#FF0000] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-white">
           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Pendente / Atrasado</p>
-          <h3 className="text-3xl font-black">R$ {(resumo?.pendentes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-          <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-            <AlertCircle className="w-3 h-3 text-white" />
-            <span>CRITICAL STATE</span>
-          </div>
+          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Pendente / Atrasado</p>
+          <h3 className="text-2xl font-black">R$ {(resumo?.pendentes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
         </div>
       </div>
 
@@ -341,48 +329,48 @@ export default function Financeiro() {
         <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard flex flex-col gap-6">
           
           {/* Action & Filter Bar Emusys Style */}
-          <div className="flex flex-col 2xl:flex-row justify-between items-start 2xl:items-center gap-4 bg-black border-2 border-white/20 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-black border-2 border-white/20 p-2">
              {/* Emusys Table Top Controls */}
-             <div className="flex flex-wrap items-center gap-3">
-               <span className="text-[10px] font-black uppercase text-slate-400 mr-2">Situação</span>
+             <div className="flex flex-wrap items-center gap-2">
+               <span className="text-[9px] font-black uppercase text-slate-400 mr-1 hidden sm:inline">Situação</span>
                
-               <button onClick={() => setStatusFilter('recebidos')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all border-2 ${statusFilter === 'recebidos' ? 'bg-white text-black border-white' : 'border-white/20 text-white hover:border-white'}`}>Recebidos</button>
-               <button onClick={() => setStatusFilter('pendentes')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all border-2 ${statusFilter === 'pendentes' ? 'bg-white text-black border-white' : 'border-white/20 text-white hover:border-white'}`}>A Receber</button>
-               <button onClick={() => setStatusFilter('atrasados')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all border-2 ${statusFilter === 'atrasados' ? 'bg-white text-black border-white' : 'border-white/20 text-white hover:border-white'}`}>Em Atraso</button>
-               <button onClick={() => setStatusFilter('todos')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all border-2 ${statusFilter === 'todos' ? 'bg-white text-black border-white' : 'border-white/20 text-white hover:border-white'}`}>Todos</button>
+               <button onClick={() => setStatusFilter('recebidos')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all border-2 ${statusFilter === 'recebidos' ? 'bg-white text-black border-white' : 'border-white/20 text-white hover:border-white'}`}>Recebidos</button>
+               <button onClick={() => setStatusFilter('pendentes')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all border-2 ${statusFilter === 'pendentes' ? 'bg-white text-black border-white' : 'border-white/20 text-white hover:border-white'}`}>A Receber</button>
+               <button onClick={() => setStatusFilter('atrasados')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all border-2 ${statusFilter === 'atrasados' ? 'bg-white text-black border-white' : 'border-white/20 text-white hover:border-white'}`}>Atrasado</button>
+               <button onClick={() => setStatusFilter('todos')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all border-2 ${statusFilter === 'todos' ? 'bg-white text-black border-white' : 'border-white/20 text-white hover:border-white'}`}>Todos</button>
                
-               <div className="ml-4 px-4 py-2 bg-[#FF0000]/20 border-2 border-[#FF0000]/50 text-[#FF0000] text-[10px] font-black uppercase flex items-center gap-2">
-                 A Receber <span className="text-sm">R$ {totalAReceberGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+               <div className="ml-2 px-3 py-1.5 bg-[#FF0000]/20 border-2 border-[#FF0000]/50 text-[#FF0000] text-[9px] font-black uppercase flex items-center gap-1.5">
+                 A Receber <span>R$ {totalAReceberGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                </div>
              </div>
 
-             <div className="flex flex-wrap items-center gap-3">
-               <div className="relative group min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <input type="text" placeholder="BUSCAR..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-black border-2 border-white/20 text-white text-[10px] font-bold uppercase focus:border-[#FF8A00] outline-none" />
+             <div className="flex flex-wrap items-center gap-2">
+               <div className="relative group w-32 sm:w-40">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 w-3 h-3" />
+                  <input type="text" placeholder="BUSCAR..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-7 pr-2 py-1.5 bg-black border-2 border-white/20 text-white text-[9px] font-bold uppercase focus:border-[#FF8A00] outline-none" />
                </div>
 
                <div className="relative group">
-                 <button className="bg-white text-black border-4 border-black px-3 py-2 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
-                   <MessageCircle className="w-4 h-4" /> Lista WhatsApp
+                 <button className="bg-white text-black border-2 border-black px-2 py-1.5 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-1.5 text-[9px] font-bold uppercase">
+                   <MessageCircle className="w-3 h-3" /> Lista
                  </button>
-                 <div className="absolute top-full mt-2 right-0 bg-black border-4 border-white p-2 shadow-hard-black hidden group-hover:block z-20 min-w-[150px]">
-                   <button onClick={() => setWhatsappModal('recebidos')} className="block w-full text-left px-3 py-2 text-[10px] font-black uppercase text-white hover:bg-[#00FF41] hover:text-black transition-colors">Recebidos</button>
-                   <button onClick={() => setWhatsappModal('pendentes')} className="block w-full text-left px-3 py-2 text-[10px] font-black uppercase text-white hover:bg-[#FF0000] hover:text-black transition-colors">Pendentes</button>
-                   <button onClick={() => setWhatsappModal('geral')} className="block w-full text-left px-3 py-2 text-[10px] font-black uppercase text-white hover:bg-white hover:text-black transition-colors">Lista Geral</button>
+                 <div className="absolute top-full mt-2 right-0 bg-black border-2 border-white p-1.5 shadow-hard-black hidden group-hover:block z-20 min-w-[120px]">
+                   <button onClick={() => setWhatsappModal('recebidos')} className="block w-full text-left px-2 py-1.5 text-[9px] font-black uppercase text-white hover:bg-[#00FF41] hover:text-black transition-colors">Recebidos</button>
+                   <button onClick={() => setWhatsappModal('pendentes')} className="block w-full text-left px-2 py-1.5 text-[9px] font-black uppercase text-white hover:bg-[#FF0000] hover:text-black transition-colors">Pendentes</button>
+                   <button onClick={() => setWhatsappModal('geral')} className="block w-full text-left px-2 py-1.5 text-[9px] font-black uppercase text-white hover:bg-white hover:text-black transition-colors">Geral</button>
                  </div>
                </div>
 
-               <button onClick={handleDownloadCSV} className="bg-white text-black border-4 border-black p-2 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
-                 <Download className="w-4 h-4" />
+               <button onClick={handleDownloadCSV} className="bg-white text-black border-2 border-black p-1.5 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95">
+                 <Download className="w-3 h-3" />
                </button>
 
-               <button onClick={() => setShowExtraModal(true)} className="bg-[#FF8A00] text-black border-4 border-black px-3 py-2 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
-                 <Plus className="w-4 h-4" /> Lançar Extra
+               <button onClick={() => setShowExtraModal(true)} className="bg-[#FF8A00] text-black border-2 border-black px-2 py-1.5 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-1.5 text-[9px] font-bold uppercase">
+                 <Plus className="w-3 h-3" /> Lançar Extra
                </button>
 
-               <button onClick={() => alert('Mural da Vergonha em construção!')} className="bg-[#FF0000] text-white border-4 border-black p-2 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-2 text-[10px] font-bold uppercase">
-                 <Shield className="w-4 h-4" />
+               <button onClick={() => alert('Mural da Vergonha em construção!')} className="bg-[#FF0000] text-white border-2 border-black p-1.5 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95">
+                 <Shield className="w-3 h-3" />
                </button>
              </div>
           </div>

@@ -1710,11 +1710,13 @@ async function startServer() {
     // Pagamentos Global
     app.get('/api/pagamentos', async (req, res) => {
         try {
-            const { mes } = req.query;
+            const { mes, desconto_dia_10 } = req.query;
+            const applyDiscount = desconto_dia_10 === 'true';
+
             // Só retornar pagamentos de alunos que NÃO estão arquivados
             let dbQuery = supabase
                 .from('pagamentos')
-                .select('*, aluno:aluno_id!inner(nome, status)')
+                .select('*, aluno:aluno_id!inner(nome, status, matriculas(id, status, valor_com_desconto))')
                 .neq('aluno.status', 'arquivado');
             
             if (mes && mes !== 'undefined' && mes !== '') {
@@ -1724,7 +1726,22 @@ async function startServer() {
             const { data, error } = await dbQuery.order('data_vencimento', { ascending: false });
             if (error) throw error;
             
-            const formatted = data?.map((p: any) => ({ ...p, aluno_nome: p.aluno?.nome })) || [];
+            const formatted = data?.map((p: any) => {
+                let valorEfetivo = Number(p.valor);
+                if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
+                    const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
+                    const matriculas = alunoObj?.matriculas;
+                    let matriculaAlvo: any = null;
+                    if (Array.isArray(matriculas) && matriculas.length > 0) {
+                        matriculaAlvo = p.matricula_id ? matriculas.find((m: any) => String(m.id) === String(p.matricula_id)) : null;
+                        if (!matriculaAlvo) matriculaAlvo = matriculas.find((m: any) => m.status === 'ativa');
+                    }
+                    if (matriculaAlvo && matriculaAlvo.valor_com_desconto != null && Number(matriculaAlvo.valor_com_desconto) > 0) {
+                        valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
+                    }
+                }
+                return { ...p, aluno_nome: p.aluno?.nome, valor: valorEfetivo };
+            }) || [];
             res.json(formatted);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
@@ -1777,7 +1794,8 @@ async function startServer() {
     // Resumo financeiro do mês
     app.get('/api/financeiro/resumo', async (req, res) => {
         try {
-            const { mes } = req.query;
+            const { mes, desconto_dia_10 } = req.query;
+            const applyDiscount = desconto_dia_10 === 'true';
             const now = new Date();
             const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
             
@@ -1797,7 +1815,7 @@ async function startServer() {
                 for (const p of pags) {
                     let valorEfetivo = Number(p.valor);
                     
-                    if (p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
+                    if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status === 'pendente') {
                         const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
                         const matriculas = alunoObj?.matriculas;
                         let matriculaAlvo: any = null;
