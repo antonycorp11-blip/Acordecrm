@@ -1314,9 +1314,9 @@ async function startServer() {
             }
 
             res.json({ id: aluno.id });
-        } catch (error) { 
+        } catch (error: any) { 
             console.error(error);
-            res.status(500).json({ error: 'Erro ao cadastrar aluno, aulas e parcelas' }); 
+            res.status(500).json({ error: 'Erro ao cadastrar aluno, aulas e parcelas', details: error.message || error }); 
         }
     });
 
