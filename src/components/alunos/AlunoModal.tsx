@@ -133,8 +133,12 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.curso_id || !formData.professor_id || !formData.horario || !formData.cpf || !formData.pacote_id) {
-      alert('Por favor, preencha todos os campos obrigatórios (CPF, Plano, Curso, Professor e Horário)');
+    const isAdult = !isMinor;
+    const missingCpfAdult = isAdult && !formData.cpf;
+    const missingResponsavel = isMinor && !formData.responsavel_cpf;
+
+    if (!formData.curso_id || !formData.professor_id || !formData.horario || !formData.pacote_id || missingCpfAdult || missingResponsavel) {
+      alert(`Por favor, preencha todos os campos obrigatórios (Curso, Professor, Horário, Plano${isAdult ? ', CPF do Aluno' : ', CPF do Responsável'})`);
       return;
     }
 
@@ -259,7 +263,6 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                     <div>
                       <label className="block text-[8px] font-bold uppercase">CPF</label>
                       <input 
-                        required
                         type="text" 
                         className="w-full bg-white border border-black px-2 py-1 text-xs focus:outline-none"
                         value={formData.cpf}
