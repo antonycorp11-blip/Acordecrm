@@ -366,6 +366,20 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                         </div>
                     </div>
                 )}
+                {formData.pacote_id && (
+                    <div className="mt-2 bg-white border border-black p-2">
+                        <label className="block text-[7px] font-bold uppercase text-blue-700">Primeiro Pagamento</label>
+                        <input 
+                            type="date" 
+                            className="w-full bg-transparent border-none text-[10px] font-black outline-none" 
+                            value={formData.data_primeira_parcela}
+                            onChange={(e) => {
+                                setFormData({...formData, data_primeira_parcela: e.target.value, dia_vencimento: e.target.value.split('-')[2]});
+                            }}
+                        />
+                        <p className="text-[6px] uppercase mt-1">A data selecionada ajustará o vencimento e os próximos pagamentos.</p>
+                    </div>
+                )}
               </div>
 
               {/* Legacy Migration */}
@@ -465,15 +479,22 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                 </div>
 
                 {/* Calendar Controls */}
-                <div className="flex items-center justify-between mb-2 bg-gray-100 border border-black p-1">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setSemanaOffset(o => o - 1)} className="border-2 border-black px-2 py-0.5 hover:bg-black hover:text-white text-[12px] font-black">&lt;</button>
-                    <div className="font-black uppercase text-[12px] px-4 min-w-[280px] text-center border-x border-black bg-white py-0.5">
-                      {getDisplayDate(0).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
+                <div className="flex flex-col gap-2 mb-2 bg-gray-100 border border-black p-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setSemanaOffset(o => o - 1)} className="border-2 border-black px-2 py-0.5 hover:bg-black hover:text-white text-[12px] font-black">&lt;</button>
+                      <div className="font-black uppercase text-[12px] px-4 min-w-[280px] text-center border-x border-black bg-white py-0.5">
+                        {getDisplayDate(0).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
+                      </div>
+                      <button onClick={() => setSemanaOffset(o => o + 1)} className="border-2 border-black px-2 py-0.5 hover:bg-black hover:text-white text-[12px] font-black">&gt;</button>
                     </div>
-                    <button onClick={() => setSemanaOffset(o => o + 1)} className="border-2 border-black px-2 py-0.5 hover:bg-black hover:text-white text-[12px] font-black">&gt;</button>
+                    <button onClick={() => setSemanaOffset(0)} className="bg-[#FF8A00] text-black font-black text-[10px] px-4 py-1 border-2 border-black shadow-hard hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all">HOJE</button>
                   </div>
-                  <button onClick={() => setSemanaOffset(0)} className="bg-[#FF8A00] text-black font-black text-[10px] px-4 py-1 border-2 border-black shadow-hard hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all">HOJE</button>
+                  {formData.dia_semana && formData.horario && (
+                    <div className="bg-white border-2 border-dashed border-[#00FF41] p-1 text-center">
+                      <span className="text-[10px] font-black uppercase text-black">A primeira aula começará dia: <span className="text-[#00FF41] bg-black px-1">{new Date(formData.dia_semana + 'T12:00:00').toLocaleDateString('pt-BR')}</span></span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Seletor Rápido de Dia da Semana */}

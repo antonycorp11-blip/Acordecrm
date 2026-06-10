@@ -378,9 +378,17 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas }: { fin
       <FinanceiroTracker financeiro={financeiro} total={total_parcelas || financeiro.length} />
       
       <Card className="overflow-hidden p-0">
-        <div className="p-4 border-b-4 border-black bg-black flex items-center justify-between">
-          <h3 className="font-black text-white uppercase text-[10px] tracking-widest">Extrato de Faturas</h3>
-          <Badge color="bege">{pendentes.length} PENDENTES</Badge>
+        <div className="p-4 border-b-4 border-black bg-black flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <h3 className="font-black text-white uppercase text-[10px] tracking-widest">Extrato de Faturas</h3>
+            <Badge color="bege">{pendentes.length} PENDENTES</Badge>
+          </div>
+          <button 
+            onClick={() => setRemanejarModal(true)}
+            className="bg-[#ff6b00] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-white shadow-[2px_2px_0_#fff] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+          >
+            Remanejar Pagamentos Pendentes
+          </button>
         </div>
         
         <div className="overflow-x-auto">
@@ -439,6 +447,30 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas }: { fin
           </table>
         </div>
       </Card>
+
+      {/* Modal Remanejar Pagamentos */}
+      <AnimatePresence>
+        {remanejarModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <Card className="w-full max-w-sm p-8 space-y-6">
+              <div className="flex items-center justify-between border-b-2 border-black pb-4">
+                <h2 className="text-xl font-black text-black uppercase italic">REMANEJAR</h2>
+                <button onClick={() => setRemanejarModal(false)}><X className="w-6 h-6" /></button>
+              </div>
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold text-[#8e7164] uppercase">Esta ação excluirá as {pendentes.length} faturas pendentes atuais e recriará todas a partir da nova data escolhida.</p>
+                <div>
+                  <label className="text-[9px] font-black text-black uppercase block mb-1">Nova Data de Início</label>
+                  <input type="date" value={novaDataInicio} onChange={e => setNovaDataInicio(e.target.value)} className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" />
+                </div>
+              </div>
+              <Button onClick={handleRemanejarPagamentos} disabled={saving} className="w-full">
+                {saving ? 'REMANEJANDO...' : 'CONFIRMAR E REGERAR'}
+              </Button>
+            </Card>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal Baixa */}
       <AnimatePresence>
@@ -516,6 +548,28 @@ export default function AlunoPerfil() {
   const [cursos, setCursos] = useState<any[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAgendaList, setShowAgendaList] = useState(false);
+  const [remanejarAulasModal, setRemanejarAulasModal] = useState(false);
+  const [novaDataAulas, setNovaDataAulas] = useState('');
+  
+  const handleRemanejarAulas = async () => {
+    if (!novaDataAulas) return;
+    setSaving(true);
+    try {
+        const token = localStorage.getItem('acorde_token');
+        await fetch(`/api/alunos/${id}/remanejar-aulas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ nova_data_inicio: novaDataAulas })
+        });
+        setRemanejarAulasModal(false);
+        fetchData();
+        toast.success('Aulas remanejadas com sucesso!');
+    } catch (e) {
+        toast.error('Erro ao remanejar');
+    } finally {
+        setSaving(false);
+    }
+  };
 
   // Reagendamento
   const [rescheduleModal, setRescheduleModal] = useState<{ open: boolean, aulaId: string | null, type: 'emergencial' | 'permanente', data: string, horario: string }>({ open: false, aulaId: null, type: 'emergencial', data: '', horario: '' });
@@ -866,9 +920,17 @@ export default function AlunoPerfil() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-4">
                 <h2 className="text-xl font-black text-black uppercase italic">Aulas do Aluno</h2>
-                <Button onClick={() => setShowAgendaList(!showAgendaList)} variant="dark">
-                  {showAgendaList ? 'VER CALENDÁRIOS' : 'VER LISTA TRADICIONAL'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setRemanejarAulasModal(true)}
+                    className="bg-[#ff6b00] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-white shadow-[2px_2px_0_#fff] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+                  >
+                    Remanejar Aulas
+                  </button>
+                  <Button onClick={() => setShowAgendaList(!showAgendaList)} variant="dark">
+                    {showAgendaList ? 'VER CALENDÁRIOS' : 'VER LISTA TRADICIONAL'}
+                  </Button>
+                </div>
               </div>
 
               {!showAgendaList ? (
@@ -1099,6 +1161,30 @@ export default function AlunoPerfil() {
                    <Button className="flex-1" onClick={handleSaveEdit}>SALVAR_ALTERAÇÕES</Button>
                 </div>
              </Card>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Remanejar Aulas */}
+      <AnimatePresence>
+        {remanejarAulasModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <Card className="w-full max-w-sm p-8 space-y-6">
+              <div className="flex items-center justify-between border-b-2 border-black pb-4">
+                <h2 className="text-xl font-black text-black uppercase italic">REMANEJAR AULAS</h2>
+                <button onClick={() => setRemanejarAulasModal(false)}><X className="w-6 h-6" /></button>
+              </div>
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold text-[#8e7164] uppercase">Esta ação excluirá as aulas pendentes atuais e recriará todas a partir da nova data escolhida, respeitando os intervalos de 7 dias e mudando o dia da semana atual se necessário.</p>
+                <div>
+                  <label className="text-[9px] font-black text-black uppercase block mb-1">Nova Data de Início</label>
+                  <input type="date" value={novaDataAulas} onChange={e => setNovaDataAulas(e.target.value)} className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" />
+                </div>
+              </div>
+              <Button onClick={handleRemanejarAulas} disabled={saving} className="w-full">
+                {saving ? 'REMANEJANDO...' : 'CONFIRMAR E REGERAR'}
+              </Button>
+            </Card>
           </div>
         )}
       </AnimatePresence>
