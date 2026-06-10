@@ -1947,7 +1947,7 @@ async function startServer() {
             }
 
             let query = supabase.from('aulas')
-                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos(nome, status), professores(nome), cursos(nome)')
+                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos(nome, status), professores(nome), cursos(nome), matriculas(status)')
                 .order('data', { ascending: true });
             
             if (start) query = query.gte('data', start);
@@ -1960,7 +1960,10 @@ async function startServer() {
             
             const aulas = (rawAulas || []).filter((a: any) => {
                 const aluno = Array.isArray(a.alunos) ? a.alunos[0] : a.alunos;
-                return !aluno || aluno.status !== 'arquivado';
+                const matricula = Array.isArray(a.matriculas) ? a.matriculas[0] : a.matriculas;
+                const isAlunoArquivado = aluno && aluno.status === 'arquivado';
+                const isMatriculaArquivada = matricula && matricula.status === 'arquivada';
+                return !isAlunoArquivado && !isMatriculaArquivada;
             });
             console.log(`[AGENDA] Retornadas ${aulas.length} aulas regulares`);
 
