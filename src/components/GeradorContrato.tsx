@@ -99,7 +99,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   };
 
   const handlePrintPdf = useReactToPrint({
-    content: () => printRef.current,
+    contentRef: printRef,
     documentTitle: `Contrato_${aluno.nome.replace(/\s+/g, '_')}`,
   });
 
