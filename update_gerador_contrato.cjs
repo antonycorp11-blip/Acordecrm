@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+const fs = require('fs');
+
+const content = `import React, { useState, useEffect, useRef } from 'react';
 import { X, Printer, Plus, Trash2, Edit2, Check, Save, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -53,7 +55,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   const fetchTemplate = async () => {
     try {
       const res = await fetch('/api/contratos/template', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Authorization': \`Bearer \${localStorage.getItem('token')}\` }
       });
       if (res.ok) {
         const data = await res.json();
@@ -75,7 +77,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': \`Bearer \${localStorage.getItem('token')}\`
         },
         body: JSON.stringify({ clausulas })
       });
@@ -110,7 +112,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
 
     const opt = {
       margin:       10,
-      filename:     `Contrato_${aluno.nome.replace(/\s+/g, '_')}.pdf`,
+      filename:     \`Contrato_\${aluno.nome.replace(/\\s+/g, '_')}.pdf\`,
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2 },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -153,7 +155,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': \`Bearer \${localStorage.getItem('token')}\`
         },
         body: JSON.stringify({
           aluno_id: aluno.id,
@@ -380,3 +382,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/GeradorContrato.tsx', content);
+console.log('Updated GeradorContrato.tsx');

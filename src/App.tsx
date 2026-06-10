@@ -21,6 +21,7 @@ import Register from './pages/Register';
 import Usuarios from './pages/Usuarios';
 import Migracao from './pages/Migracao';
 import { Reposicoes } from './pages/Reposicoes';
+import Assinatura from './pages/Assinatura';
 
 import { Toaster } from 'sonner';
 
@@ -80,6 +81,7 @@ export default function App() {
           {/* Rotas Públicas */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/assinatura/:id" element={<Assinatura />} />
 
           {/* Rotas Privadas */}
           <Route path="/*" element={
