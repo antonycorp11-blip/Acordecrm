@@ -332,7 +332,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
               <strong>CONTRATADA:</strong> STUDIO ACORDE ESCOLA DE MUSICA LTDA, inscrita no CNPJ/MF sob o nº 55.273.720/0001-12, com sede à AV NEWTON RABELLO, nº 26, Pedra 90, Cuiabá - MT.
             </p>
             <p style={{ marginBottom: '10px' }}>
-              <strong>CONTRATANTE:</strong> {aluno.nome}, representado(a) neste ato por seu Responsável Legal, <strong>{novoResponsavel || '_____________________________________'}</strong>, portador(a) do RG nº <strong>{novoRg || '___________'}</strong>, inscrito(a) no CPF/MF sob o nº <strong>{novoCpf || '_________________'}</strong>, residente e domiciliado à <strong>{novoEndereco || '_____________________________________'}</strong>.
+              <strong>CONTRATANTE:</strong> {aluno.nome}, representado(a) neste ato por seu Responsável Legal, <strong>{novoResponsavel || '_____________________________________'}</strong>, inscrito(a) no CPF/MF sob o nº <strong>{novoCpf || '_________________'}</strong>, residente e domiciliado à <strong>{novoEndereco || '_____________________________________'}</strong>.
             </p>
             <p style={{ marginBottom: '10px' }}>
               <strong>CURSO CONTRATADO:</strong> O objeto deste instrumento é o ensino de <strong>{cursoNome}</strong>, sendo <strong>{qtdAulas}</strong>, com duração de <strong>{duracaoAula}</strong> cada.
