@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 import { toast } from 'sonner';
+import { useReactToPrint } from 'react-to-print';
 
 interface GeradorContratoProps {
   aluno: any;
@@ -97,10 +98,10 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
     return tempDiv.innerHTML;
   };
 
-  const handlePrintPdf = () => {
-    // Usar window.print() com estilos de impressão aprimorados no CSS Global
-    window.print();
-  };
+  const handlePrintPdf = useReactToPrint({
+    content: () => printRef.current,
+    documentTitle: `Contrato_${aluno.nome.replace(/\s+/g, '_')}`,
+  });
 
   const handleSendEmail = async () => {
     if (!novoEmail) return toast.error("Preencha o e-mail do aluno para enviar.");
@@ -312,8 +313,8 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
       </div>
 
       {/* Conteúdo Oculto para Geração de PDF e Captura HTML */}
-      <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:z-[9999] print:w-full print:h-full print:m-0 print:p-0">
-        <div ref={printRef} className="print:w-[210mm] print:mx-auto print:p-[20mm] print:bg-white" style={{ padding: '20px', fontFamily: 'serif', fontSize: '12px', lineHeight: '1.5', color: '#000', backgroundColor: '#fff' }}>
+      <div className="fixed opacity-0 pointer-events-none z-[-1]">
+        <div ref={printRef} className="bg-white p-8" style={{ width: '800px', fontFamily: 'serif', fontSize: '14px', lineHeight: '1.5', color: '#000', backgroundColor: '#fff' }}>
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 5px 0' }}>STUDIO ACORDE ESCOLA DE MÚSICA</h1>
             <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>CONTRATO DE PRESTAÇÃO DE SERVIÇOS MUSICAIS</h2>

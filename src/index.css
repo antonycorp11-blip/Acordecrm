@@ -181,8 +181,3 @@
 
 
 
-@media print {
-  @page { margin: 0; size: A4 portrait; }
-  body { margin: 0; background-color: #fff !important; }
-  body > *:not(.fixed) { display: none !important; } /* Hide all non-fixed elements */
-}
