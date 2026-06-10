@@ -98,27 +98,8 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   };
 
   const handlePrintPdf = () => {
-    if (!printRef.current) return;
-    const element = printRef.current;
-    
-    // Clonar o elemento para gerar PDF oculto
-    const clone = element.cloneNode(true) as HTMLElement;
-    clone.style.display = 'block';
-    clone.style.width = '800px';
-    clone.style.padding = '40px';
-    document.body.appendChild(clone);
-
-    const opt = {
-      margin:       10,
-      filename:     `Contrato_${aluno.nome.replace(/\s+/g, '_')}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    html2pdf().from(clone).set(opt).save().then(() => {
-      document.body.removeChild(clone);
-    });
+    // Usar window.print() com estilos de impressão aprimorados no CSS Global
+    window.print();
   };
 
   const handleSendEmail = async () => {
@@ -331,8 +312,8 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
       </div>
 
       {/* Conteúdo Oculto para Geração de PDF e Captura HTML */}
-      <div className="hidden">
-        <div ref={printRef} style={{ padding: '20px', fontFamily: 'serif', fontSize: '12px', lineHeight: '1.5', color: '#000', backgroundColor: '#fff' }}>
+      <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:z-[9999] print:w-full print:h-full print:m-0 print:p-0">
+        <div ref={printRef} className="print:w-[210mm] print:mx-auto print:p-[20mm] print:bg-white" style={{ padding: '20px', fontFamily: 'serif', fontSize: '12px', lineHeight: '1.5', color: '#000', backgroundColor: '#fff' }}>
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 5px 0' }}>STUDIO ACORDE ESCOLA DE MÚSICA</h1>
             <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>CONTRATO DE PRESTAÇÃO DE SERVIÇOS MUSICAIS</h2>
