@@ -761,7 +761,7 @@ async function startServer() {
         try {
             const { data, error } = await supabase
                 .from('alunos')
-                .select('*, matriculas(*, cursos(nome))')
+                .select('*, matriculas(*, cursos(nome)), contratos(id)')
                 .eq('id', req.params.id)
                 .single();
             if (error) throw error;
