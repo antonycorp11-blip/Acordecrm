@@ -1271,7 +1271,11 @@ async function startServer() {
 
             // 1. Criar Aluno
             const { data: aluno, error: errA } = await supabase.from('alunos').insert([{ 
-                nome, email, telefone, cpf, endereco,
+                nome, 
+                email: email || null, 
+                telefone: telefone || null, 
+                cpf: cpf || null, 
+                endereco: endereco || null,
                 data_nascimento: req.body.data_nascimento || null,
                 responsavel_nome: req.body.responsavel_nome || null,
                 responsavel_telefone: req.body.responsavel_telefone || null,
@@ -1362,9 +1366,9 @@ async function startServer() {
             }
 
             res.json({ id: aluno.id });
-        } catch (error) { 
+        } catch (error: any) { 
             console.error(error);
-            res.status(500).json({ error: 'Erro ao cadastrar aluno, aulas e parcelas' }); 
+            res.status(500).json({ error: 'Erro ao cadastrar aluno, aulas e parcelas', details: error.message || error }); 
         }
     });
 
