@@ -2825,10 +2825,15 @@ async function startServer() {
     app.post('/api/drive/upload-url', async (req, res) => {
         try {
             const { filename, mimeType } = req.body;
-            const auth = new GoogleAuth({
-                keyFile: './google-credentials.json',
-                scopes: ['https://www.googleapis.com/auth/drive.file']
-            });
+            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+            let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
+            if (credsStr) {
+                authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+            } else {
+                authOptions.keyFile = './google-credentials.json';
+            }
+            const auth = new GoogleAuth(authOptions);
             const client = await auth.getClient();
             const token = await client.getAccessToken();
 
@@ -2863,10 +2868,15 @@ async function startServer() {
     app.post('/api/drive/finish-upload', async (req, res) => {
         try {
             const { fileId } = req.body;
-            const auth = new GoogleAuth({
-                keyFile: './google-credentials.json',
-                scopes: ['https://www.googleapis.com/auth/drive.file']
-            });
+            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+            let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
+            if (credsStr) {
+                authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+            } else {
+                authOptions.keyFile = './google-credentials.json';
+            }
+            const auth = new GoogleAuth(authOptions);
             const client = await auth.getClient();
             const token = await client.getAccessToken();
 
