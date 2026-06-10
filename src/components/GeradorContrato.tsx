@@ -62,6 +62,22 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
     fetchTemplate();
   }, []);
 
+  useEffect(() => {
+    if (isOpen && aluno) {
+      setNovoResponsavel(aluno.responsavel_nome || "");
+      setNovoCpf(aluno.responsavel_cpf || aluno.cpf || "");
+      setNovoEndereco(aluno.endereco || "");
+      setNovoEmail(aluno.email || "");
+      
+      const matricula = aluno.matriculas?.[0];
+      setValorPlano(matricula?.valor_parcela?.toString() || "370");
+      setQtdParcelas(matricula?.total_parcelas?.toString() || "6");
+      setDiaVencimento(matricula?.dia_vencimento?.toString() || "10");
+      setCursoNome(matricula?.cursos?.nome || "Música");
+    }
+  }, [isOpen, aluno]);
+
+
   const fetchTemplate = async () => {
     try {
       const res = await fetch('/api/contratos/template', {
