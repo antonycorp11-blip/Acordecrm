@@ -2973,7 +2973,8 @@ async function startServer() {
                 headers: {
                     'Authorization': `Bearer ${token.token}`,
                     'Content-Type': 'application/json',
-                    'X-Upload-Content-Type': mimeType
+                    'X-Upload-Content-Type': mimeType,
+                    'Origin': req.headers.origin || 'https://acordecrm.vercel.app'
                 },
                 body: JSON.stringify(metadata)
             });
