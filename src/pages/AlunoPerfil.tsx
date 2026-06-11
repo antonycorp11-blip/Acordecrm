@@ -317,7 +317,7 @@ function MonthlyCalendar({ monthStr, aulas, onUpdateAttendance }: { monthStr: st
 
 // --- TABS ---
 
-function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas }: { financeiro: any[], alunoId: string, onRefresh: () => void, total_parcelas?: number }) {
+function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas, onOpenRemanejar }: { financeiro: any[], alunoId: string, onRefresh: () => void, total_parcelas?: number, onOpenRemanejar: () => void }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState('');
   const [saving, setSaving] = useState(false);
@@ -384,7 +384,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas }: { fin
             <Badge color="bege">{pendentes.length} PENDENTES</Badge>
           </div>
           <button 
-            onClick={() => setRemanejarModal(true)}
+            onClick={() => onOpenRemanejar()}
             className="bg-[#ff6b00] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-white shadow-[2px_2px_0_#fff] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
           >
             Remanejar Pagamentos Pendentes
@@ -448,30 +448,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas }: { fin
         </div>
       </Card>
 
-      {/* Modal Remanejar Pagamentos */}
-      <AnimatePresence>
-        {remanejarModal && (
-          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-            <Card className="w-full max-w-sm p-8 space-y-6">
-              <div className="flex items-center justify-between border-b-2 border-black pb-4">
-                <h2 className="text-xl font-black text-black uppercase italic">REMANEJAR</h2>
-                <button onClick={() => setRemanejarModal(false)}><X className="w-6 h-6" /></button>
-              </div>
-              <div className="space-y-4">
-                <p className="text-[10px] font-bold text-[#8e7164] uppercase">Esta ação excluirá as {pendentes.length} faturas pendentes atuais e recriará todas a partir da nova data escolhida.</p>
-                <div>
-                  <label className="text-[9px] font-black text-black uppercase block mb-1">Nova Data de Início</label>
-                  <input type="date" value={novaDataInicio} onChange={e => setNovaDataInicio(e.target.value)} className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" />
-                </div>
-              </div>
-              <Button onClick={handleRemanejarPagamentos} disabled={saving} className="w-full">
-                {saving ? 'REMANEJANDO...' : 'CONFIRMAR E REGERAR'}
-              </Button>
-            </Card>
-          </div>
-        )}
-      </AnimatePresence>
-
+      
       {/* Modal Baixa */}
       <AnimatePresence>
         {baixaModal.open && (
@@ -548,6 +525,28 @@ export default function AlunoPerfil() {
   const [cursos, setCursos] = useState<any[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAgendaList, setShowAgendaList] = useState(false);
+  const [remanejarModal, setRemanejarModal] = useState(false);
+  const [novaDataInicio, setNovaDataInicio] = useState('');
+  
+  const handleRemanejarPagamentos = async () => {
+    if (!novaDataInicio) return;
+    setSaving(true);
+    try {
+        const token = localStorage.getItem('acorde_token');
+        await fetch(`/api/alunos/${id}/remanejar-pagamentos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ nova_data_inicio: novaDataInicio })
+        });
+        setRemanejarModal(false);
+        fetchData();
+        toast.success('Pagamentos remanejados com sucesso!');
+    } catch (e) {
+        toast.error('Erro ao remanejar');
+    } finally {
+        setSaving(false);
+    }
+  };
   const [remanejarAulasModal, setRemanejarAulasModal] = useState(false);
   const [novaDataAulas, setNovaDataAulas] = useState('');
   
@@ -1023,7 +1022,7 @@ export default function AlunoPerfil() {
             </motion.div>
           )}
 
-          {activeTab === 'financeiro' && <FinanceiroTab financeiro={financeiro} alunoId={id!} total_parcelas={aluno?.matriculas?.[0]?.total_parcelas} onRefresh={() => {
+          {activeTab === 'financeiro' && <FinanceiroTab financeiro={financeiro} alunoId={id!} total_parcelas={aluno?.matriculas?.[0]?.total_parcelas} onOpenRemanejar={() => setRemanejarModal(true)} onRefresh={() => {
               fetch(`/api/alunos/${id}/financeiro`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` } })
                 .then(r => r.json()).then(setFinanceiro);
           }} />}
@@ -1180,6 +1179,30 @@ export default function AlunoPerfil() {
                    <Button className="flex-1" onClick={handleSaveEdit}>SALVAR_ALTERAÇÕES</Button>
                 </div>
              </Card>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Remanejar Pagamentos */}
+      <AnimatePresence>
+        {remanejarModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+            <Card className="w-full max-w-sm p-8 space-y-6">
+              <div className="flex items-center justify-between border-b-2 border-black pb-4">
+                <h2 className="text-xl font-black text-black uppercase italic">REMANEJAR PAGAMENTOS</h2>
+                <button onClick={() => setRemanejarModal(false)}><X className="w-6 h-6" /></button>
+              </div>
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold text-[#8e7164] uppercase">Esta ação excluirá as faturas pendentes e recriará todas a partir da nova data.</p>
+                <div>
+                  <label className="text-[9px] font-black text-black uppercase block mb-1">Nova Data de Início</label>
+                  <input type="date" value={novaDataInicio} onChange={e => setNovaDataInicio(e.target.value)} className="w-full bg-white border-4 border-black p-3 font-black text-sm outline-none" />
+                </div>
+              </div>
+              <Button onClick={handleRemanejarPagamentos} disabled={saving} className="w-full">
+                {saving ? 'REMANEJANDO...' : 'CONFIRMAR E REGERAR'}
+              </Button>
+            </Card>
           </div>
         )}
       </AnimatePresence>
