@@ -824,7 +824,7 @@ export default function AreaAluno() {
       });
       
       if (!urlRes.ok) throw new Error('Falha ao gerar link seguro de upload no Google Drive.');
-      const { uploadUrl } = await urlRes.json();
+      const { uploadUrl, accessToken } = await urlRes.json();
       
       setUploadProgress(40);
       
@@ -832,7 +832,10 @@ export default function AreaAluno() {
       const driveRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: videoBlob,
-          headers: { 'Content-Type': mime }
+          headers: { 
+              'Content-Type': mime,
+              'Authorization': `Bearer ${accessToken}`
+          }
       });
       
       if (!driveRes.ok) throw new Error('Falha ao enviar arquivo para a nuvem.');

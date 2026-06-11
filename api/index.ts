@@ -2985,7 +2985,7 @@ async function startServer() {
             }
 
             const resumableUrl = response.headers.get('Location');
-            res.json({ uploadUrl: resumableUrl });
+            res.json({ uploadUrl: resumableUrl, accessToken: token.token });
         } catch (error: any) {
             console.error('Drive API Error:', error);
             res.status(500).json({ error: error.message });
