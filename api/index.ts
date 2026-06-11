@@ -2936,7 +2936,14 @@ async function startServer() {
             
             await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
 
-            sendPushNotification(titulo, mensagem);
+            const { data: profs } = await supabase.from('professores').select('id, email');
+            if (profs && profs.length > 0) {
+                for (const p of profs) {
+                    await sendPushNotification(titulo, mensagem, String(p.id), p.email);
+                }
+            } else {
+                await sendPushNotification(titulo, mensagem);
+            }
 
             res.json({ success: true, data: treino });
         } catch (error: any) {
@@ -3125,7 +3132,14 @@ async function startServer() {
             
             await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
 
-            sendPushNotification(titulo, mensagem);
+            const { data: profs } = await supabase.from('professores').select('id, email');
+            if (profs && profs.length > 0) {
+                for (const p of profs) {
+                    await sendPushNotification(titulo, mensagem, String(p.id), p.email);
+                }
+            } else {
+                await sendPushNotification(titulo, mensagem);
+            }
 
             res.json({ success: true, url, data: updatedTreino });
         } catch (error: any) {
@@ -3225,7 +3239,14 @@ async function startServer() {
 
             await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'confirmacao', aluno_id: aluno.id }]);
 
-            sendPushNotification(titulo, mensagem);
+            const { data: profs } = await supabase.from('professores').select('id, email');
+            if (profs && profs.length > 0) {
+                for (const p of profs) {
+                    await sendPushNotification(titulo, mensagem, String(p.id), p.email);
+                }
+            } else {
+                await sendPushNotification(titulo, mensagem);
+            }
 
             res.json({ success: true, data: aula });
         } catch (error: any) {
