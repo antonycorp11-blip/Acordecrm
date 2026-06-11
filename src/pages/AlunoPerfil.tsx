@@ -1156,6 +1156,25 @@ export default function AlunoPerfil() {
                        />
                     </div>
                 </div>
+
+                <div className="mt-8 p-4 border-4 border-black bg-[#ff6b00]">
+                   <h3 className="text-white font-black uppercase text-lg italic mb-2 tracking-widest">REMANEJAMENTO DE DATAS</h3>
+                   <p className="text-white text-[10px] font-bold uppercase mb-4">Use os botões abaixo se precisar alterar o dia de início das cobranças ou aulas pendentes.</p>
+                   <div className="flex flex-col sm:flex-row gap-4">
+                     <button 
+                       onClick={(e) => { e.preventDefault(); setIsEditModalOpen(false); setActiveTab('financeiro'); setRemanejarModal(true); }}
+                       className="flex-1 bg-black text-white p-3 font-black uppercase text-xs border-2 border-white shadow-[4px_4px_0_#fff] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+                     >
+                       REMANEJAR PAGAMENTOS PENDENTES
+                     </button>
+                     <button 
+                       onClick={(e) => { e.preventDefault(); setIsEditModalOpen(false); setActiveTab('agenda'); setRemanejarAulasModal(true); }}
+                       className="flex-1 bg-white text-black p-3 font-black uppercase text-xs border-2 border-black shadow-[4px_4px_0_#000] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+                     >
+                       REMANEJAR AULAS PENDENTES
+                     </button>
+                   </div>
+                </div>
                 <div className="flex gap-4 mt-8">
                    <Button variant="secondary" className="flex-1" onClick={() => setIsEditModalOpen(false)}>CANCELAR</Button>
                    <Button className="flex-1" onClick={handleSaveEdit}>SALVAR_ALTERAÇÕES</Button>
