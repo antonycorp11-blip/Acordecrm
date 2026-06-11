@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle } from 'lucide-react';
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
@@ -814,47 +818,21 @@ export default function AreaAluno() {
       let finalVideoUrl = '';
       setUploadProgress(20);
       
-      // 1. Pede URL de Upload do Google Drive pro backend
+      // Upload directly to Supabase Storage
       const nomeAlunoSafe = (alunoData?.nome || 'Aluno').replace(/[^a-zA-Z0-9]/g, '_');
       const filename = `Treino_${nomeAlunoSafe}_${Date.now()}.${extensao}`;
-      const urlRes = await fetch('/api/drive/upload-url', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename, mimeType: mime })
+      
+      const { error } = await supabase.storage.from('videos').upload(filename, videoBlob, {
+          contentType: mime,
+          upsert: true
       });
       
-      if (!urlRes.ok) throw new Error('Falha ao gerar link seguro de upload no Google Drive.');
-      const { uploadUrl, accessToken } = await urlRes.json();
-      
-      setUploadProgress(40);
-      
-      // 2. Faz o PUT direto no Google Drive
-      const driveRes = await fetch(uploadUrl, {
-          method: 'PUT',
-          body: videoBlob,
-          headers: { 
-              'Content-Type': mime,
-              'Authorization': `Bearer ${accessToken}`
-          }
-      });
-      
-      if (!driveRes.ok) throw new Error('Falha ao enviar arquivo para a nuvem.');
+      if (error) throw new Error('Falha ao enviar arquivo para a nuvem.');
       
       setUploadProgress(80);
       
-      const driveData = await driveRes.json();
-      const fileId = driveData.id;
-      
-      // 3. Finaliza no backend para dar permissão pública e pegar o webViewLink
-      const finishRes = await fetch('/api/drive/finish-upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileId })
-      });
-      
-      if (!finishRes.ok) throw new Error('Falha ao gerar link público do vídeo.');
-      const finishData = await finishRes.json();
-      finalVideoUrl = finishData.url;
+      const { data: publicUrlData } = supabase.storage.from('videos').getPublicUrl(filename);
+      finalVideoUrl = publicUrlData.publicUrl;
 
       setUploadProgress(85);
       
