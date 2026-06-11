@@ -525,6 +525,7 @@ export default function AlunoPerfil() {
   const [cursos, setCursos] = useState<any[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAgendaList, setShowAgendaList] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [remanejarModal, setRemanejarModal] = useState(false);
   const [novaDataInicio, setNovaDataInicio] = useState('');
   
