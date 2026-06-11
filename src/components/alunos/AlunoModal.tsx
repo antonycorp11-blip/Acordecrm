@@ -366,8 +366,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                         </div>
                     </div>
                 )}
-                {formData.pacote_id && (
-                    <div className="mt-2 bg-white border border-black p-2">
+                <div className="mt-2 bg-white border border-black p-2">
                         <label className="block text-[7px] font-bold uppercase text-blue-700">Primeiro Pagamento</label>
                         <input 
                             type="date" 
@@ -379,7 +378,6 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                         />
                         <p className="text-[6px] uppercase mt-1">A data selecionada ajustará o vencimento e os próximos pagamentos.</p>
                     </div>
-                )}
               </div>
 
               {/* Legacy Migration */}
