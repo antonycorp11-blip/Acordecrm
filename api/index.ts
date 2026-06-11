@@ -3098,9 +3098,9 @@ async function startServer() {
 
             if (treino.video_url && treino.video_url !== url) {
                 try {
-                    const oldPath = treino.video_url.split('/uploads/')[1];
+                    const oldPath = treino.video_url.split('/videos/')[1];
                     if (oldPath) {
-                        await supabase.storage.from('uploads').remove([oldPath]);
+                        await supabase.storage.from('videos').remove([oldPath]);
                     }
                 } catch (e) {
                     console.error('Erro ao deletar vídeo antigo do storage:', e);
@@ -3149,9 +3149,9 @@ async function startServer() {
                 console.log(`[TREINO_VIDEO_CLEANUP] Limpando ${expirados.length} vídeos com mais de 24h...`);
                 for (const item of expirados) {
                     try {
-                        const filePath = item.video_url.split('/uploads/')[1];
+                        const filePath = item.video_url.split('/videos/')[1];
                         if (filePath) {
-                            await supabase.storage.from('uploads').remove([filePath]);
+                            await supabase.storage.from('videos').remove([filePath]);
                         }
                         await supabase
                             .from('aluno_treinos')
