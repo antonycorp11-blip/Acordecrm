@@ -2795,14 +2795,25 @@ async function startServer() {
         }
 
         try {
+            let finalExternalId = targetUserId ? String(targetUserId) : null;
+            
+            // FIX CRÍTICO: O OneSignal usa o ID da tabela 'usuarios', mas o sistema muitas vezes 
+            // passa o ID da tabela 'alunos' ou 'professores'. Vamos buscar o ID real via email!
+            if (emailTo) {
+                const { data: realUser } = await supabase.from('usuarios').select('id').ilike('email', emailTo.trim()).maybeSingle();
+                if (realUser) {
+                    finalExternalId = String(realUser.id);
+                }
+            }
+
             const bodyPayload: any = {
                 app_id: appId,
                 headings: { en: titulo, pt: titulo },
                 contents: { en: mensagem, pt: mensagem }
             };
 
-            if (targetUserId) {
-                bodyPayload.include_aliases = { external_id: [String(targetUserId)] };
+            if (finalExternalId) {
+                bodyPayload.include_aliases = { external_id: [finalExternalId] };
                 bodyPayload.target_channel = "push";
             } else {
                 bodyPayload.included_segments = ['Subscribed Users'];
