@@ -57,7 +57,7 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
           <h3 className="text-[#ffeb3b] font-black uppercase text-xl tracking-widest flex items-center gap-2 drop-shadow-md">
             <span>🛒</span> LOJA PREMIUM
           </h3>
-          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider ml-8">Temporada 1</span>
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider ml-8">Temporada 1 - Fundação</span>
         </div>
 
         <div className="flex items-start gap-4">
@@ -115,7 +115,7 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
                     
                     {/* Tags UI */}
                     <div className="absolute top-2 left-2 z-30 flex flex-col gap-1 items-start">
-                      <span className="bg-black/90 text-white text-[7px] font-black px-1.5 py-0.5 border border-white/20 uppercase tracking-widest shadow-md">Temp. 1</span>
+                      <span className="bg-black/90 text-white text-[7px] font-black px-1.5 py-0.5 border border-white/20 uppercase tracking-widest shadow-md">Temp. 1 Fundação</span>
                       <span className={`text-[8px] font-black px-1.5 py-0.5 border uppercase tracking-widest shadow-md ${getRarityTagClass(item.rarity)}`}>
                         {item.rarity}
                       </span>

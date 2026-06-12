@@ -116,9 +116,10 @@ export const INSTRUMENTS: AvatarInstrument[] = [
 ];
 
 export const BACKGROUNDS: AvatarBackground[] = [
-  { id: 'bg_1', name: 'Quarto de Estudos', rarity: 'Raro', price: 50, url: placeholderSvg('%231e293b', 'Quarto') },
-  { id: 'bg_2', name: 'Estúdio de Gravação', rarity: 'Épico', price: 150, url: placeholderSvg('%230f172a', 'Estúdio') },
-  { id: 'bg_3', name: 'Palco de Show', rarity: 'Lendário', price: 400, url: placeholderSvg('%23000000', 'Palco Show') },
+  { id: 'bg_1', name: 'Estúdio de Ensaio', rarity: 'Comum', price: 0, url: '/assets/backgrounds/bg_1.jpg' },
+  { id: 'bg_2', name: 'Palco de Rock', rarity: 'Raro', price: 150, url: '/assets/backgrounds/bg_2.jpg' },
+  { id: 'bg_3', name: 'Cidade Cyberpunk', rarity: 'Épico', price: 400, url: '/assets/backgrounds/bg_3.jpg' },
+  { id: 'bg_4', name: 'Floresta Encantada', rarity: 'Lendário', price: 800, url: '/assets/backgrounds/bg_4.jpg' },
 ];
 
 export const FONTS: AvatarRankingFont[] = [
