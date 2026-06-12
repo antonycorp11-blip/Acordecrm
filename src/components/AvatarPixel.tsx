@@ -20,10 +20,10 @@ export const AvatarPixel: React.FC<AvatarPixelProps> = ({ config }) => {
   const skinUrl = skin.url;
 
   return (
-    <div className="w-full h-full relative group overflow-hidden">
+    <div className="w-full h-full relative group overflow-visible">
       {/* Background Layer (Z-0) */}
       <div 
-        className="absolute inset-0 z-0 bg-cover bg-center"
+        className="absolute inset-0 z-0 bg-cover bg-center overflow-hidden"
         style={{ backgroundImage: `url("${background.url}")` }}
       />
       
@@ -31,7 +31,7 @@ export const AvatarPixel: React.FC<AvatarPixelProps> = ({ config }) => {
       <img 
         src={skinUrl} 
         alt="Avatar Skin" 
-        className="absolute inset-0 z-10 w-full h-full object-cover"
+        className="absolute inset-0 z-10 w-full h-full object-contain object-bottom"
       />
 
       {/* Instrument Layer (Z-20) - Floating at bottom right */}
@@ -39,7 +39,7 @@ export const AvatarPixel: React.FC<AvatarPixelProps> = ({ config }) => {
         <img 
           src={instrument.url} 
           alt="Instrument" 
-          className={`absolute bottom-2 right-2 w-20 h-20 sm:w-28 sm:h-28 z-20 object-contain drop-shadow-[0_5px_15px_rgba(0,0,0,0.8)] hover:scale-110 transition-transform origin-bottom-right ${instrument.type === 'guitar' ? '-rotate-[25deg] translate-x-2 translate-y-2' : ''}`}
+          className={`absolute bottom-0 -right-6 w-32 h-32 sm:w-44 sm:h-44 z-20 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.9)] hover:scale-105 transition-transform origin-bottom-right ${instrument.type === 'guitar' ? '-rotate-[25deg] translate-x-4 translate-y-2' : ''}`}
         />
       )}
     </div>

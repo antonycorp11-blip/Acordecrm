@@ -2216,7 +2216,7 @@ export default function AreaAluno() {
               </div>
 
               {/* Card do Jogador */}
-              <div className="bg-[#fff8f6] border-8 border-black p-6 shadow-[12px_12px_0_#000] flex flex-col items-center text-center relative overflow-hidden gap-4">
+              <div className="bg-[#fff8f6] border-8 border-black p-6 shadow-[12px_12px_0_#000] flex flex-col items-center text-center relative overflow-visible gap-4">
                 {/* Efeitos de Fundo 8-Bit */}
                 <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
                 
