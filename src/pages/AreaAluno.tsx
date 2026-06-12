@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import * as React from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -15,7 +16,22 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PwaModal } from '../components/alunos/PwaModal';
+import { AvatarPixel } from '../components/AvatarPixel';
+import { AvatarEditor } from '../components/AvatarEditor';
+import { AvatarStore } from '../components/AvatarStore';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
+
+// Função para tornar links no texto clicáveis
+const linkify = (text: string) => {
+  if (!text) return text;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return text.split(urlRegex).map((part, i) => {
+    if (part.match(urlRegex)) {
+      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline hover:text-blue-700">{part}</a>;
+    }
+    return part;
+  });
+};
 
 // Tradução de notas científicas para cifras em português brasileiro
 const translateNote = (note: string): string => {
@@ -199,18 +215,30 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
           {/* Conteúdo Trabalhado */}
           <div className="space-y-2">
             <h4 className="font-black text-sm border-l-4 border-black pl-2 uppercase tracking-wide">CONTEÚDO TRABALHADO:</h4>
-            <p className="text-xs text-black/80 leading-relaxed whitespace-pre-line uppercase font-bold pl-3">
-              {richData?.isRich ? richData.conteudoText : (aula.conteudo || 'Nenhum conteúdo detalhado')}
+            <p className="text-xs text-black/80 leading-relaxed whitespace-pre-wrap uppercase font-bold pl-3">
+              {linkify(richData?.isRich ? richData.conteudoText : (aula.conteudo || 'Nenhum conteúdo detalhado'))}
             </p>
           </div>
 
           {/* Boss Quest / Tarefa */}
           <div className="space-y-2">
             <h4 className="font-black text-sm border-l-4 border-[#ff6b00] pl-2 uppercase tracking-wide text-[#ff6b00]">⚔️ BOSS QUEST / TAREFA DE CASA:</h4>
-            <p className="text-xs text-black/80 leading-relaxed whitespace-pre-line italic font-bold pl-3">
-              {richData?.isRich ? richData.tarefaCasaText : (aula.tarefa_casa || 'Treinar livre')}
+            <p className="text-xs text-black/80 leading-relaxed whitespace-pre-wrap italic font-bold pl-3">
+              {linkify(richData?.isRich ? richData.tarefaCasaText : (aula.tarefa_casa || 'Treinar livre'))}
             </p>
           </div>
+
+          {/* Imagens */}
+          {richData?.images && Array.isArray(richData.images) && richData.images.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="font-black text-sm border-l-4 border-black pl-2 uppercase tracking-wide">📸 ANEXOS:</h4>
+              <div className="grid grid-cols-2 gap-2 pl-3">
+                {richData.images.map((img: string, idx: number) => (
+                  <img key={idx} src={img} alt="Anexo" className="w-full h-auto border-2 border-black shadow-[2px_2px_0_#000]" />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Acordes */}
           {richData?.isRich && Array.isArray(richData.chords) && richData.chords.length > 0 && (
@@ -291,6 +319,9 @@ export default function AreaAluno() {
   const { user, logout } = useAuth();
   const [needsUpdate, setNeedsUpdate] = useState(false);
   const [serverVersion, setServerVersion] = useState('');
+  const [showAvatarEditor, setShowAvatarEditor] = useState(false);
+  const [showAvatarStore, setShowAvatarStore] = useState(false);
+  const [avatarInventory, setAvatarInventory] = useState<string[]>(['skin_m_1', 'bg_1', 'inst_mic_1', 'inst_gui_2', 'inst_key_3', 'inst_drum_4']);
   const VERSAO_CLIENTE = 'SYNC_V4.3.1';
   const [alunoData, setAlunoData] = useState<any>(null);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
@@ -302,6 +333,8 @@ export default function AreaAluno() {
   const [selectedAluno, setSelectedAluno] = useState<any | null>(null);
   const [todasConquistas, setTodasConquistas] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
+  const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 1' });
+  const [feed, setFeed] = useState<any[]>([]);
   const [showTools, setShowTools] = useState(false);
 
   // Estados para o Sistema de Treino Diário
@@ -959,6 +992,10 @@ export default function AreaAluno() {
     const token = localStorage.getItem('acorde_token');
     const res = await fetch('/api/gamificacao/ranking', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) { const data = await res.json(); setRankingData(data); }
+    const resTemp = await fetch('/api/temporada-atual', { headers: { Authorization: `Bearer ${token}` } });
+    if (resTemp.ok) { const data = await resTemp.json(); setTemporada(data); }
+    const resFeed = await fetch('/api/feed', { headers: { Authorization: `Bearer ${token}` } });
+    if (resFeed.ok) { const data = await resFeed.json(); setFeed(Array.isArray(data) ? data : []); }
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1114,12 +1151,16 @@ export default function AreaAluno() {
         {/* SCROLL CONTENT */}
         <div className="flex-1 overflow-auto pb-24 scrollbar-hide">
 
+
           {/* ===== ABA: RANKING ===== */}
           {activeTab === 'ranking' && (
             <div className="px-4 py-5 space-y-3">
+
+
               <div className="flex items-center gap-3 mb-4">
-                <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
+                <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000] flex flex-col items-center">
                   <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 HALL DA FAMA</h3>
+                  <span className="text-[8px] font-black uppercase tracking-tighter text-black bg-white px-1 leading-none">{temporada.nome || 'TEMPORADA ATUAL'}</span>
                 </div>
                 <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
               </div>
@@ -1220,176 +1261,118 @@ export default function AreaAluno() {
                 <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
               </div>
 
-              {!isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja ? (
+              {showAvatarStore ? (
+                <AvatarStore 
+                  xp={xp}
+                  pontos={gamePoints}
+                  unlockedItems={avatarInventory}
+                  onClose={() => setShowAvatarStore(false)}
+                  onBuy={(itemId, price) => {
+                    setGamePoints(prev => prev - price);
+                    setAvatarInventory(prev => [...prev, itemId]);
+                    toast.success('Item comprado com sucesso! Ele já está no seu Armário.');
+                  }}
+                  onConvertXp={(amountXp, points) => {
+                    setAlunoData((prev: any) => ({ ...prev, xp: prev.xp - amountXp }));
+                    setGamePoints(prev => prev + points);
+                    toast.success(`${amountXp} XP convertido em ${points} Pontos Gallery!`);
+                  }}
+                />
+              ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja ? (
                 <>
-                  {/* Banner Retro de Boas-vindas */}
-                  <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
-                    <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest animate-pulse">
-                      ⚡ INSIRA UMA FICHA & DESTRUA NO RITMO! ⚡
-                    </p>
-                    <p className="text-white/50 font-black text-[7px] uppercase mt-1">
-                      Divirta-se nos minijogos e troque seus pontos por XP de verdade no CRM!
-                    </p>
-                  </div>
-
-                  {/* Banco de Pontos e Câmbio */}
-                  <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] space-y-4">
-                    <div className="text-center flex flex-col items-center justify-center">
-                      <p className="text-black font-black text-[8px] uppercase tracking-widest mb-2">
-                        💰 SEUS PONTOS ACUMULADOS
-                      </p>
-                      <div className="inline-block bg-black border-4 border-black px-6 py-2 text-center shadow-[4px_4px_0_#000]">
-                        <span className="font-mono text-3xl text-emerald-400 font-bold tracking-widest block">
-                          {String(gamePoints).padStart(4, '0')}
-                        </span>
-                        <span className="text-emerald-400 font-black text-[8px] block mt-0.5 uppercase tracking-wider">
-                          PONTOS GALLERY
-                        </span>
+                  {/* Botão de Acesso à Loja */}
+                  <div 
+                    onClick={() => {
+                      if (alunoData?.nome?.toLowerCase().includes('jadna')) {
+                        setShowAvatarStore(true);
+                      }
+                    }}
+                    className={`bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] transition-all relative group overflow-hidden ${alunoData?.nome?.toLowerCase().includes('jadna') ? 'cursor-pointer hover:-translate-y-1 hover:shadow-[10px_10px_0_#000]' : 'cursor-not-allowed opacity-80'}`}
+                  >
+                    {(!alunoData || !alunoData.nome?.toLowerCase().includes('jadna')) && (
+                      <div className="absolute inset-0 bg-black/40 z-20 flex items-center justify-center backdrop-blur-[2px]">
+                        <span className="bg-red-600 text-white font-black px-6 py-2 text-xl border-4 border-black transform -rotate-12 shadow-[4px_4px_0_#000] uppercase tracking-widest">Em Breve!</span>
+                      </div>
+                    )}
+                    <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-[#ffeb3b] border-4 border-black flex items-center justify-center text-2xl shadow-[2px_2px_0_#000]">
+                          🛒
+                        </div>
+                        <div>
+                          <h3 className="text-black font-black text-sm uppercase tracking-widest">LOJA DE ITENS</h3>
+                          <p className="text-[#8e7164] font-black text-[9px] uppercase mt-0.5">Compre cabelos, roupas e acessórios!</p>
+                        </div>
+                      </div>
+                      <div className="bg-black text-[#ffeb3b] px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase shadow-[2px_2px_0_#ffeb3b]">
+                        💰 {gamePoints} PTS
                       </div>
                     </div>
-
-                    <div className="bg-[#feccba] border-4 border-black p-3 text-center text-black font-black text-[8px] uppercase tracking-widest space-y-1">
-                      <p>💵 TAXA DE CÂMBIO: 10 PONTOS = 1 XP NO CRM</p>
-                      <p className="text-[#ff6b00] text-[9px]">
-                        VALOR DE RESGATE ESTIMADO: +{Math.round(gamePoints / 10)} XP
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={handleRedeemXp}
-                      disabled={gamePoints < 10 || isRedeeming}
-                      className={`w-full border-4 border-black font-black text-[10px] py-3 uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        gamePoints >= 10 && !isRedeeming
-                          ? 'bg-[#00ff66] text-black hover:bg-[#00cc52]'
-                          : 'bg-[#8e7164]/30 text-[#8e7164] opacity-50 cursor-not-allowed shadow-none active:translate-y-0'
-                      }`}
-                    >
-                      {isRedeeming ? (
-                        'PROCESSANDO RESGATE...'
-                      ) : gamePoints >= 10 ? (
-                        <>🔄 RESGATAR +{Math.round(gamePoints / 10)} XP REAL NO CRM</>
-                      ) : (
-                        'JOGUE PARA JUNTAR PONTOS (MÍN. 10)'
-                      )}
-                    </button>
                   </div>
 
-                  {/* Grid de Fliperamas */}
-                  <div className="space-y-4 pt-2">
-                    <div className="flex items-center gap-3">
-                      <h4 className="text-white font-black text-[10px] uppercase tracking-widest">
-                        SELECIONE O GABINETE
-                      </h4>
+                  {/* Grid de Aplicativos (Jogos) */}
+                  <div className="pt-2">
+                    <div className="flex items-center gap-3 mb-4">
+                      <h4 className="text-white font-black text-[10px] uppercase tracking-widest">MINI JOGOS (APPS)</h4>
                       <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4">
-                      {/* Jogo 1: Genius */}
-                      <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <span className="bg-[#ff6b00] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
-                              DISPONÍVEL 🎮
-                            </span>
-                            <h3 className="text-black font-black text-xs uppercase tracking-tight">
-                              ACORDE GENIUS (8-BIT)
-                            </h3>
-                          </div>
-                          <span className="text-[#ff6b00] font-black text-[8px] bg-black border border-black px-1.5 py-0.5 shrink-0">
-                            +20 PONTOS / LVL
-                          </span>
+                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
+                      
+                      {/* App 1: Genius */}
+                      <button 
+                        onClick={() => {
+                          setIsPlayingAcordeGenius(true);
+                          playRetroSound(880, 'square', 0.1);
+                        }}
+                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
+                      >
+                        <div className="w-full aspect-square bg-[#ff6b00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
+                          🕹️
                         </div>
-                        <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
-                          Treine seu ouvido musical e sua memória repetindo as sequências de acordes e bips senoidais!
-                        </p>
-                        <button
-                          onClick={() => {
-                            setIsPlayingAcordeGenius(true);
-                            // Toca um som retro de moeda inserida (Insert Coin)
-                            playRetroSound(880, 'square', 0.1);
-                            setTimeout(() => playRetroSound(1760, 'square', 0.25), 100);
-                          }}
-                          className="w-full bg-[#ff6b00] text-white hover:bg-black font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
-                        >
-                          🕹️ INICIAR PARTIDA
-                        </button>
+                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Acorde Genius</span>
+                      </button>
+
+                      {/* App 2: Chord Rush */}
+                      <button 
+                        onClick={() => {
+                          setIsPlayingChordRush(true);
+                          playRetroSound(880, 'square', 0.1);
+                        }}
+                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
+                      >
+                        <div className="w-full aspect-square bg-[#00ff66] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
+                          🎸
+                        </div>
+                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Chord Rush</span>
+                      </button>
+
+                      {/* App 3: Triade Ninja */}
+                      <button 
+                        onClick={() => {
+                          setIsPlayingTriadeNinja(true);
+                          playRetroSound(880, 'square', 0.1);
+                        }}
+                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
+                      >
+                        <div className="w-full aspect-square bg-[#a855f7] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
+                          ⚔️
+                        </div>
+                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Triade Ninja</span>
+                      </button>
+
+                      {/* App 4: Rhythm Hero (Locked) */}
+                      <div className="flex flex-col items-center gap-2 opacity-50 grayscale cursor-not-allowed">
+                        <div className="w-full aspect-square bg-[#8e7164] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl">
+                          🔒
+                        </div>
+                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Rhythm Hero</span>
                       </div>
 
-                      {/* Jogo 2: Chord Rush */}
-                      <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <span className="bg-[#00ff66] text-black text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
-                              NOVO! 🎸
-                            </span>
-                            <h3 className="text-black font-black text-xs uppercase tracking-tight">
-                              CHORD RUSH
-                            </h3>
-                          </div>
-                          <span className="text-[#00ff66] font-black text-[8px] bg-black border border-black px-1.5 py-0.5 shrink-0">
-                            +10 PONTOS / ACERTO
-                          </span>
-                        </div>
-                        <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
-                          Identifique as notas corretas de cada acorde antes que o tempo acabe. Pense rápido!
-                        </p>
-                        <button
-                          onClick={() => {
-                            setIsPlayingChordRush(true);
-                            playRetroSound(880, 'square', 0.1);
-                          }}
-                          className="w-full bg-[#00ff66] text-black hover:bg-black hover:text-[#00ff66] font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
-                        >
-                          🕹️ INICIAR PARTIDA
-                        </button>
-                      </div>
-
-                      {/* Jogo 3: Rhythm Hero (Em Breve) */}
-                      <div className="bg-[#261812] border-4 border-black p-4 flex flex-col gap-2 opacity-50 relative group">
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-white/60 font-black text-xs uppercase">
-                            RHYTHM HERO
-                          </h3>
-                          <span className="bg-[#3d2d26] text-white/50 text-[6px] font-black uppercase px-1.5 py-0.5 border border-black">
-                            EM BREVE 🔒
-                          </span>
-                        </div>
-                        <p className="text-white/40 font-black text-[8px] uppercase">
-                          Um jogo de ritmo pixelado no qual você precisa acertar as batidas na hora certa para solar seu instrumento!
-                        </p>
-                        </div>
-
-                        {/* Jogo 3: Triade Ninja */}
-                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="bg-[#a855f7] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
-                                NOVO 🎮
-                              </span>
-                              <h4 className="text-black font-black text-sm uppercase italic leading-none mt-1">
-                                TRÍADE NINJA
-                              </h4>
-                            </div>
-                            <div className="w-8 h-8 bg-[#a855f7] border-4 border-black flex items-center justify-center shrink-0">
-                              <span className="text-white text-xs">⚔️</span>
-                            </div>
-                          </div>
-                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
-                            Identifique os acordes apenas por suas 3 notas. Treino de percepção teórica e velocidade!
-                          </p>
-                          <button
-                            onClick={() => {
-                              setIsPlayingTriadeNinja(true);
-                              playRetroSound(880, 'square', 0.1);
-                            }}
-                            className="w-full bg-[#a855f7] text-white hover:bg-black hover:text-[#a855f7] font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
-                          >
-                            🕹️ INICIAR PARTIDA
-                          </button>
-                        </div>
-                      </div>
                     </div>
-                  </>
+                  </div>
+                </>
               ) : isPlayingChordRush ? (
                 <ChordRush 
                   onClose={() => setIsPlayingChordRush(false)}
@@ -1706,78 +1689,6 @@ export default function AreaAluno() {
                   )}
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* ===== MODAL DE MISSÃO PWA ===== */}
-          <PwaModal 
-             alunoData={alunoData} 
-             onRewardClaimed={(xp) => setAlunoData((prev: any) => ({ ...prev, xp: (prev.xp || 0) + xp, push_recompensado: true }))} 
-          />
-
-          {/* ===== ABA: HOME (conteúdo existente) ===== */}
-          {activeTab === 'home' && (
-          <div className="px-4 py-5 space-y-4">
-
-            <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] flex flex-col gap-4">
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.3.1 • UPDATE_22MAY_2300</p>
-              
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-none border-4 border-black bg-[#ff6b00] shrink-0 shadow-[4px_4px_0_#000] overflow-hidden">
-                  {alunoData?.foto_url ? (
-                    <img src={alunoData.foto_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white font-black text-2xl uppercase">
-                      {(alunoData?.nome || user?.nome || 'A').charAt(0)}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-black font-black text-xl uppercase italic leading-tight break-words">
-                    {alunoData?.nome || user?.nome || 'CARREGANDO...'}
-                  </h2>
-                  <span className="text-[7px] font-black text-white bg-black px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block mt-1">
-                    LVL {nivel} • {classe}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3 mt-1">
-                 <div className="bg-[#feccba] border-4 border-black p-2.5 shadow-[4px_4px_0_#000] flex flex-col justify-center">
-                   <p className="text-[7px] font-black text-[#8e7164] uppercase mb-0.5">INSTRUMENTO</p>
-                    <span className="text-black font-black italic uppercase text-[10px] truncate">
-                      {alunoData?.curso_ativo || 'STUDENT'}
-                    </span>
-                 </div>
-                 <div className="bg-[#feccba] border-4 border-black p-2.5 shadow-[4px_4px_0_#000] flex flex-col justify-center">
-                   <p className="text-[7px] font-black text-[#8e7164] uppercase mb-0.5">RANKING</p>
-                   <p className="text-[#ff6b00] font-black text-lg italic">#{String(alunoData?.ranking || 0).padStart(2, '0')}</p>
-                 </div>
-              </div>
-
-              {aulasRealizadas[0] && (
-                <button 
-                  onClick={() => setPrintAula(aulasRealizadas[0])}
-                  className="w-full bg-[#ff6b00] text-white border-4 border-black font-black text-[10px] py-2 uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black transition-all flex items-center justify-center gap-2"
-                >
-                  📄 IMPRIMIR ÚLTIMO DIÁRIO (PDF)
-                </button>
-              )}
-            </div>
-
-            {/* XP Bar Section */}
-            <div className="p-5 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000]">
-              <div className="flex justify-between items-center mb-3">
-                <p className="text-white font-black text-[8px] uppercase tracking-widest">LVL {nivel} • {classe}</p>
-                <span className="text-[#ff6b00] font-black text-[8px]">{xp} XP</span>
-              </div>
-              <div className="h-5 bg-[#1a0a05] border-4 border-black overflow-hidden p-1">
-                 <div className="h-full bg-[#ff6b00] transition-all duration-1000 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]" style={{ width: `${xpPct}%` }}></div>
-              </div>
-            </div>
-
-            {/* Próxima Sessão foi removida a pedido do admin para ceder espaço a futuras features */}
-
             {/* Diário de Evolução (Musiclass feedbacks) */}
             <div className="pt-2">
               <div className="flex items-center gap-3 mb-4">
@@ -1842,7 +1753,7 @@ export default function AreaAluno() {
                           {/* Conteúdo Trabalhado */}
                           <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
                             <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
-                            <p className="text-black text-[10px] font-bold uppercase">{aula.conteudo || 'Nenhum conteúdo registrado'}</p>
+                            <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(aula.conteudo || 'Nenhum conteúdo registrado')}</p>
                           </div>
 
                           {/* Tarefa de casa / Desafio */}
@@ -1850,7 +1761,7 @@ export default function AreaAluno() {
                             <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1 flex items-center gap-1">
                               ⚔️ BOSS QUEST / DESAFIO:
                             </span>
-                            <p className="text-black text-[10px] font-bold uppercase italic">{aula.tarefa_casa || 'Treinar repertório livre'}</p>
+                            <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(aula.tarefa_casa || 'Treinar repertório livre')}</p>
                           </div>
                         </>
                       ) : (
@@ -1863,7 +1774,7 @@ export default function AreaAluno() {
                               </span>
                             </div>
                             <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
-                            <p className="text-black text-[10px] font-bold uppercase whitespace-pre-line">{richData.conteudoText || 'AULA INTERATIVA DE MÚSICA'}</p>
+                            <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(richData.conteudoText || 'AULA INTERATIVA DE MÚSICA')}</p>
                           </div>
 
                           {/* TAREFA DE CASA / DESAFIO */}
@@ -1872,7 +1783,21 @@ export default function AreaAluno() {
                               <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">
                                 ⚔️ TAREFA DE CASA / DESAFIO DA SEMANA:
                               </span>
-                              <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-line">{richData.tarefaCasaText}</p>
+                              <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(richData.tarefaCasaText)}</p>
+                            </div>
+                          )}
+
+                          {/* IMAGENS */}
+                          {Array.isArray(richData.images) && richData.images.length > 0 && (
+                            <div className="bg-white border-2 border-black p-2 space-y-1.5">
+                              <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest">📸 ANEXOS & CIFRAS:</span>
+                              <div className="grid grid-cols-2 gap-2">
+                                {richData.images.map((img: string, i: number) => (
+                                  <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-2 border-black shadow-[2px_2px_0_#000] hover:translate-y-[-1px] transition-transform">
+                                    <img src={img} alt="Anexo" className="w-full h-24 object-cover" />
+                                  </a>
+                                ))}
+                              </div>
                             </div>
                           )}
 
@@ -2081,6 +2006,20 @@ export default function AreaAluno() {
                         </div>
                       )}
 
+                      {/* Fotos enviadas pelo Professor */}
+                      {isRich && Array.isArray(richData.images) && richData.images.length > 0 && (
+                        <div className="pt-4 border-t-2 border-black/10">
+                          <span className="text-[10px] font-black text-black uppercase block mb-2 tracking-widest">📸 ANEXOS E CIFRAS:</span>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {richData.images.map((img: string, i: number) => (
+                              <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-4 border-black hover:scale-[1.02] transition-transform shadow-[4px_4px_0_#000]">
+                                <img src={img} alt="Anexo da Aula" className="w-full h-32 object-cover bg-gray-200" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Links e mídias de apoio */}
                       {midiasList.length > 0 && (
                         <div>
@@ -2114,6 +2053,122 @@ export default function AreaAluno() {
               </div>
             </div>
 
+            </div>
+          )}
+
+          {/* ===== MODAL DE MISSÃO PWA ===== */}
+          <PwaModal 
+             alunoData={alunoData} 
+             onRewardClaimed={(xp) => setAlunoData((prev: any) => ({ ...prev, xp: (prev.xp || 0) + xp, push_recompensado: true }))} 
+          />
+
+          {/* ===== ABA: HOME (conteúdo existente) ===== */}
+          {activeTab === 'home' && (
+          <div className="px-4 py-5 space-y-4">
+
+
+
+            <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] flex flex-col gap-4">
+              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.3.1 • UPDATE_22MAY_2300</p>
+              
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-none border-4 border-black bg-[#ff6b00] shrink-0 shadow-[4px_4px_0_#000] overflow-hidden">
+                  {alunoData?.foto_url ? (
+                    <img src={alunoData.foto_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-white font-black text-2xl uppercase">
+                      {(alunoData?.nome || user?.nome || 'A').charAt(0)}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-black font-black text-xl uppercase italic leading-tight break-words">
+                    {alunoData?.nome || user?.nome || 'CARREGANDO...'}
+                  </h2>
+                  <div className="flex gap-1 mt-1 flex-wrap">
+                    <span className="text-[7px] font-black text-white bg-black px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block">
+                      LVL {nivel} • {classe}
+                    </span>
+                    <span className="text-[7px] font-black text-black bg-[#ff6b00] px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block">
+                      {temporada.nome || 'TEMPORADA ATUAL'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 mt-1">
+                 <div className="bg-[#feccba] border-4 border-black p-2.5 shadow-[4px_4px_0_#000] flex flex-col justify-center">
+                   <p className="text-[7px] font-black text-[#8e7164] uppercase mb-0.5">INSTRUMENTO</p>
+                    <span className="text-black font-black italic uppercase text-[10px] truncate">
+                      {alunoData?.curso_ativo || 'STUDENT'}
+                    </span>
+                 </div>
+                 <div className="bg-[#feccba] border-4 border-black p-2.5 shadow-[4px_4px_0_#000] flex flex-col justify-center">
+                   <p className="text-[7px] font-black text-[#8e7164] uppercase mb-0.5">RANKING</p>
+                   <p className="text-[#ff6b00] font-black text-lg italic">#{String(alunoData?.ranking || 0).padStart(2, '0')}</p>
+                 </div>
+              </div>
+
+              {aulasRealizadas[0] && (
+                <button 
+                  onClick={() => setPrintAula(aulasRealizadas[0])}
+                  className="w-full bg-[#ff6b00] text-white border-4 border-black font-black text-[10px] py-2 uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black transition-all flex items-center justify-center gap-2"
+                >
+                  📄 IMPRIMIR ÚLTIMO DIÁRIO (PDF)
+                </button>
+              )}
+            </div>
+
+
+              {/* FEED DO CRM */}
+              <div className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-black font-black text-lg">🌍</span>
+                  <h3 className="text-black font-black text-[11px] uppercase tracking-widest">Feed de Atividades</h3>
+                </div>
+                <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                  {feed.length > 0 ? (
+                    <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-[#3d2d26] before:to-transparent">
+                      {feed.map((atividade: any, i: number) => (
+                        <div key={atividade.id || i} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-none border-4 border-black bg-white shadow-[2px_2px_0_#000] text-black shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                            <span className="text-xl leading-none">{atividade.icone || '🌟'}</span>
+                          </div>
+                          <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded-none border-4 border-black bg-white shadow-[4px_4px_0_#000] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_#000]">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className={`font-black text-[9px] uppercase px-2 py-0.5 border-2 border-black ${atividade.tipo === 'nova_aula' ? 'bg-[#ffeb3b] text-black' : atividade.tipo === 'novo_trofeu' ? 'bg-[#4ade80] text-black' : 'bg-black text-white'}`}>
+                                {atividade.tipo.replace('_', ' ')}
+                              </span>
+                              <time className="text-[9px] font-bold text-gray-500 uppercase">
+                                {new Date(atividade.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                              </time>
+                            </div>
+                            <p className="text-[10px] font-black text-black leading-snug uppercase">
+                              {atividade.mensagem}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] font-black uppercase text-center text-gray-500">Nenhuma atividade recente.</p>
+                  )}
+                </div>
+              </div>
+
+            {/* XP Bar Section */}
+            <div className="p-5 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000]">
+              <div className="flex justify-between items-center mb-3">
+                <p className="text-white font-black text-[8px] uppercase tracking-widest">LVL {nivel} • {classe}</p>
+                <span className="text-[#ff6b00] font-black text-[8px]">{xp} XP</span>
+              </div>
+              <div className="h-5 bg-[#1a0a05] border-4 border-black overflow-hidden p-1">
+                 <div className="h-full bg-[#ff6b00] transition-all duration-1000 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]" style={{ width: `${xpPct}%` }}></div>
+              </div>
+            </div>
+
+            {/* Próxima Sessão foi removida a pedido do admin para ceder espaço a futuras features */}
+
             {/* Conquistas (Badges) */}
             <div className="pt-2">
               <div className="flex items-center gap-3 mb-4">
@@ -2140,42 +2195,6 @@ export default function AreaAluno() {
                 )}
               </div>
             </div>
-
-            {/* Menu Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              {menus.map((item, i) => (
-                <div key={i} onClick={() => { if (item.path === '/ranking') { setActiveTab('ranking'); fetchRanking(); } else if (item.path === '/agenda') { setActiveTab('aulas'); } else if (item.path === '/perfil') { setActiveTab('perfil'); } }} className="bg-[#fff8f6] border-4 border-black p-4 text-center shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
-                  <div className="w-10 h-10 bg-[#feccba] border-2 border-black flex items-center justify-center mx-auto mb-2">
-                    <item.icon className="w-5 h-5 text-[#ff6b00]" />
-                  </div>
-                  <p className="text-black font-black text-[8px] uppercase tracking-widest">{item.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Missões Ativas */}
-            <div className="pt-2">
-              <div className="flex items-center gap-3 mb-4">
-                <h3 className="text-white font-black text-xs uppercase tracking-widest">MISSÕES_ATIVAS</h3>
-                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-              </div>
-              <div className="space-y-3">
-                {missoes.map(missao => (
-                  <div key={missao.id} className="p-4 flex items-center gap-4 bg-[#261812] border-4 border-black">
-                    <div className="w-10 h-10 bg-[#3d2d26] border-2 border-black flex items-center justify-center shrink-0">
-                      {missao.tipo === 'play' ? <Play className="w-4 h-4 text-[#ff6b00]" /> : <HelpCircle className="w-4 h-4 text-[#8e7164]" />}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-white font-black text-[10px] uppercase">{missao.titulo}</p>
-                      <div className="w-full h-1 bg-black mt-1">
-                         <div className="h-full bg-[#ff6b00]" style={{ width: `${missao.progresso || 0}%` }}></div>
-                      </div>
-                    </div>
-                    <span className="text-[#ff6b00] font-black text-[9px] bg-black border border-black px-1">+{missao.xp}XP</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
           )} {/* end activeTab === home */}
 
@@ -2196,20 +2215,20 @@ export default function AreaAluno() {
                 <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
                 
                 {/* Avatar Interativo Grande */}
-                <div className="relative group cursor-pointer mt-4" onClick={() => document.getElementById('photo-input-profile')?.click()}>
-                  <div className="w-28 h-28 border-8 border-black overflow-hidden bg-[#ff6b00] shadow-[8px_8px_0_#000] relative">
-                    {alunoData?.foto_url ? (
-                      <img src={alunoData.foto_url} alt="Profile" className="w-full h-full object-cover" />
+                <div className="relative group cursor-pointer w-full max-w-[280px] aspect-[3/4] mt-4" onClick={() => document.getElementById('photo-input-profile')?.click()}>
+                  <div className="w-full h-full shadow-[8px_8px_0_#000] relative">
+                    {alunoData?.avatar_config ? (
+                      <AvatarPixel config={alunoData.avatar_config} />
+                    ) : alunoData?.foto_url ? (
+                      <img src={alunoData.foto_url} alt="Avatar" className="w-full h-full object-cover border-4 border-black" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white font-black text-5xl">
-                        {(alunoData?.nome || user?.nome || 'A').charAt(0).toUpperCase()}
+                      <div className="w-full h-full flex items-center justify-center bg-[#ff6b00] border-4 border-black text-black font-black text-6xl uppercase">
+                        {(alunoData?.nome || user?.nome || 'A').charAt(0)}
                       </div>
                     )}
                   </div>
-                  {/* Overlay Hover */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity border-8 border-transparent">
-                    <Camera className="w-8 h-8 text-white" />
-                    <span className="text-[8px] text-white font-black mt-1 uppercase">Alterar Foto</span>
+                  <div className="absolute -bottom-3 -right-3 bg-black border-4 border-white text-white p-2 rounded-none hover:scale-110 transition-transform">
+                    <Camera className="w-5 h-5" />
                   </div>
                   {/* Input de arquivo */}
                   <input 
@@ -2219,6 +2238,30 @@ export default function AreaAluno() {
                     accept="image/*" 
                     onChange={handlePhotoUpload} 
                   />
+                </div>
+
+                {/* Avatar Editor Component (Customization) */}
+                <div className="w-full mt-4 flex flex-col items-center gap-2">
+                  <button 
+                    onClick={() => setShowAvatarEditor(!showAvatarEditor)}
+                    className="bg-[#ff6b00] text-white border-4 border-black px-4 py-2 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all"
+                  >
+                    {showAvatarEditor ? 'FECHAR EDITOR' : 'PERSONALIZAR AVATAR'}
+                  </button>
+                  
+                  {showAvatarEditor && (
+                    <div className="w-full mt-4 p-4 border-4 border-black bg-white shadow-[4px_4px_0_#000]">
+                      <AvatarEditor 
+                        alunoId={alunoData?.id} 
+                        currentConfig={alunoData?.avatar_config}
+                        unlockedItems={avatarInventory}
+                        onSave={(newConfig) => {
+                           setAlunoData((prev: any) => ({ ...prev, avatar_config: newConfig }));
+                           setShowAvatarEditor(false); // fechar ao salvar
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Nome e Nível */}

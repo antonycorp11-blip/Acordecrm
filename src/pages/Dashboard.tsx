@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, HelpCircle, Search, AlertTriangle, Megaphone, Sparkles, Clock, Plus, TrendingUp, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+import { FeedAtividades } from '../components/FeedAtividades';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -11,6 +12,9 @@ export default function Dashboard() {
 
   const [aulasSemStatus, setAulasSemStatus] = useState<any[]>([]);
   const [faturasPendentes, setFaturasPendentes] = useState<any[]>([]);
+  const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 1' });
+  const [feed, setFeed] = useState<any[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(false);
   const [showModalAulas, setShowModalAulas] = useState(false);
   const [showModalFaturas, setShowModalFaturas] = useState(false);
   const [cancelModalAula, setCancelModalAula] = useState<any>(null);
@@ -37,10 +41,14 @@ export default function Dashboard() {
 
     Promise.all([
       fetch('/api/agenda/pendentes-passado', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/dashboard/faturas-pendentes', { headers }).then(r => r.ok ? r.json() : [])
-    ]).then(([aulas, faturas]) => {
+      fetch('/api/dashboard/faturas-pendentes', { headers }).then(r => r.ok ? r.json() : []),
+      fetch('/api/feed', { headers }).then(r => r.ok ? r.json() : []),
+      fetch('/api/temporada-atual', { headers }).then(r => r.ok ? r.json() : {nome: 'Temporada 1'})
+    ]).then(([aulas, faturas, feedData, temp]) => {
       setAulasSemStatus(aulas);
       setFaturasPendentes(faturas);
+      setFeed(Array.isArray(feedData) ? feedData : []);
+      setTemporada(temp || {nome: 'Temporada 1'});
       
       const quintoDia = getQuintoDiaUtil();
       const hoje = new Date();
@@ -86,7 +94,7 @@ export default function Dashboard() {
           <h1 className="text-white font-black text-lg tracking-widest uppercase" style={{ fontFamily: "'Space Mono', monospace" }}>
             STUDIO CRM
           </h1>
-          <span className="bg-[#ff6b00] text-white text-[10px] font-black px-2 py-0.5 rounded tracking-widest">V2.0_BETA</span>
+          <span className="bg-[#ff6b00] text-white text-[10px] font-black px-2 py-0.5 rounded tracking-widest uppercase">{temporada.nome || 'V2.0_BETA'}</span>
         </div>
         <div className="flex items-center gap-2 bg-[#261812] border-2 border-[#5a4136] rounded px-3 py-2 flex-1 max-w-sm">
           <Search className="w-4 h-4 text-[#8e7164]" />
@@ -146,8 +154,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* MIDDLE ROW: ALERTAS E RESOLUÇÕES */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* MIDDLE ROW: ALERTAS, FATURAS E FEED */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* AULAS SEM STATUS WIDGET */}
           <div className="sticker-card rounded-lg flex flex-col overflow-hidden" style={{ background: '#fff8f6', border: '3px solid #261812', maxHeight: '350px' }}>
             <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#ffeb3b', borderBottom: '3px solid #261812' }}>
@@ -223,6 +231,19 @@ export default function Dashboard() {
               )) : (
                 <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center">Nenhuma cobrança pendente.</div>
               )}
+            </div>
+          </div>
+          
+          {/* FEED DE ATIVIDADES WIDGET */}
+          <div className="sticker-card rounded-lg flex flex-col overflow-hidden" style={{ background: '#fff8f6', border: '3px solid #261812', maxHeight: '350px' }}>
+            <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#00cc66', borderBottom: '3px solid #261812' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-white font-black text-sm">🌍</span>
+                <p className="text-white text-[11px] font-black uppercase tracking-widest">Feed do CRM</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+              <FeedAtividades atividades={feed} loading={loadingFeed} />
             </div>
           </div>
         </div>
