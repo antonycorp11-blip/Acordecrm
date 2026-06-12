@@ -58,7 +58,7 @@ export const AvatarEditor: React.FC<AvatarEditorProps> = ({ alunoId, currentConf
             
             // Get Thumbnail based on item type
             let thumbUrl = '';
-            if (fieldName === 'skinId') thumbUrl = item.poses.idle;
+            if (fieldName === 'skinId') thumbUrl = item.url;
             else thumbUrl = item.url;
 
             return (

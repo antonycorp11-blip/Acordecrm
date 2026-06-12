@@ -548,7 +548,13 @@ export default function AreaAluno() {
     const fetchAll = () => {
       const timestamp = Date.now();
       Promise.all([
-        fetch(`/api/alunos/me?t=${timestamp}`, { headers }).then(r => r.ok ? r.json() : null),
+        fetch(`/api/alunos/me?t=${timestamp}`, { headers }).then(r => {
+          if (r.status === 401) {
+            logout();
+            return null;
+          }
+          return r.ok ? r.json() : null;
+        }),
         fetch(`/api/agenda?t=${timestamp}`, { headers }).then(r => r.ok ? r.json() : [])
       ]).then(([me, agenda]) => {
         if (me) {

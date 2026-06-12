@@ -49,10 +49,10 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
   };
 
   return (
-    <div className="absolute inset-0 z-50 bg-black p-4 w-full h-full overflow-y-auto text-white flex flex-col pb-24">
+    <div className="fixed inset-0 z-[100] bg-black p-4 w-full h-full overflow-y-auto text-white flex flex-col pb-24">
       
       {/* Header Info - Game Style */}
-      <div className="flex justify-between items-start mb-6 shrink-0 relative z-50">
+      <div className="flex justify-between items-center mb-6 shrink-0 relative z-50">
         <div className="flex flex-col">
           <h3 className="text-[#ffeb3b] font-black uppercase text-xl tracking-widest flex items-center gap-2 drop-shadow-md">
             <span>🛒</span> LOJA PREMIUM
