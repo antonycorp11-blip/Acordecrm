@@ -1298,9 +1298,25 @@ export default function AreaProfessor() {
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (element.offsetHeight * pdfWidth) / element.offsetWidth;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Adiciona a primeira página
+      pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Adiciona páginas extras se a imagem for maior que uma página A4
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
       
       const studentName = isCreateModalOpen 
         ? (alunosList.find(a => a.id === newAulaAlunoId)?.nome || 'Aluno')
