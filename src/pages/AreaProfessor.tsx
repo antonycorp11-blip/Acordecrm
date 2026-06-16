@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import { 
   Bell, 
   Home, 
@@ -1268,13 +1269,9 @@ export default function AreaProfessor() {
     }
   };
 
-  const handleDownloadPdf = () => {
-    if (!pdfRef.current) return;
-    try {
-      // Usar a funcionalidade nativa do navegador para imprimir.
-      // Com as novas regras CSS (print-color-adjust e break-inside-avoid), 
-      // a impressão nativa garante paginação inteligente sem cortar elementos.
-      
+  const handleDownloadPdf = useReactToPrint({
+    contentRef: pdfRef,
+    documentTitle: () => {
       const studentName = isCreateModalOpen 
         ? (alunosList.find(a => a.id === newAulaAlunoId)?.nome || 'Aluno')
         : (selectedAula?.nome || selectedAula?.aluno_nome || 'Aluno');
@@ -1285,18 +1282,9 @@ export default function AreaProfessor() {
 
       const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
       const safeDate = dateStr.replace(/\//g, "-");
-      
-      const originalTitle = document.title;
-      document.title = `Ficha_${safeName}_${safeDate}`;
-      
-      window.print();
-      
-      document.title = originalTitle;
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao abrir janela de impressão.');
-    }
-  };
+      return `Ficha_${safeName}_${safeDate}`;
+    },
+  });
 
   const salvarDiarioAula = async (e: React.FormEvent) => {
     e.preventDefault();

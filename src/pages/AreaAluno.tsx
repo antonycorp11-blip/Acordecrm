@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -146,26 +147,18 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
     }
   } catch {}
 
-  const handleDownloadPdf = () => {
-    if (!pdfRef.current) return;
-    try {
+  const handleDownloadPdf = useReactToPrint({
+    contentRef: pdfRef,
+    documentTitle: () => {
       const studentName = alunoLogado?.nome || 'Aluno';
       const dateStr = aula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(aula.data)) : '';
 
       const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
       const safeDate = dateStr.replace(/\//g, "-");
       
-      const originalTitle = document.title;
-      document.title = `Diario_${safeName}_${safeDate}`;
-      
-      window.print();
-      
-      document.title = originalTitle;
-    } catch (error) {
-      console.error(error);
-      toast.error('Erro ao abrir janela de impressão.');
+      return `Diario_${safeName}_${safeDate}`;
     }
-  };
+  });
 
   // Instrumento sugerido
   const isTeclado = /teclado|piano|keyboard/i.test(aula.curso_nome || '');
