@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { toPng } from 'html-to-image';
-import { jsPDF } from 'jspdf';
 import { 
   Bell, 
   Home, 
@@ -1270,53 +1268,12 @@ export default function AreaProfessor() {
     }
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     if (!pdfRef.current) return;
     try {
-      const toastId = toast.loading('Gerando PDF da Ficha...');
-      
-      const element = pdfRef.current;
-      
-      // Captura o elemento como PNG usando html-to-image (suporta oklch e todo o CSS moderno)
-      const dataUrl = await toPng(element, {
-        quality: 1.0,
-        pixelRatio: 2,
-        backgroundColor: '#fff8f6',
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-          width: element.offsetWidth + 'px',
-          height: element.offsetHeight + 'px'
-        }
-      });
-
-      // Cria o PDF usando jsPDF
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      
-      const imgProps = pdf.getImageProperties(dataUrl);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Adiciona a primeira página
-      pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      // Adiciona páginas extras se a imagem for maior que uma página A4
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
+      // Usar a funcionalidade nativa do navegador para imprimir.
+      // Com as novas regras CSS (print-color-adjust e break-inside-avoid), 
+      // a impressão nativa garante paginação inteligente sem cortar elementos.
       
       const studentName = isCreateModalOpen 
         ? (alunosList.find(a => a.id === newAulaAlunoId)?.nome || 'Aluno')
@@ -1329,12 +1286,15 @@ export default function AreaProfessor() {
       const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
       const safeDate = dateStr.replace(/\//g, "-");
       
-      pdf.save(`Ficha_${safeName}_${safeDate}.pdf`);
-
-      toast.success('PDF baixado com sucesso!', { id: toastId });
+      const originalTitle = document.title;
+      document.title = `Ficha_${safeName}_${safeDate}`;
+      
+      window.print();
+      
+      document.title = originalTitle;
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao gerar o PDF.');
+      toast.error('Erro ao abrir janela de impressão.');
     }
   };
 
@@ -4577,7 +4537,7 @@ export default function AreaProfessor() {
               </div>
 
               {/* Conteúdo Trabalhado */}
-              <div className="space-y-2">
+              <div className="space-y-2 break-inside-avoid">
                 <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
                   📝 CONTEÚDO TRABALHADO
                 </h3>
@@ -4587,7 +4547,7 @@ export default function AreaProfessor() {
               </div>
 
               {/* Tarefa de Casa */}
-              <div className="space-y-2">
+              <div className="space-y-2 break-inside-avoid">
                 <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
                   🎯 DESAFIO / TAREFA DE CASA
                 </h3>
@@ -4618,7 +4578,7 @@ export default function AreaProfessor() {
                         {(chords as any[]).map((ch, idx) => {
                           const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
                           return (
-                            <div key={idx} className="border-2 border-black p-1 bg-white w-full">
+                            <div key={idx} className="border-2 border-black p-1 bg-white w-full break-inside-avoid">
                               <ChordVisualizer
                                 instrument={ch.instrument || mcPlaygroundInstrument}
                                 chordNotes={ch.notes || []}

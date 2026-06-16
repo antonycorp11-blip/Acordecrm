@@ -13,8 +13,6 @@ import { TriadeNinja } from '../components/jogos/TriadeNinja';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
-import { toPng } from 'html-to-image';
-import { jsPDF } from 'jspdf';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PwaModal } from '../components/alunos/PwaModal';
@@ -148,64 +146,24 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
     }
   } catch {}
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     if (!pdfRef.current) return;
     try {
-      const toastId = toast.loading('Gerando PDF do Diário...');
-      
-      const element = pdfRef.current;
-      
-      const dataUrl = await toPng(element, {
-        quality: 1.0,
-        pixelRatio: 2,
-        backgroundColor: '#fff8f6',
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left',
-          width: element.offsetWidth + 'px',
-          height: element.offsetHeight + 'px'
-        }
-      });
-
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      
-      const imgProps = pdf.getImageProperties(dataUrl);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Adiciona a primeira página
-      pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      // Adiciona páginas extras se a imagem for maior que uma página A4
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-      
       const studentName = alunoLogado?.nome || 'Aluno';
       const dateStr = aula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(aula.data)) : '';
 
       const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
       const safeDate = dateStr.replace(/\//g, "-");
       
-      pdf.save(`Diario_${safeName}_${safeDate}.pdf`);
-
-      toast.success('PDF baixado com sucesso!', { id: toastId });
+      const originalTitle = document.title;
+      document.title = `Diario_${safeName}_${safeDate}`;
+      
+      window.print();
+      
+      document.title = originalTitle;
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao gerar o PDF.');
+      toast.error('Erro ao abrir janela de impressão.');
     }
   };
 
@@ -292,11 +250,10 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
 
           {/* Acordes */}
           {richData?.isRich && Array.isArray(richData.chords) && richData.chords.length > 0 && (
-            <div className="space-y-3 pt-2">
+            <div className="space-y-3 pt-2 break-inside-avoid">
               <h4 className="font-black text-sm border-l-4 border-black pl-2 uppercase tracking-wide">🎸 ACORDES PRÁTICOS RECOMENDADOS:</h4>
               <div className="grid grid-cols-2 gap-4 justify-items-center">
                 {richData.chords.map((ch: any, idx: number) => {
-                  const isChTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
                   return (
                     <div key={idx} className="flex flex-col items-center p-2 border border-black/20 bg-black/5 w-full max-w-[240px]">
                       <span className="text-[8px] font-black text-black/60 uppercase mb-1">{ch.root}{ch.typeId || ''}</span>
@@ -319,7 +276,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
 
           {/* Escalas */}
           {richData?.isRich && Array.isArray(richData.scales) && richData.scales.length > 0 && (
-            <div className="space-y-2 pt-2">
+            <div className="space-y-2 pt-2 break-inside-avoid">
               <h4 className="font-black text-sm border-l-4 border-black pl-2 uppercase tracking-wide">🎼 ESCALAS &amp; CAMPOS HARMÔNICOS:</h4>
               <div className="grid grid-cols-2 gap-2 pl-3">
                 {richData.scales.map((sc: any, idx: number) => (
@@ -333,7 +290,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
           )}
 
           {/* Assinatura Pedagógica */}
-          <div className="pt-12 flex justify-between items-end text-center text-[9px] font-black border-t border-black/10">
+          <div className="pt-12 flex justify-between items-end text-center text-[9px] font-black border-t border-black/10 break-inside-avoid">
             <div className="w-[180px] border-t-2 border-black pt-2">
               <p>{aula.professor_nome}</p>
               <p className="text-[7px] text-black/60">PROFESSOR(A)</p>
@@ -346,7 +303,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
         </div>
 
         {/* Ações */}
-        <div className="flex gap-4 mt-6">
+        <div className="flex gap-4 mt-6 print:hidden">
           <button 
             onClick={handlePrint}
             className="flex-1 bg-[#ff6b00] text-white border-4 border-black font-black text-xs py-3 shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all"
