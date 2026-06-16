@@ -369,6 +369,7 @@ export default function AreaProfessor() {
   const [loadingTreinos, setLoadingTreinos] = useState(false);
   const [selectedTreinoVideo, setSelectedTreinoVideo] = useState<string | null>(null);
   const [isTreinoVideoModalOpen, setIsTreinoVideoModalOpen] = useState(false);
+  const [searchTreino, setSearchTreino] = useState('');
   const [isCheckinConfirmModalOpen, setIsCheckinConfirmModalOpen] = useState(false);
   const [checkinConfirmData, setCheckinConfirmData] = useState<any>(null);
 
@@ -460,7 +461,7 @@ export default function AreaProfessor() {
     
     Promise.all([
       fetch('/api/professores/me', { headers }).then(r => r.ok ? r.json() : null),
-      fetch(`/api/agenda?start=${format(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')}&end=${format(new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')}`, { headers }).then(r => r.ok ? r.json() : []),
+      fetch(`/api/agenda?start=2020-01-01&end=2030-01-01`, { headers }).then(r => r.ok ? r.json() : []),
       fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : [])
     ]).then(([me, agenda, alunos]) => {
       if (me) {
@@ -3765,6 +3766,48 @@ export default function AreaProfessor() {
                   </p>
                 </div>
 
+                {/* Pesquisa e Fichas de Aulas Passadas */}
+                <div className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+                  <h4 className="font-black text-black uppercase text-xs mb-3 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-emerald-600" /> FICHAS DE AULAS ANTERIORES
+                  </h4>
+                  <div className="flex gap-2 mb-4">
+                    <input 
+                      type="text" 
+                      placeholder="PESQUISAR POR NOME DO ALUNO..." 
+                      className="flex-1 bg-white border-2 border-black p-2 font-black text-xs uppercase outline-none focus:bg-[#ffeae1]"
+                      value={searchTreino}
+                      onChange={(e) => setSearchTreino(e.target.value)}
+                    />
+                  </div>
+                  {searchTreino.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
+                      {agenda.filter(a => a.status === 'realizada' && a.aluno_nome?.toLowerCase().includes(searchTreino.toLowerCase())).map(aula => (
+                        <div key={aula.id} className="bg-white border-2 border-black p-3 flex justify-between items-center shadow-[2px_2px_0_#000]">
+                          <div className="min-w-0 flex-1 pr-2">
+                            <h5 className="font-black text-[10px] uppercase truncate">{aula.aluno_nome}</h5>
+                            <p className="text-[8px] font-bold text-black/60 uppercase">{format(new Date((aula.data || '2099-12-31') + 'T12:00:00'), 'dd/MM/yyyy')} - {aula.curso_nome || 'Música'}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedAula(aula);
+                              setIsPreviewOpen(true);
+                            }}
+                            className="bg-black text-white px-3 py-1.5 border-2 border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none flex items-center gap-1 shrink-0"
+                          >
+                            <FileText className="w-3 h-3" /> ABRIR FICHA
+                          </button>
+                        </div>
+                      ))}
+                      {agenda.filter(a => a.status === 'realizada' && a.aluno_nome?.toLowerCase().includes(searchTreino.toLowerCase())).length === 0 && (
+                        <div className="col-span-full py-4 text-center opacity-50 font-black text-[10px] uppercase">
+                          NENHUMA FICHA ENCONTRADA.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Lista de Treinos */}
                 <div className="space-y-3">
                   {loadingTreinos ? (
@@ -4372,9 +4415,9 @@ export default function AreaProfessor() {
       {/* MODAL DE PRE-VISUALIZACAO E IMPRESSÃO (PDF) */}
       {isPreviewOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div ref={pdfRef} className="bg-[#fff8f6] border-8 border-black p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto font-['Space_Mono'] relative shadow-[12px_12px_0_#000] print-area">
+          <div className="bg-[#fff8f6] border-8 border-black w-full max-w-4xl max-h-[90vh] overflow-y-auto relative shadow-[12px_12px_0_#000]">
             {/* Controles do modal (ocultos na impressão via CSS print:hidden) */}
-            <div className="absolute top-4 right-4 flex gap-2 print:hidden" data-html2canvas-ignore>
+            <div className="sticky top-0 z-10 flex justify-end gap-2 p-4 bg-[#fff8f6] border-b-4 border-black" data-html2canvas-ignore>
               <button
                 type="button"
                 onClick={handleDownloadPdf}
@@ -4392,7 +4435,7 @@ export default function AreaProfessor() {
             </div>
 
             {/* CONTEÚDO PEDAGÓGICO */}
-            <div className="space-y-6 pt-4">
+            <div ref={pdfRef} className="p-8 space-y-6 font-['Space_Mono'] bg-[#fff8f6]">
               {/* Cabeçalho */}
               <div className="border-b-4 border-black pb-4 text-center">
                 <span className="font-black bg-[#ff6b00] text-white text-[10px] px-3 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">

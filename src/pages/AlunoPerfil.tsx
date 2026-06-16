@@ -586,7 +586,7 @@ export default function AlunoPerfil() {
 
   const fetchAgenda = async () => {
     const token = localStorage.getItem('acorde_token');
-    const res = await fetch(`/api/alunos/${id}/agenda`, {
+    const res = await fetch(`/api/alunos/${id}/agenda?start=2020-01-01&end=2030-01-01`, {
       headers: { 'Authorization': `Bearer ${token}` }
     }).then(r => r.json());
     setAgenda(res);
@@ -600,7 +600,7 @@ export default function AlunoPerfil() {
     try {
       const [alunoData, aData, fData, mData, cData] = await Promise.all([
         fetch(`/api/alunos/${id}`, { headers }).then(res => res.ok ? res.json() : null),
-        fetch(`/api/alunos/${id}/agenda`, { headers }).then(res => res.ok ? res.json() : []),
+        fetch(`/api/alunos/${id}/agenda?start=2020-01-01&end=2030-01-01`, { headers }).then(res => res.ok ? res.json() : []),
         fetch(`/api/alunos/${id}/financeiro`, { headers }).then(res => res.ok ? res.json() : []),
         fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : []),
         fetch(`/api/cursos`, { headers }).then(res => res.ok ? res.json() : [])
