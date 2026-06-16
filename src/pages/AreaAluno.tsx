@@ -13,6 +13,8 @@ import { TriadeNinja } from '../components/jogos/TriadeNinja';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PwaModal } from '../components/alunos/PwaModal';
@@ -146,15 +148,48 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
     }
   } catch {}
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!pdfRef.current) return;
     try {
-      document.title = `Diario_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}`;
-      window.print();
-      document.title = 'Studio Acorde - CRM'; // Restore
+      const toastId = toast.loading('Gerando PDF do Diário...');
+      
+      const element = pdfRef.current;
+      
+      const dataUrl = await toPng(element, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: '#fff8f6',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: element.offsetWidth + 'px',
+          height: element.offsetHeight + 'px'
+        }
+      });
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (element.offsetHeight * pdfWidth) / element.offsetWidth;
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      const studentName = alunoLogado?.nome || 'Aluno';
+      const dateStr = aula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(aula.data)) : '';
+
+      const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
+      const safeDate = dateStr.replace(/\//g, "-");
+      
+      pdf.save(`Diario_${safeName}_${safeDate}.pdf`);
+
+      toast.success('PDF baixado com sucesso!', { id: toastId });
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao abrir janela de impressão.');
+      toast.error('Erro ao gerar o PDF.');
     }
   };
 

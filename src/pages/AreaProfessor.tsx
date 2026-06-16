@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import html2pdf from 'html2pdf.js';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 import { 
   Bell, 
   Home, 
@@ -1269,17 +1270,55 @@ export default function AreaProfessor() {
     }
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!pdfRef.current) return;
     try {
-      // Usar a funcionalidade nativa do navegador para imprimir (sem bugs de oklch do html2canvas)
-      // O CSS já possui utilitários print: para esconder o resto e focar só no PDF
-      document.title = `Ficha_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}`;
-      window.print();
-      document.title = 'Studio Acorde - CRM'; // Restore
+      const toastId = toast.loading('Gerando PDF da Ficha...');
+      
+      const element = pdfRef.current;
+      
+      // Captura o elemento como PNG usando html-to-image (suporta oklch e todo o CSS moderno)
+      const dataUrl = await toPng(element, {
+        quality: 1.0,
+        pixelRatio: 2,
+        backgroundColor: '#fff8f6',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: element.offsetWidth + 'px',
+          height: element.offsetHeight + 'px'
+        }
+      });
+
+      // Cria o PDF usando jsPDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (element.offsetHeight * pdfWidth) / element.offsetWidth;
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      const studentName = isCreateModalOpen 
+        ? (alunosList.find(a => a.id === newAulaAlunoId)?.nome || 'Aluno')
+        : (selectedAula?.nome || selectedAula?.aluno_nome || 'Aluno');
+        
+      const dateStr = isCreateModalOpen 
+        ? (newAulaData ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(newAulaData)) : '')
+        : (selectedAula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(selectedAula.data)) : '');
+
+      const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
+      const safeDate = dateStr.replace(/\//g, "-");
+      
+      pdf.save(`Ficha_${safeName}_${safeDate}.pdf`);
+
+      toast.success('PDF baixado com sucesso!', { id: toastId });
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao abrir janela de impressão.');
+      toast.error('Erro ao gerar o PDF.');
     }
   };
 

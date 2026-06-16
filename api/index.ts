@@ -2331,29 +2331,47 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    // Módulo de Confirmação de Aula: Aluno confirmando
+    // Módulo de Confirmação de Aula: Professor ou Aluno confirmando
     app.post('/api/agenda/:id/confirmar', async (req: any, res) => {
         try {
             const { id } = req.params;
+            const isExp = id.startsWith('exp-');
             const originalId = id.replace('reg-', '').replace('exp-', '');
 
-            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).single();
-            if (errA || !aula) throw new Error('Aula não encontrada');
+            if (isExp) {
+                // Aula Experimental
+                const { data: aulaExp, error: errExp } = await supabase.from('aulas_experimentais').select('*, professores(id, nome)').eq('id', originalId).single();
+                if (errExp || !aulaExp) throw new Error('Aula experimental não encontrada');
 
-            // Atualizar status
-            await supabase.from('aulas').update({ status: 'confirmada' }).eq('id', originalId);
+                await supabase.from('aulas_experimentais').update({ status: 'confirmada' }).eq('id', originalId);
 
-            // Enviar Notificação Interna e Push para o Professor
-            if (aula.professores?.id) {
-                const { data: profData } = await supabase.from('professores').select('email').eq('id', aula.professores.id).single();
-                const titulo = 'Aula Confirmada! ✅';
-                const msg = `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`;
-                
-                await supabase.from('notificacoes').insert([{
-                    titulo, mensagem: msg, tipo: 'agenda', professor_id: aula.professores.id
-                }]);
+                if (aulaExp.professores?.id) {
+                    const { data: profData } = await supabase.from('professores').select('email').eq('id', aulaExp.professores.id).single();
+                    const titulo = 'Aula Experimental Confirmada! ✅';
+                    const msg = `O aluno ${aulaExp.nome_aluno} confirmou a presença na aula experimental!`;
+                    
+                    await supabase.from('notificacoes').insert([{
+                        titulo, mensagem: msg, tipo: 'agenda', professor_id: aulaExp.professores.id
+                    }]);
+                    await sendPushNotification(titulo, msg, String(aulaExp.professores.id), profData?.email);
+                }
+            } else {
+                // Aula Regular
+                const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).single();
+                if (errA || !aula) throw new Error('Aula não encontrada');
 
-                await sendPushNotification(titulo, msg, String(aula.professores.id), profData?.email);
+                await supabase.from('aulas').update({ status: 'confirmada' }).eq('id', originalId);
+
+                if (aula.professores?.id) {
+                    const { data: profData } = await supabase.from('professores').select('email').eq('id', aula.professores.id).single();
+                    const titulo = 'Aula Confirmada! ✅';
+                    const msg = `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`;
+                    
+                    await supabase.from('notificacoes').insert([{
+                        titulo, mensagem: msg, tipo: 'agenda', professor_id: aula.professores.id
+                    }]);
+                    await sendPushNotification(titulo, msg, String(aula.professores.id), profData?.email);
+                }
             }
 
             res.json({ success: true, status: 'confirmada' });
