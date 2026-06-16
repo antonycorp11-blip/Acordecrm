@@ -985,6 +985,54 @@ export default function AreaProfessor() {
     setIsModalOpen(true);
   };
 
+  const openPreviewModal = (aula: any) => {
+    setSelectedAula(aula);
+    
+    let conteudoText = aula.conteudo || '';
+    let tarefaCasaText = aula.tarefa_casa || '';
+    let chords: any[] = [];
+    let scales: any[] = [];
+    let exercises: any[] = [];
+    let recordings: any[] = [];
+    let tablatures: any[] = [];
+    let drums: any[] = [];
+    let melody: any[] = [];
+    let images: any[] = [];
+
+    try {
+      if (aula.conteudo && aula.conteudo.trim().startsWith('{') && aula.conteudo.trim().endsWith('}')) {
+        const richData = JSON.parse(aula.conteudo);
+        if (richData.isRich) {
+          conteudoText = richData.conteudoText || '';
+          tarefaCasaText = richData.tarefaCasaText || '';
+          chords = richData.chords || [];
+          scales = richData.scales || [];
+          exercises = richData.exercises || [];
+          recordings = richData.recordings || [];
+          tablatures = richData.tablatures || [];
+          drums = richData.drums || [];
+          melody = richData.melody || [];
+          images = richData.images || [];
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao ler JSON rico:', e);
+    }
+
+    setConteudo(conteudoText);
+    setTarefaCasa(tarefaCasaText);
+    setMcChords(chords);
+    setMcScales(scales);
+    setMcExercises(exercises);
+    setMcRecordings(recordings);
+    setMcTablatures(tablatures);
+    setMcDrums(drums);
+    setMcMelody(melody);
+    setMcImages(images);
+
+    setIsPreviewOpen(true);
+  };
+
   const handleAddLink = () => {
     if (!linkTitulo || !linkUrl) return;
     setMidias(prev => [...prev, { titulo: linkTitulo, url: linkUrl }]);
@@ -3789,10 +3837,7 @@ export default function AreaProfessor() {
                             <p className="text-[8px] font-bold text-black/60 uppercase">{format(new Date((aula.data || '2099-12-31') + 'T12:00:00'), 'dd/MM/yyyy')} - {aula.curso_nome || 'Música'}</p>
                           </div>
                           <button
-                            onClick={() => {
-                              setSelectedAula(aula);
-                              setIsPreviewOpen(true);
-                            }}
+                            onClick={() => openPreviewModal(aula)}
                             className="bg-black text-white px-3 py-1.5 border-2 border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none flex items-center gap-1 shrink-0"
                           >
                             <FileText className="w-3 h-3" /> ABRIR FICHA
