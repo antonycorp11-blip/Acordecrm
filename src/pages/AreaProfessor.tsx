@@ -3782,7 +3782,7 @@ export default function AreaProfessor() {
                   </div>
                   {searchTreino.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
-                      {agenda.filter(a => a.status === 'realizada' && a.aluno_nome?.toLowerCase().includes(searchTreino.toLowerCase())).map(aula => (
+                      {agendaCompleta.filter(a => a.status === 'realizada' && a.aluno_nome?.toLowerCase().includes(searchTreino.toLowerCase())).map(aula => (
                         <div key={aula.id} className="bg-white border-2 border-black p-3 flex justify-between items-center shadow-[2px_2px_0_#000]">
                           <div className="min-w-0 flex-1 pr-2">
                             <h5 className="font-black text-[10px] uppercase truncate">{aula.aluno_nome}</h5>
@@ -3799,7 +3799,7 @@ export default function AreaProfessor() {
                           </button>
                         </div>
                       ))}
-                      {agenda.filter(a => a.status === 'realizada' && a.aluno_nome?.toLowerCase().includes(searchTreino.toLowerCase())).length === 0 && (
+                      {agendaCompleta.filter(a => a.status === 'realizada' && a.aluno_nome?.toLowerCase().includes(searchTreino.toLowerCase())).length === 0 && (
                         <div className="col-span-full py-4 text-center opacity-50 font-black text-[10px] uppercase">
                           NENHUMA FICHA ENCONTRADA.
                         </div>
