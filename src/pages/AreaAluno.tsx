@@ -21,6 +21,7 @@ import { AvatarEditor } from '../components/AvatarEditor';
 import { AvatarStore } from '../components/AvatarStore';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 import html2canvas from 'html2canvas';
+import html2pdf from 'html2pdf.js';
 import { Download } from 'lucide-react';
 
 // Função para tornar links no texto clicáveis
@@ -145,22 +146,15 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
     }
   } catch {}
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     if (!pdfRef.current) return;
     try {
-      const toastId = toast.loading('Gerando PDF do Diário...');
-      const opt = {
-        margin: [0.1, 0, 0.1, 0], // reduzido margens
-        filename: `Diario_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff8f6' },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-      };
-      await html2pdf().set(opt).from(pdfRef.current).save();
-      toast.success('PDF baixado com sucesso!', { id: toastId });
+      document.title = `Diario_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}`;
+      window.print();
+      document.title = 'Studio Acorde - CRM'; // Restore
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao gerar o PDF.');
+      toast.error('Erro ao abrir janela de impressão.');
     }
   };
 
@@ -171,8 +165,8 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
   return (
     <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
       
-      <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-2xl relative shadow-[12px_12px_0_#000] max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6" data-html2canvas-ignore>
+      <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-2xl relative shadow-[12px_12px_0_#000] max-h-[90vh] overflow-y-auto print:border-none print:shadow-none print:max-w-none print:h-auto print:max-h-none print:overflow-visible">
+        <div className="flex justify-between items-center mb-6 print:hidden" data-html2canvas-ignore>
           <h3 className="text-black font-black text-sm uppercase italic tracking-widest">
             📄 VISUALIZAR DIÁRIO PEDAGÓGICO
           </h3>
@@ -193,7 +187,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
         </div>
 
         {/* ÁREA DE IMPRESSÃO */}
-        <div ref={pdfRef} id="print-section" className="bg-white border-4 border-black p-8 text-black space-y-6">
+        <div ref={pdfRef} id="print-section" className="print-area bg-white border-4 border-black p-8 text-black space-y-6">
           {/* Header Pedagógico */}
           <div className="border-b-4 border-black pb-4 flex justify-between items-start">
             <div>

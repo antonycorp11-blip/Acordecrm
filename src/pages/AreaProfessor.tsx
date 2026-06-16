@@ -1269,22 +1269,17 @@ export default function AreaProfessor() {
     }
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     if (!pdfRef.current) return;
     try {
-      const toastId = toast.loading('Gerando PDF da Ficha...');
-      const opt = {
-        margin: [0.1, 0, 0.1, 0], // reduzido margens para não cortar layout
-        filename: `Ficha_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff8f6' },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-      };
-      await html2pdf().set(opt).from(pdfRef.current).save();
-      toast.success('PDF baixado com sucesso!', { id: toastId });
+      // Usar a funcionalidade nativa do navegador para imprimir (sem bugs de oklch do html2canvas)
+      // O CSS já possui utilitários print: para esconder o resto e focar só no PDF
+      document.title = `Ficha_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}`;
+      window.print();
+      document.title = 'Studio Acorde - CRM'; // Restore
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao gerar o PDF.');
+      toast.error('Erro ao abrir janela de impressão.');
     }
   };
 
@@ -4462,7 +4457,7 @@ export default function AreaProfessor() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
           <div className="bg-[#fff8f6] border-8 border-black w-full max-w-4xl max-h-[90vh] overflow-y-auto relative shadow-[12px_12px_0_#000]">
             {/* Controles do modal (ocultos na impressão via CSS print:hidden) */}
-            <div className="sticky top-0 z-10 flex justify-end gap-2 p-4 bg-[#fff8f6] border-b-4 border-black" data-html2canvas-ignore>
+            <div className="sticky top-0 z-10 flex justify-end gap-2 p-4 bg-[#fff8f6] border-b-4 border-black print:hidden" data-html2canvas-ignore>
               <button
                 type="button"
                 onClick={handleDownloadPdf}
@@ -4480,7 +4475,7 @@ export default function AreaProfessor() {
             </div>
 
             {/* CONTEÚDO PEDAGÓGICO */}
-            <div ref={pdfRef} className="p-8 space-y-6 font-['Space_Mono'] bg-[#fff8f6]">
+            <div ref={pdfRef} className="print-area p-8 space-y-6 font-['Space_Mono'] bg-[#fff8f6]">
               {/* Cabeçalho */}
               <div className="border-b-4 border-black pb-4 text-center">
                 <span className="font-black bg-[#ff6b00] text-white text-[10px] px-3 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
