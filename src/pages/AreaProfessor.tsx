@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import html2pdf from 'html2pdf.js';
 import { 
   Bell, 
   Home, 
@@ -265,6 +266,7 @@ const getAulaLocalDateStr = (aula: any) => {
 
 export default function AreaProfessor() {
   const { user, logout } = useAuth();
+  const pdfRef = useRef<HTMLDivElement>(null);
   const [professorData, setProfessorData] = useState<any>(null);
   const [disponibilidade, setDisponibilidade] = useState<string[]>([]);
   const [salvandoDisponibilidade, setSalvandoDisponibilidade] = useState(false);
@@ -1215,6 +1217,25 @@ export default function AreaProfessor() {
       alert('Erro ao gerar sugestão com IA.');
     } finally {
       setIsAILoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!pdfRef.current) return;
+    try {
+      const toastId = toast.loading('Gerando PDF da Ficha...');
+      const opt = {
+        margin: [0.1, 0, 0.1, 0], // reduzido margens para não cortar layout
+        filename: `Ficha_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff8f6' },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(pdfRef.current).save();
+      toast.success('PDF baixado com sucesso!', { id: toastId });
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao gerar o PDF.');
     }
   };
 
@@ -4351,44 +4372,15 @@ export default function AreaProfessor() {
       {/* MODAL DE PRE-VISUALIZACAO E IMPRESSÃO (PDF) */}
       {isPreviewOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#fff8f6] border-8 border-black p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto font-['Space_Mono'] relative shadow-[12px_12px_0_#000] print-area">
-            <style>{`
-              @media print {
-                body * {
-                  visibility: hidden !important;
-                }
-                .print-area, .print-area * {
-                  visibility: visible !important;
-                }
-                .print-area {
-                  position: absolute !important;
-                  left: 0 !important;
-                  top: 0 !important;
-                  width: 100% !important;
-                  height: auto !important;
-                  overflow: visible !important;
-                  max-height: none !important;
-                  border: none !important;
-                  box-shadow: none !important;
-                  padding: 0 !important;
-                  margin: 0 !important;
-                  background: white !important;
-                }
-                @page {
-                  size: auto;
-                  margin: 10mm;
-                }
-              }
-            `}</style>
-
-            {/* Controles do modal (ocultos na impressão) */}
-            <div className="absolute top-4 right-4 flex gap-2 print:hidden">
+          <div ref={pdfRef} className="bg-[#fff8f6] border-8 border-black p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto font-['Space_Mono'] relative shadow-[12px_12px_0_#000] print-area">
+            {/* Controles do modal (ocultos na impressão via CSS print:hidden) */}
+            <div className="absolute top-4 right-4 flex gap-2 print:hidden" data-html2canvas-ignore>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={handleDownloadPdf}
                 className="bg-emerald-500 text-white px-3 py-2 border-2 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
               >
-                <span>⬇️</span> IMPRIMIR / PDF
+                <span>⬇️</span> BAIXAR PDF
               </button>
               <button 
                 type="button"

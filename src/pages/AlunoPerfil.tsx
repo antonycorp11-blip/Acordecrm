@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import html2pdf from 'html2pdf.js';
 import { 
   User, 
   Calendar, 
@@ -580,6 +581,9 @@ export default function AlunoPerfil() {
   const [novoMaterial, setNovoMaterial] = useState({ titulo: '', url: '', tipo: 'link' });
   const [savingMaterial, setSavingMaterial] = useState(false);
 
+  // Impressão de Fichas
+  const [printAula, setPrintAula] = useState<any>(null);
+
   const fetchAgenda = async () => {
     const token = localStorage.getItem('acorde_token');
     const res = await fetch(`/api/alunos/${id}/agenda`, {
@@ -1060,6 +1064,33 @@ export default function AlunoPerfil() {
                    </div>
                  )}
               </div>
+              <div className="flex justify-between items-center bg-black p-4 border-4 border-black shadow-[4px_4px_0_#000] mt-8">
+                 <h2 className="text-white font-black uppercase text-[10px] tracking-widest italic">Fichas de Treino (Aulas)</h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {frequencia.filter((a: any) => a.status === 'realizada').length > 0 ? frequencia.filter((a: any) => a.status === 'realizada').map((aula: any) => (
+                   <Card key={aula.id} className="flex flex-col h-full bg-orange-50/50">
+                     <div className="flex-1">
+                        <div className="w-12 h-12 bg-[#ff6b00] text-white border-2 border-black flex items-center justify-center mb-4 shadow-[2px_2px_0_#000]">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-black text-black uppercase text-sm mb-1 leading-tight">Ficha de {aula.curso_nome || 'Música'}</h4>
+                        <p className="text-[8px] font-black text-[#8e7164] uppercase mb-4 italic italic">{format(new Date((aula.data || '2099-12-31') + 'T12:00:00'), 'dd/MM/yyyy')} • Prof. {aula.professor_nome}</p>
+                     </div>
+                     <div className="flex gap-2">
+                        <button onClick={() => setPrintAula(aula)} className="flex-1 bg-emerald-500 text-white font-black text-[9px] uppercase py-2 border-2 border-black text-center active:translate-y-0.5 flex justify-center items-center gap-2 hover:bg-emerald-600 transition-colors">
+                          <FileText className="w-3.5 h-3.5" /> IMPRIMIR FICHA
+                        </button>
+                     </div>
+                   </Card>
+                 )) : (
+                   <div className="col-span-full py-20 text-center opacity-20 flex flex-col items-center">
+                      <BookOpen className="w-16 h-16 mb-4" />
+                      <p className="font-black uppercase italic italic">Nenhuma ficha de aula encontrada</p>
+                   </div>
+                 )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1303,6 +1334,193 @@ export default function AlunoPerfil() {
       {/* Gerador de Contrato */}
       <GeradorContrato isOpen={contratoModal} onClose={() => setContratoModal(false)} aluno={aluno} />
 
+      {/* Modal de Impressão de Ficha */}
+      {printAula && (
+        <PrintModal 
+          aula={printAula} 
+          alunoNome={aluno?.nome || ''} 
+          onClose={() => setPrintAula(null)} 
+        />
+      )}
+
+    </div>
+  );
+}
+// Modal de visualização de diário pedagógico / Impressão PDF
+function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string, onClose: () => void }) {
+  const pdfRef = useRef<HTMLDivElement>(null);
+  let richData: any = null;
+  try {
+    if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
+      richData = JSON.parse(aula.conteudo);
+    }
+  } catch {}
+
+  const handleDownloadPdf = async () => {
+    if (!pdfRef.current) return;
+    try {
+      const toastId = toast.loading('Gerando PDF do Diário...');
+      const opt = {
+        margin: [0.1, 0, 0.1, 0], // reduzido margens
+        filename: `Diario_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff8f6' },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(pdfRef.current).save();
+      toast.success('PDF baixado com sucesso!', { id: toastId });
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao gerar o PDF.');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
+      
+      <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-2xl relative shadow-[12px_12px_0_#000] max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6" data-html2canvas-ignore>
+          <h3 className="text-black font-black text-sm uppercase italic tracking-widest">
+            📄 VISUALIZAR DIÁRIO PEDAGÓGICO
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDownloadPdf}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 border-2 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
+            >
+              <span>⬇️</span> BAIXAR PDF
+            </button>
+            <button 
+              onClick={onClose} 
+              className="bg-black text-[#feccba] border-2 border-black font-black text-xs px-3 py-1.5 shadow-[4px_4px_0_#000] hover:bg-red-500 hover:text-white transition-all active:translate-y-1 active:shadow-none"
+            >
+              X
+            </button>
+          </div>
+        </div>
+
+        {/* ÁREA DE IMPRESSÃO */}
+        <div ref={pdfRef} id="print-section" className="bg-white border-4 border-black p-8 text-black space-y-6">
+          {/* Header Pedagógico */}
+          <div className="border-b-4 border-black pb-4 flex justify-between items-start">
+            <div>
+              <h1 className="font-black text-2xl uppercase tracking-tighter">STUDIO MASTER</h1>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-black/60">DIÁRIO DE EVOLUÇÃO PEDAGÓGICA</p>
+            </div>
+            <div className="text-right">
+              <p className="font-black text-sm uppercase italic">AULA DE {aula.curso_nome || 'MÚSICA'}</p>
+              <p className="text-[10px] font-black">{format(new Date((aula.data || '2099-12-31') + 'T12:00:00'), 'dd/MM/yyyy')}</p>
+            </div>
+          </div>
+
+          {/* Dados do Aluno */}
+          <div className="grid grid-cols-2 gap-4 border-b-2 border-black/10 pb-4 text-[10px] uppercase font-black tracking-wider">
+            <div>
+              <span className="text-black/50 block text-[8px]">ALUNO(A)</span>
+              {alunoNome}
+            </div>
+            <div className="text-right">
+              <span className="text-black/50 block text-[8px]">PROFESSOR(A)</span>
+              {aula.professor_nome}
+            </div>
+          </div>
+
+          {/* Conteúdo Rico ou Texto Simples */}
+          {richData && richData.isRich ? (
+            <div className="space-y-6">
+              {/* Resumo */}
+              <div>
+                <h4 className="text-[10px] font-black uppercase text-black/50 tracking-widest mb-2 flex items-center gap-2">
+                  <span className="w-4 h-4 bg-[#ff6b00] rounded-full inline-block border border-black"></span>
+                  Conteúdo Trabalhado
+                </h4>
+                <div className="text-sm leading-relaxed whitespace-pre-wrap">{richData.conteudoText || 'Nenhum resumo adicionado.'}</div>
+              </div>
+              
+              {/* Repertório/Harmonia */}
+              {(richData.chords?.length > 0 || richData.scales?.length > 0) && (
+                <div className="p-4 bg-[#fff8f6] border-2 border-black shadow-[2px_2px_0_#000]">
+                   <h4 className="font-black text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2">
+                     <span className="text-lg">🎸</span> Estudo de Harmonia / Acordes
+                   </h4>
+                   <div className="flex flex-wrap gap-2">
+                      {richData.chords?.map((c: any, i: number) => (
+                        <span key={i} className="px-2 py-1 bg-white border border-black text-xs font-bold">{c.root}{c.type}</span>
+                      ))}
+                      {richData.scales?.map((s: any, i: number) => (
+                        <span key={i} className="px-2 py-1 bg-black text-white border border-black text-xs font-bold">{s.root} {s.type}</span>
+                      ))}
+                   </div>
+                </div>
+              )}
+
+              {/* Bateria/Ritmo */}
+              {richData.drums?.length > 0 && (
+                <div className="p-4 bg-stone-100 border-2 border-black shadow-[2px_2px_0_#000]">
+                   <h4 className="font-black text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2">
+                     <span className="text-lg">🥁</span> Grooves e Rudimentos
+                   </h4>
+                   <ul className="list-disc pl-4 text-xs space-y-1">
+                      {richData.drums.map((d: any, i: number) => (
+                        <li key={i}><strong>{d.pattern}</strong> a {d.bpm} BPM</li>
+                      ))}
+                   </ul>
+                </div>
+              )}
+
+              {/* Estúdio / Mídia */}
+              {richData.recordings?.length > 0 && (
+                <div className="p-4 bg-[#ffeae1] border-2 border-black shadow-[2px_2px_0_#000]">
+                   <h4 className="font-black text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2">
+                     <span className="text-lg">🎙️</span> Registros de Estúdio
+                   </h4>
+                   <ul className="list-disc pl-4 text-xs space-y-1">
+                      {richData.recordings.map((r: any, i: number) => (
+                        <li key={i}>{r.name}</li>
+                      ))}
+                   </ul>
+                </div>
+              )}
+
+              {/* Tarefa de Casa */}
+              <div>
+                <h4 className="text-[10px] font-black uppercase text-black/50 tracking-widest mb-2 flex items-center gap-2">
+                  <span className="w-4 h-4 bg-[#4ade80] rounded-full inline-block border border-black"></span>
+                  Missão para Casa
+                </h4>
+                <div className="text-sm leading-relaxed p-4 bg-black text-white whitespace-pre-wrap shadow-[4px_4px_0_#4ade80]">
+                  {richData.tarefaCasaText || 'Nenhuma tarefa de casa atribuída.'}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-[10px] font-black uppercase text-black/50 tracking-widest mb-2">Conteúdo Trabalhado</h4>
+                <div className="text-sm leading-relaxed whitespace-pre-wrap">{aula.conteudo || 'Nenhum conteúdo registrado.'}</div>
+              </div>
+              <div>
+                <h4 className="text-[10px] font-black uppercase text-black/50 tracking-widest mb-2">Tarefa de Casa</h4>
+                <div className="text-sm leading-relaxed whitespace-pre-wrap p-4 bg-black text-white shadow-[4px_4px_0_#4ade80]">
+                  {aula.tarefa_casa || 'Sem tarefas para casa.'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer Assinatura */}
+          <div className="pt-12 pb-4 flex justify-between items-end border-t-2 border-black/10 mt-8">
+            <div className="w-48 border-t-2 border-black text-center pt-2">
+              <span className="text-[8px] font-black uppercase block">Assinatura Professor</span>
+              <span className="text-xs uppercase italic">{aula.professor_nome}</span>
+            </div>
+            <div className="w-48 border-t-2 border-black text-center pt-2">
+              <span className="text-[8px] font-black uppercase block">Visto Responsável/Aluno</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
   );
 }

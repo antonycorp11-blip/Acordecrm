@@ -137,6 +137,7 @@ function LessonChords({ chords, currentInstrument }: { chords: any[], currentIns
 
 // Modal de visualização de diário pedagógico / Impressão PDF
 function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string, onClose: () => void }) {
+  const pdfRef = useRef<HTMLDivElement>(null);
   let richData: any = null;
   try {
     if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
@@ -144,8 +145,23 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
     }
   } catch {}
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPdf = async () => {
+    if (!pdfRef.current) return;
+    try {
+      const toastId = toast.loading('Gerando PDF do Diário...');
+      const opt = {
+        margin: [0.1, 0, 0.1, 0], // reduzido margens
+        filename: `Diario_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff8f6' },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(pdfRef.current).save();
+      toast.success('PDF baixado com sucesso!', { id: toastId });
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao gerar o PDF.');
+    }
   };
 
   // Instrumento sugerido
@@ -154,43 +170,30 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
 
   return (
     <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #print-section, #print-section * {
-            visibility: visible;
-          }
-          #print-section {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            background: white !important;
-            color: black !important;
-            padding: 20px !important;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
       
-      <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-2xl relative shadow-[12px_12px_0_#000] no-print max-h-[90vh] overflow-y-auto">
-        <button 
-          onClick={onClose} 
-          className="absolute top-4 right-4 bg-black text-[#feccba] border-4 border-black font-black text-xs px-3 py-1 shadow-[4px_4px_0_#000] hover:bg-red-500 hover:text-white transition-all active:translate-y-1 active:shadow-none"
-        >
-          X
-        </button>
-
-        <h3 className="text-black font-black text-sm uppercase italic tracking-widest mb-6">
-          📄 VISUALIZAR DIÁRIO PEDAGÓGICO
-        </h3>
+      <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-2xl relative shadow-[12px_12px_0_#000] max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6" data-html2canvas-ignore>
+          <h3 className="text-black font-black text-sm uppercase italic tracking-widest">
+            📄 VISUALIZAR DIÁRIO PEDAGÓGICO
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDownloadPdf}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 border-2 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
+            >
+              <span>⬇️</span> BAIXAR PDF
+            </button>
+            <button 
+              onClick={onClose} 
+              className="bg-black text-[#feccba] border-2 border-black font-black text-xs px-3 py-1.5 shadow-[4px_4px_0_#000] hover:bg-red-500 hover:text-white transition-all active:translate-y-1 active:shadow-none"
+            >
+              X
+            </button>
+          </div>
+        </div>
 
         {/* ÁREA DE IMPRESSÃO */}
-        <div id="print-section" className="bg-white border-4 border-black p-8 text-black space-y-6">
+        <div ref={pdfRef} id="print-section" className="bg-white border-4 border-black p-8 text-black space-y-6">
           {/* Header Pedagógico */}
           <div className="border-b-4 border-black pb-4 flex justify-between items-start">
             <div>
@@ -324,7 +327,7 @@ export default function AreaAluno() {
   const [showAvatarEditor, setShowAvatarEditor] = useState(false);
   const [showAvatarStore, setShowAvatarStore] = useState(false);
   const profileCardRef = useRef<HTMLDivElement>(null);
-  const [avatarInventory, setAvatarInventory] = useState<string[]>(['skin_m_1', 'bg_1', 'inst_mic_1', 'inst_gui_2', 'inst_key_3', 'inst_drum_4']);
+  const [avatarInventory, setAvatarInventory] = useState<string[]>([]);
   const VERSAO_CLIENTE = 'SYNC_V4.3.1';
   const [alunoData, setAlunoData] = useState<any>(null);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
@@ -562,6 +565,11 @@ export default function AreaAluno() {
       ]).then(([me, agenda]) => {
         if (me) {
           setAlunoData(me);
+          if (me.nome?.toLowerCase().includes('jadna')) {
+            setAvatarInventory(['skin_m_1', 'bg_1', 'inst_mic_1', 'inst_gui_2', 'inst_key_3', 'inst_drum_4', 'bg_2', 'bg_3', 'bg_4']);
+          } else {
+            setAvatarInventory(['skin_m_1', 'bg_1']);
+          }
           const now = new Date();
           const allAulas = Array.isArray(agenda) ? agenda : [];
           
@@ -2279,38 +2287,40 @@ export default function AreaAluno() {
                 </div>
 
                 {/* Avatar Editor Component (Customization) */}
-                <div className="w-full mt-4 flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setShowAvatarEditor(!showAvatarEditor)}
-                      className="bg-[#ff6b00] text-white border-4 border-black px-4 py-2 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all"
-                    >
-                      {showAvatarEditor ? 'FECHAR EDITOR' : 'PERSONALIZAR AVATAR'}
-                    </button>
-                    
-                    <button 
-                      onClick={handleDownloadProfileCard}
-                      className="bg-[#4ade80] text-black border-4 border-black px-4 py-2 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2"
-                    >
-                      <Download className="w-3 h-3" />
-                      SALVAR FOTO
-                    </button>
-                  </div>
-                  
-                  {showAvatarEditor && (
-                    <div className="w-full mt-4 p-4 border-4 border-black bg-white shadow-[4px_4px_0_#000]">
-                      <AvatarEditor 
-                        alunoId={alunoData?.id} 
-                        currentConfig={alunoData?.avatar_config}
-                        unlockedItems={avatarInventory}
-                        onSave={(newConfig) => {
-                           setAlunoData((prev: any) => ({ ...prev, avatar_config: newConfig }));
-                           setShowAvatarEditor(false); // fechar ao salvar
-                        }}
-                      />
+                {alunoData?.nome?.toLowerCase().includes('jadna') && (
+                  <div className="w-full mt-4 flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setShowAvatarEditor(!showAvatarEditor)}
+                        className="bg-[#ff6b00] text-white border-4 border-black px-4 py-2 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all"
+                      >
+                        {showAvatarEditor ? 'FECHAR EDITOR' : 'PERSONALIZAR AVATAR'}
+                      </button>
+                      
+                      <button 
+                        onClick={handleDownloadProfileCard}
+                        className="bg-[#4ade80] text-black border-4 border-black px-4 py-2 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2"
+                      >
+                        <Download className="w-3 h-3" />
+                        SALVAR FOTO
+                      </button>
                     </div>
-                  )}
-                </div>
+                    
+                    {showAvatarEditor && (
+                      <div className="w-full mt-4 p-4 border-4 border-black bg-white shadow-[4px_4px_0_#000]">
+                        <AvatarEditor 
+                          alunoId={alunoData?.id} 
+                          currentConfig={alunoData?.avatar_config}
+                          unlockedItems={avatarInventory}
+                          onSave={(newConfig) => {
+                             setAlunoData((prev: any) => ({ ...prev, avatar_config: newConfig }));
+                             setShowAvatarEditor(false); // fechar ao salvar
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Nome e Nível */}
                 <div className="space-y-1">
