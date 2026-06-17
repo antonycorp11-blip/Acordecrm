@@ -2386,7 +2386,6 @@ export default function AreaAluno() {
                 </div>
 
                 {/* Avatar Editor Component (Customization) */}
-                {alunoData?.nome?.toLowerCase().includes('jadna') && (
                   <div className="w-full mt-4 flex flex-col items-center gap-2">
                     <div className="flex items-center gap-2">
                       <button 
@@ -2427,7 +2426,6 @@ export default function AreaAluno() {
                       </div>
                     )}
                   </div>
-                )}
 
                 {/* Nome e Nível */}
                 <div className="space-y-1">
