@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState } from 'react';
 import { AvatarPixel } from './AvatarPixel';
 import { toast } from 'sonner';
-import { SKINS, INSTRUMENTS, BACKGROUNDS } from '../utils/avatarAssets';
+import { SKINS, INSTRUMENTS, BACKGROUNDS, FONTS, TILES } from '../utils/avatarAssets';
 
 interface AvatarEditorProps {
   alunoId: string;
@@ -13,9 +13,11 @@ interface AvatarEditorProps {
 
 export const AvatarEditor: React.FC<AvatarEditorProps> = ({ alunoId, currentConfig, unlockedItems = [], onSave }) => {
   const [config, setConfig] = useState<any>({
-    skinId: currentConfig?.skinId || 'skin_m_1',
-    instrumentId: currentConfig?.instrumentId || null,
-    backgroundId: currentConfig?.backgroundId || 'bg_1',
+    skinId: currentConfig?.skinId || '',
+    instrumentId: currentConfig?.instrumentId || '',
+    backgroundId: currentConfig?.backgroundId || '',
+    fontId: currentConfig?.fontId || '',
+    tileId: currentConfig?.tileId || '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -53,7 +55,7 @@ export const AvatarEditor: React.FC<AvatarEditorProps> = ({ alunoId, currentConf
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {items.map(item => {
             // Default first items are owned
-            const isOwned = unlockedItems.includes(item.id) || item.id === 'skin_m_1' || item.id === 'bg_1';
+            const isOwned = unlockedItems.includes(item.id);
             const isEquipped = config[fieldName] === item.id;
             
             // Get Thumbnail based on item type
@@ -72,7 +74,17 @@ export const AvatarEditor: React.FC<AvatarEditorProps> = ({ alunoId, currentConf
                     ${isEquipped ? 'border-[#ff6b00] bg-[#ff6b00]/20' : 'border-black bg-white hover:bg-gray-200'} 
                     ${!isOwned ? 'opacity-50 grayscale' : ''}`}
                 >
-                  <img src={thumbUrl} alt={item.name} className="w-full h-full object-cover" />
+                  {fieldName === 'fontId' ? (
+                    <div className="w-full h-full flex items-center justify-center text-center p-2" style={{ fontFamily: item.fontFamily, backgroundColor: '#111', color: '#fff' }}>
+                      <span className="text-2xl">Aa</span>
+                    </div>
+                  ) : fieldName === 'tileId' ? (
+                    <div className="w-full h-full flex items-center justify-center p-4 bg-black">
+                      <div className={`w-full aspect-square border-4 ${item.className}`}></div>
+                    </div>
+                  ) : (
+                    <img src={thumbUrl} alt={item.name} className="w-full h-full object-cover" />
+                  )}
                 </button>
                 {!isOwned && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -110,6 +122,8 @@ export const AvatarEditor: React.FC<AvatarEditorProps> = ({ alunoId, currentConf
         {renderGrid('Skins (Personagens)', SKINS, 'skinId')}
         {renderGrid('Cenários', BACKGROUNDS, 'backgroundId')}
         {renderGrid('Instrumentos', INSTRUMENTS, 'instrumentId', true)}
+        {renderGrid('Fontes (Ranking)', FONTS, 'fontId', true)}
+        {renderGrid('Molduras (Ranking)', TILES, 'tileId', true)}
       </div>
 
       <button 

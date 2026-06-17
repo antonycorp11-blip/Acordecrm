@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import PerfilEstudanteModal, { getClasse, getInstrumento, resolveTrophyImage } from '../components/PerfilEstudanteModal';
+import { AvatarPixel } from '../components/AvatarPixel';
+import { FONTS, TILES } from '../utils/avatarAssets';
 
 type ViewMode = 'cards' | 'lista';
 
@@ -131,6 +133,24 @@ export default function Ranking() {
     <Target key="tg" className="w-6 h-6" />
   ];
 
+  const getFont = (aluno: any) => {
+    const f = FONTS.find(font => font.id === aluno?.avatar_config?.fontId);
+    return f ? f.fontFamily : undefined;
+  };
+
+  const getTileClass = (aluno: any, defaultClass: string) => {
+    const t = TILES.find(tile => tile.id === aluno?.avatar_config?.tileId);
+    return t ? `border-4 ${t.className}` : defaultClass;
+  };
+
+  const getAvatarConfig = (aluno: any) => {
+    if (aluno?.avatar_config && aluno.avatar_config.skinId) return { config: aluno.avatar_config, isSilhouette: false };
+    return { 
+      config: { skinId: 'skin_m_1', instrumentId: 'inst_gui_1', backgroundId: 'bg_1' }, 
+      isSilhouette: true 
+    };
+  };
+
   return (
     <div className="flex flex-col flex-1 h-screen overflow-hidden" style={{ background: '#1a0a05', fontFamily: "'Space Mono', monospace" }}>
       {/* Dot background */}
@@ -174,134 +194,63 @@ export default function Ranking() {
         {loading ? (
           <div className="text-center py-20 text-[#8e7164] font-black uppercase animate-pulse">Carregando ranking...</div>
         ) : viewMode === 'cards' ? (
-          /* ── CARDS VIEW ── */
-          <div className="grid grid-cols-3 gap-5">
+          /* ── CARDS VIEW (PODIUM) ── */
+          <div className="flex items-end justify-center gap-6 mb-12 mt-20 h-[500px]">
             {mockRanking.length > 0 ? (
               <>
-                {/* Featured #1 card (left, large) */}
-                {mockRanking[0] && (
-                  <div onClick={() => handleOpenAlunoModal(mockRanking[0])} className="col-span-2 rounded-lg overflow-hidden relative cursor-pointer hover:scale-[1.01] transition-all" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '6px 6px 0 #000' }}>
-                    {/* Rank badge */}
-                    <div className="absolute top-4 left-4 w-10 h-10 flex items-center justify-center font-black text-white text-sm z-10" style={{ background: '#ff6b00', border: '2px solid #261812', boxShadow: '2px 2px 0 #261812' }}>
-                      #1
-                    </div>
-                    <div className="flex h-full">
-                      {/* Photo area */}
-                      <div className="w-64 bg-gradient-to-b from-[#261812] to-[#1a0a05] flex items-center justify-center shrink-0" style={{ minHeight: '340px', borderRight: '3px solid #261812' }}>
-                        {mockRanking[0].foto_url ? (
-                          <img 
-                            src={mockRanking[0].foto_url} 
-                            alt={mockRanking[0].nome} 
-                            className="w-40 h-48 object-cover rounded border-2 border-[#ff6b00]" 
-                            style={{ boxShadow: '0 0 30px rgba(255,107,0,0.3)' }} 
-                          />
-                        ) : (
-                          <div className="w-40 h-48 bg-[#3d2d26] rounded border-2 border-[#ff6b00] flex items-center justify-center" style={{ boxShadow: '0 0 30px rgba(255,107,0,0.3)' }}>
-                            <span className="text-[#ff6b00] font-black text-5xl">{(mockRanking[0].nome || 'R').charAt(0)}</span>
-                          </div>
-                        )}
-                      </div>
-                      {/* Info */}
-                      <div className="flex-1 p-8 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
-                            <h3 className="font-black text-[#261812] text-3xl uppercase tracking-tight leading-none">{mockRanking[0].nome}</h3>
-                            {/* Miniaturas de troféu reais ao lado do nome */}
-                            <div className="flex gap-1.5 shrink-0">
-                              {(mockRanking[0].conquistas || []).map((c: any, idx: number) => (
-                                <div key={idx} className="w-8 h-8 rounded border border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden" title={`${c.nome} (+${c.pontos} XP)`}>
-                                  {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
-                                    <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-1" />
-                                  ) : (
-                                    <Trophy className="w-4 h-4 text-[#ff6b00]" />
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <p className="text-[#7b5647] text-xs font-bold leading-relaxed mb-4">
-                            Desempenho excepcional nesta temporada. Continue evoluindo suas habilidades musicais!
-                          </p>
-                        </div>
-
-                        {/* Fundo do card / Info rodapé */}
-                        <div className="space-y-4 pt-4 border-t border-[#f8ddd2]">
-                          <div className="flex items-center justify-between text-[10px] font-black uppercase text-[#7b5647]">
-                            <div>CLASSE: <span className="text-[#ff6b00]">{getClasse(mockRanking[0].xp)}</span></div>
-                            <div>INSTRUMENTO: <span className="text-[#261812]">{getInstrumento(mockRanking[0])}</span></div>
-                            <div>XP: <span className="text-[#ff6b00]">{mockRanking[0].xp?.toLocaleString()}</span></div>
-                          </div>
-                          {/* XP Bar */}
-                          <div className="rounded p-3 flex items-center gap-4" style={{ background: '#ff6b00', border: '2px solid #261812' }}>
-                            <div className="flex-1 h-4 rounded overflow-hidden" style={{ background: '#261812' }}>
-                              <div className="h-full bg-[#fff8f6] rounded" style={{ width: `${Math.min(100, (mockRanking[0].xp / 10000) * 100)}%` }}></div>
-                            </div>
-                            <span className="text-white font-black text-xs whitespace-nowrap">XP: {mockRanking[0].xp}/{mockRanking[0].xp >= 10000 ? '10000' : '10000'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                {/* 2nd Place */}
+                {mockRanking[1] && (
+                  <div 
+                    onClick={() => handleOpenAlunoModal(mockRanking[1])}
+                    className="w-64 h-[80%] flex flex-col items-center justify-end relative cursor-pointer group hover:-translate-y-2 transition-transform"
+                  >
+                     <div className="w-full h-[350px] relative z-10 flex items-end pb-2 border-x-4 border-t-4 border-[#261812] bg-[#1a0a05]">
+                        <AvatarPixel config={getAvatarConfig(mockRanking[1]).config} isSilhouette={getAvatarConfig(mockRanking[1]).isSilhouette} />
+                     </div>
+                     <div className={`w-full h-32 bg-[#3d2d26] border-4 border-[#261812] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[1], '')}`}>
+                        <div className="absolute -top-5 bg-gray-300 border-2 border-black px-4 py-1 font-black text-sm shadow-[2px_2px_0_#000] z-30">2ND</div>
+                        <div className="font-black text-white text-xl uppercase truncate w-full text-center mt-2" style={{ fontFamily: getFont(mockRanking[1]) }}>{mockRanking[1].nome}</div>
+                        <div className="text-[#ffeb3b] text-xs font-black uppercase mt-1 tracking-widest">{mockRanking[1].xp?.toLocaleString()} PTS</div>
+                     </div>
                   </div>
                 )}
 
-                {/* Side cards #2, #3 */}
-                <div className="flex flex-col gap-5">
-                  {mockRanking.slice(1, 3).map((aluno, i) => (
-                    <div key={aluno.id} onClick={() => handleOpenAlunoModal(aluno)} className="rounded-lg overflow-hidden relative flex-1 cursor-pointer hover:scale-[1.02] transition-all" style={{ background: '#fff1eb', border: '3px solid #261812', boxShadow: '4px 4px 0 #000', minHeight: '150px' }}>
-                      <div className="absolute top-3 left-3 flex items-center justify-center font-black text-[#261812] text-sm border-2 border-[#261812] w-9 h-9" style={{ background: '#fff8f6' }}>
-                        #{i + 2}
-                      </div>
-                      <div className="flex h-full p-4 pt-12">
-                        {aluno.foto_url ? (
-                          <img 
-                            src={aluno.foto_url} 
-                            alt={aluno.nome} 
-                            className="w-20 h-24 object-cover rounded border-2 border-[#261812] shrink-0 mr-4" 
-                          />
-                        ) : (
-                          <div className="w-20 h-24 bg-[#261812] rounded border border-[#ff6b00] flex items-center justify-center shrink-0 mr-4">
-                            <span className="text-[#ff6b00] font-black text-2xl">{(aluno.nome || '?').charAt(0)}</span>
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0 flex flex-col justify-between">
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <h4 className="font-black text-[#261812] text-sm uppercase leading-tight truncate max-w-[120px]">{aluno.nome}</h4>
-                              {/* Miniaturas de troféu reais ao lado do nome */}
-                              <div className="flex gap-0.5 shrink-0">
-                                {(aluno.conquistas || []).slice(0, 3).map((c: any, j: number) => (
-                                  <div key={j} className="w-5 h-5 rounded border border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden" title={c.nome}>
-                                    {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
-                                      <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-0.5" />
-                                    ) : (
-                                      <Trophy className="w-3 h-3 text-[#ff6b00]" />
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Fundo do card / rodapé */}
-                          <div className="text-[8px] font-black uppercase text-[#8e7164] space-y-0.5 border-t border-[#f8ddd2]/60 pt-2 mt-1">
-                            <div>CLASSE: <span className="text-[#ff6b00]">{getClasse(aluno.xp)}</span></div>
-                            <div>INSTRUMENTO: <span className="text-[#261812]">{getInstrumento(aluno)}</span></div>
-                            <div>XP: <span className="text-[#ff6b00]">{aluno.xp?.toLocaleString()}</span></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {mockRanking.length < 2 && (
-                    <div className="flex-1 rounded-lg border-2 border-dashed border-[#5a4136] flex items-center justify-center text-[#8e7164] font-black uppercase text-[10px] tracking-widest">
-                      Aguardando competidores
-                    </div>
-                  )}
-                </div>
+                {/* 1st Place */}
+                {mockRanking[0] && (
+                  <div 
+                    onClick={() => handleOpenAlunoModal(mockRanking[0])}
+                    className="w-80 h-full flex flex-col items-center justify-end relative cursor-pointer group hover:-translate-y-2 transition-transform"
+                  >
+                     <div className="w-full h-[400px] relative z-10 flex items-end pb-2 border-x-4 border-t-4 border-[#261812] bg-[#1a0a05]">
+                        <AvatarPixel config={getAvatarConfig(mockRanking[0]).config} isSilhouette={getAvatarConfig(mockRanking[0]).isSilhouette} />
+                     </div>
+                     <div className={`w-full h-40 bg-[#ff6b00] border-4 border-[#261812] shadow-[6px_6px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[0], '')}`}>
+                        <div className="absolute -top-5 bg-[#ffeb3b] border-2 border-black px-6 py-1 font-black text-lg shadow-[2px_2px_0_#000] z-30">1ST</div>
+                        <div className="font-black text-black text-3xl uppercase truncate w-full text-center mt-2" style={{ fontFamily: getFont(mockRanking[0]) }}>{mockRanking[0].nome}</div>
+                        <div className="text-white text-sm font-black uppercase mt-1 tracking-widest">{mockRanking[0].xp?.toLocaleString()} PTS</div>
+                     </div>
+                  </div>
+                )}
+
+                {/* 3rd Place */}
+                {mockRanking[2] && (
+                  <div 
+                    onClick={() => handleOpenAlunoModal(mockRanking[2])}
+                    className="w-64 h-[70%] flex flex-col items-center justify-end relative cursor-pointer group hover:-translate-y-2 transition-transform"
+                  >
+                     <div className="w-full h-[300px] relative z-10 flex items-end pb-2 border-x-4 border-t-4 border-[#261812] bg-[#1a0a05]">
+                        <AvatarPixel config={getAvatarConfig(mockRanking[2]).config} isSilhouette={getAvatarConfig(mockRanking[2]).isSilhouette} />
+                     </div>
+                     <div className={`w-full h-28 bg-[#5a4136] border-4 border-[#261812] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[2], '')}`}>
+                        <div className="absolute -top-4 bg-orange-800 border-2 border-black px-4 py-1 font-black text-xs text-white shadow-[2px_2px_0_#000] z-30">3RD</div>
+                        <div className="font-black text-[#feccba] text-lg uppercase truncate w-full text-center mt-2" style={{ fontFamily: getFont(mockRanking[2]) }}>{mockRanking[2].nome}</div>
+                        <div className="text-[#feccba] opacity-80 text-[10px] font-black uppercase mt-1 tracking-widest">{mockRanking[2].xp?.toLocaleString()} PTS</div>
+                     </div>
+                  </div>
+                )}
               </>
             ) : (
-              <div className="col-span-3 py-20 flex flex-col items-center justify-center rounded-lg border-4 border-dashed border-[#5a4136] bg-[#1a0a05]/50">
+              <div className="col-span-3 py-20 flex flex-col items-center justify-center rounded-lg border-4 border-dashed border-[#5a4136] bg-[#1a0a05]/50 w-full">
                 <Trophy className="w-16 h-16 text-[#5a4136] mb-4" />
                 <p className="text-[#8e7164] font-black uppercase tracking-widest text-lg">Nenhum aluno no ranking ainda</p>
                 <p className="text-[#5a4136] font-bold uppercase text-[10px] mt-2">Comece a atribuir conquistas para ver o progresso</p>
@@ -331,19 +280,11 @@ export default function Ranking() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {aluno.foto_url ? (
-                          <img 
-                            src={aluno.foto_url} 
-                            alt={aluno.nome} 
-                            className="w-10 h-10 rounded-full border-2 border-[#7b5647] object-cover shrink-0" 
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded border-2 border-[#7b5647] flex items-center justify-center font-black text-[#261812] shrink-0" style={{ background: '#feccba' }}>
-                            {(aluno.nome || '?').charAt(0)}
-                          </div>
-                        )}
+                        <div className={`w-16 h-16 rounded overflow-hidden bg-black shrink-0 relative flex items-start justify-center pt-2 ${getTileClass(aluno, 'border-2 border-[#7b5647]')}`}>
+                           <AvatarPixel config={getAvatarConfig(aluno).config} isSilhouette={getAvatarConfig(aluno).isSilhouette} />
+                        </div>
                         <div className="flex items-center gap-3">
-                          <span className="font-black text-[#261812] uppercase text-sm">{aluno.nome}</span>
+                          <span className="font-black text-[#261812] uppercase text-sm" style={{ fontFamily: getFont(aluno) }}>{aluno.nome}</span>
                           {/* Miniaturas de troféu reais ao lado do nome */}
                           <div className="flex items-center gap-1.5">
                             {(aluno.conquistas || []).map((c: any, idx: number) => (

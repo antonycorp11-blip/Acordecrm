@@ -734,7 +734,7 @@ async function startServer() {
             const { preco, item_id } = req.body;
             if (!preco) return res.status(400).json({ error: 'Preço não informado' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, acorde_coins').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, acorde_coins, avatar_inventory').eq('email', email).single();
             if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
 
             const precoNum = Number(preco);
@@ -743,9 +743,14 @@ async function startServer() {
             }
 
             const novasMoedas = (Number(aluno.acorde_coins) || 0) - precoNum;
-            await supabase.from('alunos').update({ acorde_coins: novasMoedas }).eq('id', aluno.id);
+            const currentInventory = Array.isArray(aluno.avatar_inventory) ? aluno.avatar_inventory : [];
+            const newInventory = item_id && !currentInventory.includes(item_id) ? [...currentInventory, item_id] : currentInventory;
 
-            res.json({ success: true, novasMoedas });
+            await supabase.from('alunos')
+                .update({ acorde_coins: novasMoedas, avatar_inventory: newInventory })
+                .eq('id', aluno.id);
+
+            res.json({ success: true, novasMoedas, inventory: newInventory });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
@@ -2595,10 +2600,11 @@ async function startServer() {
     app.get('/api/gamificacao/ranking', async (req, res) => {
         try {
             // Buscar alunos ativos (exclui arquivados e testes)
-            const { data: alunos } = await supabase
+            const { data: alunos, error: alunosError } = await supabase
                 .from('alunos')
-                .select('id, nome, xp, foto_url')
+                .select('id, nome, xp, foto_url, avatar_config')
                 .neq('status', 'arquivado');
+            if (alunosError) console.error('Erro ao buscar alunos para ranking:', alunosError);
 
             const progresso = await fetchAllGamificacaoProgresso(supabase);
             
@@ -2621,6 +2627,7 @@ async function startServer() {
                     id: al.id,
                     nome: al.nome,
                     foto_url: al.foto_url,
+                    avatar_config: al.avatar_config,
                     xp: xpTotal,
                     xp_aulas: Number(al.xp) || 0,
                     xp_conquistas: xpConquistas,
@@ -2630,7 +2637,7 @@ async function startServer() {
             }).sort((a: any, b: any) => b.xp - a.xp);
 
             res.json(ranking);
-        } catch (error) { res.status(500).json({ error: 'Erro ao gerar ranking' }); }
+        } catch (error) { console.error('Erro no ranking:', error); res.status(500).json({ error: 'Erro ao gerar ranking' }); }
     });
 
     app.post('/api/gamificacao/atribuir', async (req, res) => {
@@ -2783,7 +2790,7 @@ async function startServer() {
             const email = (req as any).user?.email;
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').eq('email', email).single();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
 
             const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
@@ -2815,7 +2822,12 @@ async function startServer() {
 
             sendPushNotification(titulo, mensagem);
 
-            res.json({ success: true, data: treino });
+            // Update XP and Coins
+            const novoXp = (Number(aluno.xp) || 0) + 500;
+            const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
+            await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+
+            res.json({ success: true, data: treino, novoXp, novasMoedas });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
@@ -3328,51 +3340,6 @@ async function startServer() {
         }
     });
 
-    // Serve static files from public folder
-    app.use(express.static(join(__dirname, 'public')));
-
-    // Vite Integration for local development
-    if (process.env.NODE_ENV !== 'production' && !isVercel) {
-        try {
-            const { createServer: createViteServer } = await import('vite');
-            const vite = await createViteServer({
-                server: { middlewareMode: true },
-                appType: 'spa',
-            });
-            app.use(vite.middlewares);
-        } catch (e) {
-            console.error('Failed to start Vite middleware', e);
-        }
-    } else if (!isVercel) {
-        const distPath = path.join(__dirname, 'dist');
-        if (fs.existsSync(distPath)) {
-            app.use(express.static(distPath));
-            app.get('*', (req, res) => {
-                res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-                res.setHeader('Pragma', 'no-cache');
-                res.setHeader('Expires', '0');
-                res.sendFile(path.join(distPath, 'index.html'));
-            });
-        }
-    }
-
-    // Error Handler Global
-    app.use((err: any, req: any, res: any, next: any) => {
-        console.error('[GLOBAL_ERROR]', err);
-        res.status(500).json({ error: 'Erro Interno do Servidor (Global Handler)' });
-    });
-
-    return app;
-}
-
-let cachedApp: any = null;
-
-// Start the server if not running in a Serverless environment (like Vercel)
-if (!isVercel) {
-    startServer().then((app) => {
-        const port = process.env.PORT || 3000;
-        
-
     // --- GAMIFICACAO 2.0 ROUTES ---
 
     // 1. Feed
@@ -3458,7 +3425,6 @@ if (!isVercel) {
 
     // --- END GAMIFICACAO 2.0 ---
 
-
     // 4. Temporada Atual
     app.get('/api/temporada-atual', async (req, res) => {
         try {
@@ -3474,7 +3440,52 @@ if (!isVercel) {
         }
     });
 
-app.listen(port, () => {
+    // Serve static files from public folder
+    app.use(express.static(join(__dirname, 'public')));
+
+    // Vite Integration for local development
+    if (process.env.NODE_ENV !== 'production' && !isVercel) {
+        try {
+            const { createServer: createViteServer } = await import('vite');
+            const vite = await createViteServer({
+                server: { middlewareMode: true },
+                appType: 'spa',
+            });
+            app.use(vite.middlewares);
+        } catch (e) {
+            console.error('Failed to start Vite middleware', e);
+        }
+    } else if (!isVercel) {
+        const distPath = path.join(__dirname, 'dist');
+        if (fs.existsSync(distPath)) {
+            app.use(express.static(distPath));
+            app.get('*', (req, res) => {
+                res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+                res.setHeader('Pragma', 'no-cache');
+                res.setHeader('Expires', '0');
+                res.sendFile(path.join(distPath, 'index.html'));
+            });
+        }
+    }
+
+    // Error Handler Global
+    app.use((err: any, req: any, res: any, next: any) => {
+        console.error('[GLOBAL_ERROR]', err);
+        res.status(500).json({ error: 'Erro Interno do Servidor (Global Handler)' });
+    });
+
+    return app;
+}
+
+let cachedApp: any = null;
+
+// Start the server if not running in a Serverless environment (like Vercel)
+if (!isVercel) {
+    startServer().then((app) => {
+        const port = process.env.PORT || 3000;
+        
+
+        app.listen(port, () => {
             console.log(`Server running at http://0.0.0.0:${port}`);
         });
     }).catch(err => console.error('Local server startup failed:', err));

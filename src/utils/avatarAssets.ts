@@ -123,9 +123,10 @@ export const BACKGROUNDS: AvatarBackground[] = [
 ];
 
 export const FONTS: AvatarRankingFont[] = [
-  { id: 'font_1', name: 'Cyberpunk', rarity: 'Épico', price: 2000, fontFamily: 'Courier New, monospace' },
-  { id: 'font_2', name: 'Pixel Art', rarity: 'Raro', price: 1000, fontFamily: 'monospace' },
-  { id: 'font_3', name: 'Neon Legend', rarity: 'Lendário', price: 3500, fontFamily: 'Impact, sans-serif' },
+  { id: 'font_1', name: 'Cyberpunk', rarity: 'Épico', price: 2000, fontFamily: "'Orbitron', sans-serif" },
+  { id: 'font_2', name: 'Pixel Art', rarity: 'Raro', price: 1000, fontFamily: "'Press Start 2P', cursive" },
+  { id: 'font_3', name: 'Neon Legend', rarity: 'Lendário', price: 3500, fontFamily: "'Bebas Neue', sans-serif" },
+  { id: 'font_4', name: 'Terror', rarity: 'Épico', price: 1500, fontFamily: "'Creepster', cursive" },
 ];
 
 export const TILES: AvatarRankingTile[] = [

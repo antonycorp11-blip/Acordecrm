@@ -8,9 +8,11 @@ interface AvatarPixelProps {
     backgroundId?: string;
     [key: string]: any;
   };
+  isSilhouette?: boolean;
+  hideBackground?: boolean;
 }
 
-export const AvatarPixel: React.FC<AvatarPixelProps> = ({ config }) => {
+export const AvatarPixel: React.FC<AvatarPixelProps> = ({ config, isSilhouette, hideBackground }) => {
   const { skinId, instrumentId, backgroundId } = config || {};
   
   const skin = SKINS.find(s => s.id === config.skinId) || SKINS[0];
@@ -22,16 +24,19 @@ export const AvatarPixel: React.FC<AvatarPixelProps> = ({ config }) => {
   return (
     <div className="w-full h-full relative group overflow-visible">
       {/* Background Layer (Z-0) */}
-      <div 
-        className="absolute inset-0 z-0 bg-cover bg-center overflow-hidden"
-        style={{ backgroundImage: `url("${background.url}")` }}
-      />
+      {!hideBackground && (
+        <div 
+          className="absolute inset-0 z-0 bg-cover bg-center overflow-hidden"
+          style={{ backgroundImage: `url("${background.url}")` }}
+        />
+      )}
       
       {/* Skin Layer (Z-10) */}
       <img 
         src={skinUrl} 
         alt="Avatar Skin" 
-        className="absolute inset-0 z-10 w-full h-full object-contain object-bottom"
+        className={`absolute inset-0 z-10 w-full h-full object-contain object-bottom ${isSilhouette ? 'opacity-90' : ''}`}
+        style={isSilhouette ? { filter: 'brightness(0) saturate(100%) invert(48%) sepia(90%) saturate(2853%) hue-rotate(345deg) brightness(101%) contrast(105%)' } : {}}
       />
 
       {/* Instrument Layer (Z-20) - Floating at bottom right */}
@@ -39,7 +44,7 @@ export const AvatarPixel: React.FC<AvatarPixelProps> = ({ config }) => {
         <img 
           src={instrument.url} 
           alt="Instrument" 
-          className={`absolute bottom-0 -right-6 w-32 h-32 sm:w-44 sm:h-44 z-20 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.9)] hover:scale-105 transition-transform origin-bottom-right ${instrument.type === 'guitar' ? '-rotate-[25deg] translate-x-4 translate-y-2' : ''}`}
+          className={`absolute bottom-[5%] right-[-15%] w-[75%] h-[75%] z-20 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.9)] hover:scale-105 transition-transform origin-bottom-right ${instrument.type === 'guitar' ? '-rotate-[25deg] translate-x-[10%] translate-y-[5%]' : ''}`}
         />
       )}
     </div>

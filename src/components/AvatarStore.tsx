@@ -40,7 +40,7 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
     return '';
   };
 
-  const isItemOwned = (id: string) => unlockedItems.includes(id) || id === 'skin_m_1' || id === 'bg_1';
+  const isItemOwned = (id: string) => unlockedItems.includes(id);
 
   const getRarityTagClass = (rarity: string) => {
     if (rarity === 'Lendário') return 'bg-yellow-500/20 text-yellow-500 border-yellow-500';
@@ -49,7 +49,7 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
   };
 
   return (
-    <div className="absolute inset-0 z-[100] bg-black p-4 w-full h-full overflow-y-auto text-white flex flex-col pb-24">
+    <div className="absolute inset-0 z-[100] bg-black p-4 w-full h-full overflow-y-auto overflow-x-hidden text-white flex flex-col pb-24">
       
       {/* Header Info - Game Style */}
       <div className="flex justify-between items-center mb-6 shrink-0 relative z-50">
@@ -132,11 +132,33 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
                     )}
 
                     {/* Imagem do Personagem/Item */}
-                    <img 
-                      src={item.thumb} 
-                      alt={item.name} 
-                      className={`relative z-10 w-full h-[110%] object-contain object-bottom drop-shadow-[0_10px_15px_rgba(0,0,0,0.8)] group-hover:scale-[1.03] transition-transform`} 
-                    />
+                    {item.type === 'fonts' ? (
+                      <div className="relative z-10 w-full h-[90%] flex flex-col items-center justify-center bg-[#fff1eb] p-2 mt-auto border-2 border-[#261812] shadow-[2px_2px_0_#000]">
+                        <div className="w-full flex items-center gap-2">
+                           <div className="w-8 h-8 rounded-full bg-[#feccba] border border-[#261812] shrink-0 flex items-center justify-center text-[10px]">👤</div>
+                           <div className="flex-1 min-w-0 text-left">
+                             <div className="text-[#261812] text-sm truncate leading-none" style={{ fontFamily: FONTS.find(f => f.id === item.id)?.fontFamily }}>NOME</div>
+                             <div className="text-[#ff6b00] text-[8px] font-black font-['Space_Mono'] mt-1">9999 XP</div>
+                           </div>
+                        </div>
+                      </div>
+                    ) : item.type === 'tiles' ? (
+                      <div className="relative z-10 w-full h-[90%] flex flex-col items-center justify-center bg-[#1a0a05] p-2 mt-auto border-2 border-white/10">
+                        <div className={`w-full flex items-center gap-2 bg-[#fff1eb] p-2 rounded-lg ${TILES.find(t => t.id === item.id)?.className}`}>
+                           <div className={`w-6 h-6 rounded-full bg-[#feccba] border border-[#7b5647] shrink-0 flex items-center justify-center text-[8px]`}>👤</div>
+                           <div className="flex-1 min-w-0 text-left">
+                             <div className="text-[#261812] text-xs truncate font-black font-['Space_Mono'] leading-none">NOME</div>
+                             <div className="text-[#ff6b00] text-[8px] font-black font-['Space_Mono'] mt-0.5">9999 XP</div>
+                           </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <img 
+                        src={item.thumb} 
+                        alt={item.name} 
+                        className={`relative z-10 w-full h-[110%] object-contain object-bottom drop-shadow-[0_10px_15px_rgba(0,0,0,0.8)] group-hover:scale-[1.03] transition-transform`} 
+                      />
+                    )}
                   </div>
                   
                   {/* Caixa Laranja (Preço / Status) */}
@@ -170,11 +192,35 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
                 </div>
              )}
 
-             <img 
-               src={selectedItem.thumb} 
-               alt={selectedItem.name} 
-               className="relative z-10 w-auto h-auto max-w-full max-h-[70vh] object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.9)]" 
-             />
+             {selectedItem.type === 'fonts' ? (
+               <div className="relative z-10 w-full max-w-sm aspect-[4/3] flex flex-col items-center justify-center bg-[#fff1eb] p-6 text-center drop-shadow-[0_20px_30px_rgba(0,0,0,0.9)] border-4 border-[#261812]">
+                 <div className="w-full flex items-center gap-4 bg-white/50 p-4 rounded border-2 border-[#261812]">
+                   <div className="w-16 h-16 rounded-full bg-[#feccba] border-2 border-[#261812] shrink-0 flex items-center justify-center text-2xl">👤</div>
+                   <div className="flex-1 text-left min-w-0">
+                     <div className="text-[#261812] text-3xl truncate leading-none mb-2" style={{ fontFamily: FONTS.find(f => f.id === selectedItem.id)?.fontFamily }}>NOME</div>
+                     <div className="text-[#ff6b00] text-sm font-black font-['Space_Mono']">RANK #1 • 10000 XP</div>
+                   </div>
+                 </div>
+                 <span className="text-[#8e7164] text-xs font-black uppercase tracking-widest mt-6">Preview no Ranking</span>
+               </div>
+             ) : selectedItem.type === 'tiles' ? (
+               <div className="relative z-10 w-full max-w-sm aspect-[4/3] flex flex-col items-center justify-center bg-[#1a0a05] p-6 drop-shadow-[0_20px_30px_rgba(0,0,0,0.9)] border-4 border-white/20">
+                  <div className={`w-full flex items-center gap-4 bg-[#fff1eb] p-4 rounded-lg ${TILES.find(t => t.id === selectedItem.id)?.className}`}>
+                   <div className={`w-16 h-16 rounded-full bg-[#feccba] border-2 border-[#261812] shrink-0 flex items-center justify-center text-2xl`}>👤</div>
+                   <div className="flex-1 text-left min-w-0">
+                     <div className="text-[#261812] text-3xl truncate font-black font-['Space_Mono'] leading-none mb-2">NOME</div>
+                     <div className="text-[#ff6b00] text-sm font-black font-['Space_Mono']">RANK #1 • 10000 XP</div>
+                   </div>
+                 </div>
+                 <span className="text-white/50 text-xs font-black uppercase tracking-widest mt-6">Preview no Ranking</span>
+               </div>
+             ) : (
+               <img 
+                 src={selectedItem.thumb} 
+                 alt={selectedItem.name} 
+                 className="relative z-10 w-auto h-auto max-w-full max-h-[70vh] object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.9)]" 
+               />
+             )}
           </div>
 
           <div className="relative z-50 flex flex-col items-center gap-4 mt-6">

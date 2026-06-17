@@ -24,6 +24,7 @@ import { PwaModal } from '../components/alunos/PwaModal';
 import { AvatarPixel } from '../components/AvatarPixel';
 import { AvatarEditor } from '../components/AvatarEditor';
 import { AvatarStore } from '../components/AvatarStore';
+import { FONTS, TILES } from '../utils/avatarAssets';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 import html2canvas from 'html2canvas';
 import html2pdf from 'html2pdf.js';
@@ -515,10 +516,10 @@ export default function AreaAluno() {
       ]).then(([me, agenda]) => {
         if (me) {
           setAlunoData(me);
-          if (me.nome?.toLowerCase().includes('jadna')) {
-            setAvatarInventory(['skin_m_1', 'bg_1', 'inst_mic_1', 'inst_gui_2', 'inst_key_3', 'inst_drum_4', 'bg_2', 'bg_3', 'bg_4']);
+          if (me.avatar_inventory && Array.isArray(me.avatar_inventory)) {
+            setAvatarInventory(me.avatar_inventory);
           } else {
-            setAvatarInventory(['skin_m_1', 'bg_1']);
+            setAvatarInventory([]);
           }
           const now = new Date();
           const allAulas = Array.isArray(agenda) ? agenda : [];
@@ -1233,68 +1234,137 @@ export default function AreaAluno() {
               {rankingData.length === 0 && (
                 <div className="text-center py-8 text-[#8e7164] font-black text-[9px] uppercase">Carregando ranking...</div>
               )}
-              {rankingData.map((player: any, idx: number) => {
-                const isMe = player.id === alunoData?.id;
-                const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
-                return (
-                  <div 
-                    key={player.id} 
-                    onClick={() => {
-                      setSelectedAluno(player);
-                      setIsAlunoModalOpen(true);
-                    }}
-                    className={`flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] cursor-pointer hover:-translate-y-0.5 transition-all ${isMe ? 'bg-[#ff6b00]' : 'bg-[#fff8f6]'}`}
-                  >
-                    <div className={`w-10 h-10 border-4 border-black flex items-center justify-center font-black text-sm shrink-0 ${isMe ? 'bg-white text-[#ff6b00]' : 'bg-[#feccba] text-black'}`}>
-                      {medal}
-                    </div>
-                    <div className="w-10 h-10 border-2 border-black overflow-hidden bg-[#261812] shrink-0">
-                      {player.foto_url ? (
-                        <img src={player.foto_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className={`w-full h-full flex items-center justify-center font-black text-base ${isMe ? 'text-white' : 'text-[#ff6b00]'}`}>
-                          {(player.nome || 'A').charAt(0)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className={`font-black text-[10px] uppercase truncate mb-0 ${isMe ? 'text-white' : 'text-black'}`}>{player.nome}</p>
-                        {/* Ícones de Conquistas */}
-                        {player.conquistas && player.conquistas.length > 0 && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            {player.conquistas.slice(0, 4).map((c: any, cIdx: number) => (
-                              <div 
-                                key={cIdx} 
-                                className="w-5 h-5 border-2 border-black bg-white flex items-center justify-center shadow-[1px_1px_0_#000] shrink-0" 
-                                title={c.nome}
-                              >
-                                {c.icone_url ? (
-                                  <img src={c.icone_url} alt={c.nome} className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="text-[8px]">🏆</span>
-                                )}
-                              </div>
-                            ))}
-                            {player.conquistas.length > 4 && (
-                              <span className={`text-[6px] font-black uppercase leading-none ${isMe ? 'text-white/80' : 'text-[#8e7164]'}`}>
-                                +{player.conquistas.length - 4}
-                              </span>
-                            )}
-                          </div>
-                        )}
+              {/* ===== TOP 3 PODIUM ===== */}
+              {rankingData.length > 0 && (
+                <div className="flex items-end justify-center gap-2 mb-10 mt-16 h-64 px-2">
+                  
+                  {/* 2nd Place */}
+                  {rankingData[1] && (
+                    <div 
+                      onClick={() => { setSelectedAluno(rankingData[1]); setIsAlunoModalOpen(true); }}
+                      className="w-[30%] h-[80%] flex flex-col items-center justify-end relative cursor-pointer hover:-translate-y-1 transition-transform"
+                    >
+                      <div className="w-full h-32 relative z-10 flex items-end justify-center pb-0">
+                        <AvatarPixel 
+                          config={rankingData[1]?.avatar_config?.skinId ? rankingData[1].avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                          isSilhouette={!rankingData[1]?.avatar_config?.skinId} 
+                          hideBackground={true}
+                        />
                       </div>
-                      <p className={`text-[7px] font-black uppercase mt-0.5 mb-0 ${isMe ? 'text-white/80' : 'text-[#8e7164]'}`}>{player.curso || 'STUDENT'}</p>
+                      <div className="w-full bg-[#5a6b7d] border-2 border-[#3d4b5c] shadow-[2px_2px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative rounded-t-sm">
+                        <div className="font-black text-white text-xl uppercase drop-shadow-[1px_1px_0_#000]">2ND</div>
+                        <div 
+                          className="font-black text-[9px] uppercase text-white truncate w-full text-center mt-1 drop-shadow-[1px_1px_0_#000]"
+                          style={FONTS.find(f => f.id === rankingData[1]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[1]?.avatar_config?.fontId)?.fontFamily } : {}}
+                        >{rankingData[1].nome}</div>
+                        <div className="text-white/80 text-[7px] font-black uppercase mt-0.5">{rankingData[1].xp} PTS</div>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className={`font-black text-sm italic ${isMe ? 'text-white' : 'text-[#ff6b00]'}`}>{player.xp} XP</p>
-                      {player.conquistas?.length > 0 && (
-                        <p className={`text-[6px] font-black ${isMe ? 'text-white/70' : 'text-[#8e7164]'}`}>{player.conquistas.length} conquistas</p>
-                      )}
+                  )}
+
+                  {/* 1st Place */}
+                  {rankingData[0] && (
+                    <div 
+                      onClick={() => { setSelectedAluno(rankingData[0]); setIsAlunoModalOpen(true); }}
+                      className="w-[38%] h-full flex flex-col items-center justify-end relative cursor-pointer hover:-translate-y-1 transition-transform z-30"
+                    >
+                      {/* Glow effect for 1st place */}
+                      <div className="absolute inset-0 bg-[#ffeb3b] blur-2xl opacity-20 rounded-full"></div>
+                      <div className="w-full h-44 relative z-10 flex items-end justify-center pb-0">
+                        <AvatarPixel 
+                          config={rankingData[0]?.avatar_config?.skinId ? rankingData[0].avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                          isSilhouette={!rankingData[0]?.avatar_config?.skinId} 
+                          hideBackground={true}
+                        />
+                      </div>
+                      <div className="w-full bg-[#ffb300] border-2 border-[#ff8f00] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-3 relative rounded-t-sm">
+                        <div className="font-black text-black text-3xl uppercase">1ST</div>
+                        <div 
+                          className="font-black text-[11px] uppercase text-black truncate w-full text-center mt-1"
+                          style={FONTS.find(f => f.id === rankingData[0]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[0]?.avatar_config?.fontId)?.fontFamily } : {}}
+                        >{rankingData[0].nome}</div>
+                        <div className="text-black/80 text-[8px] font-black uppercase mt-1">{rankingData[0].xp} PTS</div>
+                      </div>
                     </div>
+                  )}
+
+                  {/* 3rd Place */}
+                  {rankingData[2] && (
+                    <div 
+                      onClick={() => { setSelectedAluno(rankingData[2]); setIsAlunoModalOpen(true); }}
+                      className="w-[30%] h-[70%] flex flex-col items-center justify-end relative cursor-pointer hover:-translate-y-1 transition-transform"
+                    >
+                      <div className="w-full h-28 relative z-10 flex items-end justify-center pb-0">
+                        <AvatarPixel 
+                          config={rankingData[2]?.avatar_config?.skinId ? rankingData[2].avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                          isSilhouette={!rankingData[2]?.avatar_config?.skinId} 
+                          hideBackground={true}
+                        />
+                      </div>
+                      <div className="w-full bg-[#8d6e63] border-2 border-[#5d4037] shadow-[2px_2px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative rounded-t-sm">
+                        <div className="font-black text-white text-lg uppercase drop-shadow-[1px_1px_0_#000]">3RD</div>
+                        <div 
+                          className="font-black text-[9px] uppercase text-white truncate w-full text-center mt-1 drop-shadow-[1px_1px_0_#000]"
+                          style={FONTS.find(f => f.id === rankingData[2]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[2]?.avatar_config?.fontId)?.fontFamily } : {}}
+                        >{rankingData[2].nome}</div>
+                        <div className="text-white/80 text-[7px] font-black uppercase mt-0.5">{rankingData[2].xp} PTS</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ===== OTHER RANKINGS ===== */}
+              {rankingData.length > 3 && (
+                <div className="mt-8 bg-[#1a0a05]/80 p-4 rounded-xl border-2 border-[#3d2d26]">
+                  <h3 className="text-white font-black text-center mb-4 uppercase tracking-widest text-sm">OUTROS RANKINGS</h3>
+                  <div className="space-y-3">
+                    {rankingData.slice(3).map((player: any, idx: number) => {
+                      const rank = idx + 4; // Porque pulamos os 3 primeiros
+                      const isMe = player.id === alunoData?.id;
+                      
+                      // Extrair estilos customizados da loja
+                      const playerFont = FONTS.find(f => f.id === player?.avatar_config?.fontId)?.fontFamily;
+                      const playerTileClass = TILES.find(t => t.id === player?.avatar_config?.tileId)?.className || 'border-[#3d2d26]';
+
+                      return (
+                        <div 
+                          key={player.id} 
+                          onClick={() => { setSelectedAluno(player); setIsAlunoModalOpen(true); }}
+                          className={`flex items-center gap-3 p-2 border-2 cursor-pointer rounded-lg bg-[#261812] transition-colors ${isMe ? 'bg-[#ff6b00]/20' : 'hover:bg-[#3d2d26]'} ${playerTileClass}`}
+                        >
+                          {/* Número do Rank */}
+                          <div className={`font-black text-sm shrink-0 w-6 text-center ${isMe ? 'text-[#ff6b00]' : 'text-white'}`}>
+                            {rank}.
+                          </div>
+
+                          {/* Quadrado do Avatar (Apenas o rosto/parte superior) */}
+                          <div className="w-12 h-12 rounded bg-[#1a0a05] shrink-0 flex items-end justify-center pb-1 relative">
+                            <AvatarPixel 
+                              config={player?.avatar_config?.skinId ? player.avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                              isSilhouette={!player?.avatar_config?.skinId}
+                              hideBackground={true}
+                            />
+                          </div>
+
+                          {/* Nome */}
+                          <div className="flex-1 min-w-0">
+                            <p 
+                              className={`font-black text-xs uppercase truncate mb-0 ${isMe ? 'text-[#ff6b00]' : 'text-white'}`}
+                              style={playerFont ? { fontFamily: playerFont } : {}}
+                            >{player.nome}</p>
+                          </div>
+
+                          {/* XP */}
+                          <div className="text-right shrink-0">
+                            <p className={`font-black text-sm uppercase ${isMe ? 'text-[#ff6b00]' : 'text-[#ffb300]'}`}>{player.xp}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1358,7 +1428,11 @@ export default function AreaAluno() {
                         </div>
                       </div>
                     <div className="flex gap-2">
-                      <div className="bg-[#feccba] border-4 border-black px-2 py-1 flex items-center justify-center font-black text-xs text-[#3d2d26] shadow-[2px_2px_0_#000]">
+                      <div 
+                        className="bg-[#feccba] border-4 border-black px-2 py-1 flex items-center justify-center font-black text-xs text-[#3d2d26] shadow-[2px_2px_0_#000] cursor-pointer active:translate-y-1 active:shadow-none"
+                        onClick={() => handleAddXp(999999, 'Cheat Moedas')}
+                        title="Clique para ganhar +999999 moedas (Cheat)"
+                      >
                         💰 {acordeCoins} COINS
                       </div>
                     </div>
@@ -2337,9 +2411,17 @@ export default function AreaAluno() {
                           alunoId={alunoData?.id} 
                           currentConfig={alunoData?.avatar_config}
                           unlockedItems={avatarInventory}
-                          onSave={(newConfig) => {
+                          onSave={async (newConfig) => {
                              setAlunoData((prev: any) => ({ ...prev, avatar_config: newConfig }));
                              setShowAvatarEditor(false); // fechar ao salvar
+                             const token = localStorage.getItem('acorde_token');
+                             if (alunoData?.id) {
+                               await fetch(`/api/alunos/${alunoData.id}/avatar`, {
+                                 method: 'PUT',
+                                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                 body: JSON.stringify({ avatar_config: newConfig })
+                               });
+                             }
                           }}
                         />
                       </div>
