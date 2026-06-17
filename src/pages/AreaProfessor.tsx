@@ -225,7 +225,7 @@ class DrumSynth {
 const synth = new DrumSynth();
 
 const translateNote = (note: string): string => {
-  return note.replace(/\d+$/, '');
+  return note.replace(/[\d*]+$/, '');
 };
 
 // Helper para pegar os dias da semana atual (Segunda a Domingo)
@@ -2101,91 +2101,98 @@ export default function AreaProfessor() {
                     </div>
 
                     <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block text-center">
-                      CLIQUE NO TRASTE PARA PRESSIONAR E CIRCULE OS DEDOS (1 A 4), OU USE SOLTA/ABAFADA
+                      CLIQUE NO TRASTE DA CORDA PARA MARCAR O DEDO. (X = ABAFADA, O = SOLTA)
                     </span>
 
-                    <div className="border-4 border-black bg-[#261812] p-3 space-y-2.5 shadow-[4px_4px_0_#000]">
-                      {[
-                        { idx: 5, label: 'e (Mi agudo)' },
-                        { idx: 4, label: 'B (Si)' },
-                        { idx: 3, label: 'G (Sol)' },
-                        { idx: 2, label: 'D (Ré)' },
-                        { idx: 1, label: 'A (Lá)' },
-                        { idx: 0, label: 'E (Mi grave)' }
-                      ].map((str) => {
-                        const state = customGuitarStrings[str.idx] || { fret: 0, finger: null };
-                        return (
-                          <div key={str.idx} className="flex items-center gap-2 bg-[#fff8f6] border-2 border-black p-2 shadow-[2px_2px_0_#000]">
-                            <span className="w-16 font-black text-[9px] text-[#261812] uppercase tracking-wider shrink-0">{str.label}</span>
-                            
-                            <div className="flex gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updated = [...customGuitarStrings];
-                                  updated[str.idx] = { fret: 0, finger: null };
-                                  setCustomGuitarStrings(updated);
-                                }}
-                                className={`px-1.5 py-0.5 border-2 text-[8px] font-black transition-all ${
-                                  state.fret === 0
-                                    ? 'bg-emerald-500 text-white border-black'
-                                    : 'bg-white text-black/50 border-black/30'
-                                }`}
-                              >
-                                SOLTA
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updated = [...customGuitarStrings];
-                                  updated[str.idx] = { fret: null, finger: null };
-                                  setCustomGuitarStrings(updated);
-                                }}
-                                className={`px-1.5 py-0.5 border-2 text-[8px] font-black transition-all ${
-                                  state.fret === null
-                                    ? 'bg-red-500 text-white border-black'
-                                    : 'bg-white text-black/50 border-black/30'
-                                }`}
-                              >
-                                ABAFADA
-                              </button>
-                            </div>
-
-                            <div className="flex items-center gap-1 flex-1 justify-around">
-                              {[1, 2, 3, 4, 5].map((f) => {
-                                const isSelected = state.fret === f;
-                                return (
-                                  <button
-                                    key={f}
-                                    type="button"
-                                    onClick={() => {
+                    <div className="flex overflow-x-auto pb-4">
+                      <div className="bg-[#feccba] border-4 border-black p-4 inline-flex items-start shadow-[6px_6px_0_#000]">
+                        
+                        {/* Controles de Corda Solta/Abafada */}
+                        <div className="flex flex-col justify-between mr-4 py-2 space-y-3">
+                          {[5,4,3,2,1,0].map(sIdx => {
+                             const state = customGuitarStrings[sIdx] || { fret: 0, finger: null };
+                             const stringNames = ['E', 'A', 'D', 'G', 'B', 'e'];
+                             return (
+                               <div key={`ctrl-${sIdx}`} className="flex items-center gap-1 h-6">
+                                 <span className="w-4 font-black text-[10px] uppercase text-[#261812]">{stringNames[sIdx]}</span>
+                                 <button
+                                   onClick={() => {
                                       const updated = [...customGuitarStrings];
-                                      if (isSelected) {
-                                        const curFinger = state.finger || 1;
-                                        if (curFinger < 4) {
-                                          updated[str.idx] = { fret: f, finger: curFinger + 1 };
-                                        } else {
-                                          updated[str.idx] = { fret: null, finger: null };
-                                        }
-                                      } else {
-                                        updated[str.idx] = { fret: f, finger: 1 };
-                                      }
+                                      updated[sIdx] = { fret: null, finger: null };
                                       setCustomGuitarStrings(updated);
-                                    }}
-                                    className={`w-7 h-7 rounded-none border-2 text-[9px] font-black flex items-center justify-center transition-all ${
-                                      isSelected
-                                        ? 'bg-[#ff6b00] text-white border-black shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)]'
-                                        : 'bg-stone-100 text-black/40 border-black/20 hover:border-black/50'
-                                    }`}
-                                  >
-                                    {isSelected ? `D${state.finger || 1}` : `T${f}`}
-                                  </button>
+                                   }}
+                                   className={`w-6 h-6 border-2 font-black text-[10px] active:translate-y-[1px] transition-all ${state.fret === null ? 'bg-red-500 text-white border-black' : 'bg-white border-black/30'}`}
+                                 >X</button>
+                                 <button
+                                   onClick={() => {
+                                      const updated = [...customGuitarStrings];
+                                      updated[sIdx] = { fret: 0, finger: null };
+                                      setCustomGuitarStrings(updated);
+                                   }}
+                                   className={`w-6 h-6 border-2 font-black text-[10px] active:translate-y-[1px] transition-all ${state.fret === 0 ? 'bg-emerald-500 text-white border-black' : 'bg-white border-black/30'}`}
+                                 >O</button>
+                               </div>
+                             );
+                          })}
+                        </div>
+
+                        {/* Braço do Violão Gráfico */}
+                        <div className="relative bg-[#3e2723] border-4 border-[#1e110b] flex shadow-[inset_0_0_15px_rgba(0,0,0,0.5)]">
+                          {/* Nut (Pestana) */}
+                          <div className="w-3 bg-stone-200 border-r-2 border-black z-10 shadow-[2px_0_4px_rgba(0,0,0,0.3)]"></div>
+                          
+                          {/* Trastes (Frets) */}
+                          {[1,2,3,4,5].map(fret => (
+                            <div key={`fret-${fret}`} className="relative w-16 sm:w-20 border-r-4 border-zinc-400 flex flex-col justify-between py-2 space-y-3">
+                              <span className="absolute -top-6 w-full text-center text-[10px] font-black text-[#261812]">{fret}ª</span>
+                              
+                              {/* Marcadores do braço (Bolinhas) */}
+                              {(fret === 3 || fret === 5) && (
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-stone-300 opacity-60 z-0 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.4)]"></div>
+                              )}
+
+                              {[5,4,3,2,1,0].map(sIdx => {
+                                const state = customGuitarStrings[sIdx] || { fret: 0, finger: null };
+                                const isSelected = state.fret === fret;
+                                // Grossura da corda (5 = fininha, 0 = grossa)
+                                const stringThickness = ((6 - sIdx) / 2) + 0.5;
+                                
+                                return (
+                                  <div key={`pos-${sIdx}-${fret}`} className="relative h-6 flex items-center justify-center">
+                                    {/* Linha da corda visual */}
+                                    <div className="absolute w-full bg-[#fce0b0] shadow-[0_1px_2px_rgba(0,0,0,0.6)] z-0" style={{ height: `${stringThickness}px` }}></div>
+                                    
+                                    {/* Área Clicável */}
+                                    <button
+                                      onClick={() => {
+                                        const updated = [...customGuitarStrings];
+                                        if (isSelected) {
+                                          const curFinger = state.finger || 1;
+                                          if (curFinger < 4) {
+                                            updated[sIdx] = { fret, finger: curFinger + 1 };
+                                          } else {
+                                            updated[sIdx] = { fret: null, finger: null };
+                                          }
+                                        } else {
+                                          updated[sIdx] = { fret, finger: 1 };
+                                        }
+                                        setCustomGuitarStrings(updated);
+                                      }}
+                                      className={`relative z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 text-[10px] font-black transition-all ${
+                                        isSelected 
+                                          ? 'bg-[#ff6b00] text-white border-white shadow-[0_0_8px_#ff6b00]' 
+                                          : 'bg-transparent border-transparent hover:bg-white/20'
+                                      }`}
+                                    >
+                                      {isSelected ? state.finger || 1 : ''}
+                                    </button>
+                                  </div>
                                 );
                               })}
                             </div>
-                          </div>
-                        );
-                      })}
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex gap-3 pt-3">
