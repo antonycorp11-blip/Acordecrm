@@ -974,7 +974,7 @@ export default function AreaAluno() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
         },
         body: JSON.stringify({ preco, item_id: itemId })
       });
@@ -1429,9 +1429,7 @@ export default function AreaAluno() {
                       </div>
                     <div className="flex gap-2">
                       <div 
-                        className="bg-[#feccba] border-4 border-black px-2 py-1 flex items-center justify-center font-black text-xs text-[#3d2d26] shadow-[2px_2px_0_#000] cursor-pointer active:translate-y-1 active:shadow-none"
-                        onClick={() => handleAddXp(999999, 'Cheat Moedas')}
-                        title="Clique para ganhar +999999 moedas (Cheat)"
+                        className="bg-[#feccba] border-4 border-black px-2 py-1 flex items-center justify-center font-black text-xs text-[#3d2d26] shadow-[2px_2px_0_#000]"
                       >
                         💰 {acordeCoins} COINS
                       </div>
