@@ -2116,6 +2116,7 @@ export default function AreaProfessor() {
                                <div key={`ctrl-${sIdx}`} className="flex items-center gap-1 h-6">
                                  <span className="w-4 font-black text-[10px] uppercase text-[#261812]">{stringNames[sIdx]}</span>
                                  <button
+                                   type="button"
                                    onClick={() => {
                                       const updated = [...customGuitarStrings];
                                       updated[sIdx] = { fret: null, finger: null };
@@ -2124,6 +2125,7 @@ export default function AreaProfessor() {
                                    className={`w-6 h-6 border-2 font-black text-[10px] active:translate-y-[1px] transition-all ${state.fret === null ? 'bg-red-500 text-white border-black' : 'bg-white border-black/30'}`}
                                  >X</button>
                                  <button
+                                   type="button"
                                    onClick={() => {
                                       const updated = [...customGuitarStrings];
                                       updated[sIdx] = { fret: 0, finger: null };
@@ -2142,12 +2144,12 @@ export default function AreaProfessor() {
                           <div className="w-3 bg-stone-200 border-r-2 border-black z-10 shadow-[2px_0_4px_rgba(0,0,0,0.3)]"></div>
                           
                           {/* Trastes (Frets) */}
-                          {[1,2,3,4,5].map(fret => (
-                            <div key={`fret-${fret}`} className="relative w-16 sm:w-20 border-r-4 border-zinc-400 flex flex-col justify-between py-2 space-y-3">
+                          {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map(fret => (
+                            <div key={`fret-${fret}`} className="relative w-16 sm:w-20 border-r-4 border-zinc-400 flex flex-col justify-between py-2 space-y-3 shrink-0">
                               <span className="absolute -top-6 w-full text-center text-[10px] font-black text-[#261812]">{fret}ª</span>
                               
                               {/* Marcadores do braço (Bolinhas) */}
-                              {(fret === 3 || fret === 5) && (
+                              {([3, 5, 7, 9, 12, 15].includes(fret)) && (
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-stone-300 opacity-60 z-0 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.4)]"></div>
                               )}
 
@@ -2164,6 +2166,7 @@ export default function AreaProfessor() {
                                     
                                     {/* Área Clicável */}
                                     <button
+                                      type="button"
                                       onClick={() => {
                                         const updated = [...customGuitarStrings];
                                         if (isSelected) {

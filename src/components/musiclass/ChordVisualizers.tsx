@@ -348,13 +348,22 @@ export const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
             <div className="absolute top-0 w-full h-2 bg-black -mt-1 z-40" />
           )}
 
-          {/* Trastes */}
+          {/* Trastes e Números das Casas */}
           {fretIndices.map((f) => (
-            <div
-              key={f}
-              className="absolute w-full h-[2px] bg-stone-300"
-              style={{ top: `${(f / numFretsToShow) * 100}%` }}
-            />
+            <React.Fragment key={f}>
+              <div
+                className="absolute w-full h-[2px] bg-stone-300"
+                style={{ top: `${(f / numFretsToShow) * 100}%` }}
+              />
+              {f < numFretsToShow && (
+                <div
+                  className="absolute -left-6 w-5 text-right text-[8px] font-black text-[#261812]"
+                  style={{ top: `${((f + 0.5) / numFretsToShow) * 100}%`, transform: 'translateY(-50%)' }}
+                >
+                  {startFret + f}
+                </div>
+              )}
+            </React.Fragment>
           ))}
 
           {/* Cordas */}
