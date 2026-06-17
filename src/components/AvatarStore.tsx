@@ -49,7 +49,7 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black p-4 w-full h-full overflow-y-auto overflow-x-hidden text-white flex flex-col pb-24">
+    <div className="fixed inset-0 z-[100] bg-black p-4 pt-16 md:pt-8 w-full h-full overflow-y-auto overflow-x-hidden text-white flex flex-col pb-24">
       
       {/* Header Info - Game Style */}
       <div className="flex justify-between items-center mb-6 shrink-0 relative z-50">
@@ -174,10 +174,10 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
 
       {/* Super Large Preview Modal */}
       {selectedItem && (
-        <div className="absolute inset-0 z-[110] bg-black flex flex-col pt-12 pb-6 px-4">
+        <div className="absolute inset-0 z-[110] bg-black flex flex-col pt-20 md:pt-12 pb-6 px-4">
           <button 
             onClick={() => setSelectedItem(null)}
-            className="absolute top-6 left-6 text-white font-black uppercase text-sm border-2 border-white px-4 py-2 hover:bg-white hover:text-black transition-colors z-50"
+            className="absolute top-16 md:top-6 left-6 text-white font-black uppercase text-sm border-2 border-white px-4 py-2 hover:bg-white hover:text-black transition-colors z-50"
           >
             ← VOLTAR
           </button>
