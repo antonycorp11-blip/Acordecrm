@@ -40,6 +40,7 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
   const [currentChord, setCurrentChord] = useState(CHORDS[0]);
   const [options, setOptions] = useState<string[]>([]);
   const [isCorrectFeedback, setIsCorrectFeedback] = useState<boolean | null>(null);
+  const [combo, setCombo] = useState(0);
   const [availableChords, setAvailableChords] = useState<typeof CHORDS>([]);
 
   const generateLevel = useCallback(() => {
@@ -80,6 +81,7 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
   const startGame = () => {
     setGameState('playing');
     setScore(0);
+    setCombo(0);
     setTimeLeft(100);
     generateLevel();
     playRetroSound(880, 'square', 0.1);
@@ -99,14 +101,19 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
     if (option === currentChord.notes) {
       // Correct!
       setIsCorrectFeedback(true);
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      const points = 10 + (Math.min(newCombo, 5) * 2); // 10 base + up to 10 combo bonus
+      
       playRetroSound(880, 'sine', 0.1);
       setTimeout(() => playRetroSound(1320, 'sine', 0.15), 100);
-      setScore((s) => s + 10);
+      setScore((s) => s + points);
       setTimeLeft(100); // Reset time for next chord
       setTimeout(generateLevel, 300);
     } else {
       // Wrong!
       setIsCorrectFeedback(false);
+      setCombo(0);
       handleGameOver();
     }
   };
@@ -116,7 +123,12 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
       {/* Decorative Top Line */}
       <div className="flex justify-between items-center">
         <button
-          onClick={onClose}
+          onClick={() => {
+            if (gameState !== 'GAMEOVER' && score > 0) {
+              onGameOver(score);
+            }
+            onClose();
+          }}
           className="bg-[#261812] text-[#feccba] border-2 border-[#feccba] font-black text-[7px] uppercase px-2.5 py-1 hover:bg-black active:translate-y-[1px] transition-all cursor-pointer"
         >
           ← SAIR DO JOGO
@@ -129,6 +141,7 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
       <div className="bg-[#1a0a05] border-4 border-[#3d2d26] p-3 font-mono text-center space-y-2">
         <div className="flex justify-between text-[10px] text-[#feccba] font-black uppercase">
           <span>SCORE: {score}</span>
+          <span className={`text-[#00ff66] ${combo > 1 ? 'animate-pulse' : ''}`}>COMBO x{combo}</span>
           <span>TIME: {Math.max(0, timeLeft)}%</span>
         </div>
         

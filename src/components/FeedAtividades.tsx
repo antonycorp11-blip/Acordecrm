@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase'; // Will need to verify if supabase is exported from lib/supabase or instantiated here. Wait, AreaAluno does `import { createClient } from '@supabase/supabase-js'`. I'll pass data via props instead or create the client inside. Let's use props so it can be used anywhere.
+
 
 interface FeedAtividade {
   id: number;

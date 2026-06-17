@@ -693,6 +693,64 @@ async function startServer() {
             res.status(500).json({ error: error.message }); 
         }
     });
+    app.get('/api/gamificacao/config-dobro', async (req: any, res) => {
+        res.json({ success: true, doublePointsGame: (global as any).doublePointsGame || null });
+    });
+
+    // Endpoint unificado para Adicionar Acorde Coins (XP) após jogar um jogo
+    app.post('/api/gamificacao/add-xp', async (req: any, res) => {
+        try {
+            const email = req.user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado' });
+
+            const { pontos, jogo } = req.body;
+            if (!pontos) return res.status(400).json({ error: 'Pontos não informados' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, xp, acorde_coins').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            let finalPontos = Number(pontos);
+            if ((global as any).doublePointsGame === jogo) {
+                finalPontos *= 2;
+            }
+
+            const novoXp = (Number(aluno.xp) || 0) + finalPontos;
+            const novasMoedas = (Number(aluno.acorde_coins) || 0) + finalPontos;
+            
+            await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+
+            res.json({ success: true, novoXp, novasMoedas, finalPontos });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Endpoint unificado para Gastar Acorde Coins (XP) na Loja
+    app.post('/api/gamificacao/spend-xp', async (req: any, res) => {
+        try {
+            const email = req.user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado' });
+
+            const { preco, item_id } = req.body;
+            if (!preco) return res.status(400).json({ error: 'Preço não informado' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, acorde_coins').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            const precoNum = Number(preco);
+            if ((Number(aluno.acorde_coins) || 0) < precoNum) {
+                return res.status(400).json({ error: 'Acorde Coins insuficientes' });
+            }
+
+            const novasMoedas = (Number(aluno.acorde_coins) || 0) - precoNum;
+            await supabase.from('alunos').update({ acorde_coins: novasMoedas }).eq('id', aluno.id);
+
+            res.json({ success: true, novasMoedas });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
 
     app.post('/api/gamificacao/resgatar-pontos', async (req: any, res) => {
         try {

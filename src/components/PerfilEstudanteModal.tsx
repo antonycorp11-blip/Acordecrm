@@ -1,6 +1,6 @@
-import React from 'react';
-import { motion } from 'motion/react';
-import { X, Trophy, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { X, Trophy, Trash2, Flame, ChevronRight, Award } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const resolveTrophyImage = (instrumento: string, classe: string) => {
@@ -38,6 +38,7 @@ export const getClasse = (xp: number) => {
 export const getInstrumento = (aluno: any) => aluno.curso || aluno.curso_ativo || aluno.instrumento || aluno.curso_nome || 'MÚSICA';
 
 export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onConquistaRemoved }: PerfilEstudanteModalProps) {
+  const [selectedTrophy, setSelectedTrophy] = useState<any>(null);
   
   const handleRemoverConquistaLocal = async (alunoId: number, conquistaId: number, conquistaNome: string) => {
     if (!confirm(`Tem certeza de que deseja retirar o troféu "${conquistaNome}" deste aluno? O XP correspondente será deduzido automaticamente.`)) {
@@ -74,97 +75,54 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
   if (!selectedAluno) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-[#fff8f6] border-8 border-black w-full max-w-2xl shadow-[12px_12px_0_#000] flex flex-col relative my-8"
+        className="bg-[#261812] border-8 border-[#ff6b00] w-full max-w-2xl shadow-[12px_12px_0_#ff6b00] flex flex-col relative my-8 font-mono text-white"
       >
-        <header className="p-6 border-b-8 border-black flex items-center justify-between bg-[#feccba] shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="bg-[#ff6b00] p-2 border-4 border-black shadow-[4px_4px_0_#000]"><Trophy className="w-6 h-6 text-white" /></div>
-            <div>
-              <h2 className="text-xl font-black text-black uppercase italic tracking-tighter">Perfil_do_Estudante</h2>
-              <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">&gt;&gt; PLAYER_STATS</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"><X className="w-6 h-6" /></button>
+        <header className="p-4 border-b-4 border-[#ff6b00] flex items-center justify-between bg-black shrink-0 relative">
+          <h2 className="text-xl font-black text-white uppercase italic tracking-tighter flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-[#ff6b00]" /> MEDALHAS
+          </h2>
+          <button onClick={onClose} className="bg-[#ff6b00] text-black p-1 border-2 border-transparent hover:border-white transition-all active:translate-y-1"><X className="w-6 h-6" /></button>
         </header>
 
-        <div className="p-8 overflow-y-auto max-h-[calc(85vh-120px)] space-y-8">
-          {/* Top Section: Photo & Basic stats */}
-          <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-stretch bg-[#fff1eb] border-4 border-black p-6 shadow-[6px_6px_0_#000]">
-            {/* Photo */}
-            <div className="w-32 h-36 bg-[#261812] border-4 border-[#ff6b00] rounded overflow-hidden flex items-center justify-center shrink-0 shadow-[4px_4px_0_#000]">
-              {selectedAluno.foto_url ? (
-                <img src={selectedAluno.foto_url} alt={selectedAluno.nome} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-[#ff6b00] font-black text-4xl">{String(selectedAluno.nome || '?').charAt(0)}</span>
-              )}
+        <div className="p-6 overflow-y-auto max-h-[calc(85vh-100px)] space-y-6 scrollbar-thin">
+
+          {/* SEQUÊNCIA ATUAL Section */}
+          <div className="bg-black/60 border-2 border-[#ff6b00] p-4 flex items-center gap-4">
+            <div className="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center shrink-0 border border-orange-500/50">
+              <Flame className="w-6 h-6 text-orange-500" />
             </div>
-
-            {/* Details */}
-            <div className="flex-1 flex flex-col justify-between min-w-0 text-center sm:text-left">
-              <div>
-                <h3 className="text-2xl font-black text-[#261812] uppercase tracking-tight leading-none mb-2 break-words">{selectedAluno.nome}</h3>
-                <p className="text-[#7b5647] font-bold text-xs uppercase tracking-wider mb-4 sm:mb-1">
-                  CLASSE: <span className="text-[#ff6b00] font-black">{getClasse(selectedAluno.xp)}</span>
-                </p>
-                <p className="text-[#7b5647] font-bold text-xs uppercase tracking-wider">
-                  INSTRUMENTO: <span className="text-[#261812] font-black">{getInstrumento(selectedAluno)}</span>
-                </p>
+            <div className="flex-1">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-black text-orange-500 uppercase text-sm">SEQUÊNCIA ATUAL</h4>
+                <span className="text-white font-bold text-xs">Por 1 dia consecutivo</span>
               </div>
-
-              {/* Level & XP */}
-              <div className="mt-4 pt-4 border-t border-[#f8ddd2]/80 flex flex-wrap items-center justify-between gap-4">
-                <div className="px-4 py-2 bg-black text-white font-black text-xs uppercase tracking-widest border-2 border-[#ff6b00]">
-                  LVL {Math.floor((selectedAluno.xp || 0) / 100) + 1}
-                </div>
-                <div className="flex-1 min-w-[120px]">
-                  <div className="flex justify-between text-[9px] font-black text-[#7b5647] uppercase mb-1">
-                    <span>Progresso de XP</span>
-                    <span>{selectedAluno.xp?.toLocaleString()} XP</span>
-                  </div>
-                  <div className="w-full h-3 bg-black border-2 border-black rounded overflow-hidden">
-                    <div className="h-full bg-[#ff6b00]" style={{ width: `${Math.min(100, ((selectedAluno.xp || 0) % 1000) / 10)}%` }}></div>
-                  </div>
-                </div>
+              <div className="w-full h-2 bg-black/80 rounded-full overflow-hidden border border-orange-900/50">
+                <div className="h-full bg-orange-500" style={{ width: '25%' }}></div>
               </div>
+              <p className="text-[#a0a0a0] text-[10px] mt-1 font-bold uppercase">Você começou muito bem!</p>
             </div>
           </div>
 
-          {/* Achievements Gallery */}
+          {/* MINHAS MEDALHAS Gallery */}
           <div>
-            <h4 className="text-xs font-black text-black uppercase tracking-widest mb-4 border-b-4 border-black pb-2 flex items-center justify-between">
-              <span>Conquistas_Desbloqueadas</span>
-              <span className="bg-[#ff6b00] text-white px-2 py-0.5 text-[9px] font-bold">{(Array.isArray(selectedAluno.conquistas) ? selectedAluno.conquistas : []).length} TROFÉUS</span>
+            <h4 className="text-lg font-black text-white uppercase tracking-widest mb-4 flex items-center justify-between border-b-2 border-white/20 pb-2">
+              <span>MINHAS MEDALHAS</span>
+              <span className="text-[#ff6b00] text-sm font-bold">{(Array.isArray(selectedAluno.conquistas) ? selectedAluno.conquistas : []).length} / 100</span>
             </h4>
 
             {(Array.isArray(selectedAluno.conquistas) ? selectedAluno.conquistas : []).length > 0 ? (
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
                 {(Array.isArray(selectedAluno.conquistas) ? selectedAluno.conquistas : []).map((c: any, index: number) => (
                   <div 
                     key={`${c.id}-${index}`} 
-                    className="bg-[#ffeae1] border-4 border-black p-2 flex flex-col items-center relative shadow-[4px_4px_0_#000] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_#000] transition-all group w-24 h-28"
+                    onClick={() => setSelectedTrophy(c)}
+                    className="flex flex-col items-center cursor-pointer group hover:scale-105 transition-transform relative"
                   >
-                    {/* Trophy Icon */}
-                    <div className="w-12 h-12 rounded border-2 border-[#7b5647] flex items-center justify-center bg-white overflow-hidden shrink-0 shadow-[2px_2px_0_#000] mb-2">
-                      {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
-                        <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-1" />
-                      ) : (
-                        <Trophy className="w-6 h-6 text-[#ff6b00]" />
-                      )}
-                    </div>
-
-                    {/* Title */}
-                    <h5 className="font-black text-[#261812] text-[8px] uppercase text-center leading-tight line-clamp-2 w-full px-1">{c.nome}</h5>
-
-                    {/* XP Badge */}
-                    <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-[#feccba] border-2 border-black font-black text-[7px] uppercase tracking-wider text-[#ff6b00] shadow-[1px_1px_0_#000]">
-                      +{c.pontos}
-                    </div>
-
-                    {/* Delete Button (Visible for Admins/Professors) */}
+                    {/* Delete Button (Visible for Admins/Professors on hover) */}
                     {(user?.role === 'professor' || user?.role === 'admin') && (
                       <button
                         type="button"
@@ -172,25 +130,93 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
                           e.stopPropagation();
                           handleRemoverConquistaLocal(selectedAluno.id, c.id, c.nome);
                         }}
-                        title="Remover conquista do aluno"
-                        className="absolute -top-2 -left-2 p-1 bg-white border-2 border-black text-[#7b5647] hover:bg-red-500 hover:text-white transition-all shadow-[1px_1px_0_#000] opacity-0 group-hover:opacity-100"
+                        title="Remover conquista"
+                        className="absolute -top-2 -right-2 p-1.5 z-20 bg-black border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-full transition-all shadow-[2px_2px_0_#000] opacity-0 group-hover:opacity-100"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
                     )}
+
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center mb-2 transition-all drop-shadow-[0_0_15px_rgba(255,107,0,0.5)] group-hover:drop-shadow-[0_0_25px_rgba(255,107,0,0.8)]">
+                      {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                        <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain hover:scale-110 transition-transform" />
+                      ) : (
+                        <Trophy className="w-10 h-10 text-[#ff6b00]" />
+                      )}
+                    </div>
+                    <h5 className="font-bold text-white text-[10px] uppercase text-center leading-tight line-clamp-2 w-full">{c.nome}</h5>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-10 border-4 border-dashed border-[#5a4136] bg-[#1a0a05]/10 rounded">
-                <Trophy className="w-12 h-12 text-[#5a4136] mx-auto mb-2 opacity-55" />
-                <p className="text-[#7b5647] font-black uppercase text-xs tracking-widest">Nenhuma conquista ainda</p>
-                <p className="text-[#8e7164] font-bold uppercase text-[9px] mt-1">Este aluno ainda não recebeu troféus nesta temporada.</p>
+              <div className="text-center py-10 bg-black/40 border-2 border-dashed border-white/20">
+                <Trophy className="w-12 h-12 text-white/30 mx-auto mb-2" />
+                <p className="text-white/50 font-black uppercase text-xs tracking-widest">Nenhuma conquista ainda</p>
+                <p className="text-white/40 font-bold uppercase text-[9px] mt-1">Este aluno ainda não recebeu troféus.</p>
               </div>
             )}
           </div>
         </div>
+
+        {/* Modal Secundário: Detalhes da Medalha */}
+        <AnimatePresence>
+          {selectedTrophy && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="absolute inset-0 z-20 bg-[#1a0f0b] border-8 border-[#ff6b00] flex flex-col p-6 overflow-y-auto"
+            >
+              <button 
+                onClick={() => setSelectedTrophy(null)} 
+                className="absolute top-4 left-4 bg-transparent text-white p-2 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="w-8 h-8" />
+              </button>
+
+              <div className="flex flex-col items-center mt-8 space-y-6">
+                <div className="text-center">
+                  <h3 className="text-2xl font-black uppercase text-white tracking-widest">{selectedTrophy.nome}</h3>
+                  <p className="text-[#a0a0a0] text-xs font-bold uppercase mt-1">05/12/2026</p> {/* Placeholder de data, pode vir do backend */}
+                </div>
+
+                <div className="w-40 h-40 flex items-center justify-center drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] scale-110 transition-all">
+                  {selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe) ? (
+                    <img src={selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe)} alt={selectedTrophy.nome} className="w-full h-full object-contain" />
+                  ) : (
+                    <Trophy className="w-24 h-24 text-[#ff6b00]" />
+                  )}
+                </div>
+
+                <p className="text-center text-sm font-bold text-white/80 max-w-md">
+                  {selectedTrophy.descricao || "Continue treinando para melhorar suas habilidades e alcançar novos patamares na sua jornada musical!"}
+                </p>
+
+                {/* Histórico / Progresso da Medalha */}
+                <div className="w-full max-w-md mt-6 space-y-4">
+                  <div className="flex justify-between items-center text-xs font-black uppercase text-[#a0a0a0]">
+                    <span>Lv.1</span>
+                    <span>Lv.2</span>
+                  </div>
+                  <div className="w-full h-4 bg-black/80 rounded-full overflow-hidden border border-white/20">
+                    <div className="h-full bg-gradient-to-r from-blue-400 to-[#ff6b00]" style={{ width: '60%' }}></div>
+                  </div>
+                  <p className="text-center text-[10px] font-bold text-[#ff6b00] uppercase">Próximo Nível: 120 / 200</p>
+                </div>
+
+                <button 
+                  onClick={() => setSelectedTrophy(null)}
+                  className="mt-8 bg-[#ff6b00] text-black font-black uppercase px-12 py-4 border-4 border-transparent hover:border-white shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                >
+                  FECHAR
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </motion.div>
     </div>
   );
 }
+

@@ -740,6 +740,81 @@ async function startServer() {
         }
     });
 
+    // Endpoint para configurar Pontos em Dobro (Area do Professor)
+    app.post('/api/gamificacao/config-dobro', async (req: any, res) => {
+        try {
+            const email = req.user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado' });
+
+            const { data: prof } = await supabase.from('professores').select('id').eq('email', email).maybeSingle();
+            if (!prof) return res.status(403).json({ error: 'Apenas professores podem alterar configurações' });
+
+            const { jogo } = req.body;
+            (global as any).doublePointsGame = jogo || null;
+            res.json({ success: true, doublePointsGame: (global as any).doublePointsGame });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get('/api/gamificacao/config-dobro', async (req: any, res) => {
+        res.json({ success: true, doublePointsGame: (global as any).doublePointsGame || null });
+    });
+
+    // Endpoint unificado para Adicionar Acorde Coins (XP) após jogar um jogo
+    app.post('/api/gamificacao/add-xp', async (req: any, res) => {
+        try {
+            const email = req.user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado' });
+
+            const { pontos, jogo } = req.body;
+            if (!pontos) return res.status(400).json({ error: 'Pontos não informados' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, xp, acorde_coins').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            let finalPontos = Number(pontos);
+            if (global.doublePointsGame === jogo) {
+                finalPontos *= 2;
+            }
+
+            const novoXp = (Number(aluno.xp) || 0) + finalPontos;
+            const novasMoedas = (Number(aluno.acorde_coins) || 0) + finalPontos;
+            
+            await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+
+            res.json({ success: true, novoXp, novasMoedas, finalPontos });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Endpoint unificado para Gastar Acorde Coins (XP) na Loja
+    app.post('/api/gamificacao/spend-xp', async (req: any, res) => {
+        try {
+            const email = req.user?.email;
+            if (!email) return res.status(401).json({ error: 'Não autorizado' });
+
+            const { preco, item_id } = req.body;
+            if (!preco) return res.status(400).json({ error: 'Preço não informado' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, acorde_coins').eq('email', email).single();
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            const precoNum = Number(preco);
+            if ((Number(aluno.acorde_coins) || 0) < precoNum) {
+                return res.status(400).json({ error: 'Acorde Coins insuficientes' });
+            }
+
+            const novasMoedas = (Number(aluno.acorde_coins) || 0) - precoNum;
+            await supabase.from('alunos').update({ acorde_coins: novasMoedas }).eq('id', aluno.id);
+
+            res.json({ success: true, novasMoedas });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.post('/api/upload', upload.single('file'), (req: any, res) => {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         try {
@@ -1104,7 +1179,7 @@ async function startServer() {
 
                         if (pendentes && pendentes.length > 0) {
                             for (const pg of pendentes) {
-                                const updatePg = {};
+                                const updatePg: any = {};
                                 if (matUpdate.valor_parcela !== undefined) updatePg.valor = matUpdate.valor_parcela;
                                 if (matUpdate.dia_vencimento !== undefined && pg.data_vencimento) {
                                     const parts = pg.data_vencimento.split('-');
@@ -2935,7 +3010,7 @@ async function startServer() {
             const email = (req as any).user?.email;
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp').eq('email', email).single();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
 
             const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
@@ -2958,6 +3033,10 @@ async function startServer() {
                 .single();
 
             if (error) throw error;
+
+            // Converter check-in em Acorde Coins / XP (500 por checkin sem vídeo)
+            const novoXp = (Number(aluno.xp) || 0) + 500;
+            await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno.id);
 
             // Criar notificação para o professor
             const titulo = 'Treino registrado! 🔥';
@@ -3154,6 +3233,15 @@ async function startServer() {
                 .single();
 
             if (updateError) throw updateError;
+
+            // Converter check-in de vídeo em Acorde Coins / XP (+500 extra, já ganhou 500 do check-in normal ou 1000 direto)
+            // Se já existia um vídeo, não ganha mais, apenas se for um novo upload
+            if (!treino.video_url) {
+                const { data: currentAluno } = await supabase.from('alunos').select('xp').eq('id', aluno.id).single();
+                const xpExtraVideo = 500; // Totaliza 1000 se somado com o check-in normal
+                const novoXpVideo = (Number(currentAluno?.xp) || 0) + xpExtraVideo;
+                await supabase.from('alunos').update({ xp: novoXpVideo }).eq('id', aluno.id);
+            }
 
             // Criar notificação para o professor
             const titulo = 'Vídeo de treino enviado! 📹';

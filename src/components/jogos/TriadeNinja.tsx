@@ -74,7 +74,8 @@ export const TriadeNinja: React.FC<TriadeNinjaProps> = ({ onClose, onGameOver, p
       setFeedbackState('correct');
       const newCombo = combo + 1;
       setCombo(newCombo);
-      setScore(s => s + (10 * newCombo)); // Combo multiplier
+      const points = 10 + (Math.min(newCombo, 5) * 2); // Combo multiplier matches Chord Rush
+      setScore(s => s + points); 
       
       playRetroSound(880, 'sine', 0.1);
       setTimeout(() => playRetroSound(1320, 'sine', 0.1), 100);
@@ -105,7 +106,12 @@ export const TriadeNinja: React.FC<TriadeNinjaProps> = ({ onClose, onGameOver, p
       {/* HUD */}
       <div className="flex justify-between items-center border-b-4 border-purple-900 pb-2">
         <button
-          onClick={onClose}
+          onClick={() => {
+            if (gameState !== 'GAMEOVER' && score > 0) {
+              onGameOver(score);
+            }
+            onClose();
+          }}
           className="bg-purple-900 text-white font-black text-[8px] uppercase px-2 py-1 shadow-[2px_2px_0_#000] active:translate-y-[1px] transition-all cursor-pointer"
         >
           ← RETORNAR

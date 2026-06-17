@@ -307,6 +307,8 @@ export default function AreaProfessor() {
   const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos'>('home');
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
 
+  const [doublePointsGame, setDoublePointsGame] = useState<string | null>(null);
+
   // Estados dos Jogos
   const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
   const [isPlayingChordRush, setIsPlayingChordRush] = useState(false);
@@ -462,8 +464,9 @@ export default function AreaProfessor() {
     Promise.all([
       fetch('/api/professores/me', { headers }).then(r => r.ok ? r.json() : null),
       fetch(`/api/agenda?start=2020-01-01&end=2030-01-01`, { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : [])
-    ]).then(([me, agenda, alunos]) => {
+      fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : []),
+      fetch('/api/gamificacao/config-dobro', { headers }).then(r => r.ok ? r.json() : { success: false })
+    ]).then(([me, agenda, alunos, configDobro]) => {
       if (me) {
         setProfessorData(me);
         if (me.disponibilidade && typeof me.disponibilidade === 'object' && !Array.isArray(me.disponibilidade)) {
@@ -529,6 +532,16 @@ export default function AreaProfessor() {
     fetchSolicitacoes();
     fetchNotificacoes();
     fetchTreinos();
+
+    // Fetch config dobro
+    const token = localStorage.getItem('acorde_token');
+    if (token) {
+      fetch('/api/gamificacao/config-dobro', { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) setDoublePointsGame(data.doublePointsGame);
+        }).catch(console.error);
+    }
     
     // Atualização em background de notificações de 30 em 30 segundos
     const timer = setInterval(() => {
@@ -1045,6 +1058,30 @@ export default function AreaProfessor() {
   };
 
   // Funções de Música e Estúdio do Musiclass
+  const handleSetDoublePoints = async (jogo: string | null) => {
+    const token = localStorage.getItem('acorde_token');
+    try {
+      const res = await fetch('/api/gamificacao/config-dobro', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ jogo })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDoublePointsGame(data.doublePointsGame);
+        toast.success(jogo ? `Pontos em dobro ativados para ${jogo}!` : 'Pontos em dobro desativados.');
+      } else {
+        toast.error(data.error || 'Erro ao configurar pontos em dobro.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro de conexão ao configurar pontos em dobro.');
+    }
+  };
+
   const handleAddChord = () => {
     const chordData = MusicEngine.generateChord(selRoot, selType, selExt);
     if (chordData) {
@@ -3270,6 +3307,29 @@ export default function AreaProfessor() {
                       <p className="text-white/50 font-black text-[7px] uppercase mt-1">
                         Jogue à vontade! Os pontos não são acumulados no modo professor. Use para testar e recomendar aos alunos!
                       </p>
+                    </div>
+
+                    <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
+                      <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest mb-3">
+                        🎁 EVENTO DE PONTOS EM DOBRO
+                      </p>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        <button 
+                          onClick={() => handleSetDoublePoints(null)}
+                          className={`px-3 py-1 border-2 border-black font-black text-[8px] uppercase ${doublePointsGame === null ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black'}`}
+                        >
+                          DESATIVAR
+                        </button>
+                        {['Acorde Genius', 'Chord Rush', 'Tríade Ninja', 'Ritmo Pro', 'Voice Rush'].map(jogo => (
+                          <button
+                            key={jogo}
+                            onClick={() => handleSetDoublePoints(jogo)}
+                            className={`px-3 py-1 border-2 border-black font-black text-[8px] uppercase ${doublePointsGame === jogo ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black hover:bg-gray-200'}`}
+                          >
+                            {jogo}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="space-y-4 pt-2">

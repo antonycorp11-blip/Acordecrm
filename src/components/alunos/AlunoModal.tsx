@@ -399,7 +399,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                       </div>
                       <div>
                         <label className="text-[7px] font-bold uppercase">Feitas</label>
-                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_aulas_feitas} onChange={(e) => setFormData({...formData, emusys_aulas_feitas: e.target.value})} />
+                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_aulas_feitas} onChange={(e) => setFormData({...formData, emusys_aulas_feitas: Number(e.target.value)})} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -416,7 +416,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                       </div>
                       <div>
                         <label className="text-[7px] font-bold uppercase">Pagas</label>
-                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_parcelas_pagas} onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: e.target.value})} />
+                        <input type="number" className="w-full bg-white border border-black px-1 py-1 text-[10px]" value={formData.emusys_parcelas_pagas} onChange={(e) => setFormData({...formData, emusys_parcelas_pagas: Number(e.target.value)})} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">

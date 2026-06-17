@@ -347,7 +347,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas, onOpenR
       body: JSON.stringify({ metodo_pagamento: baixaMetodo, valor_pago: valorFinal }) 
     });
     setSaving(false);
-    setBaixaModal({ id: null, open: false });
+    setBaixaModal({ id: null, open: false, valor: 0, vencimento: '' });
     onRefresh();
     toast.success('Baixa realizada com sucesso!');
   };
@@ -457,7 +457,7 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas, onOpenR
             <Card className="w-full max-w-sm p-8 space-y-6">
               <div className="flex items-center justify-between border-b-2 border-black pb-4">
                 <h2 className="text-xl font-black text-black uppercase italic">DAR BAIXA</h2>
-                <button onClick={() => setBaixaModal({ id: null, open: false })}><X className="w-6 h-6" /></button>
+                <button onClick={() => setBaixaModal({ id: null, open: false, valor: 0, vencimento: '' })}><X className="w-6 h-6" /></button>
               </div>
               <div className="space-y-4">
                 <div className="p-3 bg-gray-50 border-2 border-black">
@@ -1361,7 +1361,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
     try {
       const toastId = toast.loading('Gerando PDF do Diário...');
       const opt = {
-        margin: [0.1, 0, 0.1, 0], // reduzido margens
+        margin: [0.1, 0, 0.1, 0] as [number, number, number, number], // reduzido margens
         filename: `Diario_Aula_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff8f6' },

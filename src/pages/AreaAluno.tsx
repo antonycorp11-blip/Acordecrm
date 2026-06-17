@@ -6,11 +6,15 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
-import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle } from 'lucide-react';
+import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle, Award, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { ChordRush } from '../components/jogos/ChordRush';
 import { TriadeNinja } from '../components/jogos/TriadeNinja';
+import { DailyMissions } from '../components/alunos/DailyMissions';
+import { RitmoPro } from '../components/jogos/ritmo-pro/App';
+import { VoiceRush } from '../components/jogos/voice-rush/App';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
@@ -150,7 +154,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
   const handleDownloadPdf = useReactToPrint({
     contentRef: pdfRef,
     documentTitle: () => {
-      const studentName = alunoLogado?.nome || 'Aluno';
+      const studentName = alunoNome || 'Aluno';
       const dateStr = aula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(aula.data)) : '';
 
       const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
@@ -298,7 +302,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
         {/* Ações */}
         <div className="flex gap-4 mt-6 print:hidden">
           <button 
-            onClick={handlePrint}
+            onClick={handleDownloadPdf}
             className="flex-1 bg-[#ff6b00] text-white border-4 border-black font-black text-xs py-3 shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all"
           >
             🖨️ IMPRIMIR / PDF
@@ -332,6 +336,7 @@ export default function AreaAluno() {
   const [rankingData, setRankingData] = useState<any[]>([]);
   const [isAlunoModalOpen, setIsAlunoModalOpen] = useState(false);
   const [selectedAluno, setSelectedAluno] = useState<any | null>(null);
+  const [selectedTrophy, setSelectedTrophy] = useState<any | null>(null);
   const [todasConquistas, setTodasConquistas] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
   const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 1' });
@@ -353,12 +358,14 @@ export default function AreaAluno() {
   const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
   const [isPlayingChordRush, setIsPlayingChordRush] = useState(false);
   const [isPlayingTriadeNinja, setIsPlayingTriadeNinja] = useState(false);
+  const [isPlayingRitmoPro, setIsPlayingRitmoPro] = useState(false);
+  const [isPlayingVoiceRush, setIsPlayingVoiceRush] = useState(false);
   const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
   const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
   const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
   const [geniusScore, setGeniusScore] = useState(0);
   const [geniusActivePad, setGeniusActivePad] = useState<number | null>(null);
-  const [gamePoints, setGamePoints] = useState(0); // Pontos acumulados na sessão do aluno
+  // Removido gamePoints, agora usamos XP real.
   const [isRedeeming, setIsRedeeming] = useState(false);
 
   // Web Audio API Retro Sound Generator
@@ -448,12 +455,14 @@ export default function AreaAluno() {
       playRetroSound(180, 'sawtooth', 0.55);
       return;
     }
-
+    
     // Se acertou a nota e completou a sequência
     if (nextUserSeq.length === geniusSequence.length) {
       // Avança para o próximo round
       setGeniusScore(prev => prev + 1);
-      setGamePoints(prev => prev + 20); // Acumula pontos!
+      updateDailyMissionProgress('Acorde Genius');
+      handleAddXp(20, 'Acorde Genius');
+      window.dispatchEvent(new CustomEvent('acorde_game_played', { detail: 'Acorde Genius' }));
 
       // Efeito sonoro de nível passado
       setTimeout(() => {
@@ -474,64 +483,10 @@ export default function AreaAluno() {
     }
   };
 
-  // Função de câmbio/resgate de XP
-  const handleRedeemXp = async () => {
-    if (gamePoints < 10) {
-      toast.error('Você precisa de pelo menos 10 pontos para resgatar XP!');
-      return;
-    }
-
-    setIsRedeeming(true);
-    const token = localStorage.getItem('acorde_token');
-
-    try {
-      const res = await fetch('/api/gamificacao/resgatar-pontos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          pontos: gamePoints,
-          jogo: 'Acorde Genius'
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        
-        // Efeito sonoro triunfal chiptune
-        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
-        notes.forEach((freq, idx) => {
-          setTimeout(() => playRetroSound(freq, 'sine', 0.15), idx * 100);
-        });
-
-        toast.success(`💥 RESGATE RETRÔ DE SUCESSO! +${data.xpGanhos} XP de verdade creditados no CRM! 🔥`, {
-          duration: 6000
-        });
-
-        setGamePoints(0);
-        
-        // Atualiza dinamicamente o XP do aluno na tela
-        setAlunoData((prev: any) => prev ? { ...prev, xp: data.novoXp } : null);
-        
-        // Atualiza a lista do ranking para sincronizar na hora
-        fetchRanking();
-      } else {
-        const errData = await res.json();
-        toast.error(errData.error || 'Erro no resgate de pontos.');
-      }
-    } catch (err) {
-      console.error('Erro ao resgatar pontos:', err);
-      toast.error('Falha de conexão com o servidor.');
-    } finally {
-      setIsRedeeming(false);
-    }
-  };
-
 
   // Dados dinâmicos do aluno
   const xp = alunoData?.xp || 0;
+  const acordeCoins = alunoData?.acorde_coins || 0;
   const xpMax = 1000; // Exemplo de escala de nível
   const nivel = Math.floor(xp / 100) + 1;
   const cursoNome = alunoData?.curso_ativo || 'STUDENT';
@@ -914,6 +869,12 @@ export default function AreaAluno() {
       setVideoBlob(null);
       setVideoPreviewUrl('');
       fetchTreinos();
+      
+      const timestamp = Date.now();
+      const fetchHeaders = { 'Authorization': `Bearer ${token}` };
+      fetch(`/api/alunos/me?t=${timestamp}`, { headers: fetchHeaders })
+        .then(r => r.ok ? r.json() : null)
+        .then(me => { if (me) setAlunoData(me); });
     } catch (err: any) {
       toast.error(err.message || 'Falha no envio do vídeo.');
     } finally {
@@ -948,7 +909,7 @@ export default function AreaAluno() {
         throw new Error(err.error || 'Erro ao marcar treino.');
       }
       
-      toast.success('Treino registrado! 🔥 +20 XP de estudo diário!');
+      toast.success('Treino registrado! 🔥 +500 XP de estudo diário!');
       playRetroSound(880, 'sine', 0.15);
       setTimeout(() => playRetroSound(1200, 'sine', 0.2), 100);
       
@@ -961,6 +922,70 @@ export default function AreaAluno() {
       fetchTreinos();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao marcar treino.');
+    }
+  };
+
+  const updateDailyMissionProgress = (gameName: string) => {
+    const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const storedStr = localStorage.getItem('acorde_daily_missions');
+    if (storedStr) {
+      const data = JSON.parse(storedStr);
+      if (data.date === today) {
+        let updated = false;
+        const newM = data.missions.map((m: any) => {
+          if (m.gameId === gameName && !m.completed && m.progress < m.target) {
+            updated = true;
+            return { ...m, progress: m.progress + 1 };
+          }
+          return m;
+        });
+        if (updated) {
+          localStorage.setItem('acorde_daily_missions', JSON.stringify({ date: today, missions: newM }));
+        }
+      }
+    }
+  };
+
+  const handleAddXp = async (pontosGanhos: number, jogo: string) => {
+    try {
+      const response = await fetch('/api/gamificacao/add-xp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ pontos: pontosGanhos, jogo })
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+
+      setAlunoData((prev: any) => ({ ...prev, xp: data.novoXp, acorde_coins: data.novasMoedas }));
+      toast.success(`✨ +${data.finalPontos} Acorde Coins e XP (${jogo})!`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao salvar pontos!');
+    }
+  };
+
+  const handleSpendXp = async (preco: number, itemId: string) => {
+    try {
+      const response = await fetch('/api/gamificacao/spend-xp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ preco, item_id: itemId })
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+
+      setAlunoData((prev: any) => ({ ...prev, acorde_coins: data.novasMoedas }));
+      setAvatarInventory(prev => [...prev, itemId]);
+      toast.success('Item comprado com sucesso! Ele já está no seu Armário.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao comprar item!');
     }
   };
 
@@ -1304,37 +1329,23 @@ export default function AreaAluno() {
 
               {showAvatarStore ? (
                 <AvatarStore 
-                  xp={xp}
-                  pontos={gamePoints}
+                  xp={acordeCoins}
+                  pontos={acordeCoins}
                   unlockedItems={avatarInventory}
                   onClose={() => setShowAvatarStore(false)}
-                  onBuy={(itemId, price) => {
-                    setGamePoints(prev => prev - price);
-                    setAvatarInventory(prev => [...prev, itemId]);
-                    toast.success('Item comprado com sucesso! Ele já está no seu Armário.');
-                  }}
+                  onBuy={(itemId, price) => handleSpendXp(price, itemId)}
                   onConvertXp={(amountXp, points) => {
-                    setAlunoData((prev: any) => ({ ...prev, xp: prev.xp - amountXp }));
-                    setGamePoints(prev => prev + points);
-                    toast.success(`${amountXp} XP convertido em ${points} Pontos Gallery!`);
+                    // Conversão desativada, pois usamos XP como única moeda.
+                    toast.error('A conversão de XP não é mais necessária!');
                   }}
                 />
-              ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja ? (
+              ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingRitmoPro && !isPlayingVoiceRush ? (
                 <>
                   {/* Botão de Acesso à Loja */}
                   <div 
-                    onClick={() => {
-                      if (alunoData?.nome?.toLowerCase().includes('jadna')) {
-                        setShowAvatarStore(true);
-                      }
-                    }}
-                    className={`bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] transition-all relative group overflow-hidden ${alunoData?.nome?.toLowerCase().includes('jadna') ? 'cursor-pointer hover:-translate-y-1 hover:shadow-[10px_10px_0_#000]' : 'cursor-not-allowed opacity-80'}`}
+                    onClick={() => setShowAvatarStore(true)}
+                    className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] transition-all relative group overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-[10px_10px_0_#000]"
                   >
-                    {(!alunoData || !alunoData.nome?.toLowerCase().includes('jadna')) && (
-                      <div className="absolute inset-0 bg-black/40 z-20 flex items-center justify-center backdrop-blur-[2px]">
-                        <span className="bg-red-600 text-white font-black px-6 py-2 text-xl border-4 border-black transform -rotate-12 shadow-[4px_4px_0_#000] uppercase tracking-widest">Em Breve!</span>
-                      </div>
-                    )}
                     <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-3">
@@ -1346,11 +1357,15 @@ export default function AreaAluno() {
                           <p className="text-[#8e7164] font-black text-[9px] uppercase mt-0.5">Compre cabelos, roupas e acessórios!</p>
                         </div>
                       </div>
-                      <div className="bg-black text-[#ffeb3b] px-3 py-1.5 border-2 border-black font-black text-[10px] uppercase shadow-[2px_2px_0_#ffeb3b]">
-                        💰 {gamePoints} PTS
+                    <div className="flex gap-2">
+                      <div className="bg-[#feccba] border-4 border-black px-2 py-1 flex items-center justify-center font-black text-xs text-[#3d2d26] shadow-[2px_2px_0_#000]">
+                        💰 {acordeCoins} COINS
                       </div>
                     </div>
+                    </div>
                   </div>
+
+                  <DailyMissions onClaimReward={(reward) => handleAddXp(reward, 'Missão Diária')} />
 
                   {/* Grid de Aplicativos (Jogos) */}
                   <div className="pt-2">
@@ -1418,9 +1433,9 @@ export default function AreaAluno() {
                 <ChordRush 
                   onClose={() => setIsPlayingChordRush(false)}
                   onGameOver={(score) => {
-                    if (score > 0) {
-                      setGamePoints(prev => prev + score);
-                    }
+                    updateDailyMissionProgress('Chord Rush');
+                    window.dispatchEvent(new CustomEvent('acorde_game_played', { detail: 'Chord Rush' }));
+                    if (score > 0) handleAddXp(score, 'Chord Rush');
                   }}
                   playRetroSound={playRetroSound}
                 />
@@ -1428,12 +1443,32 @@ export default function AreaAluno() {
                 <TriadeNinja
                   onClose={() => setIsPlayingTriadeNinja(false)}
                   onGameOver={(score) => {
-                    if (score > 0) {
-                      setGamePoints(prev => prev + score);
-                    }
+                    updateDailyMissionProgress('Tríade Ninja');
+                    window.dispatchEvent(new CustomEvent('acorde_game_played', { detail: 'Tríade Ninja' }));
+                    if (score > 0) handleAddXp(score, 'Tríade Ninja');
                   }}
                   playRetroSound={playRetroSound}
                 />
+              ) : isPlayingRitmoPro ? (
+                <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
+                  <RitmoPro 
+                    onClose={() => setIsPlayingRitmoPro(false)} 
+                    onGameOver={(score) => {
+                      updateDailyMissionProgress('Ritmo Pro');
+                      if (score > 0) handleAddXp(score, 'Ritmo Pro');
+                    }} 
+                  />
+                </div>
+              ) : isPlayingVoiceRush ? (
+                <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
+                  <VoiceRush 
+                    onClose={() => setIsPlayingVoiceRush(false)} 
+                    onGameOver={(score) => {
+                      updateDailyMissionProgress('Voice Rush');
+                      if (score > 0) handleAddXp(score, 'Voice Rush');
+                    }} 
+                  />
+                </div>
               ) : (
                 /* ÁREA DO MINIJOGO: ACORDE GENIUS */
                 <div className="bg-black border-8 border-[#3d2d26] p-4 shadow-[8px_8px_0_#000] flex flex-col gap-4 relative">
@@ -1626,14 +1661,14 @@ export default function AreaAluno() {
                 {/* Botão de Check-in */}
                 {treinos.some((t: any) => t.data === new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-')) ? (
                   <div className="bg-[#00ffcc] text-black border-4 border-black p-4 text-center font-black text-xs uppercase shadow-[4px_4px_0_#000]">
-                    🔥 CHECK-IN DE HOJE REALIZADO! (+200 XP CREDITADOS)
+                    🔥 CHECK-IN DE HOJE REALIZADO! (+500 XP CREDITADOS)
                   </div>
                 ) : (
                   <button
                     onClick={handleMarcarTreino}
                     className="w-full bg-[#ff6b00] hover:bg-black text-white font-black text-xs py-4 uppercase border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
-                    🔥 MARCAR TREINO HOJE (+200 XP)
+                    🔥 MARCAR TREINO HOJE (+500 XP)
                   </button>
                 )}
 
@@ -1641,7 +1676,7 @@ export default function AreaAluno() {
                 <div className="border-t-4 border-dashed border-black pt-4 space-y-4">
                   <h3 className="text-black font-black text-[10px] uppercase tracking-wider flex items-center justify-between gap-2">
                     <span>📹 COMPROVAR COM VÍDEO (MAX 45 SEGUNDOS)</span>
-                    <span className="bg-[#ff6b00] text-white px-2 py-0.5 border-2 border-black rotate-3 shadow-[2px_2px_0_#000] animate-pulse">+400 XP</span>
+                    <span className="bg-[#ff6b00] text-white px-2 py-0.5 border-2 border-black rotate-3 shadow-[2px_2px_0_#000] animate-pulse">+500 XP</span>
                   </h3>
 
                   {recording ? (
@@ -1682,12 +1717,27 @@ export default function AreaAluno() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={startRecording}
-                        className="bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black font-black text-[9px] uppercase py-3 border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-1"
-                      >
+                      <label className="bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black font-black text-[9px] uppercase py-3 border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-1 text-center">
                         🎥 GRAVAR VÍDEO AGORA
-                      </button>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 150 * 1024 * 1024) {
+                                toast.error('O arquivo excedeu o limite de 150MB.');
+                                return;
+                              }
+                              setVideoBlob(file);
+                              setVideoPreviewUrl(URL.createObjectURL(file));
+                              toast.success('Câmera do celular ativada com sucesso! Vídeo pronto para enviar. 📹🔥');
+                            }
+                          }}
+                        />
+                      </label>
                       
                       <label className="bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black font-black text-[9px] uppercase py-3 border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-1 text-center">
                         📁 SELECIONAR ARQUIVO
@@ -1705,27 +1755,7 @@ export default function AreaAluno() {
                         />
                       </label>
 
-                      {/* Input oculto para captura de câmera nativa do sistema em caso de falha no MediaRecorder do navegador */}
-                      <input
-                        type="file"
-                        accept="video/*"
-                        capture="user"
-                        id="camera-capture-fallback"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            // Limite aumentado para 100MB
-                            if (file.size > 100 * 1024 * 1024) {
-                              toast.error('O arquivo da câmera excedeu o limite de 100MB.');
-                              return;
-                            }
-                            setVideoBlob(file);
-                            setVideoPreviewUrl(URL.createObjectURL(file));
-                            toast.success('Câmera do celular ativada com sucesso! Vídeo pronto para enviar. 📹🔥');
-                          }
-                        }}
-                      />
+                      {/* Fallback removido pois agora a captura principal já é nativa do OS */}
                     </div>
                   )}
                 </div>
@@ -2357,12 +2387,8 @@ export default function AreaAluno() {
                 </div>
               </div>
 
-              {/* Seção de Conquistas e Troféus - Galeria Dinâmica */}
+              {/* Seção de Conquistas e Troféus - Zepp Gallery */}
               <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 GALERIA DE TROFÉUS E CONQUISTAS</h3>
-                  <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-                </div>
                 
                 {(() => {
                   const studentCourses = alunoData?.matriculas?.map((m: any) => m.cursos?.nome?.toLowerCase() || '') || [];
@@ -2392,11 +2418,11 @@ export default function AreaAluno() {
                   return (
                   <div className="space-y-6">
                     {[
-                      { key: 'Supremo', label: '👑 SUPREMO (2.000 XP)', border: 'border-[#d4af37]', text: 'text-[#d4af37]', bgGrad: 'from-[#d4af37]/20 via-[#261812] to-[#261812]', glow: 'rgba(212, 175, 55, 0.4)' },
-                      { key: 'Lendario', label: '🔥 LENDÁRIO (1.200 XP)', border: 'border-[#f97316]', text: 'text-[#f97316]', bgGrad: 'from-[#f97316]/20 via-[#261812] to-[#261812]', glow: 'rgba(249, 115, 22, 0.4)' },
-                      { key: 'Epico', label: '🔮 ÉPICO (750 XP)', border: 'border-[#a855f7]', text: 'text-[#a855f7]', bgGrad: 'from-[#a855f7]/20 via-[#261812] to-[#261812]', glow: 'rgba(168, 85, 247, 0.4)' },
-                      { key: 'Raro', label: '⭐ RARO (500 XP)', border: 'border-[#3b82f6]', text: 'text-[#3b82f6]', bgGrad: 'from-[#3b82f6]/20 via-[#261812] to-[#261812]', glow: 'rgba(59, 130, 246, 0.4)' },
-                      { key: 'Especial', label: '⚡ ESPECIAL (250 XP - CUMULATIVO)', border: 'border-[#22c55e]', text: 'text-[#22c55e]', bgGrad: 'from-[#22c55e]/20 via-[#261812] to-[#261812]', glow: 'rgba(34, 197, 94, 0.4)' }
+                      { key: 'Supremo', label: '👑 SUPREMO', border: 'border-[#d4af37]' },
+                      { key: 'Lendario', label: '🔥 LENDÁRIO', border: 'border-[#f97316]' },
+                      { key: 'Epico', label: '🔮 ÉPICO', border: 'border-[#a855f7]' },
+                      { key: 'Raro', label: '⭐ RARO', border: 'border-[#3b82f6]' },
+                      { key: 'Especial', label: '⚡ ESPECIAL', border: 'border-[#22c55e]' }
                     ].map((categoria) => {
                       const conquistasDaCategoria = filteredConquistas.filter(
                         (c: any) => (c.classe || 'Especial').toLowerCase() === categoria.key.toLowerCase()
@@ -2405,15 +2431,12 @@ export default function AreaAluno() {
                       if (conquistasDaCategoria.length === 0) return null;
 
                       return (
-                        <div key={categoria.key} className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-black border-2 ${categoria.border} ${categoria.text}`}>
-                              {categoria.label}
-                            </span>
-                            <div className={`flex-1 border-t border-dashed border-[#3d2d26]`}></div>
-                          </div>
+                        <div key={categoria.key} className="space-y-4">
+                          <h4 className="text-lg font-black text-white uppercase tracking-widest flex items-center justify-between border-b-2 border-white/20 pb-2">
+                            <span>{categoria.label}</span>
+                          </h4>
 
-                          <div className="flex gap-3 overflow-x-auto pb-4 snap-x scrollbar-hide">
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
                             {conquistasDaCategoria.map((conquista: any) => {
                               const conquistadoInstancias = alunoData?.conquistas?.filter(
                                 (c: any) => Number(c.id) === Number(conquista.id) || Number(c.conquista_id) === Number(conquista.id)
@@ -2424,93 +2447,27 @@ export default function AreaAluno() {
                                 (s: any) => Number(s.conquista_id) === Number(conquista.id) && s.status === 'pendente'
                               );
 
-                              const classeEfetiva = conquista.classe || 'Especial';
-                              
-                              let cardStyle = "";
-                              let badgeIconStyle = "";
-                              let customStyle: React.CSSProperties = {};
-
-                              if (conquistado) {
-                                cardStyle = `bg-gradient-to-r ${categoria.bgGrad} border-4 ${categoria.border} p-2 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-2 transition-all min-w-[200px] sm:min-w-[240px] shrink-0 snap-center relative`;
-                                badgeIconStyle = `w-10 h-10 bg-[#2d211b] border-2 ${categoria.border} flex items-center justify-center text-xl shrink-0`;
-                                customStyle = { boxShadow: `0 0 12px ${categoria.glow}` };
-                              } else if (solicitacaoPendente) {
-                                cardStyle = "bg-[#1f1510] border-4 border-dashed border-[#8e7164] opacity-80 p-2 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-2 transition-all min-w-[200px] sm:min-w-[240px] shrink-0 snap-center relative";
-                                badgeIconStyle = "w-10 h-10 bg-[#2d211b] border-2 border-[#8e7164] flex items-center justify-center text-xl shrink-0 grayscale opacity-60";
-                              } else {
-                                cardStyle = "bg-[#1f1510] border-4 border-black/80 opacity-90 p-2 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-2 hover:border-white/20 transition-all min-w-[200px] sm:min-w-[240px] shrink-0 snap-center relative";
-                                badgeIconStyle = "w-10 h-10 bg-[#2d211b] border-2 border-black flex items-center justify-center text-xl shrink-0 grayscale opacity-40";
-                              }
-
                               return (
-                                <div key={conquista.id} className={cardStyle} style={customStyle}>
-                                  <div className={badgeIconStyle}>
+                                <div 
+                                  key={conquista.id} 
+                                  onClick={() => setSelectedTrophy({ ...conquista, conquistado, solicitacaoPendente, conquistadoCount })}
+                                  className={`flex flex-col items-center cursor-pointer group hover:scale-105 transition-transform relative ${!conquistado && !solicitacaoPendente ? 'opacity-60 grayscale hover:grayscale-0' : ''}`}
+                                >
+                                  {/* Badge Overlay */}
+                                  {solicitacaoPendente && (
+                                    <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black border-2 border-black font-black text-[8px] px-1.5 py-0.5 uppercase shadow-[2px_2px_0_#000] animate-pulse">
+                                      ⏳ PENDENTE
+                                    </div>
+                                  )}
+
+                                  <div className={`w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center mb-2 transition-all ${conquistado ? 'drop-shadow-[0_0_15px_rgba(255,107,0,0.5)] group-hover:drop-shadow-[0_0_25px_rgba(255,107,0,0.8)]' : ''}`}>
                                     {conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe) ? (
-                                      <img src={conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe)} alt="" className="w-full h-full object-cover p-2" />
+                                      <img src={conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe)} alt={conquista.nome} className="w-full h-full object-contain hover:scale-110 transition-transform" />
                                     ) : (
-                                      <span>{conquista.icone || '🏆'}</span>
+                                      <Trophy className={`w-10 h-10 ${conquistado ? 'text-[#ff6b00]' : 'text-gray-400'}`} />
                                     )}
                                   </div>
-
-                                  <div className="flex-1 w-full min-w-0 flex flex-col justify-between h-full">
-                                    <div>
-                                      <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
-                                        <h4 className={`font-black text-[10px] uppercase leading-tight ${conquistado ? categoria.text : 'text-[#feccba]'}`}>
-                                          {conquista.nome}
-                                        </h4>
-                                        {classeEfetiva === 'Especial' && (
-                                          <span className="text-[5px] font-black uppercase text-[#22c55e] bg-black border border-[#22c55e] px-1 py-0.5 rounded-none leading-none">
-                                            CUMULATIVO 🔄
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-white/60 font-black text-[8px] uppercase mt-1.5 leading-snug line-clamp-2">
-                                        {conquista.descricao || 'Nenhuma descrição fornecida.'}
-                                      </p>
-                                    </div>
-
-                                      {conquistado ? (
-                                        <div className="flex items-center justify-center sm:justify-start gap-1.5 mt-2 flex-wrap">
-                                          <span className="text-[6px] font-black uppercase text-green-400 bg-black/40 border border-green-400 px-1 py-0.5 rounded-none leading-none">
-                                            DESBLOQUEADO ✅ {conquistadoCount > 1 && `(${conquistadoCount}X)`}
-                                          </span>
-                                          {conquistadoInstancias[0]?.data_conquista && (
-                                            <span className="text-white/40 font-mono text-[5px] uppercase">
-                                              {conquistadoCount > 1 ? 'ÚLTIMO EM ' : 'EM '}
-                                              {new Date(conquistadoInstancias[0].data_conquista).toLocaleDateString('pt-BR')}
-                                            </span>
-                                          )}
-                                        </div>
-                                      ) : solicitacaoPendente ? (
-                                        <div className="mt-2">
-                                          <span className="text-[6px] font-black uppercase text-yellow-400 bg-black/40 border border-yellow-400 px-1 py-0.5 rounded-none leading-none animate-pulse inline-block">
-                                            PENDENTE ⏳ AGUARDANDO APROVAÇÃO
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <div className="mt-2">
-                                          <span className="text-[6px] font-black uppercase text-white/40 bg-black/40 border border-white/20 px-1 py-0.5 rounded-none leading-none inline-block">
-                                            BLOQUEADO 🔒
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-
-                                  <div className="sm:absolute sm:bottom-3 sm:right-3 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-end gap-1.5 w-full sm:w-auto mt-2 sm:mt-0">
-                                    <span className={`font-black text-[8px] bg-black border ${conquistado ? `${categoria.border} ${categoria.text}` : 'border-black text-[#ff6b00]'} px-1.5 py-0.5 leading-none`}>
-                                      +{conquista.pontos || 100} XP
-                                    </span>
-
-                                    {/* Se for Especial (cumulativa), permite solicitar novamente, contanto que não haja solicitação pendente para esse troféu */}
-                                    {((!conquistado || classeEfetiva === 'Especial') && !solicitacaoPendente) && (
-                                      <button
-                                        onClick={() => handleSolicitarTrofeu(conquista.id)}
-                                        className="bg-[#4ade80] hover:bg-[#22c55e] text-black px-1.5 py-1 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all"
-                                      >
-                                        🚀 SOLICITAR
-                                      </button>
-                                    )}
-                                  </div>
+                                  <h5 className="font-bold text-white text-[10px] uppercase text-center leading-tight line-clamp-2 w-full">{conquista.nome}</h5>
                                 </div>
                               );
                             })}
@@ -2521,6 +2478,82 @@ export default function AreaAluno() {
                   </div>
                   );
                 })()}
+
+                {/* Modal Secundário: Detalhes da Medalha */}
+                <AnimatePresence>
+                  {selectedTrophy && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 50 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 50 }}
+                      className="fixed inset-0 z-[100] bg-[#1a0f0b] border-8 border-[#ff6b00] flex flex-col p-6 overflow-y-auto"
+                    >
+                      <button 
+                        onClick={() => setSelectedTrophy(null)} 
+                        className="absolute top-4 left-4 bg-transparent text-white p-2 hover:bg-white/10 rounded-full transition-colors"
+                      >
+                        <X className="w-8 h-8" />
+                      </button>
+
+                      <div className="flex flex-col items-center mt-8 space-y-6">
+                        <div className="text-center">
+                          <h3 className="text-2xl font-black uppercase text-white tracking-widest">{selectedTrophy.nome}</h3>
+                          {selectedTrophy.conquistado && (
+                            <p className="text-[#a0a0a0] text-xs font-bold uppercase mt-1">DESBLOQUEADO ✅ {selectedTrophy.conquistadoCount > 1 && `(${selectedTrophy.conquistadoCount}X)`}</p>
+                          )}
+                        </div>
+
+                        <div className={`w-48 h-48 flex items-center justify-center ${selectedTrophy.conquistado ? 'drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] scale-110' : 'grayscale'} transition-all`}>
+                          {selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe) ? (
+                            <img src={selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe)} alt={selectedTrophy.nome} className="w-full h-full object-contain" />
+                          ) : (
+                            <Trophy className="w-24 h-24 text-[#ff6b00]" />
+                          )}
+                        </div>
+
+                        <p className="text-center text-sm font-bold text-white/80 max-w-md">
+                          {selectedTrophy.descricao || "Continue treinando para melhorar suas habilidades e alcançar novos patamares na sua jornada musical!"}
+                        </p>
+
+                        <div className="w-full max-w-md mt-6 space-y-4">
+                          <div className="flex justify-between items-center text-xs font-black uppercase text-[#a0a0a0]">
+                            <span>RECOMPENSA</span>
+                            <span className="text-[#ff6b00] text-lg">+{selectedTrophy.pontos || 100} XP</span>
+                          </div>
+                        </div>
+
+                        {/* Botão de Solicitar ou Fechar */}
+                        <div className="mt-8 flex flex-col items-center gap-4">
+                          {((!selectedTrophy.conquistado || selectedTrophy.classe === 'Especial') && !selectedTrophy.solicitacaoPendente) && (
+                            <button
+                              onClick={() => {
+                                handleSolicitarTrofeu(selectedTrophy.id);
+                                setSelectedTrophy((prev: any) => ({ ...prev, solicitacaoPendente: true }));
+                              }}
+                              className="bg-[#4ade80] text-black font-black uppercase px-12 py-4 border-4 border-black hover:bg-[#22c55e] shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2"
+                            >
+                              🚀 SOLICITAR TROFÉU
+                            </button>
+                          )}
+
+                          {selectedTrophy.solicitacaoPendente && (
+                            <div className="bg-yellow-500/20 text-yellow-500 font-black uppercase px-8 py-3 border-4 border-yellow-500 animate-pulse">
+                              ⏳ SOLICITAÇÃO PENDENTE...
+                            </div>
+                          )}
+
+                          <button 
+                            onClick={() => setSelectedTrophy(null)}
+                            className="bg-[#261812] text-white font-black uppercase px-8 py-3 border-4 border-transparent hover:border-[#ff6b00] transition-all"
+                          >
+                            FECHAR
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
               </div>
 
               {/* Histórico de Aulas Passadas */}
