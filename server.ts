@@ -2228,13 +2228,22 @@ async function startServer() {
             const prevEndDate = new Date(yNumPrev, mNumPrev, 0).toISOString().split('T')[0];
 
             const { data: aulasPrev } = await supabase.from('aulas')
-                .select('professor_id')
+                .select('professor_id, professor:professores(nome)')
                 .gte('data', prevStartDate)
                 .lte('data', prevEndDate)
                 .in('status', ['realizada', 'falta_aluno'])
                 .not('professor_id', 'is', null);
                 
-            const salariosPrevistos = aulasPrev ? aulasPrev.length * 35 : 0;
+            let salariosPrevistos = 0;
+            if (aulasPrev) {
+                const aulasValidas = aulasPrev.filter(a => {
+                    const profData: any = a.professor;
+                    const nomeStr = Array.isArray(profData) ? (profData[0]?.nome || '') : (profData?.nome || '');
+                    const nome = nomeStr.toLowerCase();
+                    return !nome.includes('aquilles') && !nome.includes('áquilles');
+                });
+                salariosPrevistos = aulasValidas.length * 35;
+            }
             const custoOperacional = salariosPrevistos;
 
             const lucroMes = receitaMes - despesasPagas; // Lucro Real (recebido - pago sem salários automáticos, a não ser que lance manual)
@@ -2302,7 +2311,7 @@ async function startServer() {
             });
 
             const { data: aulas, error } = await supabase.from('aulas')
-                .select('professor_id, status')
+                .select('professor_id, status, professor:professores(nome)')
                 .gte('data', startDate)
                 .lte('data', endDate)
                 .in('status', ['realizada', 'falta_aluno']);
@@ -2311,13 +2320,26 @@ async function startServer() {
 
             (aulas || []).forEach(aula => {
                 if (!aula.professor_id) return;
+                
+                const profData: any = aula.professor;
+                const nomeStr = Array.isArray(profData) ? (profData[0]?.nome || '') : (profData?.nome || '');
+                const nome = nomeStr.toLowerCase();
+                
+                if (nome.includes('aquilles') || nome.includes('áquilles')) return;
+                
                 if (remunByProf[aula.professor_id]) {
                     remunByProf[aula.professor_id].total_aulas++;
                     remunByProf[aula.professor_id].valor_estimado += 35; // Valor padrão arbitrário por aula
                 }
             });
 
-            res.json(Object.values(remunByProf));
+            // Filter out professors with 0 classes and also exclude Aquilles from the final list
+            const finalRemun = Object.values(remunByProf).filter((r: any) => {
+                const nome = r.professor_nome?.toLowerCase() || '';
+                return !nome.includes('aquilles') && !nome.includes('áquilles') && r.total_aulas > 0;
+            });
+
+            res.json(finalRemun);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 

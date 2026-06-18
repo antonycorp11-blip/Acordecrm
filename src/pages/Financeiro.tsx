@@ -320,8 +320,6 @@ export default function Financeiro() {
           <div className="flex bg-[#1A1A1A] border-2 border-white overflow-x-auto max-w-full">
             <button onClick={() => setActiveTab('receitas')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'receitas' ? 'bg-[#00FF41] text-black' : 'text-white hover:bg-white/10'}`}>Receitas</button>
             <button onClick={() => setActiveTab('despesas')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'despesas' ? 'bg-[#FF0000] text-white' : 'text-white hover:bg-white/10'}`}>Despesas</button>
-            <button onClick={() => setActiveTab('professores')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'professores' ? 'bg-[#FF8A00] text-black' : 'text-white hover:bg-white/10'}`}>Remuneração</button>
-            
           </div>
 
           <div className="flex bg-[#1A1A1A] border-2 border-white overflow-hidden">
@@ -358,9 +356,9 @@ export default function Financeiro() {
             </div>
           </div>
 
-          <div className="bg-[#FF8A00] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black flex flex-col justify-between min-h-[140px]">
+          <div onClick={() => setActiveTab('professores')} className="bg-[#FF8A00] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black flex flex-col justify-between min-h-[140px] cursor-pointer hover:bg-[#FF9900] transition-colors">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1 z-10">Salários Previstos</p>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1 z-10">Salários Previstos <span className="opacity-50 ml-1">(Ver Detalhes)</span></p>
             <div className="z-10">
               <h3 className="text-3xl font-black">R$ {(resumo?.salariosPrevistos || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
               <p className="text-xs font-bold mt-1 opacity-80">
