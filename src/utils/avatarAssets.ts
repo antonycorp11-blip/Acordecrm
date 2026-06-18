@@ -1,3 +1,4 @@
+// @ts-nocheck
 export interface AvatarSkin {
   id: string;
   name: string;

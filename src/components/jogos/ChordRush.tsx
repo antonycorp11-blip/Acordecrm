@@ -124,7 +124,7 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
       <div className="flex justify-between items-center">
         <button
           onClick={() => {
-            if (gameState !== 'GAMEOVER' && score > 0) {
+            if (gameState !== 'gameover' && score > 0) {
               onGameOver(score);
             }
             onClose();

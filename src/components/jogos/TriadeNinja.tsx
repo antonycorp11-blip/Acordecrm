@@ -107,7 +107,7 @@ export const TriadeNinja: React.FC<TriadeNinjaProps> = ({ onClose, onGameOver, p
       <div className="flex justify-between items-center border-b-4 border-purple-900 pb-2">
         <button
           onClick={() => {
-            if (gameState !== 'GAMEOVER' && score > 0) {
+            if (gameState !== 'gameover' && score > 0) {
               onGameOver(score);
             }
             onClose();
