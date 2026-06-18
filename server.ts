@@ -2008,6 +2008,96 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
+    // ==========================================
+    // ENDPOINTS DE DESPESAS (CONTAS A PAGAR)
+    // ==========================================
+
+    app.get('/api/despesas', async (req, res) => {
+        try {
+            const { mes } = req.query;
+            const now = new Date();
+            const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+            
+            const [m, y] = mesRef.split('/');
+            const startDate = `${y}-${m}-01`;
+            const endDate = new Date(Number(y), Number(m), 0).toISOString().split('T')[0];
+
+            const { data, error } = await supabase.from('despesas')
+                .select('*')
+                .gte('data_vencimento', startDate)
+                .lte('data_vencimento', endDate)
+                .order('data_vencimento', { ascending: true });
+            
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/despesas', async (req, res) => {
+        try {
+            const { descricao, valor, data_vencimento, categoria, tipo_recorrencia, total_parcelas, professor_id } = req.body;
+            
+            if (categoria === 'parcelada' && total_parcelas > 1) {
+                // Gerar múltiplas faturas (uma por mês)
+                const faturas = [];
+                let currentDate = new Date(data_vencimento + 'T12:00:00');
+                
+                for (let i = 1; i <= total_parcelas; i++) {
+                    faturas.push({
+                        descricao: `${descricao} (${i}/${total_parcelas})`,
+                        valor: Number(valor),
+                        data_vencimento: currentDate.toISOString().split('T')[0],
+                        categoria,
+                        tipo_recorrencia: 'unica',
+                        parcela_atual: i,
+                        total_parcelas: total_parcelas,
+                        professor_id: professor_id || null,
+                        status: 'pendente'
+                    });
+                    currentDate.setMonth(currentDate.getMonth() + 1);
+                }
+                
+                const { data, error } = await supabase.from('despesas').insert(faturas).select();
+                if (error) throw error;
+                return res.json(data);
+            } else {
+                // Fatura única
+                const { data, error } = await supabase.from('despesas').insert([{
+                    descricao,
+                    valor: Number(valor),
+                    data_vencimento,
+                    categoria: categoria || 'outros',
+                    tipo_recorrencia: tipo_recorrencia || 'unica',
+                    professor_id: professor_id || null,
+                    status: 'pendente'
+                }]).select().single();
+                if (error) throw error;
+                return res.json(data);
+            }
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.patch('/api/despesas/:id/baixa', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const now = new Date();
+            const { data, error } = await supabase.from('despesas')
+                .update({ status: 'pago', data_pagamento: now.toISOString().split('T')[0] })
+                .eq('id', id).select().single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.delete('/api/despesas/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase.from('despesas').delete().eq('id', id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
     // Resumo financeiro do mês
     app.get('/api/financeiro/resumo', async (req, res) => {
         try {
@@ -2059,12 +2149,40 @@ async function startServer() {
                     faturamentoPrevisto += (p.status === 'pago' ? Number(p.valor) : valorEfetivo);
                 }
             }
+            const [m, y] = mesRef.split('/');
+            const startDate = `${y}-${m}-01`;
+            const endDate = new Date(Number(y), Number(m), 0).toISOString().split('T')[0];
+
+            // Buscar despesas do mês
+            const { data: despesasMes, error: errDespesas } = await supabase.from('despesas')
+                .select('valor, status')
+                .gte('data_vencimento', startDate)
+                .lte('data_vencimento', endDate);
+
+            if (errDespesas) throw errDespesas;
+
+            let despesasPagas = 0;
+            let despesasPendentes = 0;
+
+            if (despesasMes) {
+                for (const d of despesasMes) {
+                    if (d.status === 'pago') despesasPagas += Number(d.valor);
+                    else despesasPendentes += Number(d.valor);
+                }
+            }
+
+            const lucroMes = receitaMes - despesasPagas;
+            const margemLucro = receitaMes > 0 ? (lucroMes / receitaMes) * 100 : 0;
             
             res.json({ 
                 faturamentoPrevisto, 
                 receitaMes, 
                 pendentes, 
-                total: receitaMes 
+                total: receitaMes,
+                despesasPagas,
+                despesasPendentes,
+                lucroMes,
+                margemLucro
             });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });

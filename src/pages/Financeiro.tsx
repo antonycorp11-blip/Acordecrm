@@ -25,7 +25,8 @@ export default function Financeiro() {
     return `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
   });
   const [pagamentos, setPagamentos] = useState<any[]>([]);
-  const [resumo, setResumo] = useState<any>({ receitaMes: 0, faturamentoPrevisto: 0, pendentes: 0, total: 0 });
+  const [despesas, setDespesas] = useState<any[]>([]);
+  const [resumo, setResumo] = useState<any>({ receitaMes: 0, faturamentoPrevisto: 0, pendentes: 0, total: 0, despesasPagas: 0, despesasPendentes: 0, lucroMes: 0, margemLucro: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'recebidos' | 'pendentes' | 'atrasados'>('todos');
@@ -33,7 +34,9 @@ export default function Financeiro() {
   const [extraForm, setExtraForm] = useState({ descricao: '', valor: '', tipo_receita: 'ensaio', data_vencimento: new Date().toISOString().split('T')[0], aluno_id: '' });
   const [alunos, setAlunos] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'caixa' | 'professores'>('caixa');
+  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'professores' | 'dre'>('receitas');
+  const [showDespesaModal, setShowDespesaModal] = useState(false);
+  const [despesaForm, setDespesaForm] = useState({ descricao: '', valor: '', data_vencimento: new Date().toISOString().split('T')[0], categoria: 'fixa', tipo_recorrencia: 'unica', total_parcelas: 1 });
   const [remuneracao, setRemuneracao] = useState<any[]>([]);
   const [baixaModal, setBaixaModal] = useState<{ id: number | null, open: boolean, valorSugerido: number }>({ id: null, open: false, valorSugerido: 0 });
   const [baixaMetodo, setBaixaMetodo] = useState('dinheiro');
@@ -109,16 +112,18 @@ export default function Financeiro() {
     const headers = { 'Authorization': `Bearer ${token}` };
     setLoading(true);
     try {
-      const [pagsRes, resumoRes, alunosRes, remunRes] = await Promise.all([
+      const [pagsRes, resumoRes, alunosRes, remunRes, despRes] = await Promise.all([
         fetch(`/api/pagamentos?mes=${currentMonth}&desconto_dia_10=${descontoDia10}`, { headers }).then(r => r.ok ? r.json() : []),
         fetch(`/api/financeiro/resumo?mes=${currentMonth}&desconto_dia_10=${descontoDia10}`, { headers }).then(r => r.ok ? r.json() : null),
         fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : []),
         fetch(`/api/financeiro/remuneracao?mes_ano=${currentMonth}`, { headers }).then(r => r.ok ? r.json() : []),
+        fetch(`/api/despesas?mes=${currentMonth}`, { headers }).then(r => r.ok ? r.json() : []),
       ]);
       setPagamentos(Array.isArray(pagsRes) ? pagsRes : []);
-      setResumo(resumoRes || { receitaMes: 0, faturamentoPrevisto: 0, pendentes: 0, total: 0 });
+      setResumo(resumoRes || { receitaMes: 0, faturamentoPrevisto: 0, pendentes: 0, total: 0, despesasPagas: 0, despesasPendentes: 0, lucroMes: 0, margemLucro: 0 });
       setAlunos(Array.isArray(alunosRes) ? alunosRes : []);
       setRemuneracao(Array.isArray(remunRes) ? remunRes : []);
+      setDespesas(Array.isArray(despRes) ? despRes : []);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -137,6 +142,29 @@ export default function Financeiro() {
   const nextMonthDate = new Date(yNum, mNum, 1);
 
   const formatMonthBtn = (d: Date) => `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+
+  
+  const handleSaveDespesa = async () => {
+    if (!despesaForm.descricao || !despesaForm.valor) return alert('Preencha descrição e valor.');
+    setSaving(true);
+    const token = localStorage.getItem('acorde_token');
+    await fetch('/api/despesas', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ 
+        ...despesaForm, 
+        valor: Number(despesaForm.valor),
+        total_parcelas: Number(despesaForm.total_parcelas)
+      })
+    });
+    setSaving(false);
+    setShowDespesaModal(false);
+    setDespesaForm({ descricao: '', valor: '', data_vencimento: new Date().toISOString().split('T')[0], categoria: 'fixa', tipo_recorrencia: 'unica', total_parcelas: 1 });
+    fetchData();
+  };
 
   const handleBaixa = async () => {
     if (!baixaModal.id) return;
@@ -289,9 +317,11 @@ export default function Financeiro() {
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex bg-[#1A1A1A] border-2 border-white">
-            <button onClick={() => setActiveTab('caixa')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'caixa' ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}>Caixa Geral</button>
-            <button onClick={() => setActiveTab('professores')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all ${activeTab === 'professores' ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}>Remuneração</button>
+          <div className="flex bg-[#1A1A1A] border-2 border-white overflow-x-auto max-w-full">
+            <button onClick={() => setActiveTab('receitas')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'receitas' ? 'bg-[#00FF41] text-black' : 'text-white hover:bg-white/10'}`}>Receitas</button>
+            <button onClick={() => setActiveTab('despesas')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'despesas' ? 'bg-[#FF0000] text-white' : 'text-white hover:bg-white/10'}`}>Despesas</button>
+            <button onClick={() => setActiveTab('professores')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'professores' ? 'bg-[#FF8A00] text-black' : 'text-white hover:bg-white/10'}`}>Remuneração</button>
+            <button onClick={() => setActiveTab('dre')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'dre' ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}>DRE / Lucro</button>
           </div>
 
           <div className="flex bg-[#1A1A1A] border-2 border-white overflow-hidden">
@@ -308,24 +338,24 @@ export default function Financeiro() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-[#1A1A1A] border-4 border-white p-4 shadow-hard relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 -rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Faturamento Previsto</p>
-          <h3 className="text-2xl font-black text-white">R$ {(resumo?.faturamentoPrevisto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-        </div>
         <div className="bg-[#00FF41] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black">
           <div className="absolute top-0 right-0 w-24 h-24 bg-black/5 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1 text-black">Recebido Real</p>
+          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1 text-black">Recebido Real (Mês)</p>
           <h3 className="text-2xl font-black">R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
         </div>
         <div className="bg-[#FF0000] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-white">
           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Pendente / Atrasado</p>
-          <h3 className="text-2xl font-black">R$ {(resumo?.pendentes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Despesas Pagas</p>
+          <h3 className="text-2xl font-black">R$ {(resumo?.despesasPagas || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+        </div>
+        <div className="bg-white border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-black/5 -rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Lucro Líquido</p>
+          <h3 className="text-2xl font-black">R$ {(resumo?.lucroMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-sm ml-2">{(resumo?.margemLucro || 0).toFixed(1)}%</span></h3>
         </div>
       </div>
 
-      {activeTab === 'caixa' ? (
+      {activeTab === 'receitas' ? (
         <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard flex flex-col gap-6">
           
           {/* Action & Filter Bar Emusys Style */}
@@ -472,6 +502,105 @@ export default function Financeiro() {
             </table>
           </div>
         </div>
+      ) : activeTab === 'despesas' ? (
+        <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard flex flex-col gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-black border-2 border-white/20 p-2">
+             <div className="flex flex-wrap items-center gap-2">
+               <button onClick={() => setShowDespesaModal(true)} className="bg-[#FF0000] text-white border-2 border-black px-3 py-1.5 shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center gap-1.5 text-[9px] font-bold uppercase">
+                 <Plus className="w-3 h-3" /> Nova Despesa
+               </button>
+             </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b-4 border-white/20 bg-white/5">
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF0000]">Vencimento</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF0000]">Situação</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF0000]">Descrição</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF0000]">Categoria</th>
+                  <th className="px-4 py-4 text-[10px] font-black uppercase tracking-widest text-[#FF0000] text-right">Valor Total</th>
+                  <th className="px-4 py-4"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {loading ? (
+                  <tr><td colSpan={6} className="py-20 text-center text-[10px] font-black uppercase animate-pulse">Carregando Despesas...</td></tr>
+                ) : despesas.length === 0 ? (
+                  <tr><td colSpan={6} className="py-20 text-center text-[10px] font-black uppercase opacity-50">Nenhuma despesa encontrada neste mês</td></tr>
+                ) : despesas.map((d, idx) => {
+                  const isAtraso = d.status !== 'pago' && d.data_vencimento && isBefore(startOfDay(new Date(d.data_vencimento + 'T12:00:00')), startOfDay(new Date()));
+                  const dtVenc = d.data_vencimento ? new Date(d.data_vencimento + 'T12:00:00') : null;
+                  
+                  return (
+                  <tr key={`desp-${d.id}-${idx}`} className="hover:bg-white/5 transition-colors group">
+                    <td className="px-4 py-5 text-[11px] font-black">{dtVenc ? format(dtVenc, 'dd/MM/yyyy') : '---'}</td>
+                    <td className="px-4 py-5">
+                      {d.status === 'pago' ? (
+                        <span className="inline-flex items-center gap-1.5 text-[#00FF41] text-[10px] font-black uppercase"><CheckCircle2 className="w-3.5 h-3.5" /> Pago</span>
+                      ) : isAtraso ? (
+                        <span className="inline-flex items-center gap-1.5 text-[#FF0000] text-[10px] font-black uppercase"><AlertCircle className="w-3.5 h-3.5" /> Atrasada</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-[#FF8A00] text-[10px] font-black uppercase"><Clock className="w-3.5 h-3.5" /> Pendente</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-5 text-[12px] font-black uppercase">{d.descricao} {d.parcela_atual ? `(${d.parcela_atual}/${d.total_parcelas})` : ''}</td>
+                    <td className="px-4 py-5 text-[10px] font-black uppercase text-white/80">{d.categoria}</td>
+                    <td className="px-4 py-5 text-right"><span className="text-[13px] font-black text-[#FF0000]">R$ {Number(d.valor).toFixed(2).replace('.', ',')}</span></td>
+                    <td className="px-4 py-5 text-right flex items-center justify-end gap-2">
+                      {d.status !== 'pago' ? (
+                        <button onClick={async () => {
+                           if(window.confirm('Confirmar pagamento desta despesa?')) {
+                             const token = localStorage.getItem('acorde_token');
+                             await fetch(`/api/despesas/${d.id}/baixa`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` } });
+                             fetchData();
+                           }
+                        }} className="bg-white text-black px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">PAGAR</button>
+                      ) : <span className="text-[9px] font-black uppercase opacity-20">PAGO</span>}
+                      <button onClick={async (e) => {
+                          e.stopPropagation();
+                          if(window.confirm('Excluir esta despesa definitivamente?')) {
+                            const token = localStorage.getItem('acorde_token');
+                            await fetch(`/api/despesas/${d.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                            fetchData();
+                          }
+                      }} className="text-[#FF0000] p-2 hover:bg-[#FF0000]/20 transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+                    </td>
+                  </tr>
+                )})}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : activeTab === 'dre' ? (
+        <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard">
+           <div className="mb-8 border-b-4 border-white pb-6">
+              <h2 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
+                 <Activity className="w-8 h-8 text-white" />
+                 Demonstrativo de Resultados (DRE)
+              </h2>
+           </div>
+           
+           <div className="space-y-6">
+             <div className="flex justify-between items-center border-b-2 border-white/20 pb-4">
+               <span className="text-xl font-black uppercase text-[#00FF41]">Receitas Totais</span>
+               <span className="text-2xl font-black text-[#00FF41]">R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+             </div>
+             
+             <div className="flex justify-between items-center border-b-2 border-white/20 pb-4">
+               <span className="text-xl font-black uppercase text-[#FF0000]">Despesas Totais Pagas</span>
+               <span className="text-2xl font-black text-[#FF0000]">R$ {(resumo?.despesasPagas || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+             </div>
+             
+             <div className="flex justify-between items-center bg-white text-black p-6 shadow-hard-black mt-8">
+               <div>
+                 <span className="text-3xl font-black uppercase block">Lucro Líquido</span>
+                 <span className="text-sm font-bold uppercase tracking-widest opacity-60">Margem: {(resumo?.margemLucro || 0).toFixed(1)}%</span>
+               </div>
+               <span className="text-5xl font-black">R$ {(resumo?.lucroMes || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+             </div>
+           </div>
+        </div>
       ) : (
         <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard">
            {/* ... Folha Professor mantém-se igual ... */}
@@ -544,6 +673,67 @@ export default function Financeiro() {
                 >
                   <Copy className="w-4 h-4" />
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Despesa Nova */}
+      <AnimatePresence>
+        {showDespesaModal && (
+          <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1A1A1A] border-4 border-white p-8 w-full max-w-md shadow-hard relative">
+              <button onClick={() => setShowDespesaModal(false)} className="absolute -top-6 -right-6 bg-[#FF0000] border-4 border-black p-2 shadow-hard-black transition-all hover:translate-x-1 hover:translate-y-1 hover:shadow-none">
+                 <X className="w-6 h-6 text-white" />
+              </button>
+              
+              <h2 className="text-2xl font-black uppercase mb-8 border-b-4 border-white pb-4 tracking-tighter flex items-center gap-3">
+                 <Plus className="w-6 h-6 text-[#FF0000]" />
+                 Lançar Despesa
+              </h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-[#FF0000] uppercase tracking-widest block mb-1">Descrição</label>
+                  <input value={despesaForm.descricao} onChange={e => setDespesaForm(f => ({...f, descricao: e.target.value}))} placeholder="Ex: Conta de Luz" className="w-full bg-black border-2 border-white/20 p-2 text-[10px] font-bold uppercase focus:border-[#FF0000] outline-none text-white" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-[#FF0000] uppercase tracking-widest block mb-1">Valor (R$)</label>
+                    <input type="number" step="0.01" value={despesaForm.valor} onChange={e => setDespesaForm(f => ({...f, valor: e.target.value}))} placeholder="0,00" className="w-full bg-black border-2 border-white/20 p-2 text-[10px] font-bold uppercase focus:border-[#FF0000] outline-none text-white" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-[#FF0000] uppercase tracking-widest block mb-1">Data Venc.</label>
+                    <input type="date" value={despesaForm.data_vencimento} onChange={e => setDespesaForm(f => ({...f, data_vencimento: e.target.value}))} className="w-full bg-black border-2 border-white/20 p-2 text-[10px] font-bold uppercase focus:border-[#FF0000] outline-none text-white" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-[#FF0000] uppercase tracking-widest block mb-1">Categoria</label>
+                    <select value={despesaForm.categoria} onChange={e => setDespesaForm(f => ({...f, categoria: e.target.value}))} className="w-full bg-black border-2 border-white/20 p-2 text-[10px] font-bold uppercase focus:border-[#FF0000] outline-none text-white">
+                      <option value="fixa">Conta Fixa</option>
+                      <option value="parcelada">Parcelada</option>
+                      <option value="divida">Dívida / Empréstimo</option>
+                      <option value="remuneracao">Remuneração</option>
+                      <option value="impostos">Impostos</option>
+                      <option value="outros">Outros</option>
+                    </select>
+                  </div>
+                  {despesaForm.categoria === 'parcelada' && (
+                    <div>
+                      <label className="text-[10px] font-black text-[#FF0000] uppercase tracking-widest block mb-1">Qtd Parcelas</label>
+                      <input type="number" min="1" value={despesaForm.total_parcelas} onChange={e => setDespesaForm(f => ({...f, total_parcelas: Number(e.target.value)}))} className="w-full bg-black border-2 border-white/20 p-2 text-[10px] font-bold uppercase focus:border-[#FF0000] outline-none text-white" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-8 flex gap-4">
+                 <button onClick={() => setShowDespesaModal(false)} className="flex-1 p-3 text-[10px] font-black uppercase hover:underline">VOLTAR</button>
+                 <button onClick={handleSaveDespesa} disabled={saving} className="flex-1 bg-[#FF0000] text-white border-4 border-black p-3 shadow-hard-black font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all">
+                    <Save className="w-4 h-4" /> {saving ? 'SALVANDO...' : 'CONFIRMAR'}
+                 </button>
               </div>
             </motion.div>
           </div>
