@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Trophy, Trash2, Flame, ChevronRight, Award } from 'lucide-react';
 import { toast } from 'sonner';
+import { AvatarPixel } from './AvatarPixel';
 
 export const resolveTrophyImage = (instrumento: string, classe: string) => {
   const normalize = (str: any) => String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -89,6 +90,32 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
         </header>
 
         <div className="p-6 overflow-y-auto max-h-[calc(85vh-100px)] space-y-6 scrollbar-thin">
+
+          {/* AVATAR & INFO Section */}
+          <div className="flex items-center gap-4 bg-black/40 border-2 border-[#ff6b00] p-4">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-[#1a0a05] rounded overflow-hidden shrink-0 border-2 border-orange-500 relative flex items-end justify-center pb-2">
+              <AvatarPixel 
+                config={selectedAluno?.avatar_config?.skinId ? selectedAluno.avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                isSilhouette={!selectedAluno?.avatar_config?.skinId}
+                hideBackground={true}
+              />
+            </div>
+            
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <h3 className="text-xl sm:text-2xl font-black text-white uppercase truncate drop-shadow-md">
+                {selectedAluno.nome}
+              </h3>
+              
+              <div className="flex items-center gap-2 mt-2">
+                <div className="bg-[#feccba] border-2 border-black px-3 py-1 flex items-center justify-center font-black text-sm text-[#3d2d26] shadow-[2px_2px_0_#000]">
+                  💰 {selectedAluno.acorde_coins || 0} COINS
+                </div>
+                {selectedAluno.foto_url && selectedAluno.foto_url.trim() !== '' && !selectedAluno.foto_url.includes('ui-avatars.com') && (
+                  <img src={selectedAluno.foto_url} alt="Foto" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* SEQUÊNCIA ATUAL Section */}
           <div className="bg-black/60 border-2 border-[#ff6b00] p-4 flex items-center gap-4">

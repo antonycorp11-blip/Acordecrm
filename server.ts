@@ -86,6 +86,19 @@ const fetchAllGamificacaoProgresso = async (supabaseClient: any) => {
     return allData;
 };
 
+const addToFeed = async (aluno_id: number, tipo: string, mensagem: string, icone: string) => {
+    try {
+        await supabase.from('feed_atividades').insert([{
+            aluno_id,
+            tipo,
+            mensagem,
+            icone
+        }]);
+    } catch (e) {
+        console.error('Erro ao adicionar no feed:', e);
+    }
+};
+
 // Middleware JWT
 const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
@@ -706,7 +719,7 @@ async function startServer() {
             const { pontos, jogo } = req.body;
             if (!pontos) return res.status(400).json({ error: 'Pontos não informados' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, xp, acorde_coins').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').eq('email', email).single();
             if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
 
             let finalPontos = Number(pontos);
@@ -718,6 +731,10 @@ async function startServer() {
             const novasMoedas = (Number(aluno.acorde_coins) || 0) + finalPontos;
             
             await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+
+            // Adiciona no feed
+            const jogoNomeFormatado = jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'UM JOGO';
+            await addToFeed(aluno.id, 'jogo', `${aluno.nome} acabou de jogar ${jogoNomeFormatado} e ganhou +${finalPontos} XP! 🎮`, '🎮');
 
             res.json({ success: true, novoXp, novasMoedas, finalPontos });
         } catch (error: any) {
@@ -2602,7 +2619,7 @@ async function startServer() {
             // Buscar alunos ativos (exclui arquivados e testes)
             const { data: alunos, error: alunosError } = await supabase
                 .from('alunos')
-                .select('id, nome, xp, foto_url, avatar_config')
+                .select('id, nome, xp, foto_url, avatar_config, acorde_coins')
                 .neq('status', 'arquivado');
             if (alunosError) console.error('Erro ao buscar alunos para ranking:', alunosError);
 
@@ -2628,6 +2645,7 @@ async function startServer() {
                     nome: al.nome,
                     foto_url: al.foto_url,
                     avatar_config: al.avatar_config,
+                    acorde_coins: al.acorde_coins,
                     xp: xpTotal,
                     xp_aulas: Number(al.xp) || 0,
                     xp_conquistas: xpConquistas,
@@ -2657,6 +2675,13 @@ async function startServer() {
                 .insert([{ aluno_id: alunoIdNum, conquista_id: conquistaIdNum }]);
             
             if (error) throw error;
+
+            const { data: alunoInfo } = await supabase.from('alunos').select('nome').eq('id', alunoIdNum).single();
+            const { data: conquistaInfo } = await supabase.from('gamificacao_conquistas').select('nome').eq('id', conquistaIdNum).single();
+            if (alunoInfo && conquistaInfo) {
+                await addToFeed(alunoIdNum, 'conquista', `${alunoInfo.nome} ganhou a medalha ${conquistaInfo.nome}! 🏆`, '🏅');
+            }
+
             res.json({ success: true });
         } catch (error: any) {
             console.error('[GAMIFICACAO_ATRIBUIR] Erro ao atribuir conquista:', error);
@@ -2827,6 +2852,8 @@ async function startServer() {
             const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
             await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
 
+            await addToFeed(aluno.id, 'treino', `${aluno.nome} marcou o treino do dia! 💪`, '🎸');
+
             res.json({ success: true, data: treino, novoXp, novasMoedas });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
@@ -2927,7 +2954,7 @@ async function startServer() {
             const email = req.user?.email;
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').eq('email', email).single();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
 
             const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
@@ -2947,7 +2974,17 @@ async function startServer() {
                     .single();
                 if (createError) throw createError;
                 treino = novoTreino;
-            }            let url = req.body.video_url || '';
+                
+                const novoXp = (Number(aluno.xp) || 0) + 500;
+                const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
+                await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+            }
+
+            if (!treino.video_url) {
+                await addToFeed(aluno.id, 'treino', `${aluno.nome} acabou de postar um vídeo de treino! 📹`, '📹');
+            }
+
+            let url = req.body.video_url || '';
 
             if (!req.body.video_url && req.file) {
                 let ext = path.extname(req.file.originalname) || '.mp4';
@@ -3331,6 +3368,12 @@ async function startServer() {
                     .insert([{ aluno_id: solicitacao.aluno_id, conquista_id: solicitacao.conquista_id }]);
                 
                 if (errorProg) throw errorProg;
+
+                const { data: alunoInfo } = await supabase.from('alunos').select('nome').eq('id', solicitacao.aluno_id).single();
+                const { data: conquistaInfo } = await supabase.from('gamificacao_conquistas').select('nome').eq('id', solicitacao.conquista_id).single();
+                if (alunoInfo && conquistaInfo) {
+                    await addToFeed(solicitacao.aluno_id, 'conquista', `${alunoInfo.nome} ganhou a medalha ${conquistaInfo.nome}! 🏆`, '🏅');
+                }
             }
 
             res.json({ success: true });
