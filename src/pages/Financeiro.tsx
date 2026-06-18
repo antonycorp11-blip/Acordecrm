@@ -34,7 +34,7 @@ export default function Financeiro() {
   const [extraForm, setExtraForm] = useState({ descricao: '', valor: '', tipo_receita: 'ensaio', data_vencimento: new Date().toISOString().split('T')[0], aluno_id: '' });
   const [alunos, setAlunos] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'professores' | 'dre'>('receitas');
+  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'professores'>('receitas');
   const [showDespesaModal, setShowDespesaModal] = useState(false);
   const [despesaForm, setDespesaForm] = useState({ descricao: '', valor: '', data_vencimento: new Date().toISOString().split('T')[0], categoria: 'fixa', tipo_recorrencia: 'unica', total_parcelas: 1 });
   const [remuneracao, setRemuneracao] = useState<any[]>([]);
@@ -321,7 +321,7 @@ export default function Financeiro() {
             <button onClick={() => setActiveTab('receitas')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'receitas' ? 'bg-[#00FF41] text-black' : 'text-white hover:bg-white/10'}`}>Receitas</button>
             <button onClick={() => setActiveTab('despesas')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'despesas' ? 'bg-[#FF0000] text-white' : 'text-white hover:bg-white/10'}`}>Despesas</button>
             <button onClick={() => setActiveTab('professores')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'professores' ? 'bg-[#FF8A00] text-black' : 'text-white hover:bg-white/10'}`}>Remuneração</button>
-            <button onClick={() => setActiveTab('dre')} className={`px-4 py-2 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${activeTab === 'dre' ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}>DRE / Lucro</button>
+            
           </div>
 
           <div className="flex bg-[#1A1A1A] border-2 border-white overflow-hidden">
@@ -336,29 +336,77 @@ export default function Financeiro() {
         </div>
       </header>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-[#00FF41] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-black/5 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1 text-black">Recebido Real (Mês)</p>
-          <h3 className="text-2xl font-black">R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+      
+      {/* NOVO DASHBOARD DRE FINANCEIRO */}
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-[#00FF41] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black flex flex-col justify-between min-h-[140px]">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-black/5 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1 z-10">Previsão Receitas</p>
+            <div className="z-10">
+              <h3 className="text-3xl font-black">R$ {(resumo?.faturamentoPrevisto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              <p className="text-xs font-bold mt-1 opacity-80">Realizado: R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            </div>
+          </div>
+
+          <div className="bg-[#FF0000] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-white flex flex-col justify-between min-h-[140px]">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1 z-10">Previsão Despesas</p>
+            <div className="z-10">
+              <h3 className="text-3xl font-black">R$ {(resumo?.despesasTotalPrevistas || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              <p className="text-xs font-bold mt-1 opacity-80">Pagas: R$ {(resumo?.despesasPagas || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            </div>
+          </div>
+
+          <div className="bg-[#FF8A00] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black flex flex-col justify-between min-h-[140px]">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1 z-10">Salários Previstos</p>
+            <div className="z-10">
+              <h3 className="text-3xl font-black">R$ {(resumo?.salariosPrevistos || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              <p className="text-xs font-bold mt-1 opacity-80">
+                Representa {(resumo?.faturamentoPrevisto > 0 ? ((resumo.salariosPrevistos / resumo.faturamentoPrevisto) * 100) : 0).toFixed(1)}% das Receitas
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black flex flex-col justify-between min-h-[140px]">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-black/5 -rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 z-10">Saldo Líquido (Previsto)</p>
+            <div className="z-10">
+              <h3 className="text-3xl font-black">R$ {(resumo?.lucroPrevisto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              <p className="text-xs font-bold mt-1 text-slate-600">Margem: {(resumo?.margemLucroPrevisto || 0).toFixed(1)}%</p>
+            </div>
+          </div>
         </div>
-        <div className="bg-[#FF0000] border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-white">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Despesas Pagas</p>
-          <h3 className="text-2xl font-black">R$ {(resumo?.despesasPagas || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-        </div>
-        <div className="bg-white border-4 border-black p-4 shadow-hard-black relative overflow-hidden group text-black">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-black/5 -rotate-12 translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform"></div>
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Lucro Líquido</p>
-          <h3 className="text-2xl font-black">R$ {(resumo?.lucroMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-sm ml-2">{(resumo?.margemLucro || 0).toFixed(1)}%</span></h3>
+
+        {/* CUSTOS GRID */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+          <div className="border-2 border-white/20 p-3 bg-white/5 relative">
+             <p className="text-[9px] font-black uppercase text-[#FF8A00] mb-1">Custo Estrutural</p>
+             <p className="text-xs text-white opacity-60">Despesas Fixas</p>
+             <h4 className="text-lg font-bold text-white mt-2">R$ {(resumo?.custos?.estrutural || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h4>
+          </div>
+          <div className="border-2 border-white/20 p-3 bg-white/5 relative">
+             <p className="text-[9px] font-black uppercase text-[#FF8A00] mb-1">Custo Variável</p>
+             <p className="text-xs text-white opacity-60">Parcelas/Dívidas</p>
+             <h4 className="text-lg font-bold text-white mt-2">R$ {(resumo?.custos?.variavel || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h4>
+          </div>
+          <div className="border-2 border-white/20 p-3 bg-white/5 relative">
+             <p className="text-[9px] font-black uppercase text-[#FF8A00] mb-1">Custo Operacional</p>
+             <p className="text-xs text-white opacity-60">Salários</p>
+             <h4 className="text-lg font-bold text-white mt-2">R$ {(resumo?.custos?.operacional || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h4>
+          </div>
+          <div className="border-2 border-white/20 p-3 bg-white/5 relative">
+             <p className="text-[9px] font-black uppercase text-[#FF8A00] mb-1">Custo Fiscal</p>
+             <p className="text-xs text-white opacity-60">Impostos</p>
+             <h4 className="text-lg font-bold text-white mt-2">R$ {(resumo?.custos?.fiscal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h4>
+          </div>
         </div>
       </div>
 
       {activeTab === 'receitas' ? (
         <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard flex flex-col gap-6">
-          
-          {/* Action & Filter Bar Emusys Style */}
+{/* Action & Filter Bar Emusys Style */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-black border-2 border-white/20 p-2">
              {/* Emusys Table Top Controls */}
              <div className="flex flex-wrap items-center gap-2">
@@ -428,11 +476,13 @@ export default function Financeiro() {
                   const daysDiff = dtVenc ? Math.ceil((new Date().getTime() - dtVenc.getTime()) / (1000 * 3600 * 24)) : 0;
                   
                   return (
-                  <tr key={`${p.id}-${idx}`} className="hover:bg-white/5 transition-colors group">
+                  <tr key={`${p.id}-${idx}`} className={`${p.is_ultima_parcela ? 'bg-[#FF0000]/20 hover:bg-[#FF0000]/30 border-2 border-[#FF0000]' : 'hover:bg-white/5'} transition-colors group`}>
                     <td className="px-4 py-5 text-[11px] font-black">
                       {dtVenc ? format(dtVenc, 'dd/MM/yyyy') : '---'}
                     </td>
                     <td className="px-4 py-5">
+                      {p.is_ultima_parcela && <div className="text-[9px] font-black text-[#FF0000] bg-[#FF0000]/10 px-2 py-0.5 border border-[#FF0000] mb-2 uppercase inline-block">Última Parcela</div>}
+                      <br/>
                       {p.status === 'pago' ? (
                         <span className="inline-flex items-center gap-1.5 text-[#00FF41] text-[10px] font-black uppercase">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Recebido
@@ -571,35 +621,6 @@ export default function Financeiro() {
               </tbody>
             </table>
           </div>
-        </div>
-      ) : activeTab === 'dre' ? (
-        <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard">
-           <div className="mb-8 border-b-4 border-white pb-6">
-              <h2 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
-                 <Activity className="w-8 h-8 text-white" />
-                 Demonstrativo de Resultados (DRE)
-              </h2>
-           </div>
-           
-           <div className="space-y-6">
-             <div className="flex justify-between items-center border-b-2 border-white/20 pb-4">
-               <span className="text-xl font-black uppercase text-[#00FF41]">Receitas Totais</span>
-               <span className="text-2xl font-black text-[#00FF41]">R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-             </div>
-             
-             <div className="flex justify-between items-center border-b-2 border-white/20 pb-4">
-               <span className="text-xl font-black uppercase text-[#FF0000]">Despesas Totais Pagas</span>
-               <span className="text-2xl font-black text-[#FF0000]">R$ {(resumo?.despesasPagas || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-             </div>
-             
-             <div className="flex justify-between items-center bg-white text-black p-6 shadow-hard-black mt-8">
-               <div>
-                 <span className="text-3xl font-black uppercase block">Lucro Líquido</span>
-                 <span className="text-sm font-bold uppercase tracking-widest opacity-60">Margem: {(resumo?.margemLucro || 0).toFixed(1)}%</span>
-               </div>
-               <span className="text-5xl font-black">R$ {(resumo?.lucroMes || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-             </div>
-           </div>
         </div>
       ) : (
         <div className="bg-[#1A1A1A] border-4 border-white p-6 shadow-hard">

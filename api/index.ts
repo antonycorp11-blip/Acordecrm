@@ -1930,11 +1930,9 @@ async function startServer() {
             const { mes, desconto_dia_10 } = req.query;
             const applyDiscount = desconto_dia_10 === 'true';
 
-            // Só retornar pagamentos de alunos que NÃO estão arquivados
             let dbQuery = supabase
                 .from('pagamentos')
-                .select('*, aluno:aluno_id!inner(nome, status, matriculas(id, status, valor_com_desconto))')
-                .neq('aluno.status', 'arquivado');
+                .select('*, aluno:aluno_id(nome, status, matriculas(id, status, valor_com_desconto))');
             
             if (mes && mes !== 'undefined' && mes !== '') {
                 dbQuery = dbQuery.eq('referencia_mes_ano', String(mes).trim());
@@ -1943,7 +1941,31 @@ async function startServer() {
             const { data, error } = await dbQuery.order('data_vencimento', { ascending: false });
             if (error) throw error;
             
-            const formatted = data?.map((p: any) => {
+            let filteredData = data?.filter((p: any) => {
+                if (p.aluno && p.aluno.status === 'arquivado') return false;
+                return true;
+            }) || [];
+
+            // Get matricula_ids to find their max vencimento
+            const matriculaIds = [...new Set(filteredData.filter((p: any) => p.matricula_id).map((p: any) => p.matricula_id))];
+            
+            let lastPagamentosMap: Record<number, string> = {};
+            if (matriculaIds.length > 0) {
+                const { data: allPagsForMatriculas } = await supabase.from('pagamentos')
+                    .select('id, matricula_id, data_vencimento')
+                    .in('matricula_id', matriculaIds)
+                    .order('data_vencimento', { ascending: false });
+                
+                if (allPagsForMatriculas) {
+                    allPagsForMatriculas.forEach(p => {
+                        if (!lastPagamentosMap[p.matricula_id]) {
+                            lastPagamentosMap[p.matricula_id] = p.id;
+                        }
+                    });
+                }
+            }
+
+            const formatted = filteredData.map((p: any) => {
                 let valorEfetivo = Number(p.valor);
                 if (applyDiscount && p.tipo_receita === 'mensalidade' && p.status !== 'pago') {
                     const alunoObj: any = Array.isArray(p.aluno) ? p.aluno[0] : p.aluno;
@@ -1957,8 +1979,14 @@ async function startServer() {
                         valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
                     }
                 }
-                return { ...p, aluno_nome: p.aluno?.nome, valor: valorEfetivo };
-            }) || [];
+                const alunoNome = p.aluno?.nome || (p.tipo_receita === 'extra' ? p.descricao : 'S/N');
+                return { 
+                    ...p, 
+                    aluno_nome: alunoNome, 
+                    valor: valorEfetivo,
+                    is_ultima_parcela: p.matricula_id ? lastPagamentosMap[p.matricula_id] === p.id : false
+                };
+            });
             res.json(formatted);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
@@ -2037,20 +2065,26 @@ async function startServer() {
         try {
             const { descricao, valor, data_vencimento, categoria, tipo_recorrencia, total_parcelas, professor_id } = req.body;
             
-            if (categoria === 'parcelada' && total_parcelas > 1) {
+            let numParcelas = total_parcelas || 1;
+            if (categoria === 'fixa') {
+                numParcelas = 12; // Gera 12 meses para frente
+            }
+            
+            if (numParcelas > 1) {
                 // Gerar múltiplas faturas (uma por mês)
                 const faturas = [];
                 let currentDate = new Date(data_vencimento + 'T12:00:00');
                 
-                for (let i = 1; i <= total_parcelas; i++) {
+                for (let i = 1; i <= numParcelas; i++) {
+                    const descSuffix = categoria === 'fixa' ? '' : ` (${i}/${numParcelas})`;
                     faturas.push({
-                        descricao: `${descricao} (${i}/${total_parcelas})`,
+                        descricao: `${descricao}${descSuffix}`,
                         valor: Number(valor),
                         data_vencimento: currentDate.toISOString().split('T')[0],
                         categoria,
-                        tipo_recorrencia: 'unica',
-                        parcela_atual: i,
-                        total_parcelas: total_parcelas,
+                        tipo_recorrencia: categoria === 'fixa' ? 'mensal' : 'unica',
+                        parcela_atual: categoria === 'fixa' ? null : i,
+                        total_parcelas: categoria === 'fixa' ? null : numParcelas,
                         professor_id: professor_id || null,
                         status: 'pendente'
                     });
@@ -2155,7 +2189,7 @@ async function startServer() {
 
             // Buscar despesas do mês
             const { data: despesasMes, error: errDespesas } = await supabase.from('despesas')
-                .select('valor, status')
+                .select('valor, status, categoria')
                 .gte('data_vencimento', startDate)
                 .lte('data_vencimento', endDate);
 
@@ -2163,16 +2197,52 @@ async function startServer() {
 
             let despesasPagas = 0;
             let despesasPendentes = 0;
+            
+            let custoEstrutural = 0;
+            let custoVariavel = 0;
+            let custoFiscal = 0;
+            let custoOutros = 0;
 
             if (despesasMes) {
                 for (const d of despesasMes) {
-                    if (d.status === 'pago') despesasPagas += Number(d.valor);
-                    else despesasPendentes += Number(d.valor);
+                    const val = Number(d.valor);
+                    if (d.status === 'pago') despesasPagas += val;
+                    else despesasPendentes += val;
+                    
+                    if (d.categoria === 'fixa') custoEstrutural += val;
+                    else if (d.categoria === 'parcelada' || d.categoria === 'divida') custoVariavel += val;
+                    else if (d.categoria === 'imposto') custoFiscal += val;
+                    else custoOutros += val;
                 }
             }
 
-            const lucroMes = receitaMes - despesasPagas;
+            // Calcular salários previstos (aulas do mês anterior)
+            let mNumPrev = parseInt(m, 10) - 1;
+            let yNumPrev = parseInt(y, 10);
+            if (mNumPrev === 0) {
+                mNumPrev = 12;
+                yNumPrev -= 1;
+            }
+            const prevMStr = mNumPrev.toString().padStart(2, '0');
+            const prevStartDate = `${yNumPrev}-${prevMStr}-01`;
+            const prevEndDate = new Date(yNumPrev, mNumPrev, 0).toISOString().split('T')[0];
+
+            const { data: aulasPrev } = await supabase.from('aulas')
+                .select('professor_id')
+                .gte('data', prevStartDate)
+                .lte('data', prevEndDate)
+                .in('status', ['realizada', 'falta_aluno'])
+                .not('professor_id', 'is', null);
+                
+            const salariosPrevistos = aulasPrev ? aulasPrev.length * 35 : 0;
+            const custoOperacional = salariosPrevistos;
+
+            const lucroMes = receitaMes - despesasPagas; // Lucro Real (recebido - pago sem salários automáticos, a não ser que lance manual)
             const margemLucro = receitaMes > 0 ? (lucroMes / receitaMes) * 100 : 0;
+            
+            const despesasTotalPrevistas = despesasPagas + despesasPendentes + salariosPrevistos;
+            const lucroPrevisto = faturamentoPrevisto - despesasTotalPrevistas;
+            const margemLucroPrevisto = faturamentoPrevisto > 0 ? (lucroPrevisto / faturamentoPrevisto) * 100 : 0;
             
             res.json({ 
                 faturamentoPrevisto, 
@@ -2181,8 +2251,19 @@ async function startServer() {
                 total: receitaMes,
                 despesasPagas,
                 despesasPendentes,
+                despesasTotalPrevistas,
+                salariosPrevistos,
                 lucroMes,
-                margemLucro
+                margemLucro,
+                lucroPrevisto,
+                margemLucroPrevisto,
+                custos: {
+                    estrutural: custoEstrutural,
+                    variavel: custoVariavel,
+                    fiscal: custoFiscal,
+                    operacional: custoOperacional,
+                    outros: custoOutros
+                }
             });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
@@ -2192,9 +2273,20 @@ async function startServer() {
             const { mes_ano } = req.query;
             if (!mes_ano || typeof mes_ano !== 'string') return res.status(400).json({ error: 'mes_ano inválido' });
             
-            const [m, y] = mes_ano.split('/');
-            const startDate = `${y}-${m}-01`;
-            const endDate = new Date(Number(y), Number(m), 0).toISOString().split('T')[0];
+            let [mStr, yStr] = mes_ano.split('/');
+            let mNum = parseInt(mStr, 10);
+            let yNum = parseInt(yStr, 10);
+            
+            // Retroceder 1 mês (pagamento de Agosto referente a Julho)
+            mNum -= 1;
+            if (mNum === 0) {
+                mNum = 12;
+                yNum -= 1;
+            }
+            
+            const prevMStr = mNum.toString().padStart(2, '0');
+            const startDate = `${yNum}-${prevMStr}-01`;
+            const endDate = new Date(yNum, mNum, 0).toISOString().split('T')[0];
 
             const { data: todosProfessores, error: errProf } = await supabase.from('professores').select('id, nome');
             if (errProf) throw errProf;
