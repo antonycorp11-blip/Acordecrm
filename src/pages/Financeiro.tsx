@@ -61,9 +61,16 @@ export default function Financeiro() {
     try {
       const token = localStorage.getItem('acorde_token');
       const headers = { 'Authorization': `Bearer ${token}` };
-      const [m, y] = currentMonth.split('/');
-      const startDate = `${y}-${m}-01`;
-      const endDate = new Date(Number(y), Number(m), 0).toISOString().split('T')[0];
+      const [mStr, yStr] = currentMonth.split('/');
+      let mNum = parseInt(mStr, 10) - 1;
+      let yNum = parseInt(yStr, 10);
+      if (mNum === 0) {
+          mNum = 12;
+          yNum -= 1;
+      }
+      const prevMStr = mNum.toString().padStart(2, '0');
+      const startDate = `${yNum}-${prevMStr}-01`;
+      const endDate = new Date(yNum, mNum, 0).toISOString().split('T')[0];
       const res = await fetch(`/api/agenda?start=${startDate}&end=${endDate}&professor_id=${profId}`, { headers });
       if (res.ok) {
         let aulas = await res.json();

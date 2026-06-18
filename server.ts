@@ -2369,9 +2369,13 @@ async function startServer() {
             let filterAlunoId: string | null = null;
 
             if (req.user && req.user.role === 'professor') {
-                const { data: prof } = await supabase.from('professores').select('id').ilike('email', req.user.email).single();
+                const { data: prof } = await supabase.from('professores').select('id, nome').ilike('email', req.user.email).single();
                 if (prof) {
-                    filterProfId = String(prof.id);
+                    const nome = prof.nome.toLowerCase();
+                    // Se não for o Aquilles (dono), restringe a visão. Se for ele, permite ver tudo/outros.
+                    if (!nome.includes('aquilles') && !nome.includes('áquilles')) {
+                        filterProfId = String(prof.id);
+                    }
                 } else {
                     filterProfId = '-1'; // Forçar retorno vazio caso professor não seja encontrado
                 }
