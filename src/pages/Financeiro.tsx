@@ -114,10 +114,10 @@ export default function Financeiro() {
      } catch(e) {}
   };
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     const token = localStorage.getItem('acorde_token');
     const headers = { 'Authorization': `Bearer ${token}` };
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const [pagsRes, resumoRes, alunosRes, remunRes, despRes] = await Promise.all([
         fetch(`/api/pagamentos?mes=${currentMonth}&desconto_dia_10=${descontoDia10}`, { headers }).then(r => r.ok ? r.json() : []),
@@ -132,7 +132,7 @@ export default function Financeiro() {
       setRemuneracao(Array.isArray(remunRes) ? remunRes : []);
       setDespesas(Array.isArray(despRes) ? despRes : []);
     } catch (e) { console.error(e); }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   useEffect(() => { fetchData(); }, [currentMonth, descontoDia10]);
@@ -170,7 +170,7 @@ export default function Financeiro() {
     setSaving(false);
     setShowDespesaModal(false);
     setDespesaForm({ descricao: '', valor: '', data_vencimento: new Date().toISOString().split('T')[0], categoria: 'fixa', tipo_recorrencia: 'unica', total_parcelas: 1 });
-    fetchData();
+    fetchData(true);
   };
 
   const handleBaixa = async () => {
@@ -187,7 +187,7 @@ export default function Financeiro() {
     });
     setSaving(false);
     setBaixaModal({ id: null, open: false, valorSugerido: 0 });
-    fetchData();
+    fetchData(true);
   };
 
   const handleSaveExtra = async () => {
@@ -213,7 +213,7 @@ export default function Financeiro() {
     setSaving(false);
     setShowExtraModal(false);
     setExtraForm({ descricao: '', valor: '', tipo_receita: 'ensaio', data_vencimento: new Date().toISOString().split('T')[0], aluno_id: '' });
-    fetchData();
+    fetchData(true);
   };
 
   const isAtrasado = (p: any) => {
@@ -544,7 +544,7 @@ export default function Financeiro() {
                           if(window.confirm('Tem certeza que deseja excluir esta fatura definitivamente?')) {
                             const token = localStorage.getItem('acorde_token');
                             await fetch(`/api/pagamentos/${p.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                            fetchData();
+                            fetchData(true);
                           }
                         }}
                         className="text-[#FF0000] p-2 hover:bg-[#FF0000]/20 transition-all opacity-0 group-hover:opacity-100"

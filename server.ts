@@ -1979,7 +1979,7 @@ async function startServer() {
                         valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
                     }
                 }
-                const alunoNome = p.aluno?.nome || (p.tipo_receita === 'extra' ? p.descricao : 'S/N');
+                const alunoNome = p.aluno?.nome || p.descricao || 'S/N';
                 return { 
                     ...p, 
                     aluno_nome: alunoNome, 
@@ -2014,6 +2014,16 @@ async function startServer() {
                 .update(updates).eq('id', id).select().single();
             if (error) throw error;
             res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Excluir um pagamento
+    app.delete('/api/pagamentos/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase.from('pagamentos').delete().eq('id', id);
+            if (error) throw error;
+            res.json({ success: true });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
