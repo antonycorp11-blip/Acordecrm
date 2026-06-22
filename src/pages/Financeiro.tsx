@@ -37,6 +37,8 @@ export default function Financeiro() {
   const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'professores'>('receitas');
   const [showDespesaModal, setShowDespesaModal] = useState(false);
   const [despesaForm, setDespesaForm] = useState({ descricao: '', valor: '', data_vencimento: new Date().toISOString().split('T')[0], categoria: 'fixa', tipo_recorrencia: 'unica', total_parcelas: 1 });
+  
+  const [cobrancaModal, setCobrancaModal] = useState<{ open: boolean, p: any | null }>({ open: false, p: null });
   const [remuneracao, setRemuneracao] = useState<any[]>([]);
   const [baixaModal, setBaixaModal] = useState<{ id: number | null, open: boolean, valorSugerido: number }>({ id: null, open: false, valorSugerido: 0 });
   const [baixaMetodo, setBaixaMetodo] = useState('dinheiro');
@@ -489,19 +491,6 @@ export default function Financeiro() {
                     </td>
                     <td className="px-4 py-5">
                       {p.is_ultima_parcela && <div className="text-[9px] font-black text-[#FF0000] bg-[#FF0000]/10 px-2 py-0.5 border border-[#FF0000] mb-2 uppercase inline-block">Última Parcela</div>}
-                      <br/>
-                      {p.status === 'pago' ? (
-                        <span className="inline-flex items-center gap-1.5 text-[#00FF41] text-[10px] font-black uppercase">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Recebido
-                        </span>
-                      ) : isAtraso ? (
-                        <span className="inline-flex items-center gap-1.5 text-[#FF0000] text-[10px] font-black uppercase">
-                          <AlertCircle className="w-3.5 h-3.5" /> Atrasado ({daysDiff} dias)
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-[#FF8A00] text-[10px] font-black uppercase">
-                          <Clock className="w-3.5 h-3.5" /> Vence em {-daysDiff} dias
-                        </span>
                       )}
                     </td>
                     <td className="px-4 py-5">
@@ -526,15 +515,27 @@ export default function Financeiro() {
                     </td>
                     <td className="px-4 py-5 text-right flex items-center justify-end gap-2">
                       {p.status !== 'pago' ? (
-                        <button 
-                          onClick={() => {
-                            setBaixaModal({ id: p.id, open: true, valorSugerido: Number(p.valor) });
-                            setValorPago(Number(p.valor).toFixed(2));
-                          }}
-                          className="bg-white text-black px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95"
-                        >
-                          DAR BAIXA
-                        </button>
+                        <>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCobrancaModal({ open: true, p });
+                            }}
+                            className="bg-transparent border-2 border-[#FF8A00] text-[#FF8A00] px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:bg-[#FF8A00] hover:text-black transition-all active:scale-95"
+                          >
+                            COBRAR
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setBaixaModal({ id: p.id, open: true, valorSugerido: Number(p.valor) });
+                              setValorPago(Number(p.valor).toFixed(2));
+                            }}
+                            className="bg-white text-black px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95"
+                          >
+                            DAR BAIXA
+                          </button>
+                        </>
                       ) : (
                         <span className="text-[9px] font-black uppercase opacity-20">QUITADO</span>
                       )}
@@ -805,7 +806,37 @@ export default function Financeiro() {
         )}
       </AnimatePresence>
 
-      {/* Modal Entrada Extra (simplified omitted in replacement to save space but included here) */}
+      {/* Modal Cobranca */}
+      <AnimatePresence>
+        {cobrancaModal.open && cobrancaModal.p && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setCobrancaModal({ open: false, p: null })}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-[#1A1A1A] border-4 border-white p-6 w-full max-w-sm shadow-hard relative">
+              <button onClick={() => setCobrancaModal({ open: false, p: null })} className="absolute -top-4 -right-4 bg-[#FF0000] p-1 border-2 border-black shadow-hard-black hover:translate-x-1 hover:translate-y-1 transition-all">
+                 <X className="w-5 h-5 text-white" />
+              </button>
+              <h3 className="text-[#FF8A00] font-black uppercase mb-4 text-lg border-b-4 border-white/20 pb-2 tracking-tighter">Cobrança</h3>
+              <p className="text-white font-bold text-[10px] mb-4 uppercase">Envie a mensagem abaixo para o aluno:</p>
+              <div className="bg-black border-2 border-white/20 p-4 text-[10px] font-bold text-gray-300 select-all mb-6 uppercase">
+                Olá {cobrancaModal.p.aluno_nome || cobrancaModal.p.descricao}, tudo bem? O pagamento da sua mensalidade no valor de R$ {Number(cobrancaModal.p.valor).toFixed(2).replace('.', ',')} está pendente. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.
+              </div>
+              <button 
+                onClick={() => {
+                  const msg = `Olá ${cobrancaModal.p.aluno_nome || cobrancaModal.p.descricao}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${Number(cobrancaModal.p.valor).toFixed(2).replace('.', ',')} está pendente. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
+                  navigator.clipboard.writeText(msg);
+                  localStorage.setItem(`cobranca_${cobrancaModal.p.id}`, new Date().toISOString());
+                  setCobrancaModal({ open: false, p: null });
+                  setPagamentos([...pagamentos]); // trigger re-render
+                }}
+                className="w-full bg-[#00FF41] text-black border-4 border-black p-4 shadow-hard-black font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+              >
+                <Copy className="w-4 h-4" /> Copiar Mensagem
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Entrada Extra */}
       <AnimatePresence>
         {showExtraModal && (
           <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
