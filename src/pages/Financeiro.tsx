@@ -195,6 +195,8 @@ export default function Financeiro() {
     setSaving(true);
     const now = new Date();
     const token = localStorage.getItem('acorde_token');
+    const [year, month] = extraForm.data_vencimento.split('-');
+    const refMes = `${month}/${year}`;
     await fetch('/api/pagamentos/entrada-extra', {
       method: 'POST',
       headers: { 
@@ -205,7 +207,7 @@ export default function Financeiro() {
         ...extraForm, 
         valor: Number(extraForm.valor), 
         aluno_id: extraForm.aluno_id || null,
-        referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}` 
+        referencia_mes_ano: refMes
       })
     });
     setSaving(false);
@@ -350,7 +352,7 @@ export default function Financeiro() {
             <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1 z-10">Previsão Receitas</p>
             <div className="z-10">
               <h3 className="text-3xl font-black">R$ {(resumo?.faturamentoPrevisto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-              <p className="text-xs font-bold mt-1 opacity-80">Realizado: R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p className="text-xs font-bold mt-1 opacity-80">Realizado: R$ {(resumo?.receitaMes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Pendente: R$ {(resumo?.pendentes || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
             </div>
           </div>
 

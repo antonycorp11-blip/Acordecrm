@@ -259,34 +259,34 @@ export default function Ranking() {
           </div>
         ) : (
           /* ── LIST VIEW ── */
-          <div className="rounded-lg overflow-hidden" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '6px 6px 0 #000' }}>
-            <table className="w-full">
+          <div className="rounded-lg overflow-x-auto max-w-full" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '6px 6px 0 #000' }}>
+            <table className="w-full min-w-[500px]">
               <thead>
                 <tr style={{ background: '#3d2d26' }}>
-                  <th className="px-6 py-4 text-left text-[#feccba] font-black text-[10px] uppercase tracking-widest"># RANK</th>
-                  <th className="px-6 py-4 text-left text-[#feccba] font-black text-[10px] uppercase tracking-widest">ESTUDANTE</th>
-                  <th className="px-6 py-4 text-left text-[#feccba] font-black text-[10px] uppercase tracking-widest">CLASSE</th>
-                  <th className="px-6 py-4 text-left text-[#feccba] font-black text-[10px] uppercase tracking-widest">INSTRUMENTO</th>
-                  <th className="px-6 py-4 text-right text-[#feccba] font-black text-[10px] uppercase tracking-widest">XP</th>
+                  <th className="px-3 py-3 text-left text-[#feccba] font-black text-[10px] uppercase tracking-widest"># RANK</th>
+                  <th className="px-3 py-3 text-left text-[#feccba] font-black text-[10px] uppercase tracking-widest">ESTUDANTE</th>
+                  <th className="px-3 py-3 text-left text-[#feccba] font-black text-[10px] uppercase tracking-widest">CLASSE</th>
+                  <th className="px-3 py-3 text-left text-[#feccba] font-black text-[10px] uppercase tracking-widest">INSTRUMENTO</th>
+                  <th className="px-3 py-3 text-right text-[#feccba] font-black text-[10px] uppercase tracking-widest">XP</th>
                 </tr>
               </thead>
               <tbody>
                 {mockRanking.map((aluno, i) => (
                   <tr key={aluno.id} onClick={() => handleOpenAlunoModal(aluno)} style={{ borderBottom: '2px solid #f8ddd2' }} className="hover:bg-[#ffeae1] transition-colors cursor-pointer">
-                    <td className="px-6 py-4">
-                      <span className="font-black text-2xl" style={{ color: i === 0 ? '#ff6b00' : '#261812' }}>
+                    <td className="px-3 py-3">
+                      <span className="font-black text-xl sm:text-2xl" style={{ color: i === 0 ? '#ff6b00' : '#261812' }}>
                         #{String(i + 1).padStart(2, '0')}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3">
                       <div className="flex items-center gap-3">
                         <div className={`w-16 h-16 rounded overflow-hidden bg-black shrink-0 relative flex items-start justify-center pt-2 ${getTileClass(aluno, 'border-2 border-[#7b5647]')}`}>
                            <AvatarPixel config={getAvatarConfig(aluno).config} isSilhouette={getAvatarConfig(aluno).isSilhouette} />
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-1 w-full max-w-[150px] sm:max-w-xs">
                           <span className="font-black text-[#261812] uppercase text-sm" style={{ fontFamily: getFont(aluno) }}>{aluno.nome}</span>
-                          {/* Miniaturas de troféu reais ao lado do nome */}
-                          <div className="flex items-center gap-1.5">
+                          {/* Miniaturas de troféu reais abaixo do nome */}
+                          <div className="flex flex-wrap gap-1.5">
                             {(aluno.conquistas || []).map((c: any, idx: number) => (
                               <div key={idx} className="w-6 h-6 rounded border border-[#7b5647] flex items-center justify-center bg-[#ffeae1] overflow-hidden" title={`${c.nome} (+${c.pontos} XP)`}>
                                 {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
@@ -300,13 +300,13 @@ export default function Ranking() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3">
                       <span className="text-[#261812] font-bold text-xs uppercase">{getClasse(aluno.xp)}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3">
                       <span className="text-[#261812] font-bold text-xs uppercase">{getInstrumento(aluno)}</span>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-3 py-3 text-right">
                       <span className="font-black text-[#261812] text-sm">{aluno.xp?.toLocaleString() || '0'}</span>
                     </td>
                   </tr>

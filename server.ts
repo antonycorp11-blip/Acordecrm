@@ -2141,12 +2141,16 @@ async function startServer() {
             const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
             
             // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
-            const { data: pags, error } = await supabase.from('pagamentos')
-                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
-                .eq('referencia_mes_ano', mesRef)
-                .neq('aluno.status', 'arquivado');
+            const { data: rawPags, error } = await supabase.from('pagamentos')
+                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
+                .eq('referencia_mes_ano', mesRef);
             
             if (error) throw error;
+            
+            const pags = rawPags?.filter((p: any) => {
+                if (p.aluno && p.aluno.status === 'arquivado') return false;
+                return true;
+            });
 
             let faturamentoPrevisto = 0;
             let receitaMes = 0;
