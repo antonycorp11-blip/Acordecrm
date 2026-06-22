@@ -490,7 +490,27 @@ export default function Financeiro() {
                       {dtVenc ? format(dtVenc, 'dd/MM/yyyy') : '---'}
                     </td>
                     <td className="px-4 py-5">
-                      {p.is_ultima_parcela && <div className="text-[9px] font-black text-[#FF0000] bg-[#FF0000]/10 px-2 py-0.5 border border-[#FF0000] mb-2 uppercase inline-block">Última Parcela</div>}
+                      <div className="flex flex-col items-start gap-1">
+                        {p.is_ultima_parcela && <div className="text-[9px] font-black text-[#FF0000] bg-[#FF0000]/10 px-2 py-0.5 border border-[#FF0000] uppercase inline-block">Última Parcela</div>}
+                        {p.status === 'pago' ? (
+                          <span className="inline-flex items-center gap-1.5 text-[#00FF41] text-[10px] font-black uppercase">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Recebido
+                          </span>
+                        ) : isAtraso ? (
+                          <span className="inline-flex items-center gap-1.5 text-[#FF0000] text-[10px] font-black uppercase">
+                            <AlertCircle className="w-3.5 h-3.5" /> Atrasado ({daysDiff} dias)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-[#FF8A00] text-[10px] font-black uppercase">
+                            <Clock className="w-3.5 h-3.5" /> Vence em {-daysDiff} dias
+                          </span>
+                        )}
+                        {localStorage.getItem(`cobranca_${p.id}`) && p.status !== 'pago' && (
+                          <span className="text-[9px] font-black uppercase text-[#FF8A00] border border-[#FF8A00] px-1 mt-1 opacity-80" title="Cobrança realizada">
+                            COBRADO EM {new Date(localStorage.getItem(`cobranca_${p.id}`) as string).toLocaleDateString('pt-BR')}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-5">
                       <div className="flex flex-col">
