@@ -822,20 +822,25 @@ async function startServer() {
         }
     });
 
-    app.post('/api/upload', upload.single('file'), (req: any, res) => {
+    app.post('/api/upload', upload.single('file'), async (req: any, res) => {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         try {
             const ext = path.extname(req.file.originalname) || '';
-            const newFilename = `${req.file.filename}${ext}`;
-            const oldPath = req.file.path;
-            const newPath = path.join(path.dirname(oldPath), newFilename);
-            fs.renameSync(oldPath, newPath);
-            
-            const url = `/uploads/${newFilename}`;
-            res.json({ url });
+            const filename = `guias/${Date.now()}_${req.file.filename}${ext}`;
+            const fileBuffer = fs.readFileSync(req.file.path);
+            const mimeType = req.file.mimetype || 'application/octet-stream';
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+            res.json({ url: publicUrlData.publicUrl });
         } catch (error: any) {
             console.error('Erro no upload genérico:', error);
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: error.message || 'Erro ao fazer upload' });
         }
     });
 

@@ -2122,27 +2122,23 @@ export default function AreaAluno() {
                                 </div>
                                 
                                 {/* Lado Direito: Checklist de Prática */}
-                                <div className="w-full sm:w-64 bg-white border-2 border-black rounded-lg p-4 shadow-[4px_4px_0_#000] shrink-0">
-                                  <h5 className="text-xs font-black text-black uppercase tracking-wider mb-4 text-center border-b-2 border-black/10 pb-2">
-                                    ✅ CHECKLIST DE PRÁTICA
-                                  </h5>
-                                  <div className="space-y-3">
-                                    {[
-                                      'Cantar as notas e bater palmas',
-                                      'Tocar só mão direita',
-                                      'Tocar só mão esquerda',
-                                      'Juntar as mãos lentamente',
-                                      'Tocar no andamento original'
-                                    ].map((step, sIdx) => (
-                                      <label key={sIdx} className="flex items-start gap-3 cursor-pointer group">
-                                        <div className="w-5 h-5 border-2 border-gray-400 rounded group-hover:border-[#ff6b00] flex items-center justify-center shrink-0 mt-0.5 bg-gray-50">
-                                          <div className="w-3 h-3 bg-[#ff6b00] rounded-sm opacity-0 active:opacity-100 transition-opacity"></div>
-                                        </div>
-                                        <span className="text-xs font-bold text-gray-700 group-hover:text-black">{step}</span>
-                                      </label>
-                                    ))}
+                                {Array.isArray(richData.checklist) && richData.checklist.length > 0 && (
+                                  <div className="w-full sm:w-64 bg-white border-2 border-black rounded-lg p-4 shadow-[4px_4px_0_#000] shrink-0">
+                                    <h5 className="text-xs font-black text-black uppercase tracking-wider mb-4 text-center border-b-2 border-black/10 pb-2">
+                                      ✅ CHECKLIST DE PRÁTICA
+                                    </h5>
+                                    <div className="space-y-3">
+                                      {richData.checklist.map((step: string, sIdx: number) => (
+                                        <label key={sIdx} className="flex items-start gap-3 cursor-pointer group">
+                                          <div className="w-5 h-5 border-2 border-gray-400 rounded group-hover:border-[#ff6b00] flex items-center justify-center shrink-0 mt-0.5 bg-gray-50">
+                                            <div className="w-3 h-3 bg-[#ff6b00] rounded-sm opacity-0 active:opacity-100 transition-opacity"></div>
+                                          </div>
+                                          <span className="text-xs font-bold text-gray-700 group-hover:text-black break-words flex-1">{step}</span>
+                                        </label>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
+                                )}
                               </div>
                             </div>
                           )}

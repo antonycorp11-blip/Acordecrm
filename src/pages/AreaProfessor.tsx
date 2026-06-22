@@ -384,6 +384,8 @@ export default function AreaProfessor() {
   const [mcDrums, setMcDrums] = useState<any[]>([]);
   const [mcMelody, setMcMelody] = useState<any[]>([]);
   const [mcImages, setMcImages] = useState<string[]>([]);
+  const [mcChecklist, setMcChecklist] = useState<string[]>([]);
+  const [mcChecklistInput, setMcChecklistInput] = useState('');
   const [melodyPhrases, setMelodyPhrases] = useState<string[][]>([]); // frases da melodia atual
   const [showMelodyPhrases, setShowMelodyPhrases] = useState<boolean>(false);
   const [mcActiveTab, setMcActiveTab] = useState<'geral' | 'acordes' | 'escalas' | 'tablatura' | 'bateria' | 'exercicios' | 'studio' | 'melodia'>('geral');
@@ -943,6 +945,7 @@ export default function AreaProfessor() {
     let drums: any[] = [];
     let melody: any[] = [];
     let images: any[] = [];
+    let checklist: string[] = [];
 
     try {
       if (aula.conteudo && aula.conteudo.trim().startsWith('{') && aula.conteudo.trim().endsWith('}')) {
@@ -958,6 +961,7 @@ export default function AreaProfessor() {
           drums = richData.drums || [];
           melody = richData.melody || [];
           images = richData.images || [];
+          checklist = richData.checklist || [];
         }
       }
     } catch (e) {
@@ -974,6 +978,7 @@ export default function AreaProfessor() {
     setMcDrums(drums);
     setMcMelody(melody);
     setMcImages(images);
+    setMcChecklist(checklist);
     setMcActiveTab('geral');
     
     try {
@@ -1011,6 +1016,7 @@ export default function AreaProfessor() {
     let drums: any[] = [];
     let melody: any[] = [];
     let images: any[] = [];
+    let checklist: string[] = [];
 
     try {
       if (aula.conteudo && aula.conteudo.trim().startsWith('{') && aula.conteudo.trim().endsWith('}')) {
@@ -1026,6 +1032,7 @@ export default function AreaProfessor() {
           drums = richData.drums || [];
           melody = richData.melody || [];
           images = richData.images || [];
+          checklist = richData.checklist || [];
         }
       }
     } catch (e) {
@@ -1042,6 +1049,7 @@ export default function AreaProfessor() {
     setMcDrums(drums);
     setMcMelody(melody);
     setMcImages(images);
+    setMcChecklist(checklist);
 
     setIsPreviewOpen(true);
   };
@@ -1400,6 +1408,7 @@ export default function AreaProfessor() {
     setMcDrums([]);
     setMcMelody([]);
     setMcImages([]);
+    setMcChecklist([]);
     setMcActiveTab('geral');
     
     setIsCreateModalOpen(true);
@@ -1423,7 +1432,8 @@ export default function AreaProfessor() {
       tablatures: mcTablatures,
       drums: mcDrums,
       melody: mcMelody,
-      images: mcImages
+      images: mcImages,
+      checklist: mcChecklist
     });
 
     const token = localStorage.getItem('acorde_token');
