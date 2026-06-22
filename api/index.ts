@@ -1979,7 +1979,7 @@ async function startServer() {
                         valorEfetivo = Number(matriculaAlvo.valor_com_desconto);
                     }
                 }
-                const alunoNome = p.aluno?.nome || (p.tipo_receita === 'extra' ? p.descricao : 'S/N');
+                const alunoNome = p.aluno?.nome || p.descricao || 'S/N';
                 return { 
                     ...p, 
                     aluno_nome: alunoNome, 
@@ -2014,6 +2014,16 @@ async function startServer() {
                 .update(updates).eq('id', id).select().single();
             if (error) throw error;
             res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Excluir um pagamento
+    app.delete('/api/pagamentos/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase.from('pagamentos').delete().eq('id', id);
+            if (error) throw error;
+            res.json({ success: true });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
@@ -2141,12 +2151,16 @@ async function startServer() {
             const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
             
             // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
-            const { data: pags, error } = await supabase.from('pagamentos')
-                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id!inner(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
-                .eq('referencia_mes_ano', mesRef)
-                .neq('aluno.status', 'arquivado');
+            const { data: rawPags, error } = await supabase.from('pagamentos')
+                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
+                .eq('referencia_mes_ano', mesRef);
             
             if (error) throw error;
+            
+            const pags = rawPags?.filter((p: any) => {
+                if (p.aluno && p.aluno.status === 'arquivado') return false;
+                return true;
+            });
 
             let faturamentoPrevisto = 0;
             let receitaMes = 0;
