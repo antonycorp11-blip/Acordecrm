@@ -7,7 +7,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { ChevronLeft, ChevronRight, Copy, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import html2pdf from 'html2pdf.js';
+import { toPng } from 'html-to-image';
+import jsPDF from 'jspdf';
 
 const TIPOS_EXTRA = [
   { value: 'ensaio', label: 'Ensaio' },
@@ -84,17 +85,25 @@ export default function Financeiro() {
     } catch (e) { console.error(e); }
   };
 
-  const gerarPDFNotificacao = () => {
+  const gerarPDFNotificacao = async () => {
     const element = document.getElementById('notificacao-pdf-content');
     if (!element) return;
-    const opt = {
-      margin: 10,
-      filename: `notificacao_extrajudicial_${notificacaoPreview.nome_cliente.replace(/\s+/g, '_')}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(element).save();
+    
+    try {
+      const dataUrl = await toPng(element, { quality: 1.0, pixelRatio: 2, backgroundColor: '#ffffff' });
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      pdf.addImage(dataUrl, 'PNG', 0, 0, 210, 297);
+      pdf.save(`notificacao_extrajudicial_${notificacaoPreview.nome_cliente.replace(/\s+/g, '_')}.pdf`);
+    } catch (err) {
+      console.error('Erro ao gerar PDF', err);
+      alert('Erro ao gerar PDF. Tente novamente.');
+    }
   };
 
   // Modal de Folha do Professor
