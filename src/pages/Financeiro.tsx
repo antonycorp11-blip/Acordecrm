@@ -1053,7 +1053,7 @@ export default function Financeiro() {
       <AnimatePresence>
         {muralVergonhaOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#1A1A1A] border-4 border-[#8B0000] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-[16px_16px_0_#8B0000]">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#1A1A1A] border-4 border-[#8B0000] w-[95vw] h-[95vh] max-w-full max-h-full flex flex-col shadow-[16px_16px_0_#8B0000]">
               <div className="flex items-center justify-between p-6 border-b-4 border-[#8B0000] bg-[#8B0000]">
                 <div className="flex items-center gap-4">
                   <ShieldAlert className="w-8 h-8 text-white" />
@@ -1178,7 +1178,7 @@ export default function Financeiro() {
                   </div>
 
                   <div className="mt-20 text-center">
-                    <p>_______________________________________________________</p>
+                    <p className="font-mono text-sm mb-2 text-slate-500 italic">Documento Assinado Eletronicamente por:</p>
                     <p className="font-bold uppercase mt-2">Studio Acorde Escola de Música</p>
                     <p className="text-sm">Departamento Financeiro / Jurídico</p>
                   </div>

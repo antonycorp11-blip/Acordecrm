@@ -663,12 +663,13 @@ export default function AlunoPerfil() {
     const headers = { 'Authorization': `Bearer ${token}` };
     setLoading(true);
     try {
-      const [alunoData, aData, fData, mData, cData] = await Promise.all([
+      const [alunoData, aData, fData, mData, cData, pData] = await Promise.all([
         fetch(`/api/alunos/${id}`, { headers }).then(res => res.ok ? res.json() : null),
         fetch(`/api/alunos/${id}/agenda?start=2020-01-01&end=2030-01-01`, { headers }).then(res => res.ok ? res.json() : []),
         fetch(`/api/alunos/${id}/financeiro`, { headers }).then(res => res.ok ? res.json() : []),
         fetch(`/api/alunos/${id}/materiais`, { headers }).then(res => res.ok ? res.json() : []),
-        fetch(`/api/cursos`, { headers }).then(res => res.ok ? res.json() : [])
+        fetch(`/api/cursos`, { headers }).then(res => res.ok ? res.json() : []),
+        fetch(`/api/professores`, { headers }).then(res => res.ok ? res.json() : [])
       ]);
       
       setAluno(alunoData);
@@ -676,6 +677,7 @@ export default function AlunoPerfil() {
       setFinanceiro(Array.isArray(fData) ? fData : []);
       setMateriais(Array.isArray(mData) ? mData : []);
       setCursos(Array.isArray(cData) ? cData : []);
+      setProfessores(Array.isArray(pData) ? pData : []);
       setFrequencia((Array.isArray(aData) ? aData : []).filter((a: any) => (a.data || '2099-12-31') < new Date().toISOString().substring(0, 10) || a.status !== 'pendente'));
     } catch (err) {
       console.error(err);
@@ -874,6 +876,7 @@ export default function AlunoPerfil() {
               setEditFormData({ 
                 ...aluno, 
                 curso_id: m?.curso_id,
+                professor_id: m?.professor_id,
                 valor_parcela: m?.valor_parcela || '',
                 valor_com_desconto: m?.valor_com_desconto || '',
                 dia_vencimento: m?.dia_vencimento || '',
@@ -1201,16 +1204,22 @@ export default function AlunoPerfil() {
                    
                    <div className="md:col-span-2">
                       <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">PROFESSOR</label>
-                      <select 
-                        className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none"
-                        value={editFormData.professor_id || ''}
-                        onChange={e => setEditFormData({ ...editFormData, professor_id: e.target.value })}
-                      >
-                        <option value="">SELECIONE UM PROFESSOR</option>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                         {professores.map(prof => (
-                          <option key={prof.id} value={prof.id}>{prof.nome.toUpperCase()}</option>
+                          <button
+                            key={prof.id}
+                            type="button"
+                            onClick={() => setEditFormData({ ...editFormData, professor_id: prof.id.toString() })}
+                            className={`p-3 border-4 font-black uppercase text-[10px] text-center transition-all ${
+                              editFormData.professor_id?.toString() === prof.id.toString()
+                                ? 'border-[#ff6b00] bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] scale-105 z-10' 
+                                : 'border-black bg-white text-black hover:bg-[#ffeae1] shadow-[2px_2px_0_#000]'
+                            }`}
+                          >
+                            {prof.nome.split(' ')[0]}
+                          </button>
                         ))}
-                      </select>
+                      </div>
                    </div>
                    
                    <div className="md:col-span-2">
