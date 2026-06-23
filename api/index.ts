@@ -2381,8 +2381,9 @@ async function startServer() {
         try {
             const start = (req.query.start || req.query.date) as string;
             const end = (req.query.end || req.query.date) as string;
+            const statusFilter = req.query.status as string;
             
-            console.log(`[AGENDA] Request params: start=${start}, end=${end}`);
+            console.log(`[AGENDA] Request params: start=${start}, end=${end}, status=${statusFilter}`);
 
             let filterProfId = req.query.professor_id as string;
             let filterAlunoId: string | null = null;
@@ -2418,6 +2419,7 @@ async function startServer() {
             if (end) query = query.lte('data', end);
             if (filterProfId) query = query.eq('professor_id', filterProfId);
             if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
+            if (statusFilter) query = query.eq('status', statusFilter);
 
             const { data: rawAulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
@@ -2437,6 +2439,7 @@ async function startServer() {
             if (start) expQuery = expQuery.gte('data', start);
             if (end) expQuery = expQuery.lte('data', end);
             if (filterProfId) expQuery = expQuery.eq('professor_id', filterProfId);
+            if (statusFilter) expQuery = expQuery.eq('status', statusFilter);
 
             const { data: experimentais, error: errE } = await expQuery;
 
