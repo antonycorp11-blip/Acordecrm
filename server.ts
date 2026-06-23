@@ -3775,6 +3775,53 @@ async function startServer() {
         res.status(500).json({ error: 'Erro Interno do Servidor (Global Handler)' });
     });
 
+    // MURAL DA VERGONHA
+    app.get('/api/mural', async (req: any, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('mural_vergonha')
+                .select('id, aluno_id, nome_cliente, valor_divida, tipo_divida, created_at')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/mural', async (req: any, res) => {
+        try {
+            const { aluno_id, nome_cliente, valor_divida, tipo_divida } = req.body;
+            if (!nome_cliente || valor_divida === undefined || !tipo_divida) {
+                return res.status(400).json({ error: 'Campos obrigatórios faltando.' });
+            }
+
+            const { error } = await supabase.from('mural_vergonha').insert([{
+                aluno_id: aluno_id || null,
+                nome_cliente,
+                valor_divida,
+                tipo_divida
+            }]);
+
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.delete('/api/mural/:id', async (req: any, res) => {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase.from('mural_vergonha').delete().eq('id', id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     return app;
 }
 

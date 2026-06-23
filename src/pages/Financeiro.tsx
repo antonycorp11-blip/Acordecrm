@@ -5,8 +5,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, isBefore, startOfDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Copy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import html2pdf from 'html2pdf.js';
 
 const TIPOS_EXTRA = [
   { value: 'ensaio', label: 'Ensaio' },
@@ -46,6 +47,55 @@ export default function Financeiro() {
   const [descontoDia10, setDescontoDia10] = useState(false);
   
   const [whatsappModal, setWhatsappModal] = useState<'recebidos' | 'pendentes' | 'geral' | null>(null);
+
+  // Mural da Vergonha
+  const [muralVergonhaOpen, setMuralVergonhaOpen] = useState(false);
+  const [muralData, setMuralData] = useState<any[]>([]);
+  const [muralInput, setMuralInput] = useState({ nome_cliente: '', valor_divida: '', tipo_divida: '' });
+  const [notificacaoPreview, setNotificacaoPreview] = useState<any>(null); 
+  const [mensagemDuraPreview, setMensagemDuraPreview] = useState<any>(null);
+
+  const fetchMuralData = async () => {
+    try {
+      const res = await fetch('/api/mural').then(r => r.ok ? r.json() : []);
+      setMuralData(Array.isArray(res) ? res : []);
+    } catch (e) { console.error(e); }
+  };
+  useEffect(() => { if (muralVergonhaOpen) fetchMuralData(); }, [muralVergonhaOpen]);
+
+  const handleAddMural = async () => {
+    if (!muralInput.nome_cliente || !muralInput.valor_divida || !muralInput.tipo_divida) return alert('Preencha tudo!');
+    try {
+      await fetch('/api/mural', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...muralInput, valor_divida: Number(muralInput.valor_divida) })
+      });
+      setMuralInput({ nome_cliente: '', valor_divida: '', tipo_divida: '' });
+      fetchMuralData();
+    } catch (e) { console.error(e); }
+  };
+
+  const handleRemoveMural = async (id: string) => {
+    if (!confirm('Deseja retirar essa pessoa do Mural?')) return;
+    try {
+      await fetch(`/api/mural/${id}`, { method: 'DELETE' });
+      fetchMuralData();
+    } catch (e) { console.error(e); }
+  };
+
+  const gerarPDFNotificacao = () => {
+    const element = document.getElementById('notificacao-pdf-content');
+    if (!element) return;
+    const opt = {
+      margin: 10,
+      filename: `notificacao_extrajudicial_${notificacaoPreview.nome_cliente.replace(/\s+/g, '_')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    html2pdf().set(opt).from(element).save();
+  };
 
   // Modal de Folha do Professor
   const [folhaModal, setFolhaModal] = useState<{ profId: number | null, nome: string, open: boolean }>({ profId: null, nome: '', open: false });
@@ -429,6 +479,10 @@ export default function Financeiro() {
                <div className="ml-2 px-3 py-1.5 bg-[#FF0000]/20 border-2 border-[#FF0000]/50 text-[#FF0000] text-[9px] font-black uppercase flex items-center gap-1.5">
                  A Receber <span>R$ {totalAReceberGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                </div>
+               
+               <button onClick={() => setMuralVergonhaOpen(true)} className="ml-2 px-3 py-1.5 bg-[#8B0000] border-2 border-[#8B0000] text-white text-[9px] font-black uppercase flex items-center gap-1.5 hover:bg-[#5A0000] transition-colors">
+                 <ShieldAlert className="w-3 h-3" /> Mural da Vergonha
+               </button>
              </div>
 
              <div className="flex flex-wrap items-center gap-2">
@@ -990,6 +1044,150 @@ export default function Financeiro() {
                 </button>
               </form>
 
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MURAL DA VERGONHA MODAL */}
+      <AnimatePresence>
+        {muralVergonhaOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#1A1A1A] border-4 border-[#8B0000] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-[16px_16px_0_#8B0000]">
+              <div className="flex items-center justify-between p-6 border-b-4 border-[#8B0000] bg-[#8B0000]">
+                <div className="flex items-center gap-4">
+                  <ShieldAlert className="w-8 h-8 text-white" />
+                  <div>
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Mural da Vergonha</h2>
+                    <p className="text-white/80 text-xs font-bold uppercase">Devedores Crônicos e Inadimplentes</p>
+                  </div>
+                </div>
+                <button onClick={() => setMuralVergonhaOpen(false)} className="text-white hover:rotate-90 transition-transform"><X className="w-8 h-8" /></button>
+              </div>
+
+              <div className="flex-1 overflow-auto p-6 flex flex-col gap-6">
+                <div className="bg-white border-4 border-black p-4 text-center">
+                   <p className="text-xs font-black uppercase text-slate-500 mb-1">TOTAL NO MURAL</p>
+                   <h3 className="text-4xl font-black text-[#8B0000]">
+                     R$ {muralData.reduce((acc, curr) => acc + Number(curr.valor_divida), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                   </h3>
+                </div>
+
+                <div className="bg-black/50 border-2 border-white/20 p-4">
+                  <h4 className="text-[10px] font-black uppercase text-[#FF8A00] mb-3">Adicionar ao Mural Manualmente</h4>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input type="text" placeholder="Nome do Cliente" value={muralInput.nome_cliente} onChange={e => setMuralInput({...muralInput, nome_cliente: e.target.value})} className="flex-1 bg-black border border-white/20 p-2 text-xs text-white uppercase outline-none focus:border-[#FF8A00]" />
+                    <input type="number" placeholder="Valor" value={muralInput.valor_divida} onChange={e => setMuralInput({...muralInput, valor_divida: e.target.value})} className="w-full sm:w-32 bg-black border border-white/20 p-2 text-xs text-white uppercase outline-none focus:border-[#FF8A00]" />
+                    <input type="text" placeholder="Tipo (Ex: Mensalidade)" value={muralInput.tipo_divida} onChange={e => setMuralInput({...muralInput, tipo_divida: e.target.value})} className="flex-1 bg-black border border-white/20 p-2 text-xs text-white uppercase outline-none focus:border-[#FF8A00]" />
+                    <button onClick={handleAddMural} className="bg-[#8B0000] text-white px-4 py-2 font-black text-[10px] uppercase hover:bg-white hover:text-[#8B0000] transition-colors"><Plus className="w-4 h-4"/></button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {muralData.map(item => (
+                    <div key={item.id} className="bg-white border-2 border-black p-4 flex flex-col gap-3">
+                      <div className="flex justify-between items-start">
+                         <div>
+                           <h4 className="font-black text-black uppercase text-lg">{item.nome_cliente}</h4>
+                           <p className="text-[10px] font-bold text-slate-500 uppercase">{item.tipo_divida}</p>
+                         </div>
+                         <p className="font-black text-[#FF0000] text-xl">R$ {Number(item.valor_divida).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                      </div>
+                      
+                      <div className="flex gap-2 mt-2 pt-2 border-t-2 border-slate-100">
+                        <button onClick={() => setMensagemDuraPreview(item)} className="flex-1 bg-black text-white text-[9px] font-black uppercase py-2 hover:bg-[#FF8A00] transition-colors text-center">Mensagem</button>
+                        <button onClick={() => setNotificacaoPreview(item)} className="flex-1 bg-slate-200 text-black text-[9px] font-black uppercase py-2 hover:bg-slate-300 transition-colors text-center">Notificação (PDF)</button>
+                        <button onClick={() => handleRemoveMural(item.id)} className="px-3 bg-red-100 text-red-600 hover:bg-red-200 transition-colors flex items-center justify-center"><Trash2 className="w-4 h-4"/></button>
+                      </div>
+                    </div>
+                  ))}
+                  {muralData.length === 0 && (
+                    <p className="text-white/50 text-xs font-mono col-span-full text-center py-8">Nenhum devedor no mural. (Ainda bem!)</p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL DE MENSAGEM DE COBRANÇA */}
+      <AnimatePresence>
+        {mensagemDuraPreview && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white border-4 border-black w-full max-w-md p-6 relative">
+              <button onClick={() => setMensagemDuraPreview(null)} className="absolute top-4 right-4 text-black hover:scale-110 transition-transform"><X className="w-6 h-6" /></button>
+              <h3 className="text-xl font-black uppercase mb-4 text-[#8B0000] border-b-4 border-[#8B0000] inline-block">Cobrança SPC/Serasa</h3>
+              
+              <div className="bg-slate-100 p-4 text-xs font-mono mb-6 whitespace-pre-wrap border border-slate-300">
+                {`Prezado(a) ${mensagemDuraPreview.nome_cliente},\n\nConsta em nosso sistema uma pendência em aberto referente a ${mensagemDuraPreview.tipo_divida} no valor de R$ ${Number(mensagemDuraPreview.valor_divida).toLocaleString('pt-BR', {minimumFractionDigits:2})}.\n\nRessaltamos que, de acordo com o contrato firmado, a manutenção deste débito poderá acarretar na inclusão do seu CPF junto aos órgãos de proteção ao crédito (SPC/Serasa).\n\nEvite restrições em seu nome e o envio desta cobrança para o setor jurídico. Aguardamos o seu retorno com o comprovante de pagamento o mais breve possível.\n\nAtenciosamente,\nStudio Acorde`}
+              </div>
+
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(`Prezado(a) ${mensagemDuraPreview.nome_cliente},\n\nConsta em nosso sistema uma pendência em aberto referente a ${mensagemDuraPreview.tipo_divida} no valor de R$ ${Number(mensagemDuraPreview.valor_divida).toLocaleString('pt-BR', {minimumFractionDigits:2})}.\n\nRessaltamos que, de acordo com o contrato firmado, a manutenção deste débito poderá acarretar na inclusão do seu CPF junto aos órgãos de proteção ao crédito (SPC/Serasa).\n\nEvite restrições em seu nome e o envio desta cobrança para o setor jurídico. Aguardamos o seu retorno com o comprovante de pagamento o mais breve possível.\n\nAtenciosamente,\nStudio Acorde`);
+                  setMensagemDuraPreview(null);
+                }} 
+                className="w-full bg-[#00FF41] text-black font-black uppercase py-4 text-sm flex items-center justify-center gap-2 shadow-hard hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all"
+              >
+                <Copy className="w-5 h-5"/> Copiar Mensagem
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* PREVIEW DA NOTIFICAÇÃO EXTRAJUDICIAL EM PDF */}
+      <AnimatePresence>
+        {notificacaoPreview && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-3xl max-h-[95vh] flex flex-col gap-4">
+              <div className="flex justify-between items-center bg-white p-4">
+                <h3 className="text-xl font-black uppercase text-black">Visualização do PDF</h3>
+                <div className="flex gap-4">
+                  <button onClick={gerarPDFNotificacao} className="bg-[#8B0000] text-white px-6 py-2 font-black uppercase text-xs flex items-center gap-2 hover:bg-black transition-colors"><Download className="w-4 h-4"/> Baixar PDF</button>
+                  <button onClick={() => setNotificacaoPreview(null)} className="text-black hover:rotate-90 transition-transform"><X className="w-8 h-8" /></button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-auto bg-slate-200 p-8 flex justify-center">
+                {/* O elemento HTML que será convertido em PDF */}
+                <div id="notificacao-pdf-content" className="bg-white p-12 w-[210mm] min-h-[297mm] text-black shrink-0 relative" style={{ fontFamily: 'Times New Roman, serif' }}>
+                  <div className="text-center mb-12 flex flex-col items-center">
+                     <img src="/logo-studio.png" alt="Studio Acorde" className="w-48 mb-4" />
+                     <h1 className="text-xl font-bold uppercase">STUDIO ACORDE ESCOLA DE MUSICA LTDA</h1>
+                     <p className="text-sm">CNPJ: 55.273.720/0001-12</p>
+                  </div>
+
+                  <h2 className="text-center text-2xl font-bold uppercase mb-12 underline tracking-widest">Notificação Extrajudicial</h2>
+
+                  <div className="text-justify text-base leading-relaxed space-y-6">
+                    <p>À(ao) Sr(a). <strong>{notificacaoPreview.nome_cliente}</strong>,</p>
+                    <p>
+                      A <strong>STUDIO ACORDE ESCOLA DE MUSICA LTDA</strong>, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 55.273.720/0001-12, vem por meio desta notificá-lo(a) extrajudicialmente sobre a existência de pendências financeiras em seu nome junto à nossa instituição.
+                    </p>
+                    <p>
+                      Conforme consta em nossos registros, encontra-se em aberto o valor de <strong>R$ {Number(notificacaoPreview.valor_divida).toLocaleString('pt-BR', {minimumFractionDigits:2})}</strong> referente a <strong>{notificacaoPreview.tipo_divida}</strong>, cujo vencimento já expirou e até a presente data não acusamos o recebimento.
+                    </p>
+                    <p>
+                      Solicitamos que o pagamento seja regularizado imediatamente. O não atendimento a esta notificação no prazo de 48 horas poderá ensejar a tomada das medidas legais e contratuais cabíveis, incluindo o registro de seu nome e CPF nos órgãos de proteção ao crédito (SPC e SERASA), bem como o encaminhamento do débito para cobrança através de nosso departamento jurídico, o que implicará no acréscimo de custas processuais e honorários advocatícios.
+                    </p>
+                    <p>
+                      Caso o pagamento já tenha sido efetuado, solicitamos a gentileza de desconsiderar esta notificação e nos enviar o comprovante para a devida baixa em nosso sistema.
+                    </p>
+                  </div>
+
+                  <div className="mt-20 text-center">
+                    <p>_______________________________________________________</p>
+                    <p className="font-bold uppercase mt-2">Studio Acorde Escola de Música</p>
+                    <p className="text-sm">Departamento Financeiro / Jurídico</p>
+                  </div>
+
+                  <div className="absolute bottom-12 right-12 text-xs text-slate-500">
+                    Gerado em: {new Date().toLocaleDateString('pt-BR')}
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

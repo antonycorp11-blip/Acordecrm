@@ -25,7 +25,8 @@ import {
   Plus,
   Trash2,
   ExternalLink,
-  Download
+  Download,
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
@@ -504,11 +505,48 @@ function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas, onOpenR
           </div>
         )}
       </AnimatePresence>
+
+      {/* MURAL DA VERGONHA MODAL NO PERFIL */}
+      <AnimatePresence>
+        {muralModalOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#1A1A1A] border-4 border-[#8B0000] w-full max-w-md p-6 relative shadow-[16px_16px_0_#8B0000]">
+              <button onClick={() => setMuralModalOpen(false)} className="absolute top-4 right-4 text-white hover:scale-110 transition-transform"><X className="w-6 h-6" /></button>
+              
+              <div className="flex items-center gap-3 mb-6">
+                <ShieldAlert className="w-6 h-6 text-white" />
+                <h3 className="text-xl font-black uppercase text-white tracking-tighter">Mural da Vergonha</h3>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                   <label className="text-[10px] font-bold text-white/50 block mb-1 uppercase">Aluno</label>
+                   <input type="text" disabled value={aluno.nome} className="w-full bg-white/10 border border-white/20 p-3 text-xs text-white uppercase outline-none" />
+                </div>
+                <div>
+                   <label className="text-[10px] font-bold text-white/50 block mb-1 uppercase">Valor da Dívida (R$)</label>
+                   <input type="number" value={muralInput.valor_divida} onChange={e => setMuralInput({...muralInput, valor_divida: e.target.value})} placeholder="Ex: 250.00" className="w-full bg-black border border-white/20 p-3 text-xs text-white uppercase outline-none focus:border-[#FF8A00]" />
+                </div>
+                <div>
+                   <label className="text-[10px] font-bold text-white/50 block mb-1 uppercase">Tipo da Dívida</label>
+                   <input type="text" value={muralInput.tipo_divida} onChange={e => setMuralInput({...muralInput, tipo_divida: e.target.value})} placeholder="Ex: Mensalidade, Taxa de Matrícula..." className="w-full bg-black border border-white/20 p-3 text-xs text-white uppercase outline-none focus:border-[#FF8A00]" />
+                </div>
+              </div>
+
+              <div className="mt-8">
+                 <button onClick={handleEnviarMural} className="w-full bg-[#8B0000] text-white font-black uppercase py-4 text-sm hover:bg-white hover:text-[#8B0000] transition-colors border-2 border-[#8B0000]">
+                   Enviar para o Mural
+                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
 
-// --- MAIN PAGE ---
 
 export default function AlunoPerfil() {
   const { id } = useParams();
@@ -584,6 +622,32 @@ export default function AlunoPerfil() {
 
   // Impressão de Fichas
   const [printAula, setPrintAula] = useState<any>(null);
+
+  // Mural da Vergonha
+  const [muralModalOpen, setMuralModalOpen] = useState(false);
+  const [muralInput, setMuralInput] = useState({ valor_divida: '', tipo_divida: '' });
+  
+  const handleEnviarMural = async () => {
+    if (!muralInput.valor_divida || !muralInput.tipo_divida) return toast.error('Preencha o valor e o tipo!');
+    try {
+      await fetch('/api/mural', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          aluno_id: id, 
+          nome_cliente: aluno.nome, 
+          valor_divida: Number(muralInput.valor_divida), 
+          tipo_divida: muralInput.tipo_divida 
+        })
+      });
+      setMuralModalOpen(false);
+      setMuralInput({ valor_divida: '', tipo_divida: '' });
+      toast.success('Aluno enviado para o Mural da Vergonha!');
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao enviar.');
+    }
+  };
 
   const fetchAgenda = async () => {
     const token = localStorage.getItem('acorde_token');
@@ -820,6 +884,9 @@ export default function AlunoPerfil() {
             }} className="whitespace-nowrap flex-1">
               <Edit className="w-4 h-4 mr-2" /> EDITAR
             </Button>
+            <button onClick={() => setMuralModalOpen(true)} className="bg-[#8B0000] text-white px-4 py-2 font-black uppercase text-[10px] tracking-widest border-2 border-[#8B0000] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2 flex-1 whitespace-nowrap">
+              <ShieldAlert className="w-4 h-4" /> ENVIAR P/ MURAL
+            </button>
           </div>
         </div>
       </header>
