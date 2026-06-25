@@ -819,21 +819,26 @@ export default function AreaAluno() {
       let finalVideoUrl = '';
       setUploadProgress(20);
       
-      // Upload directly to Supabase Storage
-      const nomeAlunoSafe = (alunoData?.nome || 'Aluno').replace(/[^a-zA-Z0-9]/g, '_');
-      const filename = `Treino_${nomeAlunoSafe}_${Date.now()}.${extensao}`;
-      
-      const { error } = await supabase.storage.from('videos').upload(filename, videoBlob, {
-          contentType: mime,
-          upsert: true
-      });
-      
-      if (error) throw new Error('Falha ao enviar arquivo para a nuvem.');
-      
-      setUploadProgress(80);
-      
-      const { data: publicUrlData } = supabase.storage.from('videos').getPublicUrl(filename);
-      finalVideoUrl = publicUrlData.publicUrl;
+      // Tentativa de upload direto para o Supabase Storage (bucket 'uploads' correto)
+      try {
+          const nomeAlunoSafe = (alunoData?.nome || 'Aluno').replace(/[^a-zA-Z0-9]/g, '_');
+          const filename = `treinos/${nomeAlunoSafe}_${Date.now()}.${extensao}`;
+          
+          const { error } = await supabase.storage.from('uploads').upload(filename, videoBlob, {
+              contentType: mime,
+              upsert: true
+          });
+          
+          if (!error) {
+              setUploadProgress(80);
+              const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+              finalVideoUrl = publicUrlData.publicUrl;
+          } else {
+              console.warn('Falha no upload direto para o Supabase, usando fallback do backend...', error);
+          }
+      } catch (err) {
+          console.warn('Exceção no upload direto para o Supabase, usando fallback do backend...', err);
+      }
 
       setUploadProgress(85);
       
