@@ -304,7 +304,17 @@ async function startServer() {
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
     
     app.get('/api/sistema/versao', (req, res) => {
-        res.json({ versao: 'SYNC_V4.3.1' });
+        try {
+            const versionPath = path.join(process.cwd(), 'version.json');
+            if (fs.existsSync(versionPath)) {
+                const data = fs.readFileSync(versionPath, 'utf8');
+                res.json(JSON.parse(data));
+            } else {
+                res.json({ versao: 'SYNC_V4.3.1', changelog: '' });
+            }
+        } catch(e) {
+            res.json({ versao: 'SYNC_V4.3.1', changelog: '' });
+        }
     });
     
     app.get('/api/health', (req, res) => {
@@ -2392,10 +2402,8 @@ async function startServer() {
                 const { data: prof } = await supabase.from('professores').select('id, nome').ilike('email', req.user.email).single();
                 if (prof) {
                     const nome = prof.nome.toLowerCase();
-                    // Se não for o Aquilles (dono), restringe a visão. Se for ele, permite ver tudo/outros.
-                    if (!nome.includes('aquilles') && !nome.includes('áquilles')) {
-                        filterProfId = String(prof.id);
-                    }
+                    // Aplica restrição a todos os professores para que vejam apenas suas próprias aulas
+                    filterProfId = String(prof.id);
                 } else {
                     filterProfId = '-1'; // Forçar retorno vazio caso professor não seja encontrado
                 }

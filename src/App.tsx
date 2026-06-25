@@ -22,6 +22,7 @@ import Usuarios from './pages/Usuarios';
 import Migracao from './pages/Migracao';
 import { Reposicoes } from './pages/Reposicoes';
 import Assinatura from './pages/Assinatura';
+import { GlobalUpdater } from './components/GlobalUpdater';
 
 import { Toaster } from 'sonner';
 
@@ -77,6 +78,7 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Toaster position="top-right" richColors />
+        <GlobalUpdater />
         <Routes>
           {/* Rotas Públicas */}
           <Route path="/login" element={<Login />} />
