@@ -502,7 +502,9 @@ export default function AreaProfessor() {
       }
       
       if (agenda) {
+        const profIdParaFiltro = me ? me.id : (professorData ? professorData.id : null);
         const sortedAgenda = (Array.isArray(agenda) ? agenda : [])
+          .filter((ag: any) => !profIdParaFiltro || Number(ag.professor_id) === Number(profIdParaFiltro))
           .sort((a: any, b: any) => {
             const dateCompare = (a.data || '').localeCompare(b.data || '');
             if (dateCompare !== 0) return dateCompare;
