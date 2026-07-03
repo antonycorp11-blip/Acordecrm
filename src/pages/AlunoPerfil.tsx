@@ -320,13 +320,39 @@ function MonthlyCalendar({ monthStr, aulas, onUpdateAttendance }: { monthStr: st
 
 // --- TABS ---
 
-function FinanceiroTab({ financeiro, alunoId, onRefresh, total_parcelas, onOpenRemanejar }: { financeiro: any[], alunoId: string, onRefresh: () => void, total_parcelas?: number, onOpenRemanejar: () => void }) {
+function FinanceiroTab({ financeiro, alunoId, aluno, onRefresh, total_parcelas, onOpenRemanejar }: { financeiro: any[], alunoId: string, aluno: any, onRefresh: () => void, total_parcelas?: number, onOpenRemanejar: () => void }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [baixaModal, setBaixaModal] = useState<{ id: number | null, open: boolean, valor: number, valor_desconto?: number, vencimento: string }>({ id: null, open: false, valor: 0, vencimento: '' });
   const [baixaMetodo, setBaixaMetodo] = useState('pix');
   const [valorFinal, setValorFinal] = useState(0);
+
+  // Mural da Vergonha
+  const [muralModalOpen, setMuralModalOpen] = useState(false);
+  const [muralInput, setMuralInput] = useState({ valor_divida: '', tipo_divida: '' });
+
+  const handleEnviarMural = async () => {
+    if (!muralInput.valor_divida || !muralInput.tipo_divida) return toast.error('Preencha o valor e o tipo!');
+    try {
+      await fetch('/api/mural', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          aluno_id: alunoId, 
+          nome_cliente: aluno?.nome, 
+          valor_divida: Number(muralInput.valor_divida), 
+          tipo_divida: muralInput.tipo_divida 
+        })
+      });
+      setMuralModalOpen(false);
+      setMuralInput({ valor_divida: '', tipo_divida: '' });
+      toast.success('Aluno enviado para o Mural da Vergonha!');
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao enviar.');
+    }
+  };
 
   const isEligibleForDiscount = (vencimento: string) => {
     const today = new Date();
@@ -623,31 +649,7 @@ export default function AlunoPerfil() {
   // Impressão de Fichas
   const [printAula, setPrintAula] = useState<any>(null);
 
-  // Mural da Vergonha
-  const [muralModalOpen, setMuralModalOpen] = useState(false);
-  const [muralInput, setMuralInput] = useState({ valor_divida: '', tipo_divida: '' });
-  
-  const handleEnviarMural = async () => {
-    if (!muralInput.valor_divida || !muralInput.tipo_divida) return toast.error('Preencha o valor e o tipo!');
-    try {
-      await fetch('/api/mural', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          aluno_id: id, 
-          nome_cliente: aluno.nome, 
-          valor_divida: Number(muralInput.valor_divida), 
-          tipo_divida: muralInput.tipo_divida 
-        })
-      });
-      setMuralModalOpen(false);
-      setMuralInput({ valor_divida: '', tipo_divida: '' });
-      toast.success('Aluno enviado para o Mural da Vergonha!');
-    } catch (e) {
-      console.error(e);
-      toast.error('Erro ao enviar.');
-    }
-  };
+
 
   const fetchAgenda = async () => {
     const token = localStorage.getItem('acorde_token');
@@ -1098,7 +1100,7 @@ export default function AlunoPerfil() {
             </motion.div>
           )}
 
-          {activeTab === 'financeiro' && <FinanceiroTab financeiro={financeiro} alunoId={id!} total_parcelas={aluno?.matriculas?.[0]?.total_parcelas} onOpenRemanejar={() => setRemanejarModal(true)} onRefresh={() => {
+          {activeTab === 'financeiro' && <FinanceiroTab financeiro={financeiro} alunoId={id!} aluno={aluno} total_parcelas={aluno?.matriculas?.[0]?.total_parcelas} onOpenRemanejar={() => setRemanejarModal(true)} onRefresh={() => {
               fetch(`/api/alunos/${id}/financeiro`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` } })
                 .then(r => r.json()).then(setFinanceiro);
           }} />}
