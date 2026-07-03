@@ -1723,6 +1723,59 @@ async function startServer() {
         } catch (error) { res.status(500).json({ error: 'Erro ao salvar curso' }); }
     });
 
+    // Materiais Salvos do Professor (Tablaturas, Melodias)
+    app.get('/api/materiais-salvos', async (req: any, res) => {
+        try {
+            if (!req.user || req.user.role !== 'professor') return res.status(401).json({ error: 'Não autorizado' });
+            const { data: prof } = await supabase.from('professores').select('id').ilike('email', req.user.email).maybeSingle();
+            if (!prof) return res.status(404).json({ error: 'Professor não encontrado' });
+            
+            const tipo = req.query.tipo;
+            let query = supabase.from('materiais_salvos').select('*').eq('professor_id', prof.id).order('created_at', { ascending: false });
+            if (tipo) query = query.eq('tipo', tipo);
+            
+            const { data, error } = await query;
+            if (error) throw error;
+            res.json(data);
+        } catch (error) { res.status(500).json({ error: 'Erro ao buscar materiais salvos' }); }
+    });
+
+    app.post('/api/materiais-salvos', async (req: any, res) => {
+        try {
+            if (!req.user || req.user.role !== 'professor') return res.status(401).json({ error: 'Não autorizado' });
+            const { data: prof } = await supabase.from('professores').select('id').ilike('email', req.user.email).maybeSingle();
+            if (!prof) return res.status(404).json({ error: 'Professor não encontrado' });
+            
+            const { tipo, titulo, conteudo } = req.body;
+            if (!tipo || !titulo || !conteudo) return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+
+            const { data, error } = await supabase.from('materiais_salvos').insert([{
+                professor_id: prof.id,
+                tipo,
+                titulo,
+                conteudo
+            }]).select().single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error) { res.status(500).json({ error: 'Erro ao salvar material' }); }
+    });
+
+    app.delete('/api/materiais-salvos/:id', async (req: any, res) => {
+        try {
+            if (!req.user || req.user.role !== 'professor') return res.status(401).json({ error: 'Não autorizado' });
+            const { data: prof } = await supabase.from('professores').select('id').ilike('email', req.user.email).maybeSingle();
+            if (!prof) return res.status(404).json({ error: 'Professor não encontrado' });
+
+            // Verificar se pertence ao professor
+            const { data: mat } = await supabase.from('materiais_salvos').select('professor_id').eq('id', req.params.id).maybeSingle();
+            if (!mat || mat.professor_id !== prof.id) return res.status(403).json({ error: 'Sem permissão' });
+
+            const { error } = await supabase.from('materiais_salvos').delete().eq('id', req.params.id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error) { res.status(500).json({ error: 'Erro ao deletar material' }); }
+    });
+
     // Professores
     app.get('/api/professores/me', async (req: any, res) => {
         try {

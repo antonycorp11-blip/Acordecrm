@@ -45,6 +45,8 @@ import { ChordRush } from '../components/jogos/ChordRush';
 import { TriadeNinja } from '../components/jogos/TriadeNinja';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
+import { AvatarPixel } from '../components/AvatarPixel';
+import { FONTS, TILES } from '../utils/avatarAssets';
 
 class MelodySynth {
   private ctx: AudioContext | null = null;
@@ -374,7 +376,6 @@ export default function AreaProfessor() {
   const [searchTreino, setSearchTreino] = useState('');
   const [isCheckinConfirmModalOpen, setIsCheckinConfirmModalOpen] = useState(false);
   const [checkinConfirmData, setCheckinConfirmData] = useState<any>(null);
-
   // Estados Ricos do Musiclass compartilhados
   const [mcChords, setMcChords] = useState<any[]>([]);
   const [mcScales, setMcScales] = useState<any[]>([]);
@@ -404,6 +405,30 @@ export default function AreaProfessor() {
   const [customTecladoName, setCustomTecladoName] = useState('C');
   const [customTecladoActiveKeys, setCustomTecladoActiveKeys] = useState<number[]>([]);
 
+  // Biblioteca de Materiais Salvos
+  const [materiaisSalvos, setMateriaisSalvos] = useState<any[]>([]);
+  const [showBibliotecaModal, setShowBibliotecaModal] = useState<'tablatura' | 'melodia' | null>(null);
+
+  const fetchMateriaisSalvos = async (tipo: string) => {
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/materiais-salvos?tipo=${tipo}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setMateriaisSalvos(await res.json());
+    } catch(e) { console.error(e); }
+  };
+
+  const deleteMaterialSalvo = async (id: number) => {
+    if (!confirm('Deseja realmente deletar este material salvo da sua biblioteca?')) return;
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/materiais-salvos/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        setMateriaisSalvos(prev => prev.filter(m => m.id !== id));
+        toast.success('Deletado da biblioteca.');
+      }
+    } catch(e) {}
+  };
+
   const [isGuitarCustomModalOpen, setIsGuitarCustomModalOpen] = useState(false);
   const [customGuitarName, setCustomGuitarName] = useState('C');
   const [customGuitarStrings, setCustomGuitarStrings] = useState<{ fret: number | null, finger: number | null }[]>(
@@ -423,7 +448,7 @@ export default function AreaProfessor() {
 
   // Estados de Tablatura Interativa
   const [newTabName, setNewTabName] = useState('RIFF PRINCIPAL');
-  const [newTabMatrix, setNewTabMatrix] = useState<string[][]>(Array(6).fill(null).map(() => Array(16).fill('')));
+  const [newTabMatrix, setNewTabMatrix] = useState<string[][]>(Array(6).fill(null).map(() => Array(32).fill('')));
 
   // Estados de Bateria Sequenciador
   const [newDrumName, setNewDrumName] = useState('BATIDA ANOS 80');
@@ -1667,7 +1692,7 @@ export default function AreaProfessor() {
             <div className="bg-[#feccba]/20 border-4 border-black p-3.5 space-y-2.5 shadow-[4px_4px_0_#000]">
               <span className="text-[8px] font-black text-black uppercase tracking-widest block">SEÇÃO OU GRUPO DO ACORDE (ATIVO: {currentGroupName || 'GERAL'})</span>
               <div className="flex flex-wrap gap-1.5">
-                {['INTRO', 'VERSO', 'REFRÃO', 'PONTE', 'SOLO', 'OUTRO'].map(grp => {
+                {['INTRO', 'VERSO', 'PRÉ-REFRÃO', 'REFRÃO', 'PONTE', 'SOLO', 'OUTRO'].map(grp => {
                   const isActive = currentGroupName === grp;
                   return (
                     <button
@@ -1951,84 +1976,94 @@ export default function AreaProfessor() {
                       CLIQUE NAS TECLAS ABAIXO PARA MARCAR AS NOTAS E OUVIR O SINTETIZADOR RETRÔ
                     </span>
 
-                    <div className="relative flex h-36 border-4 border-black bg-black p-1 select-none shadow-[6px_6px_0_#000] w-full max-w-[480px] mx-auto overflow-hidden">
-                      <div className="relative flex w-full h-full">
-                        {/* Teclas Brancas */}
-                        {[
-                          { absIdx: 0, label: 'Dó' },
-                          { absIdx: 2, label: 'Ré' },
-                          { absIdx: 4, label: 'Mi' },
-                          { absIdx: 5, label: 'Fá' },
-                          { absIdx: 7, label: 'Sol' },
-                          { absIdx: 9, label: 'Lá' },
-                          { absIdx: 11, label: 'Si' },
-                          { absIdx: 12, label: 'Dó' },
-                          { absIdx: 14, label: 'Ré' },
-                          { absIdx: 16, label: 'Mi' }
-                        ].map((k, i) => {
-                          const isActive = customTecladoActiveKeys.includes(k.absIdx);
-                          const keyWidth = 10;
-                          const left = i * keyWidth;
-                          return (
-                            <button
-                              key={k.absIdx}
-                              type="button"
-                              onClick={() => {
-                                const noteMap: Record<number, string> = { 0: 'C4', 2: 'D4', 4: 'E4', 5: 'F4', 7: 'G4', 9: 'A4', 11: 'B4', 12: 'C5', 14: 'D5', 16: 'E5' };
-                                melodySynth.playNoteByName(noteMap[k.absIdx]);
-                                if (isActive) {
-                                  setCustomTecladoActiveKeys(prev => prev.filter(x => x !== k.absIdx));
-                                } else {
-                                  setCustomTecladoActiveKeys(prev => [...prev, k.absIdx]);
-                                }
-                              }}
-                              style={{ left: `${left}%`, width: `${keyWidth}%` }}
-                              className={`absolute bottom-0 h-full border border-black flex flex-col justify-end pb-3 items-center font-black text-[8px] text-black transition-all ${
-                                isActive
-                                  ? 'bg-[#ff6b00] text-white shadow-[inset_0_3px_6px_rgba(0,0,0,0.5)] border-b-4'
-                                  : 'bg-white hover:bg-stone-100'
-                              }`}
-                            >
-                              {k.label}
-                            </button>
-                          );
-                        })}
+                    <div className="overflow-x-auto w-full max-w-[90vw] mx-auto custom-scrollbar pb-2">
+                      <div className="relative flex h-36 border-4 border-black bg-black p-1 select-none shadow-[6px_6px_0_#000]" style={{ minWidth: '800px', width: 'max-content' }}>
+                        <div className="relative flex h-full">
+                          {(() => {
+                            const OCTAVES = 3;
+                            const START_OCTAVE = 3;
+                            const wKeys = [];
+                            const bKeys = [];
+                            let absIdx = 0;
+                            let wIndex = 0;
+                            const KEY_WIDTH = 44; // px
 
-                        {/* Teclas Pretas */}
-                        {[
-                          { absIdx: 1, label: 'Dó#', left: 1 * 10 - 3 },
-                          { absIdx: 3, label: 'Ré#', left: 2 * 10 - 3 },
-                          { absIdx: 6, label: 'Fá#', left: 4 * 10 - 3 },
-                          { absIdx: 8, label: 'Sol#', left: 5 * 10 - 3 },
-                          { absIdx: 10, label: 'Lá#', left: 6 * 10 - 3 },
-                          { absIdx: 13, label: 'Dó#', left: 8 * 10 - 3 },
-                          { absIdx: 15, label: 'Ré#', left: 9 * 10 - 3 }
-                        ].map((k) => {
-                          const isActive = customTecladoActiveKeys.includes(k.absIdx);
-                          return (
-                            <button
-                              key={k.absIdx}
-                              type="button"
-                              onClick={() => {
-                                const noteMap: Record<number, string> = { 1: 'C#4', 3: 'D#4', 6: 'F#4', 8: 'G#4', 10: 'A#4', 13: 'C#5', 15: 'D#5' };
-                                melodySynth.playNoteByName(noteMap[k.absIdx]);
-                                if (isActive) {
-                                  setCustomTecladoActiveKeys(prev => prev.filter(x => x !== k.absIdx));
-                                } else {
-                                  setCustomTecladoActiveKeys(prev => [...prev, k.absIdx]);
-                                }
-                              }}
-                              style={{ left: `${k.left}%`, width: '6%' }}
-                              className={`absolute top-0 h-[60%] border border-white flex flex-col justify-end pb-2 items-center font-black text-[7px] text-white z-10 transition-all ${
-                                isActive
-                                  ? 'bg-[#ff6b00] shadow-[inset_0_3px_6px_rgba(0,0,0,0.5)] border-b-2'
-                                  : 'bg-black hover:bg-stone-900'
-                              }`}
-                            >
-                              {k.label.replace('#', '♯')}
-                            </button>
-                          );
-                        })}
+                            for (let octave = 0; octave < OCTAVES; octave++) {
+                              const curr = START_OCTAVE + octave;
+                              wKeys.push({ absIdx: absIdx++, label: 'Dó', note: `C${curr}`, wIndex: wIndex++ });
+                              bKeys.push({ absIdx: absIdx++, label: 'Dó#', note: `C#${curr}`, wIndex: wIndex - 1 });
+                              wKeys.push({ absIdx: absIdx++, label: 'Ré', note: `D${curr}`, wIndex: wIndex++ });
+                              bKeys.push({ absIdx: absIdx++, label: 'Ré#', note: `D#${curr}`, wIndex: wIndex - 1 });
+                              wKeys.push({ absIdx: absIdx++, label: 'Mi', note: `E${curr}`, wIndex: wIndex++ });
+                              wKeys.push({ absIdx: absIdx++, label: 'Fá', note: `F${curr}`, wIndex: wIndex++ });
+                              bKeys.push({ absIdx: absIdx++, label: 'Fá#', note: `F#${curr}`, wIndex: wIndex - 1 });
+                              wKeys.push({ absIdx: absIdx++, label: 'Sol', note: `G${curr}`, wIndex: wIndex++ });
+                              bKeys.push({ absIdx: absIdx++, label: 'Sol#', note: `G#${curr}`, wIndex: wIndex - 1 });
+                              wKeys.push({ absIdx: absIdx++, label: 'Lá', note: `A${curr}`, wIndex: wIndex++ });
+                              bKeys.push({ absIdx: absIdx++, label: 'Lá#', note: `A#${curr}`, wIndex: wIndex - 1 });
+                              wKeys.push({ absIdx: absIdx++, label: 'Si', note: `B${curr}`, wIndex: wIndex++ });
+                            }
+                            
+                            // add 1 last C
+                            wKeys.push({ absIdx: absIdx++, label: 'Dó', note: `C${START_OCTAVE + OCTAVES}`, wIndex: wIndex++ });
+
+                            return (
+                              <div className="relative flex" style={{ width: `${wKeys.length * KEY_WIDTH}px` }}>
+                                {/* Teclas Brancas */}
+                                {wKeys.map((k) => {
+                                  const isActive = customTecladoActiveKeys.includes(k.absIdx);
+                                  return (
+                                    <button
+                                      key={k.absIdx}
+                                      type="button"
+                                      onClick={() => {
+                                        melodySynth.playNoteByName(k.note);
+                                        setCustomTecladoActiveKeys(prev => 
+                                          isActive ? prev.filter(x => x !== k.absIdx) : [...prev, k.absIdx]
+                                        );
+                                      }}
+                                      style={{ left: `${k.wIndex * KEY_WIDTH}px`, width: `${KEY_WIDTH}px` }}
+                                      className={`absolute bottom-0 h-full border border-black flex flex-col justify-end pb-3 items-center font-black text-[8px] text-black transition-all ${
+                                        isActive
+                                          ? 'bg-[#ff6b00] text-white shadow-[inset_0_3px_6px_rgba(0,0,0,0.5)] border-b-4'
+                                          : 'bg-white hover:bg-stone-100'
+                                      }`}
+                                    >
+                                      {k.label}
+                                    </button>
+                                  );
+                                })}
+
+                                {/* Teclas Pretas */}
+                                {bKeys.map((k) => {
+                                  const isActive = customTecladoActiveKeys.includes(k.absIdx);
+                                  // As teclas pretas ficam entre as brancas (offset de 50% + ajuste da borda)
+                                  const leftPos = (k.wIndex * KEY_WIDTH) + (KEY_WIDTH / 2) + 2; 
+                                  return (
+                                    <button
+                                      key={k.absIdx}
+                                      type="button"
+                                      onClick={() => {
+                                        melodySynth.playNoteByName(k.note);
+                                        setCustomTecladoActiveKeys(prev => 
+                                          isActive ? prev.filter(x => x !== k.absIdx) : [...prev, k.absIdx]
+                                        );
+                                      }}
+                                      style={{ left: `${leftPos}px`, width: `${KEY_WIDTH * 0.7}px` }}
+                                      className={`absolute top-0 h-[60%] border border-white flex flex-col justify-end pb-2 items-center font-black text-[7px] text-white z-10 transition-all ${
+                                        isActive
+                                          ? 'bg-[#ff6b00] shadow-[inset_0_3px_6px_rgba(0,0,0,0.5)] border-b-2'
+                                          : 'bg-black hover:bg-stone-900'
+                                      }`}
+                                    >
+                                      {k.label.replace('#', '♯')}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
 
@@ -2343,13 +2378,13 @@ export default function AreaProfessor() {
               </div>
 
               {/* GRADE INTERATIVA DE TABLATURA */}
-              <div className="overflow-x-auto">
-                <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block mb-1">GRADE DE 6 CORDAS × 16 COMPASSOS (CLIQUE NA CÉLULA E SELECIONE O TRASTE ABAIXO)</span>
-                <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '420px' }}>
+              <div className="overflow-x-auto custom-scrollbar pb-2">
+                <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block mb-1">GRADE DE 6 CORDAS × 32 COMPASSOS (ROLE PARA O LADO)</span>
+                <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(32, 1fr)', minWidth: '960px' }}>
                   {['e', 'B', 'G', 'D', 'A', 'E'].map((str, strIdx) => (
                     <React.Fragment key={strIdx}>
                       <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[8px] border border-black px-1 min-w-[18px]">{str}</div>
-                      {Array.from({ length: 16 }).map((_, beat) => {
+                      {Array.from({ length: 32 }).map((_, beat) => {
                         const isSelected = selectedBeatTablatura?.strIdx === strIdx && selectedBeatTablatura?.beat === beat;
                         return (
                           <div
@@ -2412,7 +2447,7 @@ export default function AreaProfessor() {
                       const { strIdx, beat } = selectedBeatTablatura;
                       setSelectedBeatTablatura({
                         strIdx,
-                        beat: (beat - 1 + 16) % 16
+                        beat: (beat - 1 + 32) % 32
                       });
                     }}
                     className="flex-1 py-1.5 bg-black text-white border border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px]"
@@ -2426,7 +2461,7 @@ export default function AreaProfessor() {
                       const { strIdx, beat } = selectedBeatTablatura;
                       setSelectedBeatTablatura({
                         strIdx,
-                        beat: (beat + 1) % 16
+                        beat: (beat + 1) % 32
                       });
                     }}
                     className="flex-1 py-1.5 bg-black text-white border border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px]"
@@ -2436,7 +2471,7 @@ export default function AreaProfessor() {
                   <button
                     type="button"
                     onClick={() => {
-                      setNewTabMatrix(Array(6).fill(null).map(() => Array(16).fill('')));
+                      setNewTabMatrix(Array(6).fill(null).map(() => Array(32).fill('')));
                     }}
                     className="flex-1 py-1.5 bg-red-600 text-white border border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px]"
                   >
@@ -2445,13 +2480,41 @@ export default function AreaProfessor() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleAddTablature}
-                className="w-full py-2 bg-[#ff6b00] text-white border-4 border-black font-black text-[10px] uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
-              >
-                <PlusCircle className="w-4 h-4" /> SALVAR TABLATURA NA AULA
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddTablature}
+                  className="flex-1 py-2 bg-[#ff6b00] text-white border-4 border-black font-black text-[10px] uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
+                >
+                  <PlusCircle className="w-4 h-4" /> SALVAR NA AULA
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!newTabName.trim()) { alert('Digite um nome para a tablatura antes de salvar na biblioteca.'); return; }
+                    try {
+                      const token = localStorage.getItem('acorde_token');
+                      const res = await fetch('/api/materiais-salvos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ tipo: 'tablatura', titulo: newTabName, conteudo: { matrix: newTabMatrix } })
+                      });
+                      if (res.ok) { toast.success('Tablatura salva na biblioteca! 📚'); }
+                      else { toast.error('Erro ao salvar na biblioteca.'); }
+                    } catch(e) { toast.error('Erro ao salvar na biblioteca.'); }
+                  }}
+                  className="py-2 px-3 bg-[#261812] text-white border-4 border-black font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
+                >
+                  💾 BIBLIOTECA
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => { await fetchMateriaisSalvos('tablatura'); setShowBibliotecaModal('tablatura'); }}
+                  className="py-2 px-3 bg-[#3d2d26] text-[#feccba] border-4 border-black font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
+                >
+                  📂 CARREGAR
+                </button>
+              </div>
             </div>
 
             {mcTablatures.length > 0 && (
@@ -4172,86 +4235,133 @@ export default function AreaProfessor() {
                         Nenhum aluno cadastrado ou com pontuação.
                       </div>
                     ) : (
-                      rankingData.map((player: any, idx: number) => {
-                        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
-                        return (
-                          <div 
-                            key={player.id} 
-                            onClick={() => {
-                              setSelectedAluno(player);
-                              setIsAlunoModalOpen(true);
-                            }}
-                            className="flex items-center gap-3 p-3 border-4 border-black shadow-[4px_4px_0_#000] bg-[#fff8f6] cursor-pointer hover:bg-[#ffeae1] hover:-translate-y-0.5 transition-all"
-                          >
-                            {/* Colocação */}
-                            <div className="w-10 h-10 border-4 border-black flex items-center justify-center font-black text-sm shrink-0 bg-[#feccba] text-black">
-                              {medal}
-                            </div>
-                            
-                            {/* Avatar */}
-                            <div className="w-10 h-10 border-2 border-black overflow-hidden bg-[#261812] shrink-0">
-                              {player.foto_url ? (
-                                <img src={player.foto_url} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center font-black text-base text-[#ff6b00]">
-                                  {(player.nome || 'A').charAt(0)}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Informações Aluno */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <p className="font-black text-[10px] uppercase truncate text-black mb-0">{player.nome}</p>
-                                {/* Ícones de Conquistas */}
-                                {player.conquistas && player.conquistas.length > 0 && (
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    {player.conquistas.slice(0, 4).map((c: any, cIdx: number) => (
-                                      <div 
-                                        key={cIdx} 
-                                        className="w-5 h-5 border-2 border-black bg-white flex items-center justify-center shadow-[1px_1px_0_#000] shrink-0" 
-                                        title={c.nome}
-                                      >
-                                        {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
-                                          <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-cover" />
-                                        ) : (
-                                          <span className="text-[8px]">🏆</span>
-                                        )}
-                                      </div>
-                                    ))}
-                                    {player.conquistas.length > 4 && (
-                                      <span className="text-[6px] font-black text-[#8e7164] uppercase leading-none">
-                                        +{player.conquistas.length - 4}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                              <p className="text-[7px] font-black uppercase text-[#8e7164] truncate mt-0.5 mb-0">
-                                {player.curso || 'STUDENT'}
-                              </p>
-                            </div>
-
-                            {/* XP e Ação */}
-                            <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                              <p className="font-black text-xs italic text-[#ff6b00] leading-none">{player.xp} XP</p>
-                              
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAssignData({ aluno_id: String(player.id), conquista_id: '' });
-                                  setIsAssignModalOpen(true);
-                                  fetchConquistas();
-                                }}
-                                className="bg-[#ff6b00] hover:bg-[#e05e00] text-white px-2 py-0.5 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-0.5"
-                                title="Creditar medalha/conquista para este aluno"
+                      <>
+                        {/* TOP 3 PODIUM (mobile-optimized) */}
+                        {rankingData.length > 0 && (
+                          <div className="flex items-end justify-center gap-2 mb-6 mt-12 h-56 px-2">
+                            {/* 2ND */}
+                            {rankingData[1] && (
+                              <div
+                                onClick={() => { setSelectedAluno(rankingData[1]); setIsAlunoModalOpen(true); }}
+                                className="w-[28%] h-[80%] flex flex-col items-center justify-end cursor-pointer hover:-translate-y-1 transition-transform"
                               >
-                                <Plus className="w-2.5 h-2.5" /> 🏆 CREDITAR
-                              </button>
-                            </div>
+                                <div className="w-full h-24 relative z-10 flex items-end justify-center pb-0 border-x-2 border-t-2 border-[#261812] bg-[#1a0a05]">
+                                  <AvatarPixel
+                                    config={rankingData[1]?.avatar_config?.skinId ? rankingData[1].avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                                    isSilhouette={!rankingData[1]?.avatar_config?.skinId}
+                                    hideBackground={true}
+                                  />
+                                </div>
+                                <div className={`w-full bg-[#5a6b7d] border-2 border-[#3d4b5c] shadow-[2px_2px_0_#000] z-20 flex flex-col items-center justify-center p-1.5 relative ${
+                                  TILES.find(t => t.id === rankingData[1]?.avatar_config?.tileId)?.className || ''
+                                }`}>
+                                  <div className="font-black text-white text-base uppercase drop-shadow-[1px_1px_0_#000]">2ND</div>
+                                  <div
+                                    className="font-black text-[8px] uppercase text-white truncate w-full text-center mt-0.5"
+                                    style={FONTS.find(f => f.id === rankingData[1]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[1]?.avatar_config?.fontId)?.fontFamily } : {}}
+                                  >{rankingData[1].nome}</div>
+                                  <div className="text-white/80 text-[7px] font-black uppercase">{rankingData[1].xp} PTS</div>
+                                </div>
+                              </div>
+                            )}
+                            {/* 1ST */}
+                            {rankingData[0] && (
+                              <div
+                                onClick={() => { setSelectedAluno(rankingData[0]); setIsAlunoModalOpen(true); }}
+                                className="w-[36%] h-full flex flex-col items-center justify-end cursor-pointer hover:-translate-y-1 transition-transform z-30"
+                              >
+                                <div className="absolute inset-0 bg-[#ffeb3b] blur-2xl opacity-10 rounded-full pointer-events-none" />
+                                <div className="w-full h-36 relative z-10 flex items-end justify-center pb-0 border-x-2 border-t-2 border-[#261812] bg-[#1a0a05]">
+                                  <AvatarPixel
+                                    config={rankingData[0]?.avatar_config?.skinId ? rankingData[0].avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                                    isSilhouette={!rankingData[0]?.avatar_config?.skinId}
+                                    hideBackground={true}
+                                  />
+                                </div>
+                                <div className={`w-full bg-[#ffb300] border-2 border-[#ff8f00] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${
+                                  TILES.find(t => t.id === rankingData[0]?.avatar_config?.tileId)?.className || ''
+                                }`}>
+                                  <div className="font-black text-black text-2xl uppercase">1ST</div>
+                                  <div
+                                    className="font-black text-[9px] uppercase text-black truncate w-full text-center mt-0.5"
+                                    style={FONTS.find(f => f.id === rankingData[0]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[0]?.avatar_config?.fontId)?.fontFamily } : {}}
+                                  >{rankingData[0].nome}</div>
+                                  <div className="text-black/80 text-[7px] font-black uppercase mt-0.5">{rankingData[0].xp} PTS</div>
+                                </div>
+                              </div>
+                            )}
+                            {/* 3RD */}
+                            {rankingData[2] && (
+                              <div
+                                onClick={() => { setSelectedAluno(rankingData[2]); setIsAlunoModalOpen(true); }}
+                                className="w-[28%] h-[70%] flex flex-col items-center justify-end cursor-pointer hover:-translate-y-1 transition-transform"
+                              >
+                                <div className="w-full h-20 relative z-10 flex items-end justify-center pb-0 border-x-2 border-t-2 border-[#261812] bg-[#1a0a05]">
+                                  <AvatarPixel
+                                    config={rankingData[2]?.avatar_config?.skinId ? rankingData[2].avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                                    isSilhouette={!rankingData[2]?.avatar_config?.skinId}
+                                    hideBackground={true}
+                                  />
+                                </div>
+                                <div className={`w-full bg-[#8d6e63] border-2 border-[#5d4037] shadow-[2px_2px_0_#000] z-20 flex flex-col items-center justify-center p-1.5 relative ${
+                                  TILES.find(t => t.id === rankingData[2]?.avatar_config?.tileId)?.className || ''
+                                }`}>
+                                  <div className="font-black text-white text-sm uppercase">3RD</div>
+                                  <div
+                                    className="font-black text-[8px] uppercase text-white truncate w-full text-center"
+                                    style={FONTS.find(f => f.id === rankingData[2]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[2]?.avatar_config?.fontId)?.fontFamily } : {}}
+                                  >{rankingData[2].nome}</div>
+                                  <div className="text-white/70 text-[6px] font-black uppercase">{rankingData[2].xp} PTS</div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        );
-                      })
+                        )}
+
+                        {/* LISTA: posições 4+ */}
+                        {rankingData.slice(rankingData.length > 3 ? 3 : 0).map((player: any, idx: number) => {
+                          const rank = (rankingData.length > 3 ? idx + 4 : idx + 1);
+                          const playerFont = FONTS.find(f => f.id === player?.avatar_config?.fontId)?.fontFamily;
+                          const playerTileClass = TILES.find(t => t.id === player?.avatar_config?.tileId)?.className || 'border-[#3d2d26]';
+                          return (
+                            <div
+                              key={player.id}
+                              onClick={() => { setSelectedAluno(player); setIsAlunoModalOpen(true); }}
+                              className={`flex items-center gap-3 p-2 border-2 cursor-pointer bg-[#261812] transition-colors hover:bg-[#3d2d26] ${playerTileClass}`}
+                            >
+                              <div className="font-black text-sm shrink-0 w-6 text-center text-white">{rank}.</div>
+                              <div className="w-12 h-12 rounded bg-[#1a0a05] shrink-0 flex items-end justify-center pb-0 relative overflow-hidden border border-[#3d2d26]">
+                                <AvatarPixel
+                                  config={player?.avatar_config?.skinId ? player.avatar_config : { skinId: 'skin_m_1', instrumentId: '', backgroundId: 'bg_1' }}
+                                  isSilhouette={!player?.avatar_config?.skinId}
+                                  hideBackground={true}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-[10px] uppercase text-white truncate mb-0" style={playerFont ? { fontFamily: playerFont } : {}}>{player.nome}</p>
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {(player.conquistas || []).slice(0, 3).map((c: any, cIdx: number) => (
+                                    <div key={cIdx} className="w-4 h-4 border border-black bg-white flex items-center justify-center" title={c.nome}>
+                                      {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
+                                        <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain" />
+                                      ) : <span className="text-[6px]">🏆</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                                <p className="font-black text-xs italic text-[#ff6b00] leading-none">{player.xp} XP</p>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setAssignData({ aluno_id: String(player.id), conquista_id: '' }); setIsAssignModalOpen(true); fetchConquistas(); }}
+                                  className="bg-[#ff6b00] text-white px-2 py-0.5 border-2 border-black font-black text-[7px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-0.5"
+                                >
+                                  <Plus className="w-2.5 h-2.5" /> CREDITAR
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
                     )}
                   </div>
                 )}
@@ -4793,6 +4903,77 @@ export default function AreaProfessor() {
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
           <div className="w-full max-w-[500px] md:max-w-[560px]">
             <MusiclassTools onClose={() => setShowTools(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL: BIBLIOTECA DE MATERIAIS SALVOS ===== */}
+      {showBibliotecaModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm font-['Space_Mono']">
+          <div className="bg-[#fff8f6] border-8 border-black w-full max-w-lg shadow-[12px_12px_0_#000] flex flex-col max-h-[80vh]">
+            <header className="p-4 border-b-4 border-black flex items-center justify-between bg-[#feccba] shrink-0">
+              <div>
+                <h2 className="font-black text-sm uppercase italic tracking-tighter text-black">
+                  📚 BIBLIOTECA — {showBibliotecaModal === 'tablatura' ? 'TABLATURAS SALVAS' : 'MELODIAS SALVAS'}
+                </h2>
+                <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest">Clique para carregar na grade atual</p>
+              </div>
+              <button onClick={() => setShowBibliotecaModal(null)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                ✕
+              </button>
+            </header>
+            <div className="p-4 overflow-y-auto flex-1 space-y-3">
+              {materiaisSalvos.length === 0 ? (
+                <div className="text-center py-10 text-[#8e7164] font-black text-[9px] uppercase border-4 border-dashed border-black">
+                  Nenhum material salvo na biblioteca ainda.
+                </div>
+              ) : (
+                materiaisSalvos.map((mat: any) => (
+                  <div key={mat.id} className="border-4 border-black bg-white p-3 space-y-2 shadow-[4px_4px_0_#000]">
+                    <div className="flex items-center justify-between">
+                      <p className="font-black text-[10px] uppercase text-black">{mat.titulo}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            if (showBibliotecaModal === 'tablatura') {
+                              setNewTabName(mat.titulo);
+                              setNewTabMatrix(mat.conteudo?.matrix || Array(6).fill(null).map(() => Array(32).fill('')));
+                              toast.success(`Tablatura "${mat.titulo}" carregada!`);
+                            }
+                            setShowBibliotecaModal(null);
+                          }}
+                          className="bg-[#ff6b00] text-white px-3 py-1 border-2 border-black font-black text-[8px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none"
+                        >
+                          📥 CARREGAR
+                        </button>
+                        <button
+                          onClick={() => deleteMaterialSalvo(mat.id)}
+                          className="bg-red-600 text-white px-2 py-1 border-2 border-black font-black text-[8px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                    {showBibliotecaModal === 'tablatura' && mat.conteudo?.matrix && (
+                      <div className="overflow-x-auto">
+                        <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '280px' }}>
+                          {['e','B','G','D','A','E'].map((str, strIdx) => (
+                            <React.Fragment key={strIdx}>
+                              <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-0.5 min-w-[12px]">{str}</div>
+                              {Array.from({ length: 16 }).map((_, beat) => (
+                                <div key={beat} className="h-4 flex items-center justify-center bg-white border border-black/20 text-[7px] font-black">
+                                  {mat.conteudo.matrix?.[strIdx]?.[beat] || '-'}
+                                </div>
+                              ))}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
