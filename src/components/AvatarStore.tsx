@@ -16,13 +16,20 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
   const [filter, setFilter] = useState<'all' | 'skins' | 'instruments' | 'backgrounds' | 'fonts' | 'tiles'>('skins');
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
+  const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+
   const allItems = [
-    ...SKINS.map(s => ({ id: s.id, name: s.name, rarity: s.rarity, price: s.price, type: 'skins', thumb: s.url })),
+    ...SKINS.map(s => ({ id: s.id, name: s.name, rarity: s.rarity, price: s.price, type: 'skins', thumb: s.url, expiresAt: s.expiresAt })),
     ...INSTRUMENTS.map(i => ({ id: i.id, name: i.name, rarity: i.rarity, price: i.price, type: 'instruments', thumb: i.url })),
     ...BACKGROUNDS.map(b => ({ id: b.id, name: b.name, rarity: b.rarity, price: b.price, type: 'backgrounds', thumb: b.url })),
     ...FONTS.map(f => ({ id: f.id, name: f.name, rarity: f.rarity, price: f.price, type: 'fonts', thumb: 'https://placehold.co/400x400/111/fff?text=FONTE' })),
     ...TILES.map(t => ({ id: t.id, name: t.name, rarity: t.rarity, price: t.price, type: 'tiles', thumb: 'https://placehold.co/400x400/222/fff?text=MOLDURA' })),
-  ];
+  ].filter(item => {
+    if (item.expiresAt && todayStr > item.expiresAt) {
+      return false;
+    }
+    return true;
+  });
 
   const filteredItems = filter === 'all' ? allItems : allItems.filter(i => i.type === filter);
 
@@ -57,7 +64,10 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
           <h3 className="text-[#ffeb3b] font-black uppercase text-xl tracking-widest flex items-center gap-2 drop-shadow-md">
             <span>🛒</span> LOJA PREMIUM
           </h3>
-          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider ml-8">Temporada 1 - Fundação</span>
+          <div className="flex flex-col ml-8">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Temporada 1 - Fundação</span>
+            <span className="text-[9px] text-[#ffeb3b] font-black uppercase tracking-widest animate-pulse mt-0.5">⚠️ TODOS OS ITENS SERÃO TROCADOS NO DIA 20 DE JULHO!</span>
+          </div>
         </div>
 
         <div className="flex items-start gap-4">
@@ -119,6 +129,11 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
                       <span className={`text-[8px] font-black px-1.5 py-0.5 border uppercase tracking-widest shadow-md ${getRarityTagClass(item.rarity)}`}>
                         {item.rarity}
                       </span>
+                      {item.expiresAt && (
+                        <span className="bg-red-600 text-white text-[7px] font-black px-1.5 py-0.5 border border-red-500 uppercase tracking-widest shadow-md animate-pulse">
+                          ⏳ Limite: 20/07
+                        </span>
+                      )}
                     </div>
 
                     {/* Efeito de Aura (Fumaça) */}
@@ -233,6 +248,11 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
             }`}>
               {selectedItem.rarity}
             </span>
+            {selectedItem.expiresAt && (
+              <span className="text-red-500 font-bold text-xs uppercase tracking-widest mt-1 animate-pulse">
+                🚨 Indisponível após 20/07/2026 (Temporada Copa do Mundo)
+              </span>
+            )}
 
             {isItemOwned(selectedItem.id) ? (
               <div className="mt-4 bg-[#1a2e1f] text-[#4ade80] px-12 py-4 border-2 border-[#4ade80]/30 font-black text-xl uppercase shadow-[6px_6px_0_rgba(0,0,0,1)]">

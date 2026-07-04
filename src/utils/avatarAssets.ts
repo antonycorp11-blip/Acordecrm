@@ -6,6 +6,7 @@ export interface AvatarSkin {
   price: number;
   gender: 'M' | 'F';
   url: string;
+  expiresAt?: string;
 }
 
 export interface AvatarInstrument {
@@ -88,6 +89,23 @@ export const SKINS: AvatarSkin[] = [
     id: 'skin_f_5', name: 'Stella - Lenda', rarity: 'Lendário', price: 3500, gender: 'F',
     url: '/assets/avatars/skin_f_5/idle.png'
   },
+  // Especial Copa do Mundo (Lendas - Limitado até 20/07/2026)
+  {
+    id: 'skin_copa_neymar', name: 'Neymar - Copa', rarity: 'Lendário', price: 25000, gender: 'M',
+    url: '/assets/avatars/copa/neymar.jpeg', expiresAt: '2026-07-20'
+  },
+  {
+    id: 'skin_copa_ronaldo', name: 'C. Ronaldo - Copa', rarity: 'Lendário', price: 25000, gender: 'M',
+    url: '/assets/avatars/copa/ronaldo.jpeg', expiresAt: '2026-07-20'
+  },
+  {
+    id: 'skin_copa_messi', name: 'Messi - Copa', rarity: 'Lendário', price: 25000, gender: 'M',
+    url: '/assets/avatars/copa/messi.jpeg', expiresAt: '2026-07-20'
+  },
+  {
+    id: 'skin_copa_vinicius', name: 'Vini Jr - Copa', rarity: 'Lendário', price: 25000, gender: 'M',
+    url: '/assets/avatars/copa/vinicius.jpeg', expiresAt: '2026-07-20'
+  }
 ];
 
 export const INSTRUMENTS: AvatarInstrument[] = [

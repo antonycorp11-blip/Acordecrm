@@ -819,25 +819,45 @@ export default function AreaAluno() {
       let finalVideoUrl = '';
       setUploadProgress(20);
       
-      // Tentativa de upload direto para o Supabase Storage (bucket 'uploads' correto)
-      try {
-          const nomeAlunoSafe = (alunoData?.nome || 'Aluno').replace(/[^a-zA-Z0-9]/g, '_');
-          const filename = `treinos/${nomeAlunoSafe}_${Date.now()}.${extensao}`;
-          
-          const { error } = await supabase.storage.from('uploads').upload(filename, videoBlob, {
-              contentType: mime,
-              upsert: true
-          });
-          
-          if (!error) {
-              setUploadProgress(80);
-              const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
-              finalVideoUrl = publicUrlData.publicUrl;
-          } else {
-              console.warn('Falha no upload direto para o Supabase, usando fallback do backend...', error);
+      // Tentativa de upload direto para o Supabase Storage com resiliência (retry de 3 vezes)
+      let uploadSuccess = false;
+      let uploadAttempts = 3;
+      const nomeAlunoSafe = (alunoData?.nome || 'Aluno').replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `treinos/${nomeAlunoSafe}_${Date.now()}.${extensao}`;
+
+      for (let attempt = 1; attempt <= uploadAttempts; attempt++) {
+          try {
+              console.log(`Tentativa ${attempt} de upload direto para o Supabase...`);
+              const { error } = await supabase.storage.from('uploads').upload(filename, videoBlob, {
+                  contentType: mime,
+                  upsert: true
+              });
+              
+              if (!error) {
+                  setUploadProgress(80);
+                  const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
+                  finalVideoUrl = publicUrlData.publicUrl;
+                  uploadSuccess = true;
+                  break; // Sucesso!
+              } else {
+                  console.warn(`Tentativa ${attempt} falhou:`, error.message);
+                  if (attempt < uploadAttempts) {
+                      await new Promise(resolve => setTimeout(resolve, 1500 * attempt)); // Delay progressivo
+                  }
+              }
+          } catch (err: any) {
+              console.warn(`Exceção na tentativa ${attempt}:`, err.message || err);
+              if (attempt < uploadAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+              }
           }
-      } catch (err) {
-          console.warn('Exceção no upload direto para o Supabase, usando fallback do backend...', err);
+      }
+
+      if (!uploadSuccess) {
+          console.warn('Todas as 3 tentativas de upload direto para o Supabase falharam. Usando fallback do backend.');
+          if (videoBlob.size > 4.5 * 1024 * 1024) {
+              toast.warning('Conexão oscilou! Como seu vídeo é grande (>4.5MB), o envio pode falhar. Recomendamos usar Wi-Fi estável ou reduzir a duração do vídeo.');
+          }
       }
 
       setUploadProgress(85);

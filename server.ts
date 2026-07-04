@@ -745,16 +745,28 @@ async function startServer() {
                 finalPontos *= 2;
             }
 
-            const novoXp = (Number(aluno.xp) || 0) + finalPontos;
+            // Verificar no system_config se jogos dão XP (God Mode Config)
+            const { data: configXp } = await supabase
+                .from('system_config')
+                .select('key_value')
+                .eq('key_name', 'JOGOS_DAO_XP')
+                .maybeSingle();
+
+            const jogosDaoXp = configXp?.key_value === 'true';
+
+            const novoXp = jogosDaoXp ? ((Number(aluno.xp) || 0) + finalPontos) : (Number(aluno.xp) || 0);
             const novasMoedas = (Number(aluno.acorde_coins) || 0) + finalPontos;
             
             await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
 
             // Adiciona no feed
             const jogoNomeFormatado = jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'UM JOGO';
-            await addToFeed(aluno.id, 'jogo', `${aluno.nome} acabou de jogar ${jogoNomeFormatado} e ganhou +${finalPontos} XP! 🎮`, '🎮');
+            const feedMsg = jogosDaoXp 
+                ? `${aluno.nome} acabou de jogar ${jogoNomeFormatado} e ganhou +${finalPontos} XP! 🎮`
+                : `${aluno.nome} acabou de jogar ${jogoNomeFormatado} e ganhou +${finalPontos} Coins! 🎮`;
+            await addToFeed(aluno.id, 'jogo', feedMsg, '🎮');
 
-            res.json({ success: true, novoXp, novasMoedas, finalPontos });
+            res.json({ success: true, novoXp, novasMoedas, finalPontos, jogosDaoXp });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
@@ -3747,6 +3759,78 @@ async function startServer() {
             console.error('Error posting to feed:', error);
             res.status(500).json({ error: error.message });
         }
+    });
+
+    // --- GOD MODE ENDPOINTS (EXCLUSIVO ANTHONY) ---
+    app.get('/api/godmode/status', async (req: any, res) => {
+        try {
+            const email = req.user?.email || '';
+            if (!email.toLowerCase().startsWith('anthonycorp11')) {
+                return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
+            }
+            const { data, error } = await supabase.from('system_config').select('key_value').eq('key_name', 'JOGOS_DAO_XP').maybeSingle();
+            if (error) throw error;
+            res.json({ jogos_dao_xp: data?.key_value === 'true' });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/godmode/config-xp', async (req: any, res) => {
+        try {
+            const email = req.user?.email || '';
+            if (!email.toLowerCase().startsWith('anthonycorp11')) {
+                return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
+            }
+            const { enabled } = req.body;
+            const strVal = enabled ? 'true' : 'false';
+            
+            const { data: existing } = await supabase.from('system_config').select('id').eq('key_name', 'JOGOS_DAO_XP').maybeSingle();
+            let err;
+            if (existing) {
+                const { error } = await supabase.from('system_config').update({ key_value: strVal }).eq('key_name', 'JOGOS_DAO_XP');
+                err = error;
+            } else {
+                const { error } = await supabase.from('system_config').insert([{ key_name: 'JOGOS_DAO_XP', key_value: strVal }]);
+                err = error;
+            }
+            if (err) throw err;
+            res.json({ success: true, jogos_dao_xp: enabled });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/godmode/creditar', async (req: any, res) => {
+        try {
+            const email = req.user?.email || '';
+            if (!email.toLowerCase().startsWith('anthonycorp11')) {
+                return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
+            }
+            const { aluno_id, tipo, valor } = req.body;
+            if (!aluno_id || !tipo || isNaN(Number(valor))) {
+                return res.status(400).json({ error: 'Parâmetros inválidos.' });
+            }
+            
+            const valorNum = Number(valor);
+            const { data: aluno, error: getErr } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').eq('id', aluno_id).single();
+            if (getErr || !aluno) return res.status(404).json({ error: 'Aluno não encontrado.' });
+            
+            let updatePayload: any = {};
+            if (tipo === 'xp') {
+                updatePayload.xp = (Number(aluno.xp) || 0) + valorNum;
+            } else if (tipo === 'moedas') {
+                updatePayload.acorde_coins = (Number(aluno.acorde_coins) || 0) + valorNum;
+            } else {
+                return res.status(400).json({ error: 'Tipo inválido.' });
+            }
+            
+            const { error: updErr } = await supabase.from('alunos').update(updatePayload).eq('id', aluno_id);
+            if (updErr) throw updErr;
+            
+            const msg = tipo === 'xp' 
+                ? `O Administrador creditou +${valorNum} XP para o aluno ${aluno.nome}! ✨` 
+                : `O Administrador creditou +${valorNum} Acorde Coins para o aluno ${aluno.nome}! 💰`;
+            await addToFeed(aluno.id, 'admin', msg, '⚡');
+            
+            res.json({ success: true, novoValor: tipo === 'xp' ? updatePayload.xp : updatePayload.acorde_coins });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
     // 2. Avatar

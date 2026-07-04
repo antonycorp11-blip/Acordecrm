@@ -324,6 +324,13 @@ export default function AreaProfessor() {
   // Histórico Financeiro
   const [isFinanceiroModalOpen, setIsFinanceiroModalOpen] = useState(false);
 
+  // Estados do God Mode (Anthony)
+  const [godModeActive, setGodModeActive] = useState(false);
+  const [godModeJogosXp, setGodModeJogosXp] = useState(false);
+  const [godModeSelectedAluno, setGodModeSelectedAluno] = useState('');
+  const [godModeAmount, setGodModeAmount] = useState('');
+  const [godModeLoading, setGodModeLoading] = useState(false);
+
   // Estados do Ranking e Conquistas
   const [rankingData, setRankingData] = useState<any[]>([]);
   const [conquistasList, setConquistasList] = useState<any[]>([]);
@@ -570,6 +577,16 @@ export default function AreaProfessor() {
         .then(data => {
           if (data.success) setDoublePointsGame(data.doublePointsGame);
         }).catch(console.error);
+
+      // Fetch God Mode status (Anthony apenas)
+      fetch('/api/godmode/status', { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setGodModeActive(true);
+            setGodModeJogosXp(data.jogos_dao_xp);
+          }
+        }).catch(() => console.log('God Mode inativo para este perfil (esperado).'));
     }
     
     // Atualização em background de notificações de 30 em 30 segundos
@@ -3932,10 +3949,147 @@ export default function AreaProfessor() {
 
 
 
+                {/* ADMIN GOD MODE PANEL (EXCLUSIVO ANTHONY) */}
+                {godModeActive && (
+                  <div className="bg-black border-8 border-yellow-500 p-6 shadow-[12px_12px_0_#ff6b00] text-white space-y-6 mt-5">
+                    <div className="flex items-center justify-between border-b-4 border-yellow-500 pb-3">
+                      <h3 className="text-yellow-500 font-black text-lg uppercase tracking-widest flex items-center gap-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                        ⚡ ADMIN GOD MODE
+                      </h3>
+                      <span className="bg-yellow-500 text-black font-black text-[8px] px-2 py-0.5 uppercase">SYSTEM OVERLORD</span>
+                    </div>
+
+                    {/* Ligar/Desligar XP nos Jogos */}
+                    <div className="flex items-center justify-between bg-[#111] p-4 border-2 border-yellow-500/30">
+                      <div className="space-y-1">
+                        <span className="font-black text-[10px] text-yellow-500 block uppercase">JOGOS GANHAM XP NO RANKING</span>
+                        <p className="text-[8px] text-slate-400 font-mono">
+                          {godModeJogosXp 
+                            ? 'Ativado: Jogar dá moedas e pontua no ranking geral.' 
+                            : 'Desativado: Jogos acumulam apenas moedas (coins).'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const token = localStorage.getItem('acorde_token');
+                          const newVal = !godModeJogosXp;
+                          try {
+                            const res = await fetch('/api/godmode/config-xp', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                              body: JSON.stringify({ enabled: newVal })
+                            });
+                            if (res.ok) {
+                              setGodModeJogosXp(newVal);
+                              toast.success(newVal ? 'XP nos jogos ativado!' : 'XP nos jogos desativado! Apenas moedas.');
+                            } else {
+                              toast.error('Erro ao alterar config de XP.');
+                            }
+                          } catch (e) {
+                            toast.error('Falha de rede.');
+                          }
+                        }}
+                        className={`px-4 py-2 border-2 border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all ${
+                          godModeJogosXp ? 'bg-[#00FF41] text-black' : 'bg-red-600 text-white'
+                        }`}
+                      >
+                        {godModeJogosXp ? 'LIGADO' : 'DESLIGADO'}
+                      </button>
+                    </div>
+
+                    {/* Creditar Moedas ou XP para Aluno */}
+                    <div className="bg-[#111] p-4 border-2 border-yellow-500/30 space-y-4">
+                      <span className="font-black text-[10px] text-yellow-500 block uppercase">⚡ INJETAR RECURSOS EM ALUNO</span>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[7px] text-slate-400 font-mono uppercase">SELECIONE O ALUNO</label>
+                          <select
+                            value={godModeSelectedAluno}
+                            onChange={(e) => setGodModeSelectedAluno(e.target.value)}
+                            className="w-full bg-black border-2 border-yellow-500/30 p-2 text-[10px] font-black uppercase text-white outline-none focus:border-yellow-500"
+                          >
+                            <option value="">-- SELECIONE --</option>
+                            {alunosList.map(aluno => (
+                              <option key={aluno.id} value={aluno.id}>{aluno.nome}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[7px] text-slate-400 font-mono uppercase">QUANTIDADE</label>
+                          <input
+                            type="number"
+                            placeholder="EX: 1000"
+                            value={godModeAmount}
+                            onChange={(e) => setGodModeAmount(e.target.value)}
+                            className="w-full bg-black border-2 border-yellow-500/30 p-2 text-[10px] font-black uppercase text-white outline-none focus:border-yellow-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          disabled={godModeLoading}
+                          onClick={async () => {
+                            if (!godModeSelectedAluno || !godModeAmount) return toast.error('Selecione o aluno e o valor!');
+                            setGodModeLoading(true);
+                            const token = localStorage.getItem('acorde_token');
+                            try {
+                              const res = await fetch('/api/godmode/creditar', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                body: JSON.stringify({ aluno_id: godModeSelectedAluno, tipo: 'moedas', valor: godModeAmount })
+                              });
+                              if (res.ok) {
+                                toast.success(`Creditado +${godModeAmount} Moedas com sucesso!`);
+                                setGodModeAmount('');
+                              } else {
+                                const err = await res.json();
+                                toast.error(err.error || 'Erro ao creditar moedas.');
+                              }
+                            } catch (e) { toast.error('Erro de rede.'); }
+                            setGodModeLoading(false);
+                          }}
+                          className="flex-1 bg-yellow-500 text-black font-black text-[9px] py-3 border-2 border-black shadow-[3px_3px_0_#ff6b00] active:translate-y-0.5 active:shadow-none hover:bg-yellow-400 transition-all uppercase"
+                        >
+                          💰 CREDITAR MOEDAS
+                        </button>
+                        <button
+                          disabled={godModeLoading}
+                          onClick={async () => {
+                            if (!godModeSelectedAluno || !godModeAmount) return toast.error('Selecione o aluno e o valor!');
+                            setGodModeLoading(true);
+                            const token = localStorage.getItem('acorde_token');
+                            try {
+                              const res = await fetch('/api/godmode/creditar', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                body: JSON.stringify({ aluno_id: godModeSelectedAluno, tipo: 'xp', valor: godModeAmount })
+                              });
+                              if (res.ok) {
+                                toast.success(`Creditado +${godModeAmount} XP com sucesso!`);
+                                setGodModeAmount('');
+                              } else {
+                                const err = await res.json();
+                                toast.error(err.error || 'Erro ao creditar XP.');
+                              }
+                            } catch (e) { toast.error('Erro de rede.'); }
+                            setGodModeLoading(false);
+                          }}
+                          className="flex-1 bg-[#00FF41] text-black font-black text-[9px] py-3 border-2 border-black shadow-[3px_3px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#39ff68] transition-all uppercase"
+                        >
+                          ✨ CREDITAR XP
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Botão Logout Vermelho Gigante */}
                 <button
                   onClick={logout}
-                  className="w-full bg-[#ff3333] hover:bg-red-700 text-white py-4 border-8 border-black font-black uppercase text-sm shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3"
+                  className="w-full bg-[#ff3333] hover:bg-red-700 text-white py-4 border-8 border-black font-black uppercase text-sm shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3 mt-5"
                 >
                   <LogOut className="w-5 h-5" /> SAIR DA MINHA CONTA
                 </button>
