@@ -123,6 +123,14 @@ const authenticateToken = (req: any, res: any, next: any) => {
     });
 };
 
+// Middleware para validar se o usuário é Administrador
+const requireAdmin = (req: any, res: any, next: any) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Acesso negado: Apenas administradores.' });
+    }
+    next();
+};
+
 function isHoliday(date: Date) {
     const day = date.getDate();
     const month = date.getMonth() + 1;
@@ -426,7 +434,7 @@ async function startServer() {
         }
     });
     // --- Usuários (Acessos) ---
-    app.get('/api/usuarios', async (req, res) => {
+    app.get('/api/usuarios', requireAdmin, async (req, res) => {
         try {
             const { data, error } = await supabase.from('usuarios').select('id, nome, email, role, senha_plana').order('nome');
             if (error) throw error;
@@ -434,7 +442,7 @@ async function startServer() {
         } catch (error) { res.status(500).json({ error: 'Erro ao buscar usuários' }); }
     });
 
-    app.post('/api/usuarios', async (req, res) => {
+    app.post('/api/usuarios', requireAdmin, async (req, res) => {
         try {
             const { nome, email, password, senha, role } = req.body;
             const effectivePassword = password || senha;
@@ -454,7 +462,7 @@ async function startServer() {
         } catch (error) { res.status(500).json({ error: 'Erro ao criar usuário' }); }
     });
 
-    app.put('/api/usuarios/:id', async (req, res) => {
+    app.put('/api/usuarios/:id', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { nome, email, role, password, senha } = req.body;
@@ -472,7 +480,7 @@ async function startServer() {
         } catch (error) { res.status(500).json({ error: 'Erro ao atualizar usuário' }); }
     });
 
-    app.delete('/api/usuarios/:id', async (req, res) => {
+    app.delete('/api/usuarios/:id', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { error } = await supabase.from('usuarios').delete().eq('id', id);
@@ -884,12 +892,8 @@ async function startServer() {
         }
     });
 
-    app.get('/api/alunos/:id/financeiro', async (req, res) => {
-        const { id } = req.params;
-        const { data, error } = await supabase.from('pagamentos').select('*').eq('aluno_id', id).order('data_vencimento', { ascending: true });
-        if (error) return res.status(500).json({ error: error.message });
-        res.json(data);
-    });
+
+
 
     app.get('/api/alunos/:id/materiais', async (req, res) => {
         const { id } = req.params;
@@ -984,7 +988,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.delete('/api/alunos/:id', async (req, res) => {
+    app.delete('/api/alunos/:id', requireAdmin, async (req, res) => {
         try {
             const { error } = await supabase.from('alunos').update({ status: 'arquivado' }).eq('id', req.params.id);
             if (error) throw error;
@@ -992,14 +996,14 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.patch('/api/alunos/:id', async (req, res) => {
+    app.patch('/api/alunos/:id', requireAdmin, async (req, res) => {
         try {
             const studentId = req.params.id;
             const { 
                 nome, email, telefone, cpf, endereco, 
                 responsavel_nome, responsavel_telefone, 
                 curso_id, dia_semana, horario,
-                valor_parcela, valor_com_desconto
+                valor_parcela, valor_com_desconto, dia_vencimento
             } = req.body;
             
             console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id, dia_semana, horario });
@@ -1024,6 +1028,7 @@ async function startServer() {
             if (horario !== undefined && horario !== '') matUpdate.horario = horario;
             if (valor_parcela !== undefined && valor_parcela !== '') matUpdate.valor_parcela = Number(valor_parcela);
             if (valor_com_desconto !== undefined && valor_com_desconto !== '') matUpdate.valor_com_desconto = Number(valor_com_desconto);
+            if (dia_vencimento !== undefined && dia_vencimento !== '') matUpdate.dia_vencimento = Number(dia_vencimento);
 
             console.log(`[MATRICULA_UPDATE] Aluno ${studentId}, payload:`, matUpdate);
 
@@ -1074,18 +1079,28 @@ async function startServer() {
                     console.log(`[MATRICULA_UPDATE] Sucesso! Matrícula ${matriculaId} atualizada com:`, matUpdate);
 
                     // Atualizar pagamentos pendentes
-                    if (matUpdate.valor_parcela !== undefined) {
-                        const { error: pagError } = await supabase
+                    if (matUpdate.valor_parcela !== undefined || matUpdate.dia_vencimento !== undefined) {
+                        const { data: pendentes } = await supabase
                             .from('pagamentos')
-                            .update({ valor: matUpdate.valor_parcela })
+                            .select('id, data_vencimento')
                             .eq('aluno_id', studentId)
                             .eq('status', 'pendente')
                             .eq('tipo_receita', 'mensalidade');
-                            
-                        if (pagError) {
-                            console.error('[PAGAMENTOS_UPDATE_ERROR]:', pagError);
-                        } else {
-                            console.log(`[PAGAMENTOS_UPDATE] Pagamentos pendentes atualizados para ${matUpdate.valor_parcela}.`);
+
+                        if (pendentes && pendentes.length > 0) {
+                            for (const pg of pendentes) {
+                                const updatePg: any = {};
+                                if (matUpdate.valor_parcela !== undefined) updatePg.valor = matUpdate.valor_parcela;
+                                if (matUpdate.dia_vencimento !== undefined && pg.data_vencimento) {
+                                    const parts = pg.data_vencimento.split('-');
+                                    if (parts.length === 3) {
+                                        parts[2] = matUpdate.dia_vencimento.toString().padStart(2, '0');
+                                        updatePg.data_vencimento = parts.join('-');
+                                    }
+                                }
+                                await supabase.from('pagamentos').update(updatePg).eq('id', pg.id);
+                            }
+                            console.log('[PAGAMENTOS_UPDATE] Pagamentos pendentes atualizados.');
                         }
                     }
 
@@ -1433,7 +1448,7 @@ async function startServer() {
         res.json(formatted || []);
     });
 
-    app.post('/api/alunos', async (req, res) => {
+    app.post('/api/alunos', requireAdmin, async (req, res) => {
         try {
             const { 
                 nome, email, telefone, cpf, endereco, curso_id, professor_id, 
@@ -1993,7 +2008,7 @@ async function startServer() {
     });
 
     // Pagamentos Global
-    app.get('/api/pagamentos', async (req, res) => {
+    app.get('/api/pagamentos', requireAdmin, async (req, res) => {
         try {
             const { mes, desconto_dia_10 } = req.query;
             const applyDiscount = desconto_dia_10 === 'true';
@@ -2096,7 +2111,7 @@ async function startServer() {
     });
 
     // Adicionar entrada extra (ensaio, aluguel, multa, etc)
-    app.post('/api/pagamentos/entrada-extra', async (req, res) => {
+    app.post('/api/pagamentos/entrada-extra', requireAdmin, async (req, res) => {
         try {
             const { descricao, valor, tipo_receita, data_vencimento, referencia_mes_ano, aluno_id } = req.body;
             const now = new Date();
@@ -2118,7 +2133,7 @@ async function startServer() {
     // ENDPOINTS DE DESPESAS (CONTAS A PAGAR)
     // ==========================================
 
-    app.get('/api/despesas', async (req, res) => {
+    app.get('/api/despesas', requireAdmin, async (req, res) => {
         try {
             const { mes } = req.query;
             const now = new Date();
@@ -2139,7 +2154,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.post('/api/despesas', async (req, res) => {
+    app.post('/api/despesas', requireAdmin, async (req, res) => {
         try {
             const { descricao, valor, data_vencimento, categoria, tipo_recorrencia, total_parcelas, professor_id } = req.body;
             
@@ -2211,7 +2226,7 @@ async function startServer() {
     });
 
     // Resumo financeiro do mês
-    app.get('/api/financeiro/resumo', async (req, res) => {
+    app.get('/api/financeiro/resumo', requireAdmin, async (req, res) => {
         try {
             const { mes, desconto_dia_10 } = req.query;
             const applyDiscount = desconto_dia_10 === 'true';
@@ -2359,7 +2374,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.get('/api/financeiro/remuneracao', async (req, res) => {
+    app.get('/api/financeiro/remuneracao', requireAdmin, async (req, res) => {
         try {
             const { mes_ano } = req.query;
             if (!mes_ano || typeof mes_ano !== 'string') return res.status(400).json({ error: 'mes_ano inválido' });
