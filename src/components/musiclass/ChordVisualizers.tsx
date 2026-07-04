@@ -188,19 +188,19 @@ export const KeyboardVisualizer: React.FC<{
   const fullChordName = isCustom ? root : `${root}${displayType}${displayExt}${displayBass}`;
 
   return (
-    <div className="flex flex-col bg-[#fcfcfc] border-4 border-black shadow-[6px_6px_0_#000] rounded-lg w-full max-w-[480px] mx-auto font-['Inter'] overflow-hidden">
-      {/* Header */}
-      <div className="bg-[#261812] py-4 px-5 flex justify-between items-center">
-        <h5 className="text-xl sm:text-2xl font-black text-[#ff6b00] tracking-tight">{fullChordName}</h5>
-        <div className="flex gap-2">
+    <div className="flex flex-col bg-[#fcfcfc] border-2 border-black shadow-[3px_3px_0_#000] rounded-lg w-full max-w-[480px] mx-auto font-['Space_Mono'] overflow-hidden">
+      {/* Header Compactado */}
+      <div className="bg-[#261812] py-1.5 px-3.5 flex justify-between items-center">
+        <h5 className="text-sm font-black text-[#ff6b00] tracking-tight leading-none">{fullChordName}</h5>
+        <div className="flex gap-1.5">
           {chordNotes.map((n, i) => (
-            <span key={i} className="text-sm sm:text-base font-black text-white uppercase">{translateNote(n)}</span>
+            <span key={i} className="text-[10px] font-black text-white/90 uppercase leading-none">{translateNote(n)}</span>
           ))}
         </div>
       </div>
 
       <div className="flex flex-col items-center">
-        <div className="relative w-full aspect-[2.5/1] bg-[#1a1a1a] border-t-4 border-black">
+        <div className="relative w-full aspect-[3.4/1] bg-[#1a1a1a] border-t-2 border-black">
           {/* Teclado */}
           <div className="relative w-full h-full flex bg-[#261812] overflow-hidden">
             {/* White Keys */}

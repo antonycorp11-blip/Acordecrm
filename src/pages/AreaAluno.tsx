@@ -50,45 +50,30 @@ const translateNote = (note: string): string => {
 
 // Subcomponente de visualização inteligente de acordes
 function LessonChords({ chords, currentInstrument }: { chords: any[], currentInstrument: string }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [expanded, setExpanded] = useState(false);
-
   if (!chords || chords.length === 0) return null;
 
-  const handlePrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCurrentIndex((prev) => (prev === 0 ? chords.length - 1 : prev - 1));
-  };
-
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCurrentIndex((prev) => (prev === chords.length - 1 ? 0 : prev + 1));
-  };
+  // Agrupa os acordes pelo campo .group || 'GERAL'
+  const grouped = chords.reduce((groups: Record<string, any[]>, chord) => {
+    const groupName = (chord.group || 'GERAL').toUpperCase();
+    if (!groups[groupName]) groups[groupName] = [];
+    groups[groupName].push(chord);
+    return groups;
+  }, {});
 
   return (
-    <div className="bg-white border-4 border-black p-3 shadow-[4px_4px_0_#000] font-['Space_Mono'] select-none">
-      <div className="flex justify-between items-center mb-3 pb-2 border-b-2 border-dashed border-[#e2bfb0]">
-        <span className="text-[9px] font-black text-black uppercase tracking-wider flex items-center gap-1">
-          🎸 ACORDES SUGERIDOS ({chords.length})
-        </span>
-        <button 
-          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} 
-          className="bg-black text-[#feccba] border-2 border-black font-black text-[8px] px-2 py-1 uppercase hover:bg-[#ff6b00] hover:text-white transition-colors"
-        >
-          {expanded ? '▲ CARROSSEL' : '🔍 VER TODOS'}
-        </button>
-      </div>
-
-      {expanded ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2 max-h-[420px] overflow-y-auto scrollbar-thin w-full">
-          {chords.map((ch, idx) => {
-            const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
-            return (
-              <div key={idx} className="w-full flex flex-col items-center border-4 border-black p-3 bg-[#fff8f6] shadow-[4px_4px_0_#000]">
-                <span className="text-[8px] font-black text-[#8e7164] uppercase mb-2">
-                  ACORDE {idx + 1} DE {chords.length} • {ch.root}{ch.typeId || ''}
-                </span>
-                <div className="w-full flex justify-center">
+    <div className="space-y-6 select-none font-['Space_Mono'] w-full">
+      {Object.entries(grouped).map(([groupName, groupChords]) => (
+        <div key={groupName} className="bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000] space-y-3">
+          {/* Tag preta com o nome da seção/grupo */}
+          <div className="bg-black text-[#ff6b00] px-3 py-1 text-[9px] font-black uppercase tracking-widest inline-block shadow-[2px_2px_0_#000]">
+            SEÇÃO: {groupName}
+          </div>
+          
+          {/* Grid de acordes daquela seção */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {groupChords.map((ch, idx) => (
+              <div key={idx} className="w-full flex flex-col items-center">
+                <div className="w-full">
                   <ChordVisualizer
                     instrument={ch.instrument || currentInstrument}
                     chordNotes={ch.notes || []}
@@ -101,44 +86,10 @@ function LessonChords({ chords, currentInstrument }: { chords: any[], currentIns
                   />
                 </div>
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center relative py-1">
-          <div className="w-full flex items-center justify-between gap-2">
-            <button 
-              onClick={handlePrev} 
-              className="bg-[#feccba] border-2 border-black font-black text-xs px-2 py-1 shrink-0 hover:bg-[#ff6b00] hover:text-white transition-all shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none"
-            >
-              ◀
-            </button>
-            <div className="flex-1 flex flex-col items-center min-w-0">
-              <span className="text-[8px] font-black text-[#8e7164] uppercase mb-1">
-                ACORDE {currentIndex + 1} DE {chords.length} • {chords[currentIndex].root}{chords[currentIndex].typeId || ''}
-              </span>
-              <div className="flex justify-center w-full overflow-hidden">
-                <ChordVisualizer
-                  instrument={chords[currentIndex].instrument || currentInstrument}
-                  chordNotes={chords[currentIndex].notes || []}
-                  root={chords[currentIndex].root}
-                  type={chords[currentIndex].typeId}
-                  ext={chords[currentIndex].extId}
-                  bass={chords[currentIndex].bass}
-                  notesWithIndices={chords[currentIndex].notesWithIndices}
-                  isCustom={chords[currentIndex].isCustom}
-                />
-              </div>
-            </div>
-            <button 
-              onClick={handleNext} 
-              className="bg-[#feccba] border-2 border-black font-black text-xs px-2 py-1 shrink-0 hover:bg-[#ff6b00] hover:text-white transition-all shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none"
-            >
-              ▶
-            </button>
+            ))}
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -1198,8 +1149,30 @@ export default function AreaAluno() {
   };
 
   if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-[#1a0a05] text-[#ff6b00] font-black uppercase tracking-widest animate-pulse">
-      CONECTANDO AO MUSIC_HUB...
+    <div className="flex h-screen w-screen flex-col items-center justify-center bg-[#1a0a05] text-[#ff6b00] font-['Space_Mono'] select-none">
+      <style>{`
+        @keyframes splashLoading {
+          0% { width: 0%; }
+          50% { width: 65%; }
+          100% { width: 100%; }
+        }
+      `}</style>
+      <div className="flex flex-col items-center gap-6 max-w-[280px] w-full text-center">
+        <img 
+          src="/assets/Logo Laranja.png" 
+          alt="Studio Acorde" 
+          className="w-48 object-contain animate-pulse" 
+        />
+        <div className="w-full h-5 bg-[#261812] border-4 border-black p-0.5 overflow-hidden shadow-[2px_2px_0_#000]">
+          <div 
+            className="h-full bg-[#ff6b00]"
+            style={{ animation: 'splashLoading 2s infinite ease-in-out' }}
+          />
+        </div>
+        <span className="text-[9px] font-black tracking-widest uppercase text-[#8e7164] animate-pulse">
+          Carregando...
+        </span>
+      </div>
     </div>
   );
 
@@ -1751,65 +1724,6 @@ export default function AreaAluno() {
           {/* ===== ABA: TREINO (SISTEMA DE TREINO DIÁRIO) ===== */}
           {activeTab === 'treino' && (
             <div className="px-4 py-5 space-y-6">
-              
-              {/* Diário de Evolução (Fichas de Aula em Quadradinhos Horizontais) */}
-              <div className="pt-2">
-                <div className="flex items-center gap-3 mb-4">
-                  <h3 className="text-white font-black text-xs uppercase tracking-widest">DIÁRIO_DE_EVOLUÇÃO</h3>
-                  <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-                </div>
-
-                {/* Grid horizontal com scroll lateral */}
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide select-none">
-                  {aulasRealizadas.map((aula: any) => {
-                    const dataFormatada = format(new Date(aula.data + 'T12:00:00Z'), "dd/MMM", { locale: ptBR }).toUpperCase();
-                    
-                    // Pega um tema curto
-                    let temaCurto = '';
-                    try {
-                      if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
-                        const parsed = JSON.parse(aula.conteudo);
-                        temaCurto = parsed.conteudoText || '';
-                      } else {
-                        temaCurto = aula.conteudo || '';
-                      }
-                    } catch {
-                      temaCurto = aula.conteudo || '';
-                    }
-                    if (temaCurto.length > 28) {
-                      temaCurto = temaCurto.substring(0, 25) + '...';
-                    }
-
-                    return (
-                      <div
-                        key={aula.id}
-                        onClick={() => setSelectedFicha(aula)}
-                        className="w-32 h-32 flex-shrink-0 bg-[#fff8f6] border-4 border-black p-3 flex flex-col justify-between shadow-[4px_4px_0_#000] cursor-pointer hover:translate-y-[-2px] active:translate-y-[0px] active:shadow-none transition-all"
-                      >
-                        <div className="space-y-1">
-                          <span className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider block">
-                            {dataFormatada}
-                          </span>
-                          <p className="text-black font-black text-[9px] uppercase leading-tight line-clamp-3">
-                            {temaCurto || 'AULA REGULAR'}
-                          </p>
-                        </div>
-                        <div className="flex justify-between items-center mt-2 border-t border-black/15 pt-1.5">
-                          <span className="text-[7.5px] font-black text-[#ff6b00] uppercase hover:underline">ABRIR →</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {aulasRealizadas.length === 0 && (
-                    <div className="w-full p-6 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
-                      <p className="text-[#8e7164] font-black text-[8px] uppercase tracking-tighter">
-                        NENHUM REGISTRO DE AULA CONCLUÍDO AINDA.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
 
               {/* Header Retro */}
               <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden flex flex-col gap-2">
@@ -1991,7 +1905,7 @@ export default function AreaAluno() {
 
                 return (
                   <div className="fixed inset-0 bg-[#261812]/95 md:bg-black/80 z-[150] flex items-stretch md:items-center justify-center p-0 md:p-4 overflow-y-auto">
-                    <div className="bg-[#fff8f6] border-0 md:border-8 border-black p-4 md:p-5 shadow-none md:shadow-[8px_8px_0_#000] w-full max-w-full md:max-w-[600px] min-h-screen md:min-h-0 flex flex-col space-y-4 relative font-['Space_Mono'] text-black select-none">
+                    <div className="bg-[#fff8f6] border-0 md:border-8 border-black pt-16 pb-6 px-4 md:p-5 shadow-none md:shadow-[8px_8px_0_#000] w-full max-w-full md:max-w-[600px] min-h-screen md:min-h-0 flex flex-col space-y-4 relative font-['Space_Mono'] text-black select-none">
                       
                       {/* Header Modal */}
                       <div className="flex justify-between items-start border-b-4 border-black pb-3">
@@ -2005,7 +1919,7 @@ export default function AreaAluno() {
                         </div>
                         <button
                           onClick={() => setSelectedFicha(null)}
-                          className="bg-black text-[#feccba] border-2 border-black font-black text-[9px] px-3 py-1 shadow-[2px_2px_0_#000] hover:bg-red-600 hover:text-white transition-colors"
+                          className="bg-red-600 text-white border-2 border-black font-black text-[11px] px-3.5 py-1.5 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-black hover:text-[#feccba] transition-all shrink-0"
                         >
                           FECHAR (X)
                         </button>

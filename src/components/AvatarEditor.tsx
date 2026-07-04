@@ -54,8 +54,8 @@ export const AvatarEditor: React.FC<AvatarEditorProps> = ({ alunoId, currentConf
         </label>
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
           {items.map(item => {
-            // Default first items are owned
-            const isOwned = unlockedItems.includes(item.id);
+            // Itens com preço 0 (iniciais) são de propriedade de todos por padrão
+            const isOwned = item.price === 0 || unlockedItems.includes(item.id);
             const isEquipped = config[fieldName] === item.id;
             
             // Get Thumbnail based on item type

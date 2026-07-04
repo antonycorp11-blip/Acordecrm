@@ -3161,6 +3161,34 @@ export default function AreaProfessor() {
   const filteredSolicitacoes = user?.role === 'admin' ? solicitacoesList : solicitacoesList.filter(s => alunosList.some((a: any) => a.id === s.aluno_id));
   const filteredTreinos = user?.role === 'admin' ? treinosAlunos : treinosAlunos.filter(t => alunosList.some((a: any) => a.id === t.aluno_id));
 
+  if (loading) return (
+    <div className="flex h-screen w-screen flex-col items-center justify-center bg-[#1a0a05] text-[#ff6b00] font-['Space_Mono'] select-none">
+      <style>{`
+        @keyframes splashLoading {
+          0% { width: 0%; }
+          50% { width: 65%; }
+          100% { width: 100%; }
+        }
+      `}</style>
+      <div className="flex flex-col items-center gap-6 max-w-[280px] w-full text-center">
+        <img 
+          src="/assets/Logo Laranja.png" 
+          alt="Studio Acorde" 
+          className="w-48 object-contain animate-pulse" 
+        />
+        <div className="w-full h-5 bg-[#261812] border-4 border-black p-0.5 overflow-hidden shadow-[2px_2px_0_#000]">
+          <div 
+            className="h-full bg-[#ff6b00]"
+            style={{ animation: 'splashLoading 2s infinite ease-in-out' }}
+          />
+        </div>
+        <span className="text-[9px] font-black tracking-widest uppercase text-[#8e7164] animate-pulse">
+          Carregando...
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#110804] flex items-center justify-center p-0 md:p-8 overflow-hidden font-['Space_Mono']">
       

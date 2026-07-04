@@ -810,8 +810,30 @@ export default function AlunoPerfil() {
   };
 
   if (loading) return (
-    <div className="flex-1 flex items-center justify-center bg-[#1a0f0a] font-black uppercase tracking-widest text-[#ff6b00] animate-pulse">
-      CONECTANDO AO_PERFIL...
+    <div className="flex h-screen w-screen flex-col items-center justify-center bg-[#1a0a05] text-[#ff6b00] font-['Space_Mono'] select-none">
+      <style>{`
+        @keyframes splashLoading {
+          0% { width: 0%; }
+          50% { width: 65%; }
+          100% { width: 100%; }
+        }
+      `}</style>
+      <div className="flex flex-col items-center gap-6 max-w-[280px] w-full text-center">
+        <img 
+          src="/assets/Logo Laranja.png" 
+          alt="Studio Acorde" 
+          className="w-48 object-contain animate-pulse" 
+        />
+        <div className="w-full h-5 bg-[#261812] border-4 border-black p-0.5 overflow-hidden shadow-[2px_2px_0_#000]">
+          <div 
+            className="h-full bg-[#ff6b00]"
+            style={{ animation: 'splashLoading 2s infinite ease-in-out' }}
+          />
+        </div>
+        <span className="text-[9px] font-black tracking-widest uppercase text-[#8e7164] animate-pulse">
+          Carregando...
+        </span>
+      </div>
     </div>
   );
 
