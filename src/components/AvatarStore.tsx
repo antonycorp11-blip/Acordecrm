@@ -29,6 +29,12 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
       return false;
     }
     return true;
+  }).sort((a, b) => {
+    const aHasExpiry = !!a.expiresAt;
+    const bHasExpiry = !!b.expiresAt;
+    if (aHasExpiry && !bHasExpiry) return -1;
+    if (!aHasExpiry && bHasExpiry) return 1;
+    return 0;
   });
 
   const filteredItems = filter === 'all' ? allItems : allItems.filter(i => i.type === filter);
