@@ -324,7 +324,7 @@ export default function AreaProfessor() {
   // Histórico Financeiro
   const [isFinanceiroModalOpen, setIsFinanceiroModalOpen] = useState(false);
 
-  // Estados do God Mode (Anthony)
+  // Estados do God Mode (Antony)
   const [godModeActive, setGodModeActive] = useState(false);
   const [godModeJogosXp, setGodModeJogosXp] = useState(false);
   const [godModeSelectedAluno, setGodModeSelectedAluno] = useState('');
@@ -578,7 +578,7 @@ export default function AreaProfessor() {
           if (data.success) setDoublePointsGame(data.doublePointsGame);
         }).catch(console.error);
 
-      // Fetch God Mode status (Anthony apenas)
+      // Fetch God Mode status (Antony apenas)
       fetch('/api/godmode/status', { headers: { Authorization: `Bearer ${token}` } })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
@@ -3949,7 +3949,7 @@ export default function AreaProfessor() {
 
 
 
-                {/* ADMIN GOD MODE PANEL (EXCLUSIVO ANTHONY) */}
+                {/* ADMIN GOD MODE PANEL (EXCLUSIVO ANTONY) */}
                 {godModeActive && (
                   <div className="bg-black border-8 border-yellow-500 p-6 shadow-[12px_12px_0_#ff6b00] text-white space-y-6 mt-5">
                     <div className="flex items-center justify-between border-b-4 border-yellow-500 pb-3">

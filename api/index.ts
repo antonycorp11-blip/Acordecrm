@@ -3700,11 +3700,11 @@ async function startServer() {
         }
     });
 
-    // --- GOD MODE ENDPOINTS (EXCLUSIVO ANTHONY) ---
+    // --- GOD MODE ENDPOINTS (EXCLUSIVO ANTONY) ---
     app.get('/api/godmode/status', async (req: any, res) => {
         try {
             const email = req.user?.email || '';
-            if (!email.toLowerCase().startsWith('anthonycorp11')) {
+            if (!email.toLowerCase().startsWith('antonycorp11')) {
                 return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
             }
             const { data, error } = await supabase.from('system_config').select('key_value').eq('key_name', 'JOGOS_DAO_XP').maybeSingle();
@@ -3716,7 +3716,7 @@ async function startServer() {
     app.post('/api/godmode/config-xp', async (req: any, res) => {
         try {
             const email = req.user?.email || '';
-            if (!email.toLowerCase().startsWith('anthonycorp11')) {
+            if (!email.toLowerCase().startsWith('antonycorp11')) {
                 return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
             }
             const { enabled } = req.body;
@@ -3739,7 +3739,7 @@ async function startServer() {
     app.post('/api/godmode/creditar', async (req: any, res) => {
         try {
             const email = req.user?.email || '';
-            if (!email.toLowerCase().startsWith('anthonycorp11')) {
+            if (!email.toLowerCase().startsWith('antonycorp11')) {
                 return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
             }
             const { aluno_id, tipo, valor } = req.body;
