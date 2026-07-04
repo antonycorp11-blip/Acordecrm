@@ -28,6 +28,7 @@ import { FONTS, TILES } from '../utils/avatarAssets';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 import html2canvas from 'html2canvas';
 import html2pdf from 'html2pdf.js';
+import { jsPDF } from 'jspdf';
 import { Download } from 'lucide-react';
 
 // Função para tornar links no texto clicáveis
@@ -79,15 +80,15 @@ function LessonChords({ chords, currentInstrument }: { chords: any[], currentIns
       </div>
 
       {expanded ? (
-        <div className="flex flex-col gap-6 items-center py-2 max-h-[380px] overflow-y-auto scrollbar-thin">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2 max-h-[420px] overflow-y-auto scrollbar-thin w-full">
           {chords.map((ch, idx) => {
             const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
             return (
-              <div key={idx} className="w-full flex flex-col items-center border-2 border-dashed border-[#e2bfb0] p-2 bg-[#fff8f6]">
+              <div key={idx} className="w-full flex flex-col items-center border-4 border-black p-3 bg-[#fff8f6] shadow-[4px_4px_0_#000]">
                 <span className="text-[8px] font-black text-[#8e7164] uppercase mb-2">
                   ACORDE {idx + 1} DE {chords.length} • {ch.root}{ch.typeId || ''}
                 </span>
-                <div className={`overflow-x-auto w-full flex justify-center ${isTeclado ? 'max-w-full' : 'max-w-[180px]'}`}>
+                <div className="w-full flex justify-center">
                   <ChordVisualizer
                     instrument={ch.instrument || currentInstrument}
                     chordNotes={ch.notes || []}
@@ -145,6 +146,7 @@ function LessonChords({ chords, currentInstrument }: { chords: any[], currentIns
 // Modal de visualização de diário pedagógico / Impressão PDF
 function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string, onClose: () => void }) {
   const pdfRef = useRef<HTMLDivElement>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   let richData: any = null;
   try {
     if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
@@ -152,37 +154,78 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
     }
   } catch {}
 
-  const handleDownloadPdf = useReactToPrint({
-    contentRef: pdfRef,
-    documentTitle: () => {
+  const handleDownloadPdf = async () => {
+    if (!pdfRef.current || generatingPdf) return;
+    setGeneratingPdf(true);
+    const toastId = toast.loading('Gerando seu diário em PDF contínuo...');
+
+    try {
+      const element = pdfRef.current;
+      
+      // Temporariamente ajusta a largura para gerar em alta resolução e proporções perfeitas
+      const originalStyle = element.style.cssText;
+      element.style.width = '768px';
+      element.style.maxWidth = '768px';
+      element.style.padding = '32px';
+      
+      const canvas = await html2canvas(element, {
+        scale: 2, // Garante alta definição para zoom no celular
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+      
+      element.style.cssText = originalStyle;
+
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = 210; // Largura A4 padrão em mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      // Cria um PDF de folha única contínua baseado no comprimento exato
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [210, imgHeight + 10]
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 5, imgWidth, imgHeight);
+
       const studentName = alunoNome || 'Aluno';
       const dateStr = aula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(aula.data)) : '';
-
       const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
       const safeDate = dateStr.replace(/\//g, "-");
-      
-      return `Diario_${safeName}_${safeDate}`;
+
+      pdf.save(`Diario_${safeName}_${safeDate}.pdf`);
+      toast.success('Diário em PDF baixado com sucesso!', { id: toastId });
+    } catch (err) {
+      console.error('Erro ao gerar PDF local:', err);
+      toast.error('Erro ao gerar o PDF. Abrindo janela de impressão alternativa...', { id: toastId });
+      window.print();
+    } finally {
+      setGeneratingPdf(false);
     }
-  });
+  };
 
   // Instrumento sugerido
   const isTeclado = /teclado|piano|keyboard/i.test(aula.curso_nome || '');
   const currentInstrument = isTeclado ? 'Teclado' : 'Piano';
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
+    <div className="fixed inset-0 bg-[#261812]/95 md:bg-black/80 z-[160] flex items-stretch md:items-center justify-center p-0 md:p-4 overflow-y-auto font-['Space_Mono']">
       
-      <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-2xl relative shadow-[12px_12px_0_#000] max-h-[90vh] overflow-y-auto print:border-none print:shadow-none print:max-w-none print:h-auto print:max-h-none print:overflow-visible">
+      <div className="bg-[#fff8f6] border-0 md:border-8 border-black p-4 md:p-6 w-full max-w-full md:max-w-2xl min-h-screen md:min-h-0 relative shadow-none md:shadow-[12px_12px_0_#000] flex flex-col print:border-none print:shadow-none print:max-w-none print:h-auto print:max-h-none print:overflow-visible">
         <div className="flex justify-between items-center mb-6 print:hidden" data-html2canvas-ignore>
-          <h3 className="text-black font-black text-sm uppercase italic tracking-widest">
-            📄 VISUALIZAR DIÁRIO PEDAGÓGICO
+          <h3 className="text-black font-black text-xs md:text-sm uppercase italic tracking-widest flex items-center gap-1.5">
+            📄 DIÁRIO PEDAGÓGICO
           </h3>
           <div className="flex gap-2">
             <button
               onClick={handleDownloadPdf}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 border-2 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
+              disabled={generatingPdf}
+              className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white px-3 py-1.5 border-2 border-black font-black text-[10px] md:text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
             >
-              <span>⬇️</span> BAIXAR PDF
+              <span>{generatingPdf ? '⏳' : '⬇️'}</span> {generatingPdf ? 'GERANDO...' : 'BAIXAR PDF'}
             </button>
             <button 
               onClick={onClose} 
@@ -250,10 +293,10 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
           {richData?.isRich && Array.isArray(richData.chords) && richData.chords.length > 0 && (
             <div className="space-y-3 pt-2 break-inside-avoid">
               <h4 className="font-black text-sm border-l-4 border-black pl-2 uppercase tracking-wide">🎸 ACORDES PRÁTICOS RECOMENDADOS:</h4>
-              <div className="grid grid-cols-2 gap-4 justify-items-center">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 justify-items-center">
                 {richData.chords.map((ch: any, idx: number) => {
                   return (
-                    <div key={idx} className="flex flex-col items-center p-2 border border-black/20 bg-black/5 w-full max-w-[240px]">
+                    <div key={idx} className="flex flex-col items-center p-3 border-4 border-black bg-[#fff8f6] w-full shadow-[4px_4px_0_#000]">
                       <span className="text-[8px] font-black text-black/60 uppercase mb-1">{ch.root}{ch.typeId || ''}</span>
                       <ChordVisualizer
                         instrument={ch.instrument || currentInstrument}
@@ -304,9 +347,10 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
         <div className="flex gap-4 mt-6 print:hidden">
           <button 
             onClick={handleDownloadPdf}
-            className="flex-1 bg-[#ff6b00] text-white border-4 border-black font-black text-xs py-3 shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all"
+            disabled={generatingPdf}
+            className="flex-1 bg-[#ff6b00] disabled:opacity-50 text-white border-4 border-black font-black text-xs py-3 shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all"
           >
-            🖨️ IMPRIMIR / PDF
+            {generatingPdf ? '⏳ GERANDO PDF...' : '⬇️ BAIXAR DIÁRIO EM PDF'}
           </button>
           <button 
             onClick={onClose}
@@ -343,6 +387,7 @@ export default function AreaAluno() {
   const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 1' });
   const [feed, setFeed] = useState<any[]>([]);
   const [showTools, setShowTools] = useState(false);
+  const [selectedFicha, setSelectedFicha] = useState<any | null>(null);
 
   // Estados para o Sistema de Treino Diário
   const [treinos, setTreinos] = useState<any[]>([]);
@@ -1706,6 +1751,66 @@ export default function AreaAluno() {
           {/* ===== ABA: TREINO (SISTEMA DE TREINO DIÁRIO) ===== */}
           {activeTab === 'treino' && (
             <div className="px-4 py-5 space-y-6">
+              
+              {/* Diário de Evolução (Fichas de Aula em Quadradinhos Horizontais) */}
+              <div className="pt-2">
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="text-white font-black text-xs uppercase tracking-widest">DIÁRIO_DE_EVOLUÇÃO</h3>
+                  <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+                </div>
+
+                {/* Grid horizontal com scroll lateral */}
+                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide select-none">
+                  {aulasRealizadas.map((aula: any) => {
+                    const dataFormatada = format(new Date(aula.data + 'T12:00:00Z'), "dd/MMM", { locale: ptBR }).toUpperCase();
+                    
+                    // Pega um tema curto
+                    let temaCurto = '';
+                    try {
+                      if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
+                        const parsed = JSON.parse(aula.conteudo);
+                        temaCurto = parsed.conteudoText || '';
+                      } else {
+                        temaCurto = aula.conteudo || '';
+                      }
+                    } catch {
+                      temaCurto = aula.conteudo || '';
+                    }
+                    if (temaCurto.length > 28) {
+                      temaCurto = temaCurto.substring(0, 25) + '...';
+                    }
+
+                    return (
+                      <div
+                        key={aula.id}
+                        onClick={() => setSelectedFicha(aula)}
+                        className="w-32 h-32 flex-shrink-0 bg-[#fff8f6] border-4 border-black p-3 flex flex-col justify-between shadow-[4px_4px_0_#000] cursor-pointer hover:translate-y-[-2px] active:translate-y-[0px] active:shadow-none transition-all"
+                      >
+                        <div className="space-y-1">
+                          <span className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider block">
+                            {dataFormatada}
+                          </span>
+                          <p className="text-black font-black text-[9px] uppercase leading-tight line-clamp-3">
+                            {temaCurto || 'AULA REGULAR'}
+                          </p>
+                        </div>
+                        <div className="flex justify-between items-center mt-2 border-t border-black/15 pt-1.5">
+                          <span className="text-[7.5px] font-black text-[#ff6b00] uppercase hover:underline">ABRIR →</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {aulasRealizadas.length === 0 && (
+                    <div className="w-full p-6 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
+                      <p className="text-[#8e7164] font-black text-[8px] uppercase tracking-tighter">
+                        NENHUM REGISTRO DE AULA CONCLUÍDO AINDA.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Header Retro */}
               <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden flex flex-col gap-2">
                 <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; DIARY_STREAK_ACTIVE • SYNC_ON</p>
@@ -1851,371 +1956,372 @@ export default function AreaAluno() {
                           }}
                         />
                       </label>
-
-                      {/* Fallback removido pois agora a captura principal já é nativa do OS */}
                     </div>
                   )}
                 </div>
               </div>
-            {/* Diário de Evolução (Musiclass feedbacks) */}
-            <div className="pt-2">
-              <div className="flex items-center gap-3 mb-4">
-                <h3 className="text-white font-black text-xs uppercase tracking-widest">DIÁRIO_DE_EVOLUÇÃO</h3>
-                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-              </div>
-              
-              <div className="space-y-4">
-                {aulasRealizadas.map((aula: any) => {
-                  let midiasList: any[] = [];
-                  try {
-                    if (typeof aula.midias === 'string') {
-                      midiasList = JSON.parse(aula.midias);
-                    } else if (Array.isArray(aula.midias)) {
-                      midiasList = aula.midias;
+
+              {/* MODAL DETALHADO DA FICHA DE AULA */}
+              {selectedFicha && (() => {
+                const aula = selectedFicha;
+                let midiasList: any[] = [];
+                try {
+                  if (typeof aula.midias === 'string') {
+                    midiasList = JSON.parse(aula.midias);
+                  } else if (Array.isArray(aula.midias)) {
+                    midiasList = aula.midias;
+                  }
+                } catch {}
+
+                let isRich = false;
+                let richData: any = null;
+                try {
+                  if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
+                    const parsed = JSON.parse(aula.conteudo);
+                    if (parsed && parsed.isRich) {
+                      isRich = true;
+                      richData = parsed;
                     }
-                  } catch {}
+                  }
+                } catch {}
 
-                  let isRich = false;
-                  let richData: any = null;
-                  try {
-                    if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
-                      const parsed = JSON.parse(aula.conteudo);
-                      if (parsed && parsed.isRich) {
-                        isRich = true;
-                        richData = parsed;
-                      }
-                    }
-                  } catch {}
+                const cursoNomeAula = alunoData?.matriculas?.[0]?.cursos?.nome || alunoData?.curso_ativo || aula.cursos?.nome || aula.curso_nome || '';
+                const isCursoTeclado = /teclado|piano|keyboard/i.test(cursoNomeAula);
+                const currentInstrument = isCursoTeclado ? 'Teclado' : (cursoNomeAula || 'Piano');
 
-                  // Detecta o instrumento pelo curso do aluno para renderizar o diagrama correto
-                  const cursoNomeAula = alunoData?.matriculas?.[0]?.cursos?.nome || alunoData?.curso_ativo || aula.cursos?.nome || aula.curso_nome || '';
-                  const isCursoTeclado = /teclado|piano|keyboard/i.test(cursoNomeAula);
-                  const currentInstrument = isCursoTeclado ? 'Teclado' : (cursoNomeAula || 'Piano');
-
-                  return (
-                    <div key={aula.id} className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] space-y-3 font-['Space_Mono']">
-                      <div className="flex justify-between items-start">
+                return (
+                  <div className="fixed inset-0 bg-[#261812]/95 md:bg-black/80 z-[150] flex items-stretch md:items-center justify-center p-0 md:p-4 overflow-y-auto">
+                    <div className="bg-[#fff8f6] border-0 md:border-8 border-black p-4 md:p-5 shadow-none md:shadow-[8px_8px_0_#000] w-full max-w-full md:max-w-[600px] min-h-screen md:min-h-0 flex flex-col space-y-4 relative font-['Space_Mono'] text-black select-none">
+                      
+                      {/* Header Modal */}
+                      <div className="flex justify-between items-start border-b-4 border-black pb-3">
                         <div>
                           <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider">
                             {format(new Date(aula.data + 'T12:00:00Z'), "dd 'de' MMMM", { locale: ptBR }).toUpperCase()}
                           </p>
-                          <h4 className="text-black font-black text-sm uppercase italic">
-                            AULA DE {aula.curso_nome || 'MÚSICA'}
-                          </h4>
+                          <h3 className="text-black font-black text-sm md:text-base uppercase italic">
+                            FICHA DE AULA: {aula.curso_nome || 'MÚSICA'}
+                          </h3>
                         </div>
-                        <div className="flex flex-col items-end gap-1.5 shrink-0">
-                          <span className="bg-[#ffd700] text-black border-2 border-black font-black text-[8px] px-2 py-0.5 shadow-[2px_2px_0_#000]">
-                            +{aula.xp_ganho || 50} XP ⚡
-                          </span>
-                          <button 
-                            onClick={() => setPrintAula(aula)}
-                            className="bg-black text-[#feccba] border-2 border-black font-black text-[7px] px-2 py-0.5 shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none hover:bg-[#ff6b00] hover:text-white transition-colors"
-                          >
-                            📄 DIÁRIO (PDF)
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => setSelectedFicha(null)}
+                          className="bg-black text-[#feccba] border-2 border-black font-black text-[9px] px-3 py-1 shadow-[2px_2px_0_#000] hover:bg-red-600 hover:text-white transition-colors"
+                        >
+                          FECHAR (X)
+                        </button>
                       </div>
 
-                      {!isRich ? (
-                        <>
-                          {/* Conteúdo Trabalhado */}
-                          <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
-                            <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
-                            <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(aula.conteudo || 'Nenhum conteúdo registrado')}</p>
-                          </div>
-
-                          {/* Tarefa de casa / Desafio */}
-                          <div className="bg-black/5 border-2 border-black/10 p-2.5">
-                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1 flex items-center gap-1">
-                              ⚔️ BOSS QUEST / DESAFIO:
-                            </span>
-                            <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(aula.tarefa_casa || 'Treinar repertório livre')}</p>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="space-y-3">
-                          {/* FICHA PEDAGÓGICA MUSICLASS */}
-                          <div className="bg-[#feccba]/20 border-2 border-black/20 p-2.5 relative overflow-hidden">
-                            <div className="absolute top-1 right-2 flex items-center gap-1">
-                              <span className="bg-black text-[#ff6b00] text-[6px] font-black px-1 border border-black uppercase">
-                                💡 MUSICLASS ROTEIRO
-                              </span>
+                      {/* Conteúdo Ficha */}
+                      <div className="space-y-4 flex-1 md:max-h-[60vh] md:overflow-y-auto pr-1">
+                        {!isRich ? (
+                          <>
+                            {/* Conteúdo Trabalhado */}
+                            <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
+                              <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
+                              <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(aula.conteudo || 'Nenhum conteúdo registrado')}</p>
                             </div>
-                            <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
-                            <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(richData.conteudoText || 'AULA INTERATIVA DE MÚSICA')}</p>
-                          </div>
 
-                          {/* TAREFA DE CASA / DESAFIO */}
-                          {richData.tarefaCasaText && (
-                            <div className="bg-black/5 border-2 border-black/20 p-2.5">
-                              <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">
-                                ⚔️ TAREFA DE CASA / DESAFIO DA SEMANA:
+                            {/* Tarefa de casa / Desafio */}
+                            <div className="bg-black/5 border-2 border-black/10 p-2.5">
+                              <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1 flex items-center gap-1">
+                                ⚔️ BOSS QUEST / DESAFIO:
                               </span>
-                              <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(richData.tarefaCasaText)}</p>
+                              <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(aula.tarefa_casa || 'Treinar repertório livre')}</p>
                             </div>
-                          )}
+                          </>
+                        ) : (
+                          <div className="space-y-4">
+                            {/* FICHA PEDAGÓGICA MUSICLASS */}
+                            <div className="bg-[#feccba]/20 border-2 border-black/20 p-2.5 relative overflow-hidden">
+                              <div className="absolute top-1 right-2 flex items-center gap-1">
+                                <span className="bg-black text-[#ff6b00] text-[6px] font-black px-1 border border-black uppercase">
+                                  💡 MUSICLASS ROTEIRO
+                                </span>
+                              </div>
+                              <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
+                              <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(richData.conteudoText || 'AULA INTERATIVA DE MÚSICA')}</p>
+                            </div>
 
-                          {/* IMAGENS */}
-                          {Array.isArray(richData.images) && richData.images.length > 0 && (
-                            <div className="bg-white border-2 border-black p-2 space-y-1.5">
-                              <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest">📸 ANEXOS & CIFRAS:</span>
-                              <div className="grid grid-cols-2 gap-2">
-                                {richData.images.map((img: string, i: number) => (
-                                  <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-2 border-black shadow-[2px_2px_0_#000] hover:translate-y-[-1px] transition-transform">
-                                    <img src={img} alt="Anexo" className="w-full h-24 object-cover" />
-                                  </a>
+                            {/* TAREFA DE CASA / DESAFIO */}
+                            {richData.tarefaCasaText && (
+                              <div className="bg-black/5 border-2 border-black/20 p-2.5">
+                                <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">
+                                  ⚔️ TAREFA DE CASA / DESAFIO DA SEMANA:
+                                </span>
+                                <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(richData.tarefaCasaText)}</p>
+                              </div>
+                            )}
+
+                            {/* IMAGENS */}
+                            {Array.isArray(richData.images) && richData.images.length > 0 && (
+                              <div className="bg-white border-2 border-black p-2 space-y-1.5">
+                                <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest">📸 ANEXOS & CIFRAS:</span>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {richData.images.map((img: string, i: number) => (
+                                    <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-2 border-black shadow-[2px_2px_0_#000] hover:translate-y-[-1px] transition-transform">
+                                      <img src={img} alt="Anexo" className="w-full h-24 object-cover" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* ACORDES RENDERIZADOS */}
+                            {Array.isArray(richData.chords) && richData.chords.length > 0 && (
+                              <LessonChords chords={richData.chords} currentInstrument={currentInstrument} />
+                            )}
+
+                            {/* ESCALAS RENDERIZADOS */}
+                            {Array.isArray(richData.scales) && richData.scales.length > 0 && (
+                              <div className="bg-white border-2 border-black p-2 space-y-1.5">
+                                <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest">
+                                  🎼 CAMPOS HARMÔNICOS &amp; ESCALAS DE ESTUDO:
+                                </span>
+                                {richData.scales.map((sc: any, idx: number) => (
+                                  <div key={idx} className="bg-[#261812] text-[#feccba] border border-black p-1.5">
+                                    <p className="text-[8px] font-black uppercase tracking-wider">{sc.root} {sc.scaleName}</p>
+                                    <p className="text-[7px] font-mono uppercase tracking-tighter mt-0.5 text-white/80">{sc.notes.join(' - ')}</p>
+                                  </div>
                                 ))}
                               </div>
-                            </div>
-                          )}
+                            )}
 
-                          {/* ACORDES RENDERIZADOS */}
-                          {Array.isArray(richData.chords) && richData.chords.length > 0 && (
-                            <LessonChords chords={richData.chords} currentInstrument={currentInstrument} />
-                          )}
-
-                          {/* ESCALAS RENDERIZADAS */}
-                          {Array.isArray(richData.scales) && richData.scales.length > 0 && (
-                            <div className="bg-white border-2 border-black p-2 space-y-1.5">
-                              <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest">
-                                🎼 CAMPOS HARMÔNICOS &amp; ESCALAS DE ESTUDO:
-                              </span>
-                              {richData.scales.map((sc: any, idx: number) => (
-                                <div key={idx} className="bg-[#261812] text-[#feccba] border border-black p-1.5">
-                                  <p className="text-[8px] font-black uppercase tracking-wider">{sc.root} {sc.scaleName}</p>
-                                  <p className="text-[7px] font-mono uppercase tracking-tighter mt-0.5 text-white/80">{sc.notes.join(' - ')}</p>
+                            {/* BOSS QUEST / QUESTS DO PROFESSOR */}
+                            {Array.isArray(richData.exercises) && richData.exercises.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="bg-[#ff6b00] border-2 border-black px-2 py-0.5 shadow-[2px_2px_0_#000]">
+                                    <span className="text-[8px] font-black text-white uppercase tracking-widest">⚔️ BOSS QUEST — MISSÃO DO PROFESSOR</span>
+                                  </div>
+                                  <div className="flex-1 border-t-2 border-dashed border-[#ff6b00]/40"></div>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* BOSS QUEST / QUESTS DO PROFESSOR */}
-                          {Array.isArray(richData.exercises) && richData.exercises.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className="bg-[#ff6b00] border-2 border-black px-2 py-0.5 shadow-[2px_2px_0_#000]">
-                                  <span className="text-[8px] font-black text-white uppercase tracking-widest">⚔️ BOSS QUEST — MISSÃO DO PROFESSOR</span>
-                                </div>
-                                <div className="flex-1 border-t-2 border-dashed border-[#ff6b00]/40"></div>
+                                {richData.exercises.map((ex: any, idx: number) => (
+                                  <div key={idx} className="bg-[#261812] border-4 border-[#ff6b00] p-3 relative overflow-hidden shadow-[4px_4px_0_#ff6b00]">
+                                    {/* Badge de XP */}
+                                    <div className="absolute top-2 right-2 bg-[#ffd700] border-2 border-black px-1.5 py-0.5 shadow-[2px_2px_0_#000]">
+                                      <span className="text-[7px] font-black text-black uppercase">+{ex.points} XP ⚡</span>
+                                    </div>
+                                    {/* Ícone + Título */}
+                                    <div className="flex items-center gap-2 pr-12">
+                                      <span className="text-[#ff6b00] text-base leading-none">⚔️</span>
+                                      <p className="text-[10px] font-black uppercase text-[#feccba] leading-tight">{ex.title}</p>
+                                    </div>
+                                    {ex.description && (
+                                      <p className="text-[7px] font-black text-[#ff6b00]/70 uppercase mt-1.5 leading-snug">{ex.description}</p>
+                                    )}
+                                    {/* Barra de progresso decorativa */}
+                                    <div className="mt-2 bg-black/50 border border-[#ff6b00]/30 h-1">
+                                      <div className="h-full bg-[#ff6b00] w-1/2 animate-pulse"></div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                              {richData.exercises.map((ex: any, idx: number) => (
-                                <div key={idx} className="bg-[#261812] border-4 border-[#ff6b00] p-3 relative overflow-hidden shadow-[4px_4px_0_#ff6b00]">
-                                  {/* Badge de XP */}
-                                  <div className="absolute top-2 right-2 bg-[#ffd700] border-2 border-black px-1.5 py-0.5 shadow-[2px_2px_0_#000]">
-                                    <span className="text-[7px] font-black text-black uppercase">+{ex.points} XP ⚡</span>
-                                  </div>
-                                  {/* Ícone + Título */}
-                                  <div className="flex items-center gap-2 pr-12">
-                                    <span className="text-[#ff6b00] text-base leading-none">⚔️</span>
-                                    <p className="text-[10px] font-black uppercase text-[#feccba] leading-tight">{ex.title}</p>
-                                  </div>
-                                  {ex.description && (
-                                    <p className="text-[7px] font-black text-[#ff6b00]/70 uppercase mt-1.5 leading-snug">{ex.description}</p>
-                                  )}
-                                  {/* Barra de progresso decorativa */}
-                                  <div className="mt-2 bg-black/50 border border-[#ff6b00]/30 h-1">
-                                    <div className="h-full bg-[#ff6b00] w-1/2 animate-pulse"></div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                            )}
 
-                          {/* GRAVAÇÕES DE ÁUDIO DO ESTÚDIO */}
-                          {Array.isArray(richData.recordings) && richData.recordings.length > 0 && (
-                            <div className="bg-[#261812] text-white p-2 border-2 border-black space-y-2">
-                              <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest flex items-center gap-1">
-                                🎙️ GUIAS DE ÁUDIO DO PROFESSOR:
-                              </span>
-                              {richData.recordings.map((rec: any, idx: number) => (
-                                <div key={idx} className="bg-black/30 border border-white/10 p-1.5">
-                                  <p className="text-[7px] font-black uppercase truncate text-white">{rec.name}</p>
-                                  <audio src={rec.url} controls className="h-6 w-full mt-1 border border-white/20" />
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                            {/* GRAVAÇÕES DE ÁUDIO DO ESTÚDIO */}
+                            {Array.isArray(richData.recordings) && richData.recordings.length > 0 && (
+                              <div className="bg-[#261812] text-white p-2 border-2 border-black space-y-2">
+                                <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest flex items-center gap-1">
+                                  🎙️ GUIAS DE ÁUDIO DO PROFESSOR:
+                                </span>
+                                {richData.recordings.map((rec: any, idx: number) => (
+                                  <div key={idx} className="bg-black/30 border border-white/10 p-1.5">
+                                    <p className="text-[7px] font-black uppercase truncate text-white">{rec.name}</p>
+                                    <audio src={rec.url} controls className="h-6 w-full mt-1 border border-white/20" />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
 
-                          {/* TABLATURAS RENDERIZADAS */}
-                          {Array.isArray(richData.tablatures) && richData.tablatures.length > 0 && (
-                            <div className="bg-white border-2 border-black p-2 space-y-3">
-                              <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
-                                📝 TABLATURAS RECOMENDADAS ({richData.tablatures.length}):
-                              </span>
-                              {richData.tablatures.map((tab: any, idx: number) => (
-                                <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2">
-                                  <p className="text-[8px] font-black uppercase mb-1">{tab.name}</p>
-                                  <div className="overflow-x-auto scrollbar-thin">
-                                    <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
-                                      {['e','B','G','D','A','E'].map((str, strIdx) => (
-                                        <React.Fragment key={strIdx}>
-                                          <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-0.5 min-w-[14px]">{str}</div>
-                                          {Array.from({ length: 16 }).map((_, beat) => (
-                                            <div key={beat} className="h-5 flex items-center justify-center bg-white border border-black/20 text-[8px] font-black">
-                                              {tab.matrix?.[strIdx]?.[beat] || '-'}
-                                            </div>
-                                          ))}
-                                        </React.Fragment>
-                                      ))}
+                            {/* TABLATURAS RENDERIZADAS */}
+                            {Array.isArray(richData.tablatures) && richData.tablatures.length > 0 && (
+                              <div className="bg-white border-2 border-black p-2 space-y-3">
+                                <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
+                                  📝 TABLATURAS RECOMENDADAS ({richData.tablatures.length}):
+                                </span>
+                                {richData.tablatures.map((tab: any, idx: number) => (
+                                  <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2">
+                                    <p className="text-[8px] font-black uppercase mb-1">{tab.name}</p>
+                                    <div className="overflow-x-auto scrollbar-thin">
+                                      <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
+                                        {['e','B','G','D','A','E'].map((str, strIdx) => (
+                                          <React.Fragment key={strIdx}>
+                                            <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-0.5 min-w-[14px]">{str}</div>
+                                            {Array.from({ length: 16 }).map((_, beat) => (
+                                              <div key={beat} className="h-5 flex items-center justify-center bg-white border border-black/20 text-[8px] font-black">
+                                                {tab.matrix?.[strIdx]?.[beat] || '-'}
+                                              </div>
+                                            ))}
+                                          </React.Fragment>
+                                        ))}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )}
 
-                          {/* BATERIAS RENDERIZADAS */}
-                          {Array.isArray(richData.drums) && richData.drums.length > 0 && (
-                            <div className="bg-white border-2 border-black p-2 space-y-3">
-                              <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
-                                🥁 SEQUÊNCIAS DE BATERIA ({richData.drums.length}):
-                              </span>
-                              {richData.drums.map((drum: any, idx: number) => (
-                                <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2">
-                                  <p className="text-[8px] font-black uppercase mb-1">{drum.name} {drum.bpm ? `• ${drum.bpm} BPM` : ''}</p>
-                                  <div className="overflow-x-auto scrollbar-thin">
-                                    <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
-                                      {['Chimbal', 'Caixa', 'Bumbo'].map((inst, instIdx) => (
-                                        <React.Fragment key={instIdx}>
-                                          <div className="flex items-center justify-start bg-[#261812] text-[#ff6b00] font-black text-[6px] border border-black px-1 min-w-[40px] truncate uppercase">{inst}</div>
-                                          {Array.from({ length: 16 }).map((_, beat) => {
-                                            const active = drum.matrix?.[instIdx]?.[beat];
-                                            return (
-                                              <div key={beat} className={`h-5 flex items-center justify-center border border-black/20 text-[8px] font-black ${active ? 'bg-[#ff6b00] text-white' : 'bg-white text-black/20'}`}>
-                                                {active ? 'X' : '-'}
-                                              </div>
-                                            );
-                                          })}
-                                        </React.Fragment>
-                                      ))}
+                            {/* BATERIAS RENDERIZADAS */}
+                            {Array.isArray(richData.drums) && richData.drums.length > 0 && (
+                              <div className="bg-white border-2 border-black p-2 space-y-3">
+                                <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
+                                  🥁 SEQUÊNCIAS DE BATERIA ({richData.drums.length}):
+                                </span>
+                                {richData.drums.map((drum: any, idx: number) => (
+                                  <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2">
+                                    <p className="text-[8px] font-black uppercase mb-1">{drum.name} {drum.bpm ? `• ${drum.bpm} BPM` : ''}</p>
+                                    <div className="overflow-x-auto scrollbar-thin">
+                                      <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
+                                        {['Chimbal', 'Caixa', 'Bumbo'].map((inst, instIdx) => (
+                                          <React.Fragment key={instIdx}>
+                                            <div className="flex items-center justify-start bg-[#261812] text-[#ff6b00] font-black text-[6px] border border-black px-1 min-w-[40px] truncate uppercase">{inst}</div>
+                                            {Array.from({ length: 16 }).map((_, beat) => {
+                                              const active = drum.matrix?.[instIdx]?.[beat];
+                                              return (
+                                                <div key={beat} className={`h-5 flex items-center justify-center border border-black/20 text-[8px] font-black ${active ? 'bg-[#ff6b00] text-white' : 'bg-white text-black/20'}`}>
+                                                  {active ? 'X' : '-'}
+                                                </div>
+                                              );
+                                            })}
+                                          </React.Fragment>
+                                        ))}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )}
 
-                          {/* MELODIAS RENDERIZADAS — com suporte a blocos de frases */}
-                          {Array.isArray(richData.melody) && richData.melody.length > 0 && (
-                            <div className="bg-[#f8f9fa] border-4 border-black p-4 space-y-4 shadow-[6px_6px_0_#000] rounded-xl font-['Inter']">
-                              <div className="flex flex-col sm:flex-row gap-6">
-                                {/* Lado Esquerdo: Notas */}
-                                <div className="flex-1 space-y-5">
-                                  <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black/10 pb-2">
-                                    🎹 SOLOS E MELODIAS (BIMANUAL)
-                                  </h4>
-                                  {richData.melody.map((mel: any, idx: number) => (
-                                    <div key={idx} className="space-y-4">
-                                      {mel.name && mel.name !== 'NOVA MELODIA / GUIA' && (
-                                        <p className="text-xs font-black uppercase text-gray-500">{mel.name}</p>
-                                      )}
-                                      {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
-                                        <div className="space-y-4">
-                                          {mel.phrases.map((phrase: string[], pIdx: number) => (
-                                            <div key={pIdx} className="space-y-3">
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">PARTE {pIdx + 1}</span>
-                                                <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
-                                              </div>
-                                              <div className="flex flex-wrap gap-2">
-                                                {phrase.map((note: string, nIdx: number) => (
-                                                  <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
-                                                    {translateNote(note)}
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <div className="space-y-3">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">MELODIA</span>
-                                            <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
-                                          </div>
-                                          <div className="flex flex-wrap gap-2">
-                                            {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
-                                              <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
-                                                {translateNote(note)}
+                            {/* MELODIAS RENDERIZADAS — com suporte a blocos de frases */}
+                            {Array.isArray(richData.melody) && richData.melody.length > 0 && (
+                              <div className="bg-[#f8f9fa] border-4 border-black p-4 space-y-4 shadow-[6px_6px_0_#000] rounded-xl font-['Inter']">
+                                <div className="flex flex-col sm:flex-row gap-6">
+                                  {/* Lado Esquerdo: Notas */}
+                                  <div className="flex-1 space-y-5">
+                                    <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black/10 pb-2">
+                                      🎹 SOLOS E MELODIAS (BIMANUAL)
+                                    </h4>
+                                    {richData.melody.map((mel: any, idx: number) => (
+                                      <div key={idx} className="space-y-4">
+                                        {mel.name && mel.name !== 'NOVA MELODIA / GUIA' && (
+                                          <p className="text-xs font-black uppercase text-gray-500">{mel.name}</p>
+                                        )}
+                                        {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
+                                          <div className="space-y-4">
+                                            {mel.phrases.map((phrase: string[], pIdx: number) => (
+                                              <div key={pIdx} className="space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">PARTE {pIdx + 1}</span>
+                                                  <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                  {phrase.map((note: string, nIdx: number) => (
+                                                    <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
+                                                      {translateNote(note)}
+                                                    </div>
+                                                  ))}
+                                                </div>
                                               </div>
                                             ))}
                                           </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                                
-                                {/* Lado Direito: Checklist de Prática */}
-                                {Array.isArray(richData.checklist) && richData.checklist.length > 0 && (
-                                  <div className="w-full sm:w-64 bg-white border-2 border-black rounded-lg p-4 shadow-[4px_4px_0_#000] shrink-0">
-                                    <h5 className="text-xs font-black text-black uppercase tracking-wider mb-4 text-center border-b-2 border-black/10 pb-2">
-                                      ✅ CHECKLIST DE PRÁTICA
-                                    </h5>
-                                    <div className="space-y-3">
-                                      {richData.checklist.map((step: string, sIdx: number) => (
-                                        <label key={sIdx} className="flex items-start gap-3 cursor-pointer group">
-                                          <div className="w-5 h-5 border-2 border-gray-400 rounded group-hover:border-[#ff6b00] flex items-center justify-center shrink-0 mt-0.5 bg-gray-50">
-                                            <div className="w-3 h-3 bg-[#ff6b00] rounded-sm opacity-0 active:opacity-100 transition-opacity"></div>
+                                        ) : (
+                                          <div className="space-y-3">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">MELODIA</span>
+                                              <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                              {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
+                                                <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
+                                                  {translateNote(note)}
+                                                </div>
+                                              ))}
+                                            </div>
                                           </div>
-                                          <span className="text-xs font-bold text-gray-700 group-hover:text-black break-words flex-1">{step}</span>
-                                        </label>
-                                      ))}
-                                    </div>
+                                        )}
+                                      </div>
+                                    ))}
                                   </div>
-                                )}
+                                  
+                                  {/* Lado Direito: Checklist de Prática */}
+                                  {Array.isArray(richData.checklist) && richData.checklist.length > 0 && (
+                                    <div className="w-full sm:w-64 bg-white border-2 border-black rounded-lg p-4 shadow-[4px_4px_0_#000] shrink-0">
+                                      <h5 className="text-xs font-black text-black uppercase tracking-wider mb-4 text-center border-b-2 border-black/10 pb-2">
+                                        ✅ CHECKLIST DE PRÁTICA
+                                      </h5>
+                                      <div className="space-y-3">
+                                        {richData.checklist.map((step: string, sIdx: number) => (
+                                          <label key={sIdx} className="flex items-start gap-3 cursor-pointer group">
+                                            <div className="w-5 h-5 border-2 border-gray-400 rounded group-hover:border-[#ff6b00] flex items-center justify-center shrink-0 mt-0.5 bg-gray-50">
+                                              <div className="w-3 h-3 bg-[#ff6b00] rounded-sm opacity-0 active:opacity-100 transition-opacity"></div>
+                                            </div>
+                                            <span className="text-xs font-bold text-gray-700 group-hover:text-black break-words flex-1">{step}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Fotos enviadas pelo Professor */}
+                        {isRich && Array.isArray(richData.images) && richData.images.length > 0 && (
+                          <div className="pt-4 border-t-2 border-black/10">
+                            <span className="text-[10px] font-black text-black uppercase block mb-2 tracking-widest">📸 ANEXOS E CIFRAS:</span>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                              {richData.images.map((img: string, i: number) => (
+                                <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-4 border-black hover:scale-[1.02] transition-transform shadow-[4px_4px_0_#000]">
+                                  <img src={img} alt="Anexo da Aula" className="w-full h-32 object-cover bg-gray-200" />
+                                </a>
+                              ))}
                             </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Fotos enviadas pelo Professor */}
-                      {isRich && Array.isArray(richData.images) && richData.images.length > 0 && (
-                        <div className="pt-4 border-t-2 border-black/10">
-                          <span className="text-[10px] font-black text-black uppercase block mb-2 tracking-widest">📸 ANEXOS E CIFRAS:</span>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {richData.images.map((img: string, i: number) => (
-                              <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-4 border-black hover:scale-[1.02] transition-transform shadow-[4px_4px_0_#000]">
-                                <img src={img} alt="Anexo da Aula" className="w-full h-32 object-cover bg-gray-200" />
-                              </a>
-                            ))}
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* Links e mídias de apoio */}
-                      {midiasList.length > 0 && (
-                        <div>
-                          <span className="text-[8px] font-black text-black/50 uppercase block mb-1 font-mono">LINKS &amp; ANEXOS DE APOIO:</span>
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {midiasList.map((mid, mIdx) => (
-                              <a
-                                key={mIdx}
-                                href={mid.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-white border-2 border-black text-[8px] font-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-none transition-all"
-                              >
-                                🔗 {mid.titulo}
-                              </a>
-                            ))}
+                        {/* Links e mídias de apoio */}
+                        {midiasList.length > 0 && (
+                          <div>
+                            <span className="text-[8px] font-black text-black/50 uppercase block mb-1 font-mono">LINKS &amp; ANEXOS DE APOIO:</span>
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {midiasList.map((mid, mIdx) => (
+                                <a
+                                  key={mIdx}
+                                  href={mid.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-white border-2 border-black text-[8px] font-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-none transition-all"
+                                >
+                                  🔗 {mid.titulo}
+                                </a>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
+
+                      {/* Rodapé Ficha */}
+                      <div className="flex justify-between items-center border-t-4 border-black pt-3">
+                        <button
+                          onClick={() => setPrintAula(aula)}
+                          className="bg-black text-[#feccba] border-2 border-black font-black text-[7px] px-2 py-0.5 shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none hover:bg-[#ff6b00] hover:text-white transition-colors"
+                        >
+                          📄 DIÁRIO (PDF)
+                        </button>
+                        <button
+                          onClick={() => setSelectedFicha(null)}
+                          className="bg-[#ff6b00] text-white border-2 border-black font-black text-[10px] px-4 py-1.5 shadow-[2px_2px_0_#000] hover:bg-black transition-colors"
+                        >
+                          CONCLUÍDO
+                        </button>
+                      </div>
+
                     </div>
-                  );
-                })}
-
-                {aulasRealizadas.length === 0 && (
-                  <div className="p-6 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
-                    <p className="text-[#8e7164] font-black text-[8px] uppercase tracking-tighter">
-                      NENHUM REGISTRO DE AULA CONCLUÍDO AINDA.
-                    </p>
                   </div>
-                )}
-              </div>
-            </div>
+                );
+              })()}
 
             </div>
           )}
@@ -2226,70 +2332,306 @@ export default function AreaAluno() {
              onRewardClaimed={(xp) => setAlunoData((prev: any) => ({ ...prev, xp: (prev.xp || 0) + xp, push_recompensado: true }))} 
           />
 
-          {/* ===== ABA: HOME (conteúdo existente) ===== */}
+          {/* ===== ABA: HOME (HUB INTEGRADO DO JOGADOR) ===== */}
           {activeTab === 'home' && (
-          <div className="px-4 py-5 space-y-4">
-
-
-
-            <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] flex flex-col gap-4">
-              <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; BEM_VINDO_PLAYER_ONE • SYNC_V4.3.1 • UPDATE_22MAY_2300</p>
+            <div className="px-4 py-5 space-y-6">
               
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-none border-4 border-black bg-[#ff6b00] shrink-0 shadow-[4px_4px_0_#000] overflow-hidden">
-                  {alunoData?.foto_url ? (
-                    <img src={alunoData.foto_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white font-black text-2xl uppercase">
-                      {(alunoData?.nome || user?.nome || 'A').charAt(0)}
+              {/* Diário de Evolução (Últimas Aulas Recentes no Topo) */}
+              <div className="bg-[#261812] border-8 border-black p-4 shadow-[8px_8px_0_#000] space-y-3">
+                <div className="flex justify-between items-center">
+                  <p className="text-white font-black text-[9px] uppercase tracking-widest">Aulas Recentes &amp; Evolução</p>
+                  <span className="text-[#ff6b00] font-black text-[8px] uppercase">
+                    ⚡ Clique para ver detalhes
+                  </span>
+                </div>
+                
+                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide select-none">
+                  {aulasRealizadas.map((aula: any) => {
+                    const dataFormatada = format(new Date(aula.data + 'T12:00:00Z'), "dd/MMM", { locale: ptBR }).toUpperCase();
+                    let temaCurto = '';
+                    try {
+                      if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
+                        const parsed = JSON.parse(aula.conteudo);
+                        temaCurto = parsed.conteudoText || '';
+                      } else {
+                        temaCurto = aula.conteudo || '';
+                      }
+                    } catch {
+                      temaCurto = aula.conteudo || '';
+                    }
+                    if (temaCurto.length > 28) {
+                      temaCurto = temaCurto.substring(0, 25) + '...';
+                    }
+
+                    return (
+                      <div
+                        key={aula.id}
+                        onClick={() => setSelectedFicha(aula)}
+                        className="w-28 h-28 flex-shrink-0 bg-[#fff8f6] border-4 border-black p-2.5 flex flex-col justify-between shadow-[3px_3px_0_#000] cursor-pointer hover:translate-y-[-1px] active:translate-y-0 active:shadow-none transition-all"
+                      >
+                        <div className="space-y-0.5">
+                          <span className="text-[#ff6b00] font-black text-[8px] uppercase tracking-wider block">
+                            {dataFormatada}
+                          </span>
+                          <p className="text-black font-black text-[8px] uppercase leading-tight line-clamp-3">
+                            {temaCurto || 'AULA REGULAR'}
+                          </p>
+                        </div>
+                        <span className="text-[7px] font-black text-[#ff6b00] uppercase text-right block">ABRIR →</span>
+                      </div>
+                    );
+                  })}
+
+                  {aulasRealizadas.length === 0 && (
+                    <div className="w-full py-4 text-center">
+                      <p className="text-[#8e7164] font-black text-[8px] uppercase tracking-tighter">Nenhum diário de aula registrado.</p>
                     </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-black font-black text-xl uppercase italic leading-tight break-words">
-                    {alunoData?.nome || user?.nome || 'CARREGANDO...'}
-                  </h2>
-                  <div className="flex gap-1 mt-1 flex-wrap">
-                    <span className="text-[7px] font-black text-white bg-black px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block">
-                      LVL {nivel} • {classe}
-                    </span>
-                    <span className="text-[7px] font-black text-black bg-[#ff6b00] px-1.5 py-0.5 border border-black uppercase tracking-widest inline-block">
-                      {temporada.nome || 'TEMPORADA ATUAL'}
-                    </span>
+              </div>
+
+              {/* Painel do Jogador Retrô 8-Bit */}
+              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[12px_12px_0_#000] flex flex-col items-center text-center relative overflow-visible gap-4">
+                <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
+                
+                {/* Nome do Estudante */}
+                <div className="space-y-0.5">
+                  <h2 className="text-black font-black text-xl uppercase italic leading-tight">{alunoData?.nome || user?.nome}</h2>
+                  <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-widest">{alunoData?.email}</p>
+                </div>
+
+                {/* Avatar Interativo Grande */}
+                <div className="relative group cursor-pointer w-full max-w-[220px] aspect-[3/4]" onClick={() => document.getElementById('photo-input-home')?.click()}>
+                  <div className="w-full h-full shadow-[6px_6px_0_#000] relative">
+                    {alunoData?.avatar_config ? (
+                      <AvatarPixel config={alunoData.avatar_config} />
+                    ) : alunoData?.foto_url ? (
+                      <img src={alunoData.foto_url} alt="Avatar" className="w-full h-full object-cover border-4 border-black" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-[#ff6b00] border-4 border-black text-black font-black text-5xl uppercase">
+                        {(alunoData?.nome || user?.nome || 'A').charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 bg-black border-4 border-white text-white p-1.5 rounded-none hover:scale-105 transition-transform">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <input 
+                    id="photo-input-home" 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/*" 
+                    onChange={handlePhotoUpload} 
+                  />
+                </div>
+
+                {/* Nível do Estudante */}
+                <span className="text-[9px] font-black uppercase px-3 py-1 bg-black text-white border-2 border-black tracking-widest">
+                  NÍVEL_0{Math.floor((alunoData?.xp || 0) / 1000) + 1} • {alunoData?.curso_ativo || 'MÚSICA'}
+                </span>
+
+                {/* Barra de Progresso de XP */}
+                <div className="w-full space-y-1">
+                  <div className="flex justify-between items-center text-[7.5px] font-black text-black tracking-wider">
+                    <span>XP PARA PRÓXIMO LVL</span>
+                    <span>{(alunoData?.xp || 0) % 1000} / 1000 XP</span>
+                  </div>
+                  <div className="h-5 bg-black p-0.5 border-4 border-black overflow-hidden w-full">
+                    <div 
+                      className="h-full bg-[#ff6b00] transition-all duration-500" 
+                      style={{ width: `${((alunoData?.xp || 0) % 1000) / 10}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Ações Rápidas (Editor & Loja) */}
+                <div className="w-full flex flex-col gap-2.5 border-t-4 border-black pt-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => setShowAvatarEditor(!showAvatarEditor)}
+                      className="bg-[#ff6b00] text-white border-4 border-black py-2.5 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black transition-all"
+                    >
+                      {showAvatarEditor ? 'FECHAR EDITOR' : '👕 CUSTOMIZAR'}
+                    </button>
+                    
+                    <button 
+                      onClick={() => setShowAvatarStore(true)}
+                      className="bg-[#ffeb3b] text-black border-4 border-black py-2.5 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black hover:text-white transition-all"
+                    >
+                      🛒 LOJA DE SKINS
+                    </button>
+                  </div>
+
+                  <button 
+                    onClick={handleDownloadProfileCard}
+                    className="w-full bg-[#4ade80] text-black border-4 border-black py-2 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 transition-all flex items-center justify-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    SALVAR CARD DO JOGADOR
+                  </button>
+                </div>
+
+                {/* Editor Inline se showAvatarEditor for true */}
+                {showAvatarEditor && (
+                  <div className="w-full border-t-4 border-dashed border-black pt-4 mt-2">
+                    <AvatarEditor 
+                      alunoId={alunoData?.id} 
+                      currentConfig={alunoData?.avatar_config}
+                      unlockedItems={avatarInventory}
+                      onSave={async (newConfig) => {
+                         setAlunoData((prev: any) => ({ ...prev, avatar_config: newConfig }));
+                         setShowAvatarEditor(false);
+                         const token = localStorage.getItem('acorde_token');
+                         if (alunoData?.id) {
+                           await fetch(`/api/alunos/${alunoData.id}/avatar`, {
+                             method: 'PUT',
+                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                             body: JSON.stringify({ avatar_config: newConfig })
+                           });
+                         }
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Stats do Player */}
+                <div className="grid grid-cols-3 gap-2 w-full mt-2 pt-4 border-t-4 border-dashed border-black/20">
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
+                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">XP TOTAL</p>
+                    <p className="text-[#ff6b00] font-black text-sm italic mt-1 leading-none">{alunoData?.xp || 0}</p>
+                  </div>
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
+                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">MOEDAS</p>
+                    <p className="text-black font-black text-sm italic mt-1 leading-none">{acordeCoins}</p>
+                  </div>
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
+                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">CONQUISTAS</p>
+                    <p className="text-[#ff6b00] font-black text-sm italic mt-1 leading-none">{alunoData?.conquistas?.length || 0}</p>
                   </div>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-3 mt-1">
-                 <div className="bg-[#feccba] border-4 border-black p-2.5 shadow-[4px_4px_0_#000] flex flex-col justify-center">
-                   <p className="text-[7px] font-black text-[#8e7164] uppercase mb-0.5">INSTRUMENTO</p>
-                    <span className="text-black font-black italic uppercase text-[10px] truncate">
-                      {alunoData?.curso_ativo || 'STUDENT'}
-                    </span>
-                 </div>
-                 <div className="bg-[#feccba] border-4 border-black p-2.5 shadow-[4px_4px_0_#000] flex flex-col justify-center">
-                   <p className="text-[7px] font-black text-[#8e7164] uppercase mb-0.5">RANKING</p>
-                   <p className="text-[#ff6b00] font-black text-lg italic">#{String(alunoData?.ranking || 0).padStart(2, '0')}</p>
-                 </div>
+
+              {/* Loja de Skins Overlay Modal */}
+              {showAvatarStore && (
+                <div className="fixed inset-0 bg-black/85 z-[200] flex items-center justify-center p-4 overflow-y-auto">
+                  <div className="w-full max-w-[500px] my-6">
+                    <AvatarStore 
+                      xp={acordeCoins}
+                      pontos={acordeCoins}
+                      unlockedItems={avatarInventory}
+                      onClose={() => setShowAvatarStore(false)}
+                      onBuy={(itemId, price) => handleSpendXp(price, itemId)}
+                      onConvertXp={(amountXp, points) => {
+                        toast.error('A conversão de XP não é mais necessária!');
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Zepp Gallery - Galeria de Troféus (Integrada à Home) */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 MEUS TROFÉUS — ZEPP GALLERY</h3>
+                  <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+                </div>
+
+                {(() => {
+                  const studentCourses = alunoData?.matriculas?.map((m: any) => m.cursos?.nome?.toLowerCase() || '') || [];
+                  const isCordas = studentCourses.some((c: string) => c.includes('violão') || c.includes('guitarra') || c.includes('baixo') || c.includes('ukulele'));
+                  const isTeclado = studentCourses.some((c: string) => c.includes('teclado') || c.includes('piano'));
+                  const isBateria = studentCourses.some((c: string) => c.includes('bateria'));
+                  const isVocal = studentCourses.some((c: string) => c.includes('vocal') || c.includes('canto'));
+
+                  const filteredConquistas = todasConquistas?.filter((c: any) => {
+                     const inst = c.instrumento || 'Teoria Musical';
+                     if (inst === 'Teoria Musical' || inst === 'Geral') return true;
+                     if (inst === 'Cordas (Violão/Guitarra/Baixo)' && isCordas) return true;
+                     if (inst === 'Teclado / Piano' && isTeclado) return true;
+                     if (inst === 'Bateria' && isBateria) return true;
+                     if (inst === 'Técnica Vocal' && isVocal) return true;
+                     return false;
+                  }) || [];
+
+                  if (filteredConquistas.length === 0) {
+                    return (
+                      <div className="bg-[#261812] border-4 border-black p-6 text-center shadow-[4px_4px_0_#000]">
+                        <p className="text-[#8e7164] font-black text-[9px] uppercase">Nenhum troféu cadastrado na galeria ainda.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-6">
+                      {[
+                        { key: 'Supremo', label: '👑 SUPREMO', border: 'border-[#d4af37]' },
+                        { key: 'Lendario', label: '🔥 LENDÁRIO', border: 'border-[#f97316]' },
+                        { key: 'Epico', label: '🔮 ÉPICO', border: 'border-[#a855f7]' },
+                        { key: 'Raro', label: '⭐ RARO', border: 'border-[#3b82f6]' },
+                        { key: 'Especial', label: '⚡ ESPECIAL', border: 'border-[#22c55e]' }
+                      ].map((categoria) => {
+                        const conquistasDaCategoria = filteredConquistas.filter(
+                          (c: any) => (c.classe || 'Especial').toLowerCase() === categoria.key.toLowerCase()
+                        );
+
+                        if (conquistasDaCategoria.length === 0) return null;
+
+                        return (
+                          <div key={categoria.key} className="space-y-3 bg-[#261812] p-4 border-4 border-black shadow-[4px_4px_0_#000]">
+                            <h4 className="text-xs font-black text-white uppercase tracking-widest border-b-2 border-white/20 pb-2 flex items-center justify-between">
+                              <span>{categoria.label}</span>
+                            </h4>
+
+                            <div className="grid grid-cols-3 gap-3">
+                              {conquistasDaCategoria.map((conquista: any) => {
+                                const conquistadoInstancias = alunoData?.conquistas?.filter(
+                                  (c: any) => Number(c.id) === Number(conquista.id) || Number(c.conquista_id) === Number(conquista.id)
+                                ) || [];
+                                const conquistadoCount = conquistadoInstancias.length;
+                                const conquistado = conquistadoCount > 0;
+                                const solicitacaoPendente = alunoData?.solicitacoes?.find(
+                                  (s: any) => Number(s.conquista_id) === Number(conquista.id) && s.status === 'pendente'
+                                );
+
+                                return (
+                                  <div 
+                                    key={conquista.id} 
+                                    onClick={() => setSelectedTrophy({ ...conquista, conquistado, solicitacaoPendente, conquistadoCount })}
+                                    className={`flex flex-col items-center cursor-pointer group hover:scale-[1.03] transition-transform relative ${!conquistado && !solicitacaoPendente ? 'opacity-40 grayscale hover:grayscale-0' : ''}`}
+                                  >
+                                    {solicitacaoPendente && (
+                                      <div className="absolute -top-1 -right-1 z-20 bg-yellow-500 text-black border border-black font-black text-[6px] px-1 py-0.5 uppercase shadow-[1px_1px_0_#000] animate-pulse">
+                                        ⏳ PENDENTE
+                                      </div>
+                                    )}
+
+                                    <div className={`w-14 h-14 flex items-center justify-center mb-1.5 transition-all ${conquistado ? 'drop-shadow-[0_0_10px_rgba(255,107,0,0.4)]' : ''}`}>
+                                      {conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe) ? (
+                                        <img src={conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe)} alt={conquista.nome} className="w-full h-full object-contain hover:scale-105 transition-transform" />
+                                      ) : (
+                                        <Trophy className={`w-8 h-8 ${conquistado ? 'text-[#ff6b00]' : 'text-gray-500'}`} />
+                                      )}
+                                    </div>
+                                    <h5 className="font-bold text-white text-[8px] uppercase text-center leading-tight line-clamp-1 w-full">{conquista.nome}</h5>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
-              {aulasRealizadas[0] && (
-                <button 
-                  onClick={() => setPrintAula(aulasRealizadas[0])}
-                  className="w-full bg-[#ff6b00] text-white border-4 border-black font-black text-[10px] py-2 uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black transition-all flex items-center justify-center gap-2"
-                >
-                  📄 IMPRIMIR ÚLTIMO DIÁRIO (PDF)
-                </button>
-              )}
-            </div>
-
-
-              {/* FEED DO CRM */}
+              {/* Feed de Atividades / CRM */}
               <div className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-black font-black text-lg">🌍</span>
                   <h3 className="text-black font-black text-[11px] uppercase tracking-widest">Feed de Atividades</h3>
                 </div>
+                
                 <div className="max-h-64 overflow-y-auto custom-scrollbar">
                   {feed.length > 0 ? (
                     <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-[#3d2d26] before:to-transparent">
@@ -2320,379 +2662,9 @@ export default function AreaAluno() {
                 </div>
               </div>
 
-            {/* XP Bar Section */}
-            <div className="p-5 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000]">
-              <div className="flex justify-between items-center mb-3">
-                <p className="text-white font-black text-[8px] uppercase tracking-widest">LVL {nivel} • {classe}</p>
-                <span className="text-[#ff6b00] font-black text-[8px]">{xp} XP</span>
-              </div>
-              <div className="h-5 bg-[#1a0a05] border-4 border-black overflow-hidden p-1">
-                 <div className="h-full bg-[#ff6b00] transition-all duration-1000 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]" style={{ width: `${xpPct}%` }}></div>
-              </div>
             </div>
-
-            {/* Próxima Sessão foi removida a pedido do admin para ceder espaço a futuras features */}
-
-            {/* Conquistas (Badges) */}
-            <div className="pt-2">
-              <div className="flex items-center gap-3 mb-4">
-                <h3 className="text-white font-black text-xs uppercase tracking-widest">CONQUISTAS_PLAYER</h3>
-                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-              </div>
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                {alunoData?.conquistas?.map((c: any, i: number) => (
-                  <div key={i} className="flex-shrink-0 w-16 h-16 bg-[#261812] border-4 border-black relative group shadow-[4px_4px_0_#000]">
-                    {c.icone_url || resolveTrophyImage(c.instrumento, c.classe) ? (
-                      <img src={c.icone_url || resolveTrophyImage(c.instrumento, c.classe)} alt={c.nome} className="w-full h-full object-contain p-1" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[#ff6b00]">
-                         <Trophy className="w-6 h-6" />
-                      </div>
-                    )}
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#ff6b00] border-2 border-black rounded-full"></div>
-                  </div>
-                ))}
-                {(!alunoData?.conquistas || alunoData.conquistas.length === 0) && (
-                  <div className="flex-1 text-center py-4 bg-[#261812]/50 border-4 border-dashed border-[#3d2d26]">
-                    <p className="text-[#8e7164] font-black text-[8px] uppercase tracking-tighter">Nenhuma conquista desbloqueada</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
           )} {/* end activeTab === home */}
 
-          {/* ===== ABA: PERFIL ===== */}
-          {activeTab === 'perfil' && (
-            <div className="px-4 py-5 space-y-6">
-              {/* Cabeçalho do Perfil */}
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
-                  <h3 className="text-white font-black text-xs uppercase tracking-widest">👤 MEU PERFIL</h3>
-                </div>
-                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-              </div>
-
-              {/* Card do Jogador */}
-              <div className="bg-[#fff8f6] border-8 border-black p-6 shadow-[12px_12px_0_#000] flex flex-col items-center text-center relative overflow-visible gap-4">
-                {/* Efeitos de Fundo 8-Bit */}
-                <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
-                
-                {/* Avatar Interativo Grande */}
-                <div className="relative group cursor-pointer w-full max-w-[280px] aspect-[3/4] mt-4" onClick={() => document.getElementById('photo-input-profile')?.click()}>
-                  <div className="w-full h-full shadow-[8px_8px_0_#000] relative">
-                    {alunoData?.avatar_config ? (
-                      <AvatarPixel config={alunoData.avatar_config} />
-                    ) : alunoData?.foto_url ? (
-                      <img src={alunoData.foto_url} alt="Avatar" className="w-full h-full object-cover border-4 border-black" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-[#ff6b00] border-4 border-black text-black font-black text-6xl uppercase">
-                        {(alunoData?.nome || user?.nome || 'A').charAt(0)}
-                      </div>
-                    )}
-                  </div>
-                  <div className="absolute -bottom-3 -right-3 bg-black border-4 border-white text-white p-2 rounded-none hover:scale-110 transition-transform">
-                    <Camera className="w-5 h-5" />
-                  </div>
-                  {/* Input de arquivo */}
-                  <input 
-                    id="photo-input-profile" 
-                    type="file" 
-                    className="hidden" 
-                    accept="image/*" 
-                    onChange={handlePhotoUpload} 
-                  />
-                </div>
-
-                {/* Avatar Editor Component (Customization) */}
-                  <div className="w-full mt-4 flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => setShowAvatarEditor(!showAvatarEditor)}
-                        className="bg-[#ff6b00] text-white border-4 border-black px-4 py-2 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all"
-                      >
-                        {showAvatarEditor ? 'FECHAR EDITOR' : 'PERSONALIZAR AVATAR'}
-                      </button>
-                      
-                      <button 
-                        onClick={handleDownloadProfileCard}
-                        className="bg-[#4ade80] text-black border-4 border-black px-4 py-2 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2"
-                      >
-                        <Download className="w-3 h-3" />
-                        SALVAR FOTO
-                      </button>
-                    </div>
-                    
-                    {showAvatarEditor && (
-                      <div className="w-full mt-4 p-4 border-4 border-black bg-white shadow-[4px_4px_0_#000]">
-                        <AvatarEditor 
-                          alunoId={alunoData?.id} 
-                          currentConfig={alunoData?.avatar_config}
-                          unlockedItems={avatarInventory}
-                          onSave={async (newConfig) => {
-                             setAlunoData((prev: any) => ({ ...prev, avatar_config: newConfig }));
-                             setShowAvatarEditor(false); // fechar ao salvar
-                             const token = localStorage.getItem('acorde_token');
-                             if (alunoData?.id) {
-                               await fetch(`/api/alunos/${alunoData.id}/avatar`, {
-                                 method: 'PUT',
-                                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                 body: JSON.stringify({ avatar_config: newConfig })
-                               });
-                             }
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                {/* Nome e Nível */}
-                <div className="space-y-1">
-                  <h2 className="text-black font-black text-lg uppercase tracking-tight leading-none mt-2">{alunoData?.nome || user?.nome}</h2>
-                  <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-widest">{alunoData?.email}</p>
-                  <span className="inline-block mt-2 text-[8px] font-black uppercase px-2 py-1 bg-black text-white border-2 border-black">
-                    NÍVEL_0{Math.floor(xp / 1000) + 1} • {cursoNome}
-                  </span>
-                </div>
-
-                {/* Grid de Stats (XP / Ranking / Conquistas) */}
-                <div className="grid grid-cols-3 gap-2 w-full mt-4 pt-4 border-t-4 border-black">
-                  <div className="bg-[#feccba] border-4 border-black p-2 text-center shadow-[4px_4px_0_#000]">
-                    <p className="text-black font-black text-[7px] uppercase tracking-widest leading-none">XP TOTAL</p>
-                    <p className="text-[#ff6b00] font-black text-base italic mt-1 leading-none">{xp}</p>
-                  </div>
-                  <div className="bg-[#feccba] border-4 border-black p-2 text-center shadow-[4px_4px_0_#000]">
-                    <p className="text-black font-black text-[7px] uppercase tracking-widest leading-none">RANKING</p>
-                    <p className="text-black font-black text-base italic mt-1 leading-none">#{alunoData?.ranking || '?'}</p>
-                  </div>
-                  <div className="bg-[#feccba] border-4 border-black p-2 text-center shadow-[4px_4px_0_#000]">
-                    <p className="text-black font-black text-[7px] uppercase tracking-widest leading-none">CONQUISTAS</p>
-                    <p className="text-[#ff6b00] font-black text-base italic mt-1 leading-none">{alunoData?.conquistas?.length || 0}</p>
-                  </div>
-                </div>
-
-                {/* Barra de XP */}
-                <div className="w-full space-y-2">
-                  <div className="flex justify-between items-center text-[8px] font-black text-black">
-                    <span>XP DO PRÓXIMO NÍVEL</span>
-                    <span>{xp % 1000} / 1000 XP</span>
-                  </div>
-                  <div className="h-6 bg-black p-1 border-4 border-black overflow-hidden w-full">
-                    <div 
-                      className="h-full bg-[#ff6b00] transition-all duration-500" 
-                      style={{ width: `${(xp % 1000) / 10}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção de Conquistas e Troféus - Zepp Gallery */}
-              <div className="space-y-6">
-                
-                {(() => {
-                  const studentCourses = alunoData?.matriculas?.map((m: any) => m.cursos?.nome?.toLowerCase() || '') || [];
-                  const isCordas = studentCourses.some((c: string) => c.includes('violão') || c.includes('guitarra') || c.includes('baixo') || c.includes('ukulele'));
-                  const isTeclado = studentCourses.some((c: string) => c.includes('teclado') || c.includes('piano'));
-                  const isBateria = studentCourses.some((c: string) => c.includes('bateria'));
-                  const isVocal = studentCourses.some((c: string) => c.includes('vocal') || c.includes('canto'));
-
-                  const filteredConquistas = todasConquistas?.filter((c: any) => {
-                     const inst = c.instrumento || 'Teoria Musical';
-                     if (inst === 'Teoria Musical' || inst === 'Geral') return true;
-                     if (inst === 'Cordas (Violão/Guitarra/Baixo)' && isCordas) return true;
-                     if (inst === 'Teclado / Piano' && isTeclado) return true;
-                     if (inst === 'Bateria' && isBateria) return true;
-                     if (inst === 'Técnica Vocal' && isVocal) return true;
-                     return false;
-                  }) || [];
-
-                  if (filteredConquistas.length === 0) {
-                    return (
-                      <div className="bg-[#261812] border-4 border-black p-6 text-center">
-                        <p className="text-[#8e7164] font-black text-[9px] uppercase">Nenhum troféu cadastrado na galeria ainda.</p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                  <div className="space-y-6">
-                    {[
-                      { key: 'Supremo', label: '👑 SUPREMO', border: 'border-[#d4af37]' },
-                      { key: 'Lendario', label: '🔥 LENDÁRIO', border: 'border-[#f97316]' },
-                      { key: 'Epico', label: '🔮 ÉPICO', border: 'border-[#a855f7]' },
-                      { key: 'Raro', label: '⭐ RARO', border: 'border-[#3b82f6]' },
-                      { key: 'Especial', label: '⚡ ESPECIAL', border: 'border-[#22c55e]' }
-                    ].map((categoria) => {
-                      const conquistasDaCategoria = filteredConquistas.filter(
-                        (c: any) => (c.classe || 'Especial').toLowerCase() === categoria.key.toLowerCase()
-                      );
-
-                      if (conquistasDaCategoria.length === 0) return null;
-
-                      return (
-                        <div key={categoria.key} className="space-y-4">
-                          <h4 className="text-lg font-black text-white uppercase tracking-widest flex items-center justify-between border-b-2 border-white/20 pb-2">
-                            <span>{categoria.label}</span>
-                          </h4>
-
-                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-                            {conquistasDaCategoria.map((conquista: any) => {
-                              const conquistadoInstancias = alunoData?.conquistas?.filter(
-                                (c: any) => Number(c.id) === Number(conquista.id) || Number(c.conquista_id) === Number(conquista.id)
-                              ) || [];
-                              const conquistadoCount = conquistadoInstancias.length;
-                              const conquistado = conquistadoCount > 0;
-                              const solicitacaoPendente = alunoData?.solicitacoes?.find(
-                                (s: any) => Number(s.conquista_id) === Number(conquista.id) && s.status === 'pendente'
-                              );
-
-                              return (
-                                <div 
-                                  key={conquista.id} 
-                                  onClick={() => setSelectedTrophy({ ...conquista, conquistado, solicitacaoPendente, conquistadoCount })}
-                                  className={`flex flex-col items-center cursor-pointer group hover:scale-105 transition-transform relative ${!conquistado && !solicitacaoPendente ? 'opacity-60 grayscale hover:grayscale-0' : ''}`}
-                                >
-                                  {/* Badge Overlay */}
-                                  {solicitacaoPendente && (
-                                    <div className="absolute -top-2 -right-2 z-20 bg-yellow-500 text-black border-2 border-black font-black text-[8px] px-1.5 py-0.5 uppercase shadow-[2px_2px_0_#000] animate-pulse">
-                                      ⏳ PENDENTE
-                                    </div>
-                                  )}
-
-                                  <div className={`w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center mb-2 transition-all ${conquistado ? 'drop-shadow-[0_0_15px_rgba(255,107,0,0.5)] group-hover:drop-shadow-[0_0_25px_rgba(255,107,0,0.8)]' : ''}`}>
-                                    {conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe) ? (
-                                      <img src={conquista.icone_url || resolveTrophyImage(conquista.instrumento, conquista.classe)} alt={conquista.nome} className="w-full h-full object-contain hover:scale-110 transition-transform" />
-                                    ) : (
-                                      <Trophy className={`w-10 h-10 ${conquistado ? 'text-[#ff6b00]' : 'text-gray-400'}`} />
-                                    )}
-                                  </div>
-                                  <h5 className="font-bold text-white text-[10px] uppercase text-center leading-tight line-clamp-2 w-full">{conquista.nome}</h5>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  );
-                })()}
-
-                {/* Modal Secundário: Detalhes da Medalha */}
-                <AnimatePresence>
-                  {selectedTrophy && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 50 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 50 }}
-                      className="fixed inset-0 z-[100] bg-[#1a0f0b] border-8 border-[#ff6b00] flex flex-col p-6 overflow-y-auto"
-                    >
-                      <button 
-                        onClick={() => setSelectedTrophy(null)} 
-                        className="absolute top-4 left-4 bg-transparent text-white p-2 hover:bg-white/10 rounded-full transition-colors"
-                      >
-                        <X className="w-8 h-8" />
-                      </button>
-
-                      <div className="flex flex-col items-center mt-8 space-y-6">
-                        <div className="text-center">
-                          <h3 className="text-2xl font-black uppercase text-white tracking-widest">{selectedTrophy.nome}</h3>
-                          {selectedTrophy.conquistado && (
-                            <p className="text-[#a0a0a0] text-xs font-bold uppercase mt-1">DESBLOQUEADO ✅ {selectedTrophy.conquistadoCount > 1 && `(${selectedTrophy.conquistadoCount}X)`}</p>
-                          )}
-                        </div>
-
-                        <div className={`w-48 h-48 flex items-center justify-center ${selectedTrophy.conquistado ? 'drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] scale-110' : 'grayscale'} transition-all`}>
-                          {selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe) ? (
-                            <img src={selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe)} alt={selectedTrophy.nome} className="w-full h-full object-contain" />
-                          ) : (
-                            <Trophy className="w-24 h-24 text-[#ff6b00]" />
-                          )}
-                        </div>
-
-                        <p className="text-center text-sm font-bold text-white/80 max-w-md">
-                          {selectedTrophy.descricao || "Continue treinando para melhorar suas habilidades e alcançar novos patamares na sua jornada musical!"}
-                        </p>
-
-                        <div className="w-full max-w-md mt-6 space-y-4">
-                          <div className="flex justify-between items-center text-xs font-black uppercase text-[#a0a0a0]">
-                            <span>RECOMPENSA</span>
-                            <span className="text-[#ff6b00] text-lg">+{selectedTrophy.pontos || 100} XP</span>
-                          </div>
-                        </div>
-
-                        {/* Botão de Solicitar ou Fechar */}
-                        <div className="mt-8 flex flex-col items-center gap-4">
-                          {((!selectedTrophy.conquistado || selectedTrophy.classe === 'Especial') && !selectedTrophy.solicitacaoPendente) && (
-                            <button
-                              onClick={() => {
-                                handleSolicitarTrofeu(selectedTrophy.id);
-                                setSelectedTrophy((prev: any) => ({ ...prev, solicitacaoPendente: true }));
-                              }}
-                              className="bg-[#4ade80] text-black font-black uppercase px-12 py-4 border-4 border-black hover:bg-[#22c55e] shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2"
-                            >
-                              🚀 SOLICITAR TROFÉU
-                            </button>
-                          )}
-
-                          {selectedTrophy.solicitacaoPendente && (
-                            <div className="bg-yellow-500/20 text-yellow-500 font-black uppercase px-8 py-3 border-4 border-yellow-500 animate-pulse">
-                              ⏳ SOLICITAÇÃO PENDENTE...
-                            </div>
-                          )}
-
-                          <button 
-                            onClick={() => setSelectedTrophy(null)}
-                            className="bg-[#261812] text-white font-black uppercase px-8 py-3 border-4 border-transparent hover:border-[#ff6b00] transition-all"
-                          >
-                            FECHAR
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-              </div>
-
-              {/* Histórico de Aulas Passadas */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-white font-black text-xs uppercase tracking-widest">⏳ HISTÓRICO DE AULAS</h3>
-                  <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-                </div>
-
-                <div className="space-y-3">
-                  {aulasRealizadas.length > 0 ? (
-                    aulasRealizadas.map((aula: any) => (
-                      <div key={aula.id} className="flex items-center justify-between p-4 bg-[#fff8f6] border-4 border-black shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 border-4 border-black flex flex-col items-center justify-center font-black bg-[#ff6b00] text-white shrink-0">
-                            <span className="text-[10px] leading-none">{new Date(aula.data + 'T12:00:00Z').getDate().toString().padStart(2,'0')}</span>
-                            <span className="text-[7px] leading-none uppercase">{new Date(aula.data + 'T12:00:00Z').toLocaleDateString('pt-BR', { month: 'short' })}</span>
-                          </div>
-                          <div>
-                            <p className="font-black text-[10px] uppercase text-black">{aula.curso_nome || 'AULA DE MÚSICA'}</p>
-                            <p className="text-[7px] font-black uppercase text-[#8e7164]">{aula.horario?.substring(0,5)} • {aula.professor_nome || 'PROFESSOR'}</p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => setPrintAula(aula)}
-                          className="bg-black hover:bg-[#ff6b00] text-white font-black text-[8px] uppercase tracking-widest px-3 py-2 border-2 border-black active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
-                        >
-                          <FileText className="w-3.5 h-3.5" /> DIÁRIO (PDF)
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="bg-[#261812] border-4 border-black p-6 text-center">
-                      <p className="text-[#8e7164] font-black text-[9px] uppercase">Nenhuma aula realizada registrada.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
 
@@ -2785,21 +2757,72 @@ export default function AreaAluno() {
         </div>
       </div>
 
-        {/* BOTTOM NAV — Mobile */}
-        <nav className="fixed md:absolute bottom-0 left-0 right-0 md:left-auto md:right-auto md:w-full h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-50">
+        {/* BOTTOM NAV — Mobile Flutuante 8-Bit */}
+        <div className="fixed bottom-4 left-4 right-4 z-50 flex justify-center md:hidden">
+          <nav className="bg-[#261812] border-8 border-black flex items-center justify-around px-2 py-1 shadow-[8px_8px_0_#000] w-full max-w-[450px]">
+            {[
+              { icon: Home, label: 'INÍCIO', tab: 'home' as const },
+              { icon: Flame, label: 'TREINO', tab: 'treino' as const },
+              { icon: Trophy, label: 'RANKING', tab: 'ranking' as const },
+              { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
+              { icon: Gamepad2, label: 'JOGOS', tab: 'jogos' as const },
+            ].map((item) => (
+              <button 
+                key={item.tab} 
+                onClick={() => { 
+                  setActiveTab(item.tab); 
+                  if (item.tab === 'ranking') fetchRanking(); 
+                  else if (item.tab === 'treino') fetchTreinos(); 
+                }} 
+                className={`flex flex-col items-center gap-1 transition-all ${
+                  activeTab === item.tab 
+                    ? 'translate-y-[-4px] scale-105' 
+                    : 'opacity-50 hover:opacity-80 active:scale-95'
+                }`}
+              >
+                <div className={`p-1.5 border-4 border-black shadow-[3px_3px_0_#000] ${
+                  activeTab === item.tab 
+                    ? 'bg-[#ff6b00] text-white shadow-none translate-x-[1px] translate-y-[1px]' 
+                    : 'bg-white text-black'
+                }`}>
+                  <item.icon className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-[6.5px] font-black text-white uppercase tracking-tighter">{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* BOTTOM NAV — Desktop / Tablet Lateral Fixada */}
+        <nav className="hidden md:flex fixed left-4 top-24 bottom-24 w-24 bg-[#261812] border-8 border-black flex-col items-center justify-center gap-6 py-4 shadow-[8px_8px_0_#000] z-50">
           {[
-            { icon: Home, label: 'HOME', tab: 'home' as const },
+            { icon: Home, label: 'INÍCIO', tab: 'home' as const },
             { icon: Flame, label: 'TREINO', tab: 'treino' as const },
-            { icon: Trophy, label: 'RANK', tab: 'ranking' as const },
+            { icon: Trophy, label: 'RANKING', tab: 'ranking' as const },
             { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
             { icon: Gamepad2, label: 'JOGOS', tab: 'jogos' as const },
-            { icon: User, label: 'PERFIL', tab: 'perfil' as const },
           ].map((item) => (
-            <button key={item.tab} onClick={() => { setActiveTab(item.tab); if (item.tab === 'ranking') fetchRanking(); else if (item.tab === 'treino') fetchTreinos(); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === item.tab ? 'translate-y-[-4px]' : 'opacity-50'}`}>
-              <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${activeTab === item.tab ? 'bg-[#ff6b00]' : 'bg-white'}`}>
-                <item.icon className={`w-5 h-5 ${activeTab === item.tab ? 'text-white' : 'text-black'}`} />
+            <button 
+              key={item.tab} 
+              onClick={() => { 
+                setActiveTab(item.tab); 
+                if (item.tab === 'ranking') fetchRanking(); 
+                else if (item.tab === 'treino') fetchTreinos(); 
+              }} 
+              className={`flex flex-col items-center gap-1 transition-all ${
+                activeTab === item.tab 
+                  ? 'scale-105' 
+                  : 'opacity-50 hover:opacity-80 active:scale-95'
+              }`}
+            >
+              <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${
+                activeTab === item.tab 
+                  ? 'bg-[#ff6b00] text-white shadow-none translate-x-[1.5px] translate-y-[1.5px]' 
+                  : 'bg-white text-black'
+              }`}>
+                <item.icon className="w-5 h-5" />
               </div>
-              <span className="text-[6px] font-black text-white uppercase tracking-tighter">{item.label}</span>
+              <span className="text-[6.5px] font-black text-white uppercase tracking-tighter">{item.label}</span>
             </button>
           ))}
         </nav>
