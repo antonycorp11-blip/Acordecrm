@@ -53,12 +53,12 @@ function LessonChords({ chords, currentInstrument }: { chords: any[], currentIns
   if (!chords || chords.length === 0) return null;
 
   // Agrupa os acordes pelo campo .group || 'GERAL'
-  const grouped = chords.reduce((groups: Record<string, any[]>, chord) => {
+  const grouped: Record<string, any[]> = {};
+  (chords as any[]).forEach(chord => {
     const groupName = (chord.group || 'GERAL').toUpperCase();
-    if (!groups[groupName]) groups[groupName] = [];
-    groups[groupName].push(chord);
-    return groups;
-  }, {});
+    if (!grouped[groupName]) grouped[groupName] = [];
+    grouped[groupName].push(chord);
+  });
 
   return (
     <div className="space-y-6 select-none font-['Space_Mono'] w-full">
@@ -340,6 +340,15 @@ export default function AreaAluno() {
   const [showTools, setShowTools] = useState(false);
   const [selectedFicha, setSelectedFicha] = useState<any | null>(null);
 
+  // Estados EAD Trilha Candy Crush
+  const [trilhaModulos, setTrilhaModulos] = useState<any[]>([]);
+  const [trilhaAulas, setTrilhaAulas] = useState<any[]>([]);
+  const [trilhaProgresso, setTrilhaProgresso] = useState<any[]>([]);
+  const [selectedTrilhaAula, setSelectedTrilhaAula] = useState<any | null>(null);
+  const [questionarioRespostas, setQuestionarioRespostas] = useState<Record<number, number>>({});
+  const [questionarioFinalizado, setQuestionarioFinalizado] = useState(false);
+  const [questionarioCorreto, setQuestionarioCorreto] = useState<boolean | null>(null);
+
   // Estados para o Sistema de Treino Diário
   const [treinos, setTreinos] = useState<any[]>([]);
   const [recording, setRecording] = useState(false);
@@ -364,6 +373,47 @@ export default function AreaAluno() {
   const [geniusActivePad, setGeniusActivePad] = useState<number | null>(null);
   // Removido gamePoints, agora usamos XP real.
   const [isRedeeming, setIsRedeeming] = useState(false);
+
+  const handleOpenFicha = async (aula: any) => {
+    setSelectedFicha(aula);
+    if (alunoData?.id) {
+      try {
+        const token = localStorage.getItem('acorde_token');
+        const res = await fetch('/api/alunos/abrir-ficha-premio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ aluno_id: alunoData.id })
+        });
+        const data = await res.json();
+        if (data.success && !data.claimed) {
+          setAlunoData((prev: any) => ({ ...prev, xp: data.novoXp, acorde_coins: data.novasMoedas }));
+          toast.success('🎁 +500 XP & +500 Coins por abrir sua ficha de aula!', { duration: 5000 });
+        }
+      } catch (err) { console.error(err); }
+    }
+  };
+
+  const fetchTrilha = async () => {
+    const token = localStorage.getItem('acorde_token');
+    const h = { Authorization: `Bearer ${token}` };
+    try {
+      const resMod = await fetch('/api/trilha/modulos', { headers: h });
+      const modsData = await resMod.json();
+      setTrilhaModulos(Array.isArray(modsData) ? modsData : []);
+      const resAul = await fetch('/api/trilha/aulas', { headers: h });
+      const aulsData = await resAul.json();
+      setTrilhaAulas(Array.isArray(aulsData) ? aulsData : []);
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchTrilhaProgresso = async (idAluno: any) => {
+    const token = localStorage.getItem('acorde_token');
+    try {
+      const res = await fetch(`/api/trilha/progresso/${idAluno}`, { headers: { Authorization: `Bearer ${token}` } });
+      const prog = await res.json();
+      setTrilhaProgresso(Array.isArray(prog) ? prog : []);
+    } catch (err) { console.error(err); }
+  };
 
   // Web Audio API Retro Sound Generator
   const playRetroSound = (frequency: number, type: 'sine' | 'triangle' | 'square' | 'sawtooth' = 'triangle', duration: number = 0.25) => {
@@ -512,6 +562,7 @@ export default function AreaAluno() {
       ]).then(([me, agenda]) => {
         if (me) {
           setAlunoData(me);
+          fetchTrilhaProgresso(me.id);
           if (me.avatar_inventory && Array.isArray(me.avatar_inventory)) {
             setAvatarInventory(me.avatar_inventory);
           } else {
@@ -552,6 +603,7 @@ export default function AreaAluno() {
 
     fetchAll();
     fetchTodasConquistas();
+    fetchTrilha();
     
     // Buscar treinos do aluno na inicializacao
     const fetchTreinosInit = () => {
@@ -1875,370 +1927,136 @@ export default function AreaAluno() {
                 </div>
               </div>
 
-              {/* MODAL DETALHADO DA FICHA DE AULA */}
-              {selectedFicha && (() => {
-                const aula = selectedFicha;
-                let midiasList: any[] = [];
-                try {
-                  if (typeof aula.midias === 'string') {
-                    midiasList = JSON.parse(aula.midias);
-                  } else if (Array.isArray(aula.midias)) {
-                    midiasList = aula.midias;
-                  }
-                } catch {}
 
-                let isRich = false;
-                let richData: any = null;
-                try {
-                  if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
-                    const parsed = JSON.parse(aula.conteudo);
-                    if (parsed && parsed.isRich) {
-                      isRich = true;
-                      richData = parsed;
-                    }
-                  }
-                } catch {}
-
-                const cursoNomeAula = alunoData?.matriculas?.[0]?.cursos?.nome || alunoData?.curso_ativo || aula.cursos?.nome || aula.curso_nome || '';
-                const isCursoTeclado = /teclado|piano|keyboard/i.test(cursoNomeAula);
-                const currentInstrument = isCursoTeclado ? 'Teclado' : (cursoNomeAula || 'Piano');
-
-                return (
-                  <div className="fixed inset-0 bg-[#261812]/95 md:bg-black/80 z-[150] flex items-stretch md:items-center justify-center p-0 md:p-4 overflow-y-auto">
-                    <div className="bg-[#fff8f6] border-0 md:border-8 border-black pt-16 pb-6 px-4 md:p-5 shadow-none md:shadow-[8px_8px_0_#000] w-full max-w-full md:max-w-[600px] min-h-screen md:min-h-0 flex flex-col space-y-4 relative font-['Space_Mono'] text-black select-none">
-                      
-                      {/* Header Modal */}
-                      <div className="flex justify-between items-start border-b-4 border-black pb-3">
-                        <div>
-                          <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider">
-                            {format(new Date(aula.data + 'T12:00:00Z'), "dd 'de' MMMM", { locale: ptBR }).toUpperCase()}
-                          </p>
-                          <h3 className="text-black font-black text-sm md:text-base uppercase italic">
-                            FICHA DE AULA: {aula.curso_nome || 'MÚSICA'}
-                          </h3>
-                        </div>
-                        <button
-                          onClick={() => setSelectedFicha(null)}
-                          className="bg-red-600 text-white border-2 border-black font-black text-[11px] px-3.5 py-1.5 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-black hover:text-[#feccba] transition-all shrink-0"
-                        >
-                          FECHAR (X)
-                        </button>
-                      </div>
-
-                      {/* Conteúdo Ficha */}
-                      <div className="space-y-4 flex-1 md:max-h-[60vh] md:overflow-y-auto pr-1">
-                        {!isRich ? (
-                          <>
-                            {/* Conteúdo Trabalhado */}
-                            <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
-                              <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
-                              <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(aula.conteudo || 'Nenhum conteúdo registrado')}</p>
-                            </div>
-
-                            {/* Tarefa de casa / Desafio */}
-                            <div className="bg-black/5 border-2 border-black/10 p-2.5">
-                              <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1 flex items-center gap-1">
-                                ⚔️ BOSS QUEST / DESAFIO:
-                              </span>
-                              <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(aula.tarefa_casa || 'Treinar repertório livre')}</p>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="space-y-4">
-                            {/* FICHA PEDAGÓGICA MUSICLASS */}
-                            <div className="bg-[#feccba]/20 border-2 border-black/20 p-2.5 relative overflow-hidden">
-                              <div className="absolute top-1 right-2 flex items-center gap-1">
-                                <span className="bg-black text-[#ff6b00] text-[6px] font-black px-1 border border-black uppercase">
-                                  💡 MUSICLASS ROTEIRO
-                                </span>
-                              </div>
-                              <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEÚDO TRABALHADO:</span>
-                              <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(richData.conteudoText || 'AULA INTERATIVA DE MÚSICA')}</p>
-                            </div>
-
-                            {/* TAREFA DE CASA / DESAFIO */}
-                            {richData.tarefaCasaText && (
-                              <div className="bg-black/5 border-2 border-black/20 p-2.5">
-                                <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">
-                                  ⚔️ TAREFA DE CASA / DESAFIO DA SEMANA:
-                                </span>
-                                <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(richData.tarefaCasaText)}</p>
-                              </div>
-                            )}
-
-                            {/* IMAGENS */}
-                            {Array.isArray(richData.images) && richData.images.length > 0 && (
-                              <div className="bg-white border-2 border-black p-2 space-y-1.5">
-                                <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest">📸 ANEXOS & CIFRAS:</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {richData.images.map((img: string, i: number) => (
-                                    <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-2 border-black shadow-[2px_2px_0_#000] hover:translate-y-[-1px] transition-transform">
-                                      <img src={img} alt="Anexo" className="w-full h-24 object-cover" />
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* ACORDES RENDERIZADOS */}
-                            {Array.isArray(richData.chords) && richData.chords.length > 0 && (
-                              <LessonChords chords={richData.chords} currentInstrument={currentInstrument} />
-                            )}
-
-                            {/* ESCALAS RENDERIZADOS */}
-                            {Array.isArray(richData.scales) && richData.scales.length > 0 && (
-                              <div className="bg-white border-2 border-black p-2 space-y-1.5">
-                                <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest">
-                                  🎼 CAMPOS HARMÔNICOS &amp; ESCALAS DE ESTUDO:
-                                </span>
-                                {richData.scales.map((sc: any, idx: number) => (
-                                  <div key={idx} className="bg-[#261812] text-[#feccba] border border-black p-1.5">
-                                    <p className="text-[8px] font-black uppercase tracking-wider">{sc.root} {sc.scaleName}</p>
-                                    <p className="text-[7px] font-mono uppercase tracking-tighter mt-0.5 text-white/80">{sc.notes.join(' - ')}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* BOSS QUEST / QUESTS DO PROFESSOR */}
-                            {Array.isArray(richData.exercises) && richData.exercises.length > 0 && (
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <div className="bg-[#ff6b00] border-2 border-black px-2 py-0.5 shadow-[2px_2px_0_#000]">
-                                    <span className="text-[8px] font-black text-white uppercase tracking-widest">⚔️ BOSS QUEST — MISSÃO DO PROFESSOR</span>
-                                  </div>
-                                  <div className="flex-1 border-t-2 border-dashed border-[#ff6b00]/40"></div>
-                                </div>
-                                {richData.exercises.map((ex: any, idx: number) => (
-                                  <div key={idx} className="bg-[#261812] border-4 border-[#ff6b00] p-3 relative overflow-hidden shadow-[4px_4px_0_#ff6b00]">
-                                    {/* Badge de XP */}
-                                    <div className="absolute top-2 right-2 bg-[#ffd700] border-2 border-black px-1.5 py-0.5 shadow-[2px_2px_0_#000]">
-                                      <span className="text-[7px] font-black text-black uppercase">+{ex.points} XP ⚡</span>
-                                    </div>
-                                    {/* Ícone + Título */}
-                                    <div className="flex items-center gap-2 pr-12">
-                                      <span className="text-[#ff6b00] text-base leading-none">⚔️</span>
-                                      <p className="text-[10px] font-black uppercase text-[#feccba] leading-tight">{ex.title}</p>
-                                    </div>
-                                    {ex.description && (
-                                      <p className="text-[7px] font-black text-[#ff6b00]/70 uppercase mt-1.5 leading-snug">{ex.description}</p>
-                                    )}
-                                    {/* Barra de progresso decorativa */}
-                                    <div className="mt-2 bg-black/50 border border-[#ff6b00]/30 h-1">
-                                      <div className="h-full bg-[#ff6b00] w-1/2 animate-pulse"></div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* GRAVAÇÕES DE ÁUDIO DO ESTÚDIO */}
-                            {Array.isArray(richData.recordings) && richData.recordings.length > 0 && (
-                              <div className="bg-[#261812] text-white p-2 border-2 border-black space-y-2">
-                                <span className="text-[7px] font-black text-[#ff6b00] uppercase block tracking-widest flex items-center gap-1">
-                                  🎙️ GUIAS DE ÁUDIO DO PROFESSOR:
-                                </span>
-                                {richData.recordings.map((rec: any, idx: number) => (
-                                  <div key={idx} className="bg-black/30 border border-white/10 p-1.5">
-                                    <p className="text-[7px] font-black uppercase truncate text-white">{rec.name}</p>
-                                    <audio src={rec.url} controls className="h-6 w-full mt-1 border border-white/20" />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* TABLATURAS RENDERIZADAS */}
-                            {Array.isArray(richData.tablatures) && richData.tablatures.length > 0 && (
-                              <div className="bg-white border-2 border-black p-2 space-y-3">
-                                <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
-                                  📝 TABLATURAS RECOMENDADAS ({richData.tablatures.length}):
-                                </span>
-                                {richData.tablatures.map((tab: any, idx: number) => (
-                                  <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2">
-                                    <p className="text-[8px] font-black uppercase mb-1">{tab.name}</p>
-                                    <div className="overflow-x-auto scrollbar-thin">
-                                      <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
-                                        {['e','B','G','D','A','E'].map((str, strIdx) => (
-                                          <React.Fragment key={strIdx}>
-                                            <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-0.5 min-w-[14px]">{str}</div>
-                                            {Array.from({ length: 16 }).map((_, beat) => (
-                                              <div key={beat} className="h-5 flex items-center justify-center bg-white border border-black/20 text-[8px] font-black">
-                                                {tab.matrix?.[strIdx]?.[beat] || '-'}
-                                              </div>
-                                            ))}
-                                          </React.Fragment>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* BATERIAS RENDERIZADAS */}
-                            {Array.isArray(richData.drums) && richData.drums.length > 0 && (
-                              <div className="bg-white border-2 border-black p-2 space-y-3">
-                                <span className="text-[7px] font-black text-[#8e7164] uppercase block tracking-widest">
-                                  🥁 SEQUÊNCIAS DE BATERIA ({richData.drums.length}):
-                                </span>
-                                {richData.drums.map((drum: any, idx: number) => (
-                                  <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-2">
-                                    <p className="text-[8px] font-black uppercase mb-1">{drum.name} {drum.bpm ? `• ${drum.bpm} BPM` : ''}</p>
-                                    <div className="overflow-x-auto scrollbar-thin">
-                                      <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
-                                        {['Chimbal', 'Caixa', 'Bumbo'].map((inst, instIdx) => (
-                                          <React.Fragment key={instIdx}>
-                                            <div className="flex items-center justify-start bg-[#261812] text-[#ff6b00] font-black text-[6px] border border-black px-1 min-w-[40px] truncate uppercase">{inst}</div>
-                                            {Array.from({ length: 16 }).map((_, beat) => {
-                                              const active = drum.matrix?.[instIdx]?.[beat];
-                                              return (
-                                                <div key={beat} className={`h-5 flex items-center justify-center border border-black/20 text-[8px] font-black ${active ? 'bg-[#ff6b00] text-white' : 'bg-white text-black/20'}`}>
-                                                  {active ? 'X' : '-'}
-                                                </div>
-                                              );
-                                            })}
-                                          </React.Fragment>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* MELODIAS RENDERIZADAS — com suporte a blocos de frases */}
-                            {Array.isArray(richData.melody) && richData.melody.length > 0 && (
-                              <div className="bg-[#f8f9fa] border-4 border-black p-4 space-y-4 shadow-[6px_6px_0_#000] rounded-xl font-['Inter']">
-                                <div className="flex flex-col sm:flex-row gap-6">
-                                  {/* Lado Esquerdo: Notas */}
-                                  <div className="flex-1 space-y-5">
-                                    <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black/10 pb-2">
-                                      🎹 SOLOS E MELODIAS (BIMANUAL)
-                                    </h4>
-                                    {richData.melody.map((mel: any, idx: number) => (
-                                      <div key={idx} className="space-y-4">
-                                        {mel.name && mel.name !== 'NOVA MELODIA / GUIA' && (
-                                          <p className="text-xs font-black uppercase text-gray-500">{mel.name}</p>
-                                        )}
-                                        {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
-                                          <div className="space-y-4">
-                                            {mel.phrases.map((phrase: string[], pIdx: number) => (
-                                              <div key={pIdx} className="space-y-3">
-                                                <div className="flex items-center gap-2">
-                                                  <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">PARTE {pIdx + 1}</span>
-                                                  <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
-                                                </div>
-                                                <div className="flex flex-wrap gap-2">
-                                                  {phrase.map((note: string, nIdx: number) => (
-                                                    <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
-                                                      {translateNote(note)}
-                                                    </div>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <div className="space-y-3">
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">MELODIA</span>
-                                              <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                              {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
-                                                <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
-                                                  {translateNote(note)}
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                  
-                                  {/* Lado Direito: Checklist de Prática */}
-                                  {Array.isArray(richData.checklist) && richData.checklist.length > 0 && (
-                                    <div className="w-full sm:w-64 bg-white border-2 border-black rounded-lg p-4 shadow-[4px_4px_0_#000] shrink-0">
-                                      <h5 className="text-xs font-black text-black uppercase tracking-wider mb-4 text-center border-b-2 border-black/10 pb-2">
-                                        ✅ CHECKLIST DE PRÁTICA
-                                      </h5>
-                                      <div className="space-y-3">
-                                        {richData.checklist.map((step: string, sIdx: number) => (
-                                          <label key={sIdx} className="flex items-start gap-3 cursor-pointer group">
-                                            <div className="w-5 h-5 border-2 border-gray-400 rounded group-hover:border-[#ff6b00] flex items-center justify-center shrink-0 mt-0.5 bg-gray-50">
-                                              <div className="w-3 h-3 bg-[#ff6b00] rounded-sm opacity-0 active:opacity-100 transition-opacity"></div>
-                                            </div>
-                                            <span className="text-xs font-bold text-gray-700 group-hover:text-black break-words flex-1">{step}</span>
-                                          </label>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Fotos enviadas pelo Professor */}
-                        {isRich && Array.isArray(richData.images) && richData.images.length > 0 && (
-                          <div className="pt-4 border-t-2 border-black/10">
-                            <span className="text-[10px] font-black text-black uppercase block mb-2 tracking-widest">📸 ANEXOS E CIFRAS:</span>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                              {richData.images.map((img: string, i: number) => (
-                                <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-4 border-black hover:scale-[1.02] transition-transform shadow-[4px_4px_0_#000]">
-                                  <img src={img} alt="Anexo da Aula" className="w-full h-32 object-cover bg-gray-200" />
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Links e mídias de apoio */}
-                        {midiasList.length > 0 && (
-                          <div>
-                            <span className="text-[8px] font-black text-black/50 uppercase block mb-1 font-mono">LINKS &amp; ANEXOS DE APOIO:</span>
-                            <div className="flex flex-wrap gap-2 pt-1">
-                              {midiasList.map((mid, mIdx) => (
-                                <a
-                                  key={mIdx}
-                                  href={mid.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-2 py-1 bg-white border-2 border-black text-[8px] font-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-none transition-all"
-                                >
-                                  🔗 {mid.titulo}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Rodapé Ficha */}
-                      <div className="flex justify-between items-center border-t-4 border-black pt-3">
-                        <button
-                          onClick={() => setPrintAula(aula)}
-                          className="bg-black text-[#feccba] border-2 border-black font-black text-[7px] px-2 py-0.5 shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none hover:bg-[#ff6b00] hover:text-white transition-colors"
-                        >
-                          📄 DIÁRIO (PDF)
-                        </button>
-                        <button
-                          onClick={() => setSelectedFicha(null)}
-                          className="bg-[#ff6b00] text-white border-2 border-black font-black text-[10px] px-4 py-1.5 shadow-[2px_2px_0_#000] hover:bg-black transition-colors"
-                        >
-                          CONCLUÍDO
-                        </button>
-                      </div>
-
-                    </div>
-                  </div>
-                );
-              })()}
 
             </div>
           )}
+
+
+          {/* ===== MODAL GLOBAL DE FICHA DE AULA (abre de qualquer aba) ===== */}
+          {selectedFicha && (() => {
+            const aula = selectedFicha;
+            let midiasList: any[] = [];
+            try {
+              if (typeof aula.midias === 'string') midiasList = JSON.parse(aula.midias);
+              else if (Array.isArray(aula.midias)) midiasList = aula.midias;
+            } catch {}
+            let isRich = false;
+            let richData: any = null;
+            try {
+              if (aula.conteudo && (aula.conteudo.startsWith('{') || aula.conteudo.startsWith('['))) {
+                const parsed = JSON.parse(aula.conteudo);
+                if (parsed && parsed.isRich) { isRich = true; richData = parsed; }
+              }
+            } catch {}
+            const cursoNomeAula = alunoData?.matriculas?.[0]?.cursos?.nome || alunoData?.curso_ativo || aula.cursos?.nome || aula.curso_nome || '';
+            const isCursoTeclado = /teclado|piano|keyboard/i.test(cursoNomeAula);
+            const currentInstrument = isCursoTeclado ? 'Teclado' : (cursoNomeAula || 'Piano');
+            return (
+              <div className="fixed inset-0 bg-[#261812]/95 md:bg-black/80 z-[150] flex items-stretch md:items-center justify-center p-0 md:p-4 overflow-y-auto">
+                <div className="bg-[#fff8f6] border-0 md:border-8 border-black pt-16 pb-6 px-4 md:p-5 shadow-none md:shadow-[8px_8px_0_#000] w-full max-w-full md:max-w-[600px] min-h-screen md:min-h-0 flex flex-col space-y-4 relative font-['Space_Mono'] text-black select-none">
+                  <div className="flex justify-between items-start border-b-4 border-black pb-3">
+                    <div>
+                      <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider">
+                        {format(new Date(aula.data + 'T12:00:00Z'), "dd 'de' MMMM", { locale: ptBR }).toUpperCase()}
+                      </p>
+                      <h3 className="text-black font-black text-sm md:text-base uppercase italic">
+                        FICHA DE AULA: {aula.curso_nome || 'MUSICA'}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setPrintAula(aula)}
+                        className="bg-[#4ade80] text-black border-2 border-black font-black text-[9px] px-3 py-1.5 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#22c55e] transition-all flex items-center gap-1"
+                      >
+                        📥 PDF
+                      </button>
+                      <button
+                        onClick={() => setSelectedFicha(null)}
+                        className="bg-red-600 text-white border-2 border-black font-black text-[11px] px-3.5 py-1.5 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-black hover:text-[#feccba] transition-all"
+                      >
+                        X FECHAR
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+                    {!isRich ? (
+                      <>
+                        <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
+                          <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEUDO TRABALHADO:</span>
+                          <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(aula.conteudo || 'Nenhum conteudo registrado')}</p>
+                        </div>
+                        <div className="bg-black/5 border-2 border-black/10 p-2.5">
+                          <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">⚔️ BOSS QUEST / DESAFIO:</span>
+                          <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(aula.tarefa_casa || 'Treinar repertorio livre')}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="bg-[#feccba]/20 border-2 border-black/20 p-2.5">
+                          <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEUDO TRABALHADO:</span>
+                          <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(richData.conteudoText || 'AULA INTERATIVA DE MUSICA')}</p>
+                        </div>
+                        {richData.tarefaCasaText && (
+                          <div className="bg-black/5 border-2 border-black/20 p-2.5">
+                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">⚔️ TAREFA DE CASA:</span>
+                            <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(richData.tarefaCasaText)}</p>
+                          </div>
+                        )}
+                        {richData.acordes && richData.acordes.length > 0 && (
+                          <LessonChords chords={richData.acordes} currentInstrument={currentInstrument} />
+                        )}
+                        {Array.isArray(richData.exercises) && richData.exercises.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="bg-[#ff6b00] border-2 border-black px-2 py-0.5 shadow-[2px_2px_0_#000] inline-block">
+                              <span className="text-[8px] font-black text-white uppercase">⚔️ BOSS QUEST</span>
+                            </div>
+                            {richData.exercises.map((ex: any, idx: number) => (
+                              <div key={idx} className="bg-[#261812] border-4 border-[#ff6b00] p-3 shadow-[4px_4px_0_#ff6b00]">
+                                <p className="text-[#feccba] font-black text-[10px] uppercase">{ex.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {Array.isArray(richData.images) && richData.images.length > 0 && (
+                          <div className="pt-2 border-t-2 border-black/10">
+                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-2">📸 ANEXOS E CIFRAS:</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              {richData.images.map((img: string, i: number) => (
+                                <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-4 border-black hover:scale-[1.02] transition-transform shadow-[4px_4px_0_#000]">
+                                  <img src={img} alt="Anexo" className="w-full h-24 object-cover" />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {midiasList.length > 0 && (
+                      <div>
+                        <span className="text-[8px] font-black text-black/50 uppercase block mb-1 font-mono">LINKS &amp; ANEXOS:</span>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {midiasList.map((mid, mIdx) => (
+                            <a key={mIdx} href={mid.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border-2 border-black text-[8px] font-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-none transition-all">
+                              🔗 {mid.titulo}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-end items-center border-t-4 border-black pt-3">
+                    <button
+                      onClick={() => setSelectedFicha(null)}
+                      className="bg-[#ff6b00] text-white border-2 border-black font-black text-[10px] px-6 py-2 shadow-[2px_2px_0_#000] hover:bg-black transition-colors"
+                    >
+                      ✅ CONCLUIDO
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ===== MODAL DE MISSÃO PWA ===== */}
           <PwaModal 
@@ -2280,18 +2098,21 @@ export default function AreaAluno() {
                     return (
                       <div
                         key={aula.id}
-                        onClick={() => setSelectedFicha(aula)}
-                        className="w-28 h-28 flex-shrink-0 bg-[#fff8f6] border-4 border-black p-2.5 flex flex-col justify-between shadow-[3px_3px_0_#000] cursor-pointer hover:translate-y-[-1px] active:translate-y-0 active:shadow-none transition-all"
+                        onClick={() => handleOpenFicha(aula)}
+                        className="flex-shrink-0 bg-[#261812] border-4 border-black p-3 flex flex-col justify-between shadow-[4px_4px_0_#000] cursor-pointer hover:translate-y-[-2px] hover:shadow-[6px_6px_0_#000] active:translate-y-0 active:shadow-none transition-all w-36"
                       >
-                        <div className="space-y-0.5">
-                          <span className="text-[#ff6b00] font-black text-[8px] uppercase tracking-wider block">
-                            {dataFormatada}
+                        <div className="space-y-1">
+                          <span className="text-[#ff6b00] font-black text-[8px] uppercase tracking-wider block border-b border-[#ff6b00]/30 pb-1">
+                            📚 {dataFormatada}
                           </span>
-                          <p className="text-black font-black text-[8px] uppercase leading-tight line-clamp-3">
+                          <p className="text-[#feccba] font-black text-[8px] uppercase leading-tight line-clamp-3">
                             {temaCurto || 'AULA REGULAR'}
                           </p>
                         </div>
-                        <span className="text-[7px] font-black text-[#ff6b00] uppercase text-right block">ABRIR →</span>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-[#4ade80] text-[7px] font-black uppercase bg-black px-1.5 py-0.5 border border-[#4ade80]/40">+500 XP</span>
+                          <span className="text-[7px] font-black text-[#ff6b00] uppercase">ABRIR →</span>
+                        </div>
                       </div>
                     );
                   })}

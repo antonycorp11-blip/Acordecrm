@@ -3823,6 +3823,207 @@ async function startServer() {
         }
     });
 
+    // --- TRILHA EAD & QUESTIONARIOS ---
+    app.get('/api/trilha/modulos', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('modulos_trilha')
+                .select('*')
+                .order('ordem', { ascending: true });
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/trilha/modulos', async (req, res) => {
+        try {
+            const { id, nome, descricao, ordem, arte_index } = req.body;
+            let result;
+            if (id) {
+                result = await supabase
+                    .from('modulos_trilha')
+                    .update({ nome, descricao, ordem, arte_index })
+                    .eq('id', id)
+                    .select();
+            } else {
+                result = await supabase
+                    .from('modulos_trilha')
+                    .insert([{ nome, descricao, ordem, arte_index }])
+                    .select();
+            }
+            if (result.error) throw result.error;
+            res.json(result.data[0]);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.delete('/api/trilha/modulos/:id', async (req, res) => {
+        try {
+            const { error } = await supabase
+                .from('modulos_trilha')
+                .delete()
+                .eq('id', req.params.id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get('/api/trilha/aulas', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('aulas_trilha')
+                .select('*')
+                .order('ordem', { ascending: true });
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/trilha/aulas', async (req, res) => {
+        try {
+            const { id, modulo_id, titulo, youtube_url, ordem, questionario } = req.body;
+            let result;
+            if (id) {
+                result = await supabase
+                    .from('aulas_trilha')
+                    .update({ modulo_id, titulo, youtube_url, ordem, questionario })
+                    .eq('id', id)
+                    .select();
+            } else {
+                result = await supabase
+                    .from('aulas_trilha')
+                    .insert([{ modulo_id, titulo, youtube_url, ordem, questionario }])
+                    .select();
+            }
+            if (result.error) throw result.error;
+            res.json(result.data[0]);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.delete('/api/trilha/aulas/:id', async (req, res) => {
+        try {
+            const { error } = await supabase
+                .from('aulas_trilha')
+                .delete()
+                .eq('id', req.params.id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get('/api/trilha/progresso/:alunoId', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('progresso_trilha')
+                .select('*')
+                .eq('aluno_id', req.params.alunoId);
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/trilha/progresso', async (req, res) => {
+        try {
+            const { aluno_id, classroom_id, aula_id } = req.body;
+            const targetAlunoId = aluno_id || req.body.alunoId;
+            const targetAulaId = aula_id || req.body.aulaId;
+            
+            const { data, error } = await supabase
+                .from('progresso_trilha')
+                .upsert([{ aluno_id: targetAlunoId, aula_id: targetAulaId }], { onConflict: 'aluno_id,aula_id' })
+                .select();
+            if (error) throw error;
+
+            const { data: aluno } = await supabase
+                .from('alunos')
+                .select('id, nome, xp, acorde_coins')
+                .eq('id', targetAlunoId)
+                .single();
+                
+            if (aluno) {
+                const novoXp = (Number(aluno.xp) || 0) + 200;
+                const novasMoedas = (Number(aluno.acorde_coins) || 0) + 200;
+                await supabase
+                     .from('alunos')
+                     .update({ xp: novoXp, acorde_coins: novasMoedas })
+                     .eq('id', aluno.id);
+                     
+                await addToFeed(
+                     aluno.id,
+                     'aula_trilha_concluida',
+                     `Concluiu a aula da trilha e ganhou +200 XP & +200 Coins!`,
+                     '🎓'
+                );
+            }
+            
+            res.json({ success: true, data });
+         } catch (error) {
+             res.status(500).json({ error: error.message });
+         }
+    });
+
+    app.post('/api/alunos/abrir-ficha-premio', async (req, res) => {
+         try {
+             const { aluno_id } = req.body;
+             const dateStr = getDateBR();
+             
+             const { data: claims, error: claimErr } = await supabase
+                 .from('feed_atividades')
+                 .select('*')
+                 .eq('aluno_id', aluno_id)
+                 .eq('tipo', 'ficha_estudo_diaria')
+                 .gte('created_at', `${dateStr}T00:00:00.000Z`)
+                 .lte('created_at', `${dateStr}T23:59:59.999Z`);
+                 
+             if (claimErr) throw claimErr;
+             
+             if (claims && claims.length > 0) {
+                 return res.json({ success: true, claimed: true, message: 'Já recebeu o prêmio diário hoje.' });
+             }
+             
+             const { data: aluno, error: getErr } = await supabase
+                 .from('alunos')
+                 .select('id, nome, xp, acorde_coins')
+                 .eq('id', aluno_id)
+                 .single();
+                 
+             if (getErr) throw getErr;
+             
+             const novoXp = (Number(aluno.xp) || 0) + 500;
+             const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
+             
+             await supabase
+                 .from('alunos')
+                 .update({ xp: novoXp, acorde_coins: novasMoedas })
+                 .eq('id', aluno_id);
+                 
+             await addToFeed(
+                 aluno_id,
+                 'ficha_estudo_diaria',
+                 'Abriu o Diário Pedagógico de aula e ganhou +500 XP & +500 Coins!',
+                 '📖'
+             );
+             
+             res.json({ success: true, claimed: false, message: 'Prêmio diário creditado!', novoXp, novasMoedas });
+         } catch (error) {
+             console.error('Error claiming daily ficha reward:', error);
+             res.status(500).json({ error: error.message });
+         }
+    });
+
     // --- END GAMIFICACAO 2.0 ---
 
     // 4. Temporada Atual
