@@ -1,8 +1,9 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OneSignalService } from './services/OneSignalService';
 import { Sidebar } from './components/layout/Sidebar';
+import { Menu, X, LayoutDashboard, Users, Music, CreditCard, LogOut, RefreshCcw } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Alunos from './pages/Alunos';
 import Professores from './pages/Professores';
@@ -39,12 +40,145 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Layout principal do sistema
 const MainLayout = ({ children }: { children: React.ReactNode }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { logout } = useAuth();
+
+  // Fecha o menu mobile quando a rota muda
+  React.useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  const menuItems = [
+    { icon: LayoutDashboard, label: 'Início', path: '/' },
+    { icon: Users, label: 'Alunos', path: '/alunos' },
+    { icon: Music, label: 'Aulas', path: '/agenda' },
+    { icon: RefreshCcw, label: 'Reposições', path: '/reposicoes' },
+    { icon: CreditCard, label: 'Financeiro', path: '/financeiro' },
+  ];
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const getPageTitle = () => {
+    const current = menuItems.find(item => item.path === location.pathname);
+    if (current) return current.label;
+    if (location.pathname.startsWith('/alunos/')) return 'Perfil Aluno';
+    return 'Studio Master';
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-black text-white">
+      {/* Sidebar para Desktop */}
       <Sidebar />
-      <main className="flex-1 flex flex-col relative overflow-auto">
-        {children}
-      </main>
+
+      {/* Container Principal */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        
+        {/* Header Mobile (visível apenas em telas pequenas) */}
+        <header className="flex md:hidden items-center justify-between px-4 py-3 bg-[#fff8f6] border-b-4 border-[#261812] sticky top-0 z-30 w-full shrink-0">
+          <button
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-1 text-[#261812] active:scale-95 transition-transform"
+            title="Abrir Menu"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          
+          <span className="text-[12px] font-black uppercase text-[#261812] tracking-wider">
+            {getPageTitle()}
+          </span>
+
+          <div className="w-8 h-8 bg-[#a04100] rounded flex items-center justify-center text-white font-black text-xs">
+            SM
+          </div>
+        </header>
+
+        {/* Corpo da Página */}
+        <main className="flex-1 overflow-auto relative flex flex-col min-w-0">
+          {children}
+        </main>
+      </div>
+
+      {/* Gaveta Mobile Sidebar (Drawer) */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          {/* Overlay Escuro */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          {/* Conteúdo da Gaveta */}
+          <div className="relative w-64 max-w-xs bg-[#fff8f6] border-r-4 border-[#261812] h-full flex flex-col p-4 shadow-hard-black transition-transform duration-300 z-10 flex-shrink-0">
+            {/* Topo da Gaveta */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b-2 border-[#261812]/20">
+              <div>
+                <h2 className="font-black text-[#a04100] leading-none uppercase text-lg">
+                  STUDIO MASTER
+                </h2>
+                <p className="text-[#7b5647] text-[8px] font-black uppercase tracking-wider mt-1">Console Mobile</p>
+              </div>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1 text-[#261812] hover:text-[#ff6b00]"
+                title="Fechar Menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Itens de Navegação Gaveta */}
+            <nav className="flex-1 space-y-1.5 overflow-y-auto">
+              {menuItems.map((item) => {
+                const isActive = item.path === '/' 
+                  ? location.pathname === '/' 
+                  : location.pathname.startsWith(item.path);
+
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded font-black text-xs uppercase tracking-wide transition-colors ${
+                      isActive
+                        ? 'bg-[#ff6b00] text-white shadow-hard'
+                        : 'text-[#261812] hover:bg-[#feccba]'
+                    }`}
+                  >
+                    <item.icon className="w-4.5 h-4.5 shrink-0" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </nav>
+
+            {/* Rodapé Gaveta */}
+            <div className="pt-4 border-t-2 border-[#261812]/20 space-y-2">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  navigate('/atendimento');
+                }}
+                className="w-full py-2.5 rounded font-black text-xs uppercase tracking-wider text-white bg-[#261812] hover:bg-[#40281e] active:translate-y-1 transition-all"
+              >
+                Nova Matrícula
+              </button>
+              
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 py-2 px-4 rounded text-[#7b5647] hover:text-[#ff6b00] transition-colors text-xs font-black uppercase tracking-widest w-full"
+              >
+                <LogOut className="w-4 h-4 shrink-0" />
+                <span>Sair</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
