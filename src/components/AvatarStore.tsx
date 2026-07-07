@@ -19,11 +19,11 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
   const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
 
   const allItems = [
-    ...SKINS.map(s => ({ id: s.id, name: s.name, rarity: s.rarity, price: s.price, type: 'skins', thumb: s.url, expiresAt: s.expiresAt })),
-    ...INSTRUMENTS.map(i => ({ id: i.id, name: i.name, rarity: i.rarity, price: i.price, type: 'instruments', thumb: i.url })),
-    ...BACKGROUNDS.map(b => ({ id: b.id, name: b.name, rarity: b.rarity, price: b.price, type: 'backgrounds', thumb: b.url })),
-    ...FONTS.map(f => ({ id: f.id, name: f.name, rarity: f.rarity, price: f.price, type: 'fonts', thumb: 'https://placehold.co/400x400/111/fff?text=FONTE' })),
-    ...TILES.map(t => ({ id: t.id, name: t.name, rarity: t.rarity, price: t.price, type: 'tiles', thumb: 'https://placehold.co/400x400/222/fff?text=MOLDURA' })),
+    ...SKINS.map(s => ({ id: s.id, name: s.name, rarity: s.rarity, price: s.price, type: 'skins', thumb: s.url, expiresAt: s.expiresAt || undefined })),
+    ...INSTRUMENTS.map(i => ({ id: i.id, name: i.name, rarity: i.rarity, price: i.price, type: 'instruments', thumb: i.url, expiresAt: undefined })),
+    ...BACKGROUNDS.map(b => ({ id: b.id, name: b.name, rarity: b.rarity, price: b.price, type: 'backgrounds', thumb: b.url, expiresAt: undefined })),
+    ...FONTS.map(f => ({ id: f.id, name: f.name, rarity: f.rarity, price: f.price, type: 'fonts', thumb: 'https://placehold.co/400x400/111/fff?text=FONTE', expiresAt: undefined })),
+    ...TILES.map(t => ({ id: t.id, name: t.name, rarity: t.rarity, price: t.price, type: 'tiles', thumb: 'https://placehold.co/400x400/222/fff?text=MOLDURA', expiresAt: undefined })),
   ].filter(item => {
     if (item.expiresAt && todayStr > item.expiresAt) {
       return false;
