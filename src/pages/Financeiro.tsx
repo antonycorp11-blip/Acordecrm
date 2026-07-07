@@ -599,6 +599,52 @@ export default function Financeiro() {
                     <td className="px-4 py-5 text-right flex items-center justify-end gap-2">
                       {p.status !== 'pago' ? (
                         <>
+                          {(() => {
+                            const telRaw = p.aluno?.responsavel_telefone || p.aluno?.telefone || '';
+                            const telClean = telRaw.replace(/\D/g, '');
+                            const telefone = telClean ? (telClean.startsWith('55') ? telClean : `55${telClean}`) : '';
+                            if (!telefone) return null;
+
+                            return (
+                              <button 
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  
+                                  const isLate = isAtrasado(p);
+                                  const nome = p.aluno_nome || p.descricao;
+                                  const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
+                                  const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
+                                  const msg = isLate 
+                                    ? `Olá ${nome}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`
+                                    : `Olá ${nome}, tudo bem? Sua mensalidade no valor de R$ ${valorStr} está próxima do vencimento (${vencStr}). Pague até o dia do vencimento para garantir seu desconto. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
+
+                                  navigator.clipboard.writeText(msg);
+
+                                  try {
+                                    const token = localStorage.getItem('acorde_token');
+                                    const res = await fetch(`/api/pagamentos/${p.id}/registrar-cobranca`, {
+                                      method: 'POST',
+                                      headers: { 'Authorization': `Bearer ${token}` }
+                                    });
+                                    if (res.ok) {
+                                      const updatedPg = await res.json();
+                                      setPagamentos(prev => prev.map(item => item.id === p.id ? { ...item, ...updatedPg } : item));
+                                      toast.success("Cobrança registrada com sucesso!");
+                                    }
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+
+                                  const whatsappUrl = `https://api.whatsapp.com/send?phone=${telefone}&text=${encodeURIComponent(msg)}`;
+                                  window.open(whatsappUrl, '_blank');
+                                }}
+                                title="Enviar Cobrança diretamente pelo WhatsApp"
+                                className="bg-[#00FF41] text-black border-2 border-black p-2 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center justify-center"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </button>
+                            );
+                          })()}
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();

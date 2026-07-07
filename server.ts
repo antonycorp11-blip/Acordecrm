@@ -2033,7 +2033,7 @@ async function startServer() {
                 dbQuery = dbQuery.eq('referencia_mes_ano', String(mes).trim());
             }
 
-            const { data, error } = await dbQuery.order('data_vencimento', { ascending: false });
+            const { data, error } = await dbQuery.order('data_vencimento', { ascending: true });
             if (error) throw error;
             
             let filteredData = data?.filter((p: any) => {
