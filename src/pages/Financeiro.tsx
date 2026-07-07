@@ -558,7 +558,8 @@ export default function Financeiro() {
              </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Visualização para Desktop (Tabela) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b-4 border-white/20 bg-white/5">
@@ -581,63 +582,230 @@ export default function Financeiro() {
                   const daysDiff = dtVenc ? Math.ceil((new Date().getTime() - dtVenc.getTime()) / (1000 * 3600 * 24)) : 0;
                   
                   return (
-                  <tr key={`${p.id}-${idx}`} className={`${p.is_ultima_parcela ? 'bg-[#FF0000]/20 hover:bg-[#FF0000]/30 border-2 border-[#FF0000]' : 'hover:bg-white/5'} transition-colors group`}>
-                    <td className="px-4 py-5 text-[11px] font-black">
-                      {dtVenc ? format(dtVenc, 'dd/MM/yyyy') : '---'}
-                    </td>
-                    <td className="px-4 py-5">
-                      <div className="flex flex-col items-start gap-1">
-                        {p.is_ultima_parcela && <div className="text-[9px] font-black text-[#FF0000] bg-[#FF0000]/10 px-2 py-0.5 border border-[#FF0000] uppercase inline-block">Última Parcela</div>}
+                    <tr key={`${p.id}-${idx}`} className={`${p.is_ultima_parcela ? 'bg-[#FF0000]/20 hover:bg-[#FF0000]/30 border-2 border-[#FF0000]' : 'hover:bg-white/5'} transition-colors group`}>
+                      <td className="px-4 py-5 text-[11px] font-black">
+                        {dtVenc ? format(dtVenc, 'dd/MM/yyyy') : '---'}
+                      </td>
+                      <td className="px-4 py-5">
+                        <div className="flex flex-col items-start gap-1">
+                          {p.is_ultima_parcela && <div className="text-[9px] font-black text-[#FF0000] bg-[#FF0000]/10 px-2 py-0.5 border border-[#FF0000] uppercase inline-block">Última Parcela</div>}
+                          {p.status === 'pago' ? (
+                            <span className="inline-flex items-center gap-1.5 text-[#00FF41] text-[10px] font-black uppercase">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Recebido
+                            </span>
+                          ) : isAtraso ? (
+                            <span className="inline-flex items-center gap-1.5 text-[#FF0000] text-[10px] font-black uppercase">
+                              <AlertCircle className="w-3.5 h-3.5" /> Atrasado ({daysDiff} dias)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-[#FF8A00] text-[10px] font-black uppercase">
+                              <Clock className="w-3.5 h-3.5" /> Vence em {-daysDiff} dias
+                            </span>
+                          )}
+                          {p.ultima_cobranca_em && p.status !== 'pago' && (
+                            <span className="text-[9px] font-black uppercase text-[#FF8A00] border border-[#FF8A00] px-1 mt-1 opacity-80" title={`Cobrado ${p.cobranca_contador || 1} vezes`}>
+                              COBRADO EM {new Date(p.ultima_cobranca_em).toLocaleDateString('pt-BR')} ({p.cobranca_contador || 1}x)
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-5">
+                        <div className="flex flex-col">
+                          <span 
+                            className={`text-[12px] font-black uppercase tracking-tight flex items-center gap-1.5 ${p.aluno_id ? 'cursor-pointer hover:text-[#FF8A00] underline decoration-1 underline-offset-4 transition-colors' : ''}`}
+                            onClick={() => { if (p.aluno_id) navigate(`/alunos/${p.aluno_id}`); }}
+                          >
+                            {p.aluno_nome || p.descricao || '---'}
+                            {p.aluno_id && <ExternalLink className="w-3 h-3 text-[#FF8A00]" />}
+                          </span>
+                          <span className="text-[9px] text-white/50 font-bold uppercase mt-1">
+                             Referência: {p.referencia_mes_ano || '---'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-5">
+                        <span className="text-[10px] font-black uppercase text-white/80">{p.tipo_receita || 'Mensalidade'}</span>
+                      </td>
+                      <td className="px-4 py-5 text-right">
+                        <span className="text-[13px] font-black">R$ {Number(p.status === 'pago' ? (p.valor_pago != null ? p.valor_pago : p.valor) : p.valor).toFixed(2).replace('.', ',')}</span>
+                      </td>
+                      <td className="px-4 py-5 text-right flex items-center justify-end gap-2">
+                        {p.status !== 'pago' ? (
+                          <>
+                            {(() => {
+                              const telRaw = p.aluno?.responsavel_telefone || p.aluno?.telefone || '';
+                              const telClean = telRaw.replace(/\D/g, '');
+                              const telefone = telClean ? (telClean.startsWith('55') ? telClean : `55${telClean}`) : '';
+                              if (!telefone) return null;
+
+                              return (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    
+                                    const msg = gerarTextoCobranca(p);
+                                    const whatsappUrl = `https://api.whatsapp.com/send?phone=${telefone}&text=${encodeURIComponent(msg)}`;
+                                    
+                                    window.open(whatsappUrl, '_blank');
+                                    navigator.clipboard.writeText(msg);
+
+                                    const token = localStorage.getItem('acorde_token');
+                                    fetch(`/api/pagamentos/${p.id}/registrar-cobranca`, {
+                                      method: 'POST',
+                                      headers: { 'Authorization': `Bearer ${token}` }
+                                    }).then(res => {
+                                      if (res.ok) return res.json();
+                                    }).then(updatedPg => {
+                                      if (updatedPg) {
+                                        setPagamentos(prev => prev.map(item => item.id === p.id ? { ...item, ...updatedPg } : item));
+                                        toast.success("Cobrança registrada com sucesso!");
+                                      }
+                                    }).catch(err => {
+                                      console.error("Erro ao registrar cobrança:", err);
+                                    });
+                                  }}
+                                  title="Enviar Cobrança diretamente pelo WhatsApp"
+                                  className="bg-[#00FF41] text-black border-2 border-black p-2 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center justify-center"
+                                >
+                                  <MessageCircle className="w-3.5 h-3.5" />
+                                </button>
+                              );
+                            })()}
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCobrancaModal({ open: true, p });
+                              }}
+                              className="bg-transparent border-2 border-[#FF8A00] text-[#FF8A00] px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:bg-[#FF8A00] hover:text-black transition-all active:scale-95"
+                            >
+                              COBRAR
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBaixaModal({ id: p.id, open: true, valorSugerido: Number(p.valor) });
+                                setValorPago(Number(p.valor).toFixed(2));
+                              }}
+                              className="bg-white text-black px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95"
+                            >
+                              DAR BAIXA
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[9px] font-black uppercase opacity-20">QUITADO</span>
+                        )}
+                        <button 
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if(window.confirm('Tem certeza que deseja excluir esta fatura definitivamente?')) {
+                              const token = localStorage.getItem('acorde_token');
+                              await fetch(`/api/pagamentos/${p.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                              fetchData(true);
+                            }
+                          }}
+                          className="text-[#FF0000] p-2 hover:bg-[#FF0000]/20 transition-all opacity-0 group-hover:opacity-100"
+                          title="Excluir Fatura"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  )})}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Visualização para Mobile (Cards) */}
+          <div className="block md:hidden space-y-4">
+            {loading ? (
+              <div className="py-20 text-center text-[10px] font-black uppercase animate-pulse">Carregando Transações...</div>
+            ) : pagamentosFiltrados.length === 0 ? (
+              <div className="py-20 text-center text-[10px] font-black uppercase opacity-50">Nenhuma transação encontrada</div>
+            ) : (
+              pagamentosFiltrados.map((p, idx) => {
+                const isAtraso = isAtrasado(p);
+                const dtVenc = p.data_vencimento ? new Date(p.data_vencimento + 'T12:00:00') : null;
+                const daysDiff = dtVenc ? Math.ceil((new Date().getTime() - dtVenc.getTime()) / (1000 * 3600 * 24)) : 0;
+                
+                const telRaw = p.aluno?.responsavel_telefone || p.aluno?.telefone || '';
+                const telClean = telRaw.replace(/\D/g, '');
+                const telefone = telClean ? (telClean.startsWith('55') ? telClean : `55${telClean}`) : '';
+
+                return (
+                  <div 
+                    key={`card-${p.id}-${idx}`} 
+                    className={`bg-black/40 border-2 ${p.is_ultima_parcela ? 'border-[#FF0000]' : 'border-white/10'} p-4 shadow-hard flex flex-col gap-3 relative`}
+                  >
+                    {/* Linha Superior: Data e Status */}
+                    <div className="flex justify-between items-start border-b border-white/5 pb-2">
+                      <div className="flex flex-col">
+                        <span className="text-[8px] text-white/50 font-bold uppercase">Vencimento</span>
+                        <span className="text-[11px] font-black text-white">
+                          {dtVenc ? format(dtVenc, 'dd/MM/yyyy') : '---'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
                         {p.status === 'pago' ? (
-                          <span className="inline-flex items-center gap-1.5 text-[#00FF41] text-[10px] font-black uppercase">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Recebido
+                          <span className="inline-flex items-center gap-1 text-[#00FF41] text-[9px] font-black uppercase">
+                            <CheckCircle2 className="w-3 h-3" /> Recebido
                           </span>
                         ) : isAtraso ? (
-                          <span className="inline-flex items-center gap-1.5 text-[#FF0000] text-[10px] font-black uppercase">
-                            <AlertCircle className="w-3.5 h-3.5" /> Atrasado ({daysDiff} dias)
+                          <span className="inline-flex items-center gap-1 text-[#FF0000] text-[9px] font-black uppercase">
+                            <AlertCircle className="w-3 h-3" /> Atrasado ({daysDiff} d)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 text-[#FF8A00] text-[10px] font-black uppercase">
-                            <Clock className="w-3.5 h-3.5" /> Vence em {-daysDiff} dias
+                          <span className="inline-flex items-center gap-1 text-[#FF8A00] text-[9px] font-black uppercase">
+                            <Clock className="w-3 h-3" /> Vence em {-daysDiff} d
                           </span>
                         )}
-                        {p.ultima_cobranca_em && p.status !== 'pago' && (
-                          <span className="text-[9px] font-black uppercase text-[#FF8A00] border border-[#FF8A00] px-1 mt-1 opacity-80" title={`Cobrado ${p.cobranca_contador || 1} vezes`}>
-                            COBRADO EM {new Date(p.ultima_cobranca_em).toLocaleDateString('pt-BR')} ({p.cobranca_contador || 1}x)
-                          </span>
-                        )}
+                        {p.is_ultima_parcela && <span className="text-[8px] font-black text-[#FF0000] bg-[#FF0000]/10 px-1 border border-[#FF0000] uppercase">Última Parcela</span>}
                       </div>
-                    </td>
-                    <td className="px-4 py-5">
-                      <div className="flex flex-col">
-                        <span 
-                          className={`text-[12px] font-black uppercase tracking-tight flex items-center gap-1.5 ${p.aluno_id ? 'cursor-pointer hover:text-[#FF8A00] underline decoration-1 underline-offset-4 transition-colors' : ''}`}
-                          onClick={() => { if (p.aluno_id) navigate(`/alunos/${p.aluno_id}`); }}
-                        >
-                          {p.aluno_nome || p.descricao || '---'}
-                          {p.aluno_id && <ExternalLink className="w-3 h-3 text-[#FF8A00]" />}
-                        </span>
-                        <span className="text-[9px] text-white/50 font-bold uppercase mt-1">
-                           Referência: {p.referencia_mes_ano || '---'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-5">
-                      <span className="text-[10px] font-black uppercase text-white/80">{p.tipo_receita || 'Mensalidade'}</span>
-                    </td>
-                    <td className="px-4 py-5 text-right">
-                      <span className="text-[13px] font-black">R$ {Number(p.status === 'pago' ? (p.valor_pago != null ? p.valor_pago : p.valor) : p.valor).toFixed(2).replace('.', ',')}</span>
-                    </td>
-                    <td className="px-4 py-5 text-right flex items-center justify-end gap-2">
-                      {p.status !== 'pago' ? (
-                        <>
-                          {(() => {
-                            const telRaw = p.aluno?.responsavel_telefone || p.aluno?.telefone || '';
-                            const telClean = telRaw.replace(/\D/g, '');
-                            const telefone = telClean ? (telClean.startsWith('55') ? telClean : `55${telClean}`) : '';
-                            if (!telefone) return null;
+                    </div>
 
-                            return (
+                    {/* Dados do Aluno */}
+                    <div className="flex flex-col">
+                      <span className="text-[8px] text-white/50 font-bold uppercase">Aluno / Descrição</span>
+                      <span 
+                        className={`text-[12px] font-black uppercase tracking-tight flex items-center gap-1.5 ${p.aluno_id ? 'underline decoration-1 underline-offset-4 cursor-pointer hover:text-[#FF8A00]' : ''}`}
+                        onClick={() => { if (p.aluno_id) navigate(`/alunos/${p.aluno_id}`); }}
+                      >
+                        {p.aluno_nome || p.descricao || '---'}
+                        {p.aluno_id && <ExternalLink className="w-3 h-3 text-[#FF8A00]" />}
+                      </span>
+                      <div className="flex gap-4 mt-1">
+                        <span className="text-[8px] text-white/40 font-bold uppercase">
+                          Ref: {p.referencia_mes_ano || '---'}
+                        </span>
+                        <span className="text-[8px] text-white/40 font-bold uppercase">
+                          Tipo: {p.tipo_receita || 'Mensalidade'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Valor e Histórico de Cobrança */}
+                    <div className="flex justify-between items-center bg-white/5 p-2 border border-white/10">
+                      <div className="flex flex-col">
+                        <span className="text-[8px] text-white/50 font-bold uppercase">Valor</span>
+                        <span className="text-[13px] font-black text-white">
+                          R$ {Number(p.status === 'pago' ? (p.valor_pago != null ? p.valor_pago : p.valor) : p.valor).toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
+                      
+                      {p.ultima_cobranca_em && p.status !== 'pago' && (
+                        <div className="text-right">
+                          <span className="text-[8px] font-black uppercase text-[#FF8A00] border border-[#FF8A00] px-1 inline-block" title={`Cobrado ${p.cobranca_contador || 1} vezes`}>
+                            Cobrado {p.cobranca_contador || 1}x ({new Date(p.ultima_cobranca_em).toLocaleDateString('pt-BR')})
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Ações Mobile */}
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-white/5 justify-between items-center">
+                      <div className="flex gap-2 flex-1">
+                        {p.status !== 'pago' ? (
+                          <>
+                            {telefone && (
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -663,36 +831,37 @@ export default function Financeiro() {
                                     console.error("Erro ao registrar cobrança:", err);
                                   });
                                 }}
-                                title="Enviar Cobrança diretamente pelo WhatsApp"
-                                className="bg-[#00FF41] text-black border-2 border-black p-2 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center justify-center"
+                                title="Enviar WhatsApp"
+                                className="bg-[#00FF41] text-black border-2 border-black px-2.5 py-1.5 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center justify-center gap-1 shrink-0"
                               >
-                                <MessageCircle className="w-3.5 h-3.5" />
+                                <MessageCircle className="w-3.5 h-3.5" /> Whats
                               </button>
-                            );
-                          })()}
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCobrancaModal({ open: true, p });
-                            }}
-                            className="bg-transparent border-2 border-[#FF8A00] text-[#FF8A00] px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:bg-[#FF8A00] hover:text-black transition-all active:scale-95"
-                          >
-                            COBRAR
-                          </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setBaixaModal({ id: p.id, open: true, valorSugerido: Number(p.valor) });
-                              setValorPago(Number(p.valor).toFixed(2));
-                            }}
-                            className="bg-white text-black px-4 py-2 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95"
-                          >
-                            DAR BAIXA
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-[9px] font-black uppercase opacity-20">QUITADO</span>
-                      )}
+                            )}
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCobrancaModal({ open: true, p });
+                              }}
+                              className="bg-transparent border-2 border-[#FF8A00] text-[#FF8A00] px-2 py-1.5 text-[9px] font-black uppercase shadow-hard hover:bg-[#FF8A00] hover:text-black transition-all active:scale-95 flex-1 text-center"
+                            >
+                              Cobrar
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBaixaModal({ id: p.id, open: true, valorSugerido: Number(p.valor) });
+                                setValorPago(Number(p.valor).toFixed(2));
+                              }}
+                              className="bg-white text-black px-2 py-1.5 text-[9px] font-black uppercase shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex-1 text-center"
+                            >
+                              Baixa
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[9px] font-black uppercase opacity-30 px-2 py-1">Quitado</span>
+                        )}
+                      </div>
+
                       <button 
                         onClick={async (e) => {
                           e.stopPropagation();
@@ -702,16 +871,16 @@ export default function Financeiro() {
                             fetchData(true);
                           }
                         }}
-                        className="text-[#FF0000] p-2 hover:bg-[#FF0000]/20 transition-all opacity-0 group-hover:opacity-100"
+                        className="text-[#FF0000] p-1.5 hover:bg-[#FF0000]/20 transition-all border border-[#FF0000]/20 rounded"
                         title="Excluir Fatura"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    </td>
-                  </tr>
-                )})}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       ) : activeTab === 'despesas' ? (
