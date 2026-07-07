@@ -308,11 +308,11 @@ export default function Financeiro() {
     
     if (isLate) {
       const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
-      return `Olá ${nome}, tudo bem?\n\nO pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ:\n55273720000112`;
+      return `Olá ${nome}, tudo bem?\n\nO pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ (toque para copiar):\n\`55273720000112\``;
     } else {
       const valorComDesconto = obterValorComDesconto(p);
       const valorStr = Number(valorComDesconto).toFixed(2).replace('.', ',');
-      return `Olá ${nome}, tudo bem?\n\nSua mensalidade está próxima do vencimento (${vencStr}).\nPague até o dia do vencimento para garantir o seu valor com desconto de R$ ${valorStr}.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ:\n55273720000112`;
+      return `Olá ${nome}, tudo bem?\n\nSua mensalidade está próxima do vencimento (${vencStr}).\nPague até o dia do vencimento para garantir o seu valor com desconto de R$ ${valorStr}.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ (toque para copiar):\n\`55273720000112\``;
     }
   };
 
@@ -639,30 +639,29 @@ export default function Financeiro() {
 
                             return (
                               <button 
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation();
                                   
                                   const msg = gerarTextoCobranca(p);
-
+                                  const whatsappUrl = `https://api.whatsapp.com/send?phone=${telefone}&text=${encodeURIComponent(msg)}`;
+                                  
+                                  window.open(whatsappUrl, '_blank');
                                   navigator.clipboard.writeText(msg);
 
-                                  try {
-                                    const token = localStorage.getItem('acorde_token');
-                                    const res = await fetch(`/api/pagamentos/${p.id}/registrar-cobranca`, {
-                                      method: 'POST',
-                                      headers: { 'Authorization': `Bearer ${token}` }
-                                    });
-                                    if (res.ok) {
-                                      const updatedPg = await res.json();
+                                  const token = localStorage.getItem('acorde_token');
+                                  fetch(`/api/pagamentos/${p.id}/registrar-cobranca`, {
+                                    method: 'POST',
+                                    headers: { 'Authorization': `Bearer ${token}` }
+                                  }).then(res => {
+                                    if (res.ok) return res.json();
+                                  }).then(updatedPg => {
+                                    if (updatedPg) {
                                       setPagamentos(prev => prev.map(item => item.id === p.id ? { ...item, ...updatedPg } : item));
                                       toast.success("Cobrança registrada com sucesso!");
                                     }
-                                  } catch (err) {
-                                    console.error(err);
-                                  }
-
-                                  const whatsappUrl = `https://api.whatsapp.com/send?phone=${telefone}&text=${encodeURIComponent(msg)}`;
-                                  window.open(whatsappUrl, '_blank');
+                                  }).catch(err => {
+                                    console.error("Erro ao registrar cobrança:", err);
+                                  });
                                 }}
                                 title="Enviar Cobrança diretamente pelo WhatsApp"
                                 className="bg-[#00FF41] text-black border-2 border-black p-2 shadow-hard hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all active:scale-95 flex items-center justify-center"
@@ -1012,32 +1011,14 @@ export default function Financeiro() {
                 </button>
                 
                 <button 
-                  onClick={async () => {
+                  onClick={() => {
                     const p = cobrancaModal.p;
                     const msg = gerarTextoCobranca(p);
-                    // Copia para área de transferência por conveniência
                     navigator.clipboard.writeText(msg);
 
                     const telRaw = p.aluno?.responsavel_telefone || p.aluno?.telefone || '';
                     const telClean = telRaw.replace(/\D/g, '');
                     const telefone = telClean ? (telClean.startsWith('55') ? telClean : `55${telClean}`) : '';
-
-                    try {
-                      const token = localStorage.getItem('acorde_token');
-                      const res = await fetch(`/api/pagamentos/${p.id}/registrar-cobranca`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                      });
-                      if (res.ok) {
-                        const updatedPg = await res.json();
-                        setPagamentos(prev => prev.map(item => item.id === p.id ? { ...item, ...updatedPg } : item));
-                        toast.success("Cobrança registrada com sucesso!");
-                      } else {
-                        console.error("Falha ao registrar cobrança no servidor");
-                      }
-                    } catch (err) {
-                      console.error("Erro ao registrar cobrança:", err);
-                    }
 
                     if (telefone) {
                       const whatsappUrl = `https://api.whatsapp.com/send?phone=${telefone}&text=${encodeURIComponent(msg)}`;
@@ -1045,6 +1026,21 @@ export default function Financeiro() {
                     } else {
                       toast.error("Este aluno não possui telefone de contato cadastrado!");
                     }
+
+                    const token = localStorage.getItem('acorde_token');
+                    fetch(`/api/pagamentos/${p.id}/registrar-cobranca`, {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${token}` }
+                    }).then(res => {
+                      if (res.ok) return res.json();
+                    }).then(updatedPg => {
+                      if (updatedPg) {
+                        setPagamentos(prev => prev.map(item => item.id === p.id ? { ...item, ...updatedPg } : item));
+                        toast.success("Cobrança registrada com sucesso!");
+                      }
+                    }).catch(err => {
+                      console.error("Erro ao registrar cobrança:", err);
+                    });
 
                     setCobrancaModal({ open: false, p: null });
                   }}
