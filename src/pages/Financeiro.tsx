@@ -284,6 +284,38 @@ export default function Financeiro() {
     return isBefore(startOfDay(new Date(p.data_vencimento + 'T12:00:00')), startOfDay(new Date()));
   };
 
+  const obterValorComDesconto = (p: any) => {
+    const alunoObj = p.aluno;
+    if (!alunoObj || !alunoObj.matriculas) return p.valor;
+    
+    const matriculas = alunoObj.matriculas;
+    let matriculaAlvo = null;
+    if (Array.isArray(matriculas) && matriculas.length > 0) {
+      matriculaAlvo = p.matricula_id ? matriculas.find((m: any) => String(m.id) === String(p.matricula_id)) : null;
+      if (!matriculaAlvo) matriculaAlvo = matriculas.find((m: any) => m.status === 'ativa');
+    }
+    
+    if (matriculaAlvo && matriculaAlvo.valor_com_desconto != null && Number(matriculaAlvo.valor_com_desconto) > 0) {
+      return Number(matriculaAlvo.valor_com_desconto);
+    }
+    return p.valor;
+  };
+
+  const gerarTextoCobranca = (p: any) => {
+    const isLate = isAtrasado(p);
+    const nome = p.aluno_nome || p.descricao || 'Estudante';
+    const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
+    
+    if (isLate) {
+      const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
+      return `Olá ${nome}, tudo bem?\n\nO pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ:\n55273720000112`;
+    } else {
+      const valorComDesconto = obterValorComDesconto(p);
+      const valorStr = Number(valorComDesconto).toFixed(2).replace('.', ',');
+      return `Olá ${nome}, tudo bem?\n\nSua mensalidade está próxima do vencimento (${vencStr}).\nPague até o dia do vencimento para garantir o seu valor com desconto de R$ ${valorStr}.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ:\n55273720000112`;
+    }
+  };
+
   const pagamentosFiltrados = pagamentos.filter(p => {
     const term = search.toLowerCase();
     const matchesSearch = !term || p.aluno_nome?.toLowerCase().includes(term) || p.referencia_mes_ano?.includes(term) || p.tipo_receita?.toLowerCase().includes(term) || p.descricao?.toLowerCase().includes(term);
@@ -610,13 +642,7 @@ export default function Financeiro() {
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   
-                                  const isLate = isAtrasado(p);
-                                  const nome = p.aluno_nome || p.descricao;
-                                  const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
-                                  const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
-                                  const msg = isLate 
-                                    ? `Olá ${nome}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`
-                                    : `Olá ${nome}, tudo bem? Sua mensalidade no valor de R$ ${valorStr} está próxima do vencimento (${vencStr}). Pague até o dia do vencimento para garantir seu desconto. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
+                                  const msg = gerarTextoCobranca(p);
 
                                   navigator.clipboard.writeText(msg);
 
@@ -968,34 +994,15 @@ export default function Financeiro() {
                 );
               })()}
 
-              <div className="bg-black border-2 border-white/20 p-4 text-[10px] font-bold text-gray-300 select-all mb-6 uppercase leading-relaxed">
-                {(() => {
-                  const p = cobrancaModal.p;
-                  const isLate = isAtrasado(p);
-                  const nome = p.aluno_nome || p.descricao;
-                  const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
-                  const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
-                  
-                  if (isLate) {
-                    return `Olá ${nome}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
-                  } else {
-                    return `Olá ${nome}, tudo bem? Sua mensalidade no valor de R$ ${valorStr} está próxima do vencimento (${vencStr}). Pague até o dia do vencimento para garantir seu desconto. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
-                  }
-                })()}
+              <div className="bg-black border-2 border-white/20 p-4 text-[10px] font-bold text-gray-300 select-all mb-6 whitespace-pre-wrap leading-relaxed">
+                {gerarTextoCobranca(cobrancaModal.p)}
               </div>
 
               <div className="flex gap-4">
                 <button 
                   onClick={() => {
                     const p = cobrancaModal.p;
-                    const isLate = isAtrasado(p);
-                    const nome = p.aluno_nome || p.descricao;
-                    const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
-                    const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
-                    const msg = isLate 
-                      ? `Olá ${nome}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`
-                      : `Olá ${nome}, tudo bem? Sua mensalidade no valor de R$ ${valorStr} está próxima do vencimento (${vencStr}). Pague até o dia do vencimento para garantir seu desconto. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
-                    
+                    const msg = gerarTextoCobranca(p);
                     navigator.clipboard.writeText(msg);
                     toast.success("Mensagem copiada para a área de transferência!");
                   }}
@@ -1007,14 +1014,7 @@ export default function Financeiro() {
                 <button 
                   onClick={async () => {
                     const p = cobrancaModal.p;
-                    const isLate = isAtrasado(p);
-                    const nome = p.aluno_nome || p.descricao;
-                    const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
-                    const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
-                    const msg = isLate 
-                      ? `Olá ${nome}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`
-                      : `Olá ${nome}, tudo bem? Sua mensalidade no valor de R$ ${valorStr} está próxima do vencimento (${vencStr}). Pague até o dia do vencimento para garantir seu desconto. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
-                    
+                    const msg = gerarTextoCobranca(p);
                     // Copia para área de transferência por conveniência
                     navigator.clipboard.writeText(msg);
 
