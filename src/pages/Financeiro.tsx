@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, Copy, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
+import { toast } from 'sonner';
 
 const TIPOS_EXTRA = [
   { value: 'ensaio', label: 'Ensaio' },
@@ -568,9 +569,9 @@ export default function Financeiro() {
                             <Clock className="w-3.5 h-3.5" /> Vence em {-daysDiff} dias
                           </span>
                         )}
-                        {localStorage.getItem(`cobranca_${p.id}`) && p.status !== 'pago' && (
-                          <span className="text-[9px] font-black uppercase text-[#FF8A00] border border-[#FF8A00] px-1 mt-1 opacity-80" title="Cobrança realizada">
-                            COBRADO EM {new Date(localStorage.getItem(`cobranca_${p.id}`) as string).toLocaleDateString('pt-BR')}
+                        {p.ultima_cobranca_em && p.status !== 'pago' && (
+                          <span className="text-[9px] font-black uppercase text-[#FF8A00] border border-[#FF8A00] px-1 mt-1 opacity-80" title={`Cobrado ${p.cobranca_contador || 1} vezes`}>
+                            COBRADO EM {new Date(p.ultima_cobranca_em).toLocaleDateString('pt-BR')} ({p.cobranca_contador || 1}x)
                           </span>
                         )}
                       </div>
@@ -897,7 +898,30 @@ export default function Financeiro() {
                  <X className="w-5 h-5 text-white" />
               </button>
               <h3 className="text-[#FF8A00] font-black uppercase mb-4 text-lg border-b-4 border-white/20 pb-2 tracking-tighter">Cobrança</h3>
-              <p className="text-white font-bold text-[10px] mb-4 uppercase">Envie a mensagem abaixo para o aluno:</p>
+              <p className="text-white font-bold text-[10px] mb-4 uppercase">Mensagem de cobrança personalizada:</p>
+              
+              {(() => {
+                const p = cobrancaModal.p;
+                const telRaw = p.aluno?.responsavel_telefone || p.aluno?.telefone || '';
+                const telClean = telRaw.replace(/\D/g, '');
+                const telefone = telClean ? (telClean.startsWith('55') ? telClean : `55${telClean}`) : '';
+                
+                return (
+                  <>
+                    {!telefone && (
+                      <p className="text-[#FF0000] text-[9px] font-black uppercase mb-3 text-center border border-[#FF0000] p-1 bg-[#FF0000]/10">
+                        * Aluno sem telefone cadastrado!
+                      </p>
+                    )}
+                    {telefone && (
+                      <p className="text-white/60 text-[8px] font-black uppercase mb-3">
+                        Enviar para: {p.aluno?.responsavel_telefone ? 'Responsável' : 'Aluno'} ({p.aluno?.responsavel_telefone || p.aluno?.telefone})
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+
               <div className="bg-black border-2 border-white/20 p-4 text-[10px] font-bold text-gray-300 select-all mb-6 uppercase leading-relaxed">
                 {(() => {
                   const p = cobrancaModal.p;
@@ -913,26 +937,76 @@ export default function Financeiro() {
                   }
                 })()}
               </div>
-              <button 
-                onClick={() => {
-                  const p = cobrancaModal.p;
-                  const isLate = isAtrasado(p);
-                  const nome = p.aluno_nome || p.descricao;
-                  const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
-                  const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
-                  const msg = isLate 
-                    ? `Olá ${nome}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`
-                    : `Olá ${nome}, tudo bem? Sua mensalidade no valor de R$ ${valorStr} está próxima do vencimento (${vencStr}). Pague até o dia do vencimento para garantir seu desconto. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
-                  
-                  navigator.clipboard.writeText(msg);
-                  localStorage.setItem(`cobranca_${cobrancaModal.p.id}`, new Date().toISOString());
-                  setCobrancaModal({ open: false, p: null });
-                  setPagamentos([...pagamentos]); // trigger re-render
-                }}
-                className="w-full bg-[#00FF41] text-black border-4 border-black p-4 shadow-hard-black font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
-              >
-                <Copy className="w-4 h-4" /> Copiar Mensagem
-              </button>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => {
+                    const p = cobrancaModal.p;
+                    const isLate = isAtrasado(p);
+                    const nome = p.aluno_nome || p.descricao;
+                    const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
+                    const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
+                    const msg = isLate 
+                      ? `Olá ${nome}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`
+                      : `Olá ${nome}, tudo bem? Sua mensalidade no valor de R$ ${valorStr} está próxima do vencimento (${vencStr}). Pague até o dia do vencimento para garantir seu desconto. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
+                    
+                    navigator.clipboard.writeText(msg);
+                    toast.success("Mensagem copiada para a área de transferência!");
+                  }}
+                  className="flex-1 bg-transparent border-2 border-white text-white p-3 shadow-hard font-black uppercase text-[9px] flex items-center justify-center gap-1.5 hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Copiar
+                </button>
+                
+                <button 
+                  onClick={async () => {
+                    const p = cobrancaModal.p;
+                    const isLate = isAtrasado(p);
+                    const nome = p.aluno_nome || p.descricao;
+                    const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
+                    const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
+                    const msg = isLate 
+                      ? `Olá ${nome}, tudo bem? O pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`
+                      : `Olá ${nome}, tudo bem? Sua mensalidade no valor de R$ ${valorStr} está próxima do vencimento (${vencStr}). Pague até o dia do vencimento para garantir seu desconto. A chave PIX CNPJ é 55.273.720.0001-12. Aguardamos o comprovante para dar baixa no sistema! Obrigado.`;
+                    
+                    // Copia para área de transferência por conveniência
+                    navigator.clipboard.writeText(msg);
+
+                    const telRaw = p.aluno?.responsavel_telefone || p.aluno?.telefone || '';
+                    const telClean = telRaw.replace(/\D/g, '');
+                    const telefone = telClean ? (telClean.startsWith('55') ? telClean : `55${telClean}`) : '';
+
+                    try {
+                      const token = localStorage.getItem('acorde_token');
+                      const res = await fetch(`/api/pagamentos/${p.id}/registrar-cobranca`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      });
+                      if (res.ok) {
+                        const updatedPg = await res.json();
+                        setPagamentos(prev => prev.map(item => item.id === p.id ? { ...item, ...updatedPg } : item));
+                        toast.success("Cobrança registrada com sucesso!");
+                      } else {
+                        console.error("Falha ao registrar cobrança no servidor");
+                      }
+                    } catch (err) {
+                      console.error("Erro ao registrar cobrança:", err);
+                    }
+
+                    if (telefone) {
+                      const whatsappUrl = `https://api.whatsapp.com/send?phone=${telefone}&text=${encodeURIComponent(msg)}`;
+                      window.open(whatsappUrl, '_blank');
+                    } else {
+                      toast.error("Este aluno não possui telefone de contato cadastrado!");
+                    }
+
+                    setCobrancaModal({ open: false, p: null });
+                  }}
+                  className="flex-1 bg-[#00FF41] text-black border-4 border-black p-3 shadow-hard-black font-black uppercase text-[9px] flex items-center justify-center gap-1.5 hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> Enviar
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

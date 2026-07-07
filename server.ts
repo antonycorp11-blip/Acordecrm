@@ -2027,7 +2027,7 @@ async function startServer() {
 
             let dbQuery = supabase
                 .from('pagamentos')
-                .select('*, aluno:aluno_id(nome, status, matriculas(id, status, valor_com_desconto))');
+                .select('*, aluno:aluno_id(nome, status, telefone, responsavel_telefone, matriculas(id, status, valor_com_desconto))');
             
             if (mes && mes !== 'undefined' && mes !== '') {
                 dbQuery = dbQuery.eq('referencia_mes_ano', String(mes).trim());
@@ -2095,6 +2095,31 @@ async function startServer() {
             const { data, error } = await supabase.from('pagamentos')
                 .update({ status: 'pago', data_pagamento: today, metodo_pagamento: metodo_pagamento || 'dinheiro' })
                 .eq('id', id).select().single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Registrar cobrança enviada por WhatsApp
+    app.post('/api/pagamentos/:id/registrar-cobranca', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { data: pg, error: getError } = await supabase
+                .from('pagamentos')
+                .select('cobranca_contador')
+                .eq('id', id)
+                .single();
+            if (getError) throw getError;
+
+            const novoContador = (pg?.cobranca_contador || 0) + 1;
+            const { data, error } = await supabase.from('pagamentos')
+                .update({ 
+                    ultima_cobranca_em: new Date().toISOString(), 
+                    cobranca_contador: novoContador 
+                })
+                .eq('id', id)
+                .select()
+                .single();
             if (error) throw error;
             res.json(data);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
