@@ -71,18 +71,10 @@ function DraggableCard({ lead, cursos, onEdit, onMove, onAgendarExp }: any) {
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative flex flex-col gap-2 group hover:translate-y-[-2px] transition-all duration-150"
+      {...listeners}
+      {...attributes}
+      className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative flex flex-col gap-2 group hover:translate-y-[-2px] transition-all duration-150 select-none"
     >
-      {/* Botão de arrastar (drag handle) para desktop */}
-      <div 
-        {...listeners} 
-        {...attributes}
-        className="absolute top-2 right-2 text-black/30 hover:text-black cursor-grab active:cursor-grabbing hidden md:block"
-        title="Arraste para mover"
-      >
-        <MoreVertical className="w-4 h-4" />
-      </div>
-
       <div className="flex justify-between items-start pr-6">
         <span className="text-[7px] font-black bg-[#feccba] text-black px-1.5 py-0.5 border border-black uppercase tracking-tighter">
           {courseName}
@@ -109,6 +101,7 @@ function DraggableCard({ lead, cursos, onEdit, onMove, onAgendarExp }: any) {
           {/* WhatsApp */}
           {phoneClean && (
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 const msg = `Olá! Tudo bem? Entramos em contato a partir do Studio Acorde. 😊`;
@@ -124,6 +117,7 @@ function DraggableCard({ lead, cursos, onEdit, onMove, onAgendarExp }: any) {
           {/* Agendar Experimental (se não for matriculado) */}
           {lead.status !== 'matriculado' && (
             <button
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 onAgendarExp(lead);
@@ -140,24 +134,24 @@ function DraggableCard({ lead, cursos, onEdit, onMove, onAgendarExp }: any) {
         <div className="flex items-center gap-1.5 flex-1 justify-end">
           {/* Select de status rápido */}
           <select
-            value={lead.status || 'iniciado'}
+            onPointerDown={(e) => e.stopPropagation()}
+            value={lead.status === 'iniciado' ? 'em_atendimento' : (lead.status || 'em_atendimento')}
             onChange={(e) => {
               e.stopPropagation();
               onMove(lead.id, e.target.value);
             }}
-            className="text-[8px] font-black uppercase bg-white border border-black p-0.5 focus:outline-none cursor-pointer"
+            className="text-[8px] font-black text-black uppercase bg-white border border-black p-0.5 focus:outline-none cursor-pointer"
           >
-            <option value="iniciado">Iniciado</option>
             <option value="em_atendimento">Em Atend.</option>
             <option value="nao_responde">Não Resp.</option>
             <option value="sem_interesse">Sem Inter.</option>
             <option value="aula_marcada">Aula Marc.</option>
-            <option value="matriculado">Matriculado</option>
             <option value="finalizado">Encerrado</option>
           </select>
 
           {/* Editar anotações */}
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onEdit(lead);
@@ -581,15 +575,18 @@ export default function Atendimento() {
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <div className="flex gap-6 overflow-x-auto pb-6 pt-2 custom-scrollbar min-h-[500px] flex-1 max-w-full items-start">
                 {[
-                  { id: 'iniciado', title: 'Iniciado' },
                   { id: 'em_atendimento', title: 'Em Atendimento' },
                   { id: 'nao_responde', title: 'Não Responde' },
                   { id: 'aula_marcada', title: 'Aula Marcada' },
                   { id: 'sem_interesse', title: 'Não Tem Interesse' },
-                  { id: 'matriculado', title: 'Matriculado' },
-                  { id: 'finalizado', title: 'Finalizado' },
+                  { id: 'finalizado', title: 'Atendimento Encerrado' },
                 ].map((col) => {
-                  const colLeads = leads.filter((l) => l.status === col.id || (!l.status && col.id === 'iniciado'));
+                  const colLeads = leads.filter((l) => {
+                    if (col.id === 'em_atendimento') {
+                      return l.status === 'em_atendimento' || l.status === 'iniciado' || !l.status;
+                    }
+                    return l.status === col.id;
+                  });
                   
                   return (
                     <DroppableColumn key={col.id} id={col.id} title={col.title} leads={colLeads}>
@@ -767,7 +764,7 @@ export default function Atendimento() {
                  <div>
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO (OPCIONAL)</label>
                    <input 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={formData.nome} 
                      onChange={(e) => setFormData({...formData, nome: e.target.value})} 
                    />
@@ -776,7 +773,7 @@ export default function Atendimento() {
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
                    <input 
                      required 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={formData.telefone} 
                      onChange={(e) => setFormData({...formData, telefone: e.target.value})} 
                    />
@@ -785,7 +782,7 @@ export default function Atendimento() {
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CURSO_DE_INTERESSE</label>
                    <select 
                      required 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={formData.interesse_curso_id} 
                      onChange={(e) => setFormData({...formData, interesse_curso_id: e.target.value})}
                    >
@@ -797,7 +794,7 @@ export default function Atendimento() {
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÃO_INICIAL</label>
                    <textarea 
                      rows={3}
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none" 
                      value={formData.observacoes} 
                      onChange={(e) => setFormData({...formData, observacoes: e.target.value})} 
                    />
@@ -841,7 +838,7 @@ export default function Atendimento() {
                  <div>
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO (OPCIONAL)</label>
                    <input 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={editFormData.nome} 
                      onChange={(e) => setEditFormData({...editFormData, nome: e.target.value})} 
                    />
@@ -850,7 +847,7 @@ export default function Atendimento() {
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
                    <input 
                      required 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={editFormData.telefone} 
                      onChange={(e) => setEditFormData({...editFormData, telefone: e.target.value})} 
                    />
@@ -858,7 +855,7 @@ export default function Atendimento() {
                  <div>
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CURSO_DE_INTERESSE</label>
                    <select 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={editFormData.interesse_curso_id} 
                      onChange={(e) => setEditFormData({...editFormData, interesse_curso_id: e.target.value})}
                    >
@@ -870,16 +867,14 @@ export default function Atendimento() {
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">STATUS_CRM</label>
                    <select 
                      required
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={editFormData.status} 
                      onChange={(e) => setEditFormData({...editFormData, status: e.target.value})}
                    >
-                     <option value="iniciado">Atendimento Iniciado</option>
                      <option value="em_atendimento">Em Atendimento</option>
                      <option value="nao_responde">Não Responde</option>
                      <option value="sem_interesse">Não Tem Interesse</option>
                      <option value="aula_marcada">Aula Marcada</option>
-                     <option value="matriculado">Matriculado</option>
                      <option value="finalizado">Atendimento Encerrado</option>
                    </select>
                  </div>
@@ -887,7 +882,7 @@ export default function Atendimento() {
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÕES_GERAIS</label>
                    <textarea 
                      rows={4}
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none" 
+                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none" 
                      value={editFormData.observacoes} 
                      onChange={(e) => setEditFormData({...editFormData, observacoes: e.target.value})} 
                    />
@@ -932,7 +927,7 @@ export default function Atendimento() {
                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-2 block">SELECIONE_O_PROFESSOR</label>
                        <select 
                          required 
-                         className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 outline-none" 
+                         className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 outline-none" 
                          value={expData.professor_id} 
                          onChange={(e) => setExpData({...expData, professor_id: e.target.value})}
                        >

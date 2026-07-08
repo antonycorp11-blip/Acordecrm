@@ -1995,7 +1995,7 @@ async function startServer() {
                 nome: nome || null,
                 telefone,
                 interesse_curso_id: interesse_curso_id || null,
-                status: status || 'iniciado',
+                status: status || 'em_atendimento',
                 observacoes: observacoes || null,
                 origem: origem || null,
                 data_atualizacao: new Date()
@@ -2051,7 +2051,7 @@ async function startServer() {
             const { data: leadsPendentes, error: errL } = await supabase
                 .from('leads')
                 .select('*, cursos(nome)')
-                .in('status', ['iniciado', 'em_atendimento', 'nao_responde', 'aula_marcada']);
+                .in('status', ['em_atendimento', 'nao_responde', 'aula_marcada']);
 
             if (errL) throw errL;
             if (!leadsPendentes || leadsPendentes.length === 0) {
