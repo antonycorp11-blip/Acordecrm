@@ -4049,18 +4049,32 @@ async function startServer() {
 
     app.post('/api/trilha/modulos', async (req, res) => {
         try {
-            const { id, nome, descricao, ordem, arte_index } = req.body;
+            const { id, nome, descricao, ordem, arte_index, prova_final, conquista_id } = req.body;
             let result;
             if (id) {
                 result = await supabase
                     .from('modulos_trilha')
-                    .update({ nome, descricao, ordem, arte_index })
+                    .update({ 
+                        nome, 
+                        descricao, 
+                        ordem, 
+                        arte_index, 
+                        prova_final, 
+                        conquista_id: conquista_id ? Number(conquista_id) : null 
+                    })
                     .eq('id', id)
                     .select();
             } else {
                 result = await supabase
                     .from('modulos_trilha')
-                    .insert([{ nome, descricao, ordem, arte_index }])
+                    .insert([{ 
+                        nome, 
+                        descricao, 
+                        ordem, 
+                        arte_index, 
+                        prova_final, 
+                        conquista_id: conquista_id ? Number(conquista_id) : null 
+                    }])
                     .select();
             }
             if (result.error) throw result.error;
@@ -4098,18 +4112,32 @@ async function startServer() {
 
     app.post('/api/trilha/aulas', async (req, res) => {
         try {
-            const { id, modulo_id, titulo, youtube_url, ordem, questionario } = req.body;
+            const { id, modulo_id, titulo, youtube_url, ordem, questionario, conquista_id } = req.body;
             let result;
             if (id) {
                 result = await supabase
                     .from('aulas_trilha')
-                    .update({ modulo_id, titulo, youtube_url, ordem, questionario })
+                    .update({ 
+                        modulo_id, 
+                        titulo, 
+                        youtube_url, 
+                        ordem, 
+                        questionario, 
+                        conquista_id: conquista_id ? Number(conquista_id) : null 
+                    })
                     .eq('id', id)
                     .select();
             } else {
                 result = await supabase
                     .from('aulas_trilha')
-                    .insert([{ modulo_id, titulo, youtube_url, ordem, questionario }])
+                    .insert([{ 
+                        modulo_id, 
+                        titulo, 
+                        youtube_url, 
+                        ordem, 
+                        questionario, 
+                        conquista_id: conquista_id ? Number(conquista_id) : null 
+                    }])
                     .select();
             }
             if (result.error) throw result.error;
@@ -4183,6 +4211,221 @@ async function startServer() {
          } catch (error) {
              res.status(500).json({ error: error.message });
          }
+    });
+
+    app.post('/api/trilha/gerar-questionario-ia', async (req, res) => {
+        try {
+            const { textoBruto } = req.body;
+            if (!textoBruto) {
+                return res.status(400).json({ error: 'Texto bruto é obrigatório.' });
+            }
+
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+                return res.status(500).json({ error: 'GEMINI_API_KEY não configurada no servidor.' });
+            }
+
+            const prompt = `Você é um assistente de educação musical especializado em estruturar questionários de múltipla escolha para alunos de música.
+Seu objetivo é ler o seguinte texto contendo perguntas e respostas de música e retornar EXCLUSIVAMENTE um array de objetos JSON estruturado (com as chaves exatas: pergunta, opcoes e resposta_correta_idx) sem formatação markdown (como blocos de código com \`\`\`json) ou textos adicionais, contendo todas as perguntas processadas do texto de entrada.
+
+Regras de Saída JSON:
+[
+  {
+    "pergunta": "Texto da pergunta",
+    "opcoes": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"],
+    "resposta_correta_idx": 0 // index da alternativa correta no array opcoes (0-based)
+  }
+]
+
+Texto com perguntas e respostas a ser estruturado:
+"""
+${textoBruto}
+"""`;
+
+            const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: 'application/json' }
+                })
+            });
+
+            if (!geminiResponse.ok) {
+                const errText = await geminiResponse.text();
+                throw new Error(`Erro na API do Gemini: ${errText}`);
+            }
+
+            const responseData = await geminiResponse.json();
+            const rawText = responseData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            const parsedQuestions = JSON.parse(cleanedText);
+            res.json(parsedQuestions);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/trilha/responder-questionario', async (req, res) => {
+        try {
+            const { aluno_id, aula_trilha_id, modulo_trilha_id, respostas } = req.body;
+            if (!aluno_id || (!aula_trilha_id && !modulo_trilha_id) || !respostas) {
+                return res.status(400).json({ error: 'aluno_id, respostas e um identificador de aula ou módulo são obrigatórios.' });
+            }
+
+            let gabaQuestions: any[] = [];
+            let moduloId = modulo_trilha_id;
+            let aulaId = aula_trilha_id;
+            let conquistaId: number | null = null;
+            let tituloReferencia = '';
+
+            // Se for responder o questionário de uma Aula
+            if (aulaId) {
+                const { data: aula, error: aulaErr } = await supabase
+                    .from('aulas_trilha')
+                    .select('id, titulo, questionario, conquista_id, modulo_id')
+                    .eq('id', aulaId)
+                    .single();
+                if (aulaErr || !aula) throw new Error('Aula não encontrada.');
+                
+                moduloId = aula.modulo_id;
+                conquistaId = aula.conquista_id;
+                tituloReferencia = aula.titulo;
+                
+                if (aula.questionario && Array.isArray(aula.questionario)) {
+                    gabaQuestions = aula.questionario;
+                } else if (aula.questionario && typeof aula.questionario === 'object') {
+                    gabaQuestions = (aula.questionario as any).questions || [];
+                }
+            } 
+            // Se for a prova final de um Módulo
+            else if (moduloId) {
+                const { data: modulo, error: modErr } = await supabase
+                    .from('modulos_trilha')
+                    .select('id, nome, prova_final, conquista_id')
+                    .eq('id', moduloId)
+                    .single();
+                if (modErr || !modulo) throw new Error('Módulo não encontrado.');
+                
+                conquistaId = modulo.conquista_id;
+                tituloReferencia = `Prova Geral: ${modulo.nome}`;
+
+                if (modulo.prova_final && Array.isArray(modulo.prova_final)) {
+                    gabaQuestions = modulo.prova_final;
+                } else if (modulo.prova_final && typeof modulo.prova_final === 'object') {
+                    gabaQuestions = (modulo.prova_final as any).questions || [];
+                }
+            }
+
+            if (gabaQuestions.length === 0) {
+                return res.status(400).json({ error: 'Nenhum questionário cadastrado para esta referência.' });
+            }
+
+            // Calcula acertos
+            let acertos = 0;
+            gabaQuestions.forEach((q, idx) => {
+                const respAluno = respostas[idx];
+                const respCorreta = q.resposta_correta_idx !== undefined ? q.resposta_correta_idx : q.resposta_correta;
+                if (Number(respAluno) === Number(respCorreta)) {
+                    acertos++;
+                }
+            });
+
+            const nota = Math.round((acertos / gabaQuestions.length) * 100);
+            const aprovado = nota >= 80;
+
+            let xpGanhos = 0;
+            let moedasGanhas = 0;
+            let conquistouMedalha = false;
+
+            if (aprovado) {
+                const { data: aluno } = await supabase
+                    .from('alunos')
+                    .select('id, nome, xp, acorde_coins')
+                    .eq('id', aluno_id)
+                    .single();
+
+                if (aluno) {
+                    xpGanhos = aulaId ? 200 : 500;
+                    moedasGanhas = aulaId ? 200 : 500;
+                    
+                    const novoXp = (Number(aluno.xp) || 0) + xpGanhos;
+                    const novasMoedas = (Number(aluno.acorde_coins) || 0) + moedasGanhas;
+                    
+                    await supabase
+                        .from('alunos')
+                        .update({ xp: novoXp, acorde_coins: novasMoedas })
+                        .eq('id', aluno.id);
+
+                    await addToFeed(
+                        aluno.id,
+                        aulaId ? 'aula_trilha_concluida' : 'modulo_trilha_concluido',
+                        `Aprovado com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos} XP & +${moedasGanhas} Moedas!`,
+                        aulaId ? '🎓' : '👑'
+                    );
+
+                    if (aulaId) {
+                        await supabase
+                            .from('progresso_trilha')
+                            .upsert([{ aluno_id: aluno.id, aula_id: aulaId }], { onConflict: 'aluno_id,aula_id' });
+                    }
+
+                    if (conquistaId) {
+                        const { data: existConq } = await supabase
+                            .from('gamificacao_progresso')
+                            .select('*')
+                            .eq('aluno_id', aluno.id)
+                            .eq('conquista_id', conquistaId)
+                            .maybeSingle();
+
+                        if (!existConq) {
+                            await supabase
+                                .from('gamificacao_progresso')
+                                .insert([{ aluno_id: aluno.id, conquista_id: conquistaId }]);
+                            conquistouMedalha = true;
+                            
+                            const { data: conqData } = await supabase
+                                .from('gamificacao_conquistas')
+                                .select('nome')
+                                .eq('id', conquistaId)
+                                .single();
+                                
+                            await addToFeed(
+                                aluno.id,
+                                'novo_trofeu',
+                                `Conquistou o troféu "${conqData?.nome || 'Medalha EAD'}"! 🏆`,
+                                '🏆'
+                            );
+                        }
+                    }
+                }
+            }
+
+            await supabase
+                .from('tentativas_questionario_trilha')
+                .insert([{
+                    aluno_id,
+                    aula_trilha_id: aulaId || null,
+                    modulo_trilha_id: aulaId ? null : moduloId,
+                    nota,
+                    aprovado,
+                    respostas
+                }]);
+
+            res.json({
+                success: true,
+                aprovado,
+                nota,
+                acertos,
+                totalPerguntas: gabaQuestions.length,
+                xpGanhos,
+                moedasGanhas,
+                conquistouMedalha
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
     });
 
     app.post('/api/alunos/abrir-ficha-premio', async (req, res) => {

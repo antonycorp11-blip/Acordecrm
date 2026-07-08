@@ -345,9 +345,14 @@ export default function AreaAluno() {
   const [trilhaAulas, setTrilhaAulas] = useState<any[]>([]);
   const [trilhaProgresso, setTrilhaProgresso] = useState<any[]>([]);
   const [selectedTrilhaAula, setSelectedTrilhaAula] = useState<any | null>(null);
+  const [selectedTrilhaModulo, setSelectedTrilhaModulo] = useState<any | null>(null);
   const [questionarioRespostas, setQuestionarioRespostas] = useState<Record<number, number>>({});
   const [questionarioFinalizado, setQuestionarioFinalizado] = useState(false);
   const [questionarioCorreto, setQuestionarioCorreto] = useState<boolean | null>(null);
+  const [videoCompleto, setVideoCompleto] = useState(false);
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+  const [showQuestionarioModal, setShowQuestionarioModal] = useState(false);
+  const [tentativaResultado, setTentativaResultado] = useState<any | null>(null);
 
   // Estados para o Sistema de Treino Diário
   const [treinos, setTreinos] = useState<any[]>([]);
@@ -413,6 +418,63 @@ export default function AreaAluno() {
       const prog = await res.json();
       setTrilhaProgresso(Array.isArray(prog) ? prog : []);
     } catch (err) { console.error(err); }
+  };
+
+  const handleSubmitQuestionario = async (target: 'aula' | 'modulo') => {
+    const token = localStorage.getItem('acorde_token');
+    const targetId = target === 'aula' ? selectedTrilhaAula.id : selectedTrilhaModulo.id;
+    const body = {
+      aluno_id: alunoData?.id,
+      aula_trilha_id: target === 'aula' ? targetId : null,
+      modulo_trilha_id: target === 'modulo' ? targetId : null,
+      respostas: questionarioRespostas
+    };
+
+    try {
+      const res = await fetch('/api/trilha/responder-questionario', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) throw new Error('Erro ao submeter questionário');
+      const data = await res.json();
+      setTentativaResultado(data);
+      setQuestionarioFinalizado(true);
+      setQuestionarioCorreto(data.aprovado);
+
+      if (data.aprovado) {
+        // Toca som retro de vitória feliz (C5 -> E5 -> G5 -> C6)
+        playRetroSound(523, 'sine', 0.15);
+        setTimeout(() => playRetroSound(659, 'sine', 0.15), 150);
+        setTimeout(() => playRetroSound(784, 'sine', 0.15), 300);
+        setTimeout(() => playRetroSound(1047, 'sine', 0.4), 450);
+        
+        toast.success(`Parabéns! Você passou com ${data.nota}%! +${data.xpGanhos} XP & +${data.moedasGanhas} Moedas!`);
+        
+        if (alunoData?.id) {
+          fetchTrilhaProgresso(alunoData.id);
+          const headers = { 'Authorization': `Bearer ${token}` };
+          const timestamp = Date.now();
+          const r = await fetch(`/api/alunos/me?t=${timestamp}`, { headers });
+          if (r.ok) {
+            const meData = await r.json();
+            if (meData) setAlunoData(meData);
+          }
+        }
+      } else {
+        // Som retro triste de falha
+        playRetroSound(293, 'sawtooth', 0.2);
+        setTimeout(() => playRetroSound(220, 'sawtooth', 0.4), 200);
+        
+        toast.error(`Você acertou ${data.acertos}/${data.totalPerguntas} (${data.nota}%). É necessário 80% para passar.`);
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   // Web Audio API Retro Sound Generator
@@ -1463,19 +1525,138 @@ export default function AreaAluno() {
             </div>
           )}
 
-          {/* ===== ABA: TODAS AS AULAS ===== */}
+          {/* ===== ABA: TODAS AS AULAS (TRILHA EAD) ===== */}
           {activeTab === 'aulas' && (
-            <div className="px-4 py-5 space-y-3">
-              <div className="flex items-center gap-3 mb-4">
+            <div className="px-4 py-5 space-y-4">
+              <div className="flex items-center gap-3 mb-2">
                 <div className="bg-[#261812] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
-                  <h3 className="text-[#feccba] font-black text-xs uppercase tracking-widest">📚 MINHAS AULAS</h3>
+                  <h3 className="text-[#feccba] font-black text-xs uppercase tracking-widest">📚 TRILHA PEDAGÓGICA EAD</h3>
                 </div>
                 <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
               </div>
-              <div className="text-center py-8 bg-[#261812] border-4 border-black shadow-[4px_4px_0_#000]">
-                <p className="text-[#8e7164] font-black text-[10px] uppercase">🚧 AGUARDE: EM DESENVOLVIMENTO 🚧</p>
-                <p className="text-[#8e7164]/60 font-black text-[8px] uppercase mt-2">EM BREVE SUAS VIDEOAULAS E MATERIAIS DE APOIO ESTARÃO AQUI!</p>
-              </div>
+
+              {trilhaModulos.map((modulo, modIdx) => {
+                const modAulas = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modulo.id));
+                
+                // Um módulo é desbloqueado se:
+                // 1. For o primeiro módulo
+                // 2. O módulo anterior foi completamente concluído
+                const isModuloDesbloqueado = modIdx === 0 || (() => {
+                  const modAnterior = trilhaModulos[modIdx - 1];
+                  const aulasModAnterior = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modAnterior.id));
+                  const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => 
+                    trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
+                  );
+                  const provaConcluida = !modAnterior.prova_final || (
+                    Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0
+                  ) || (alunoData?.conquistas?.some((c: any) => 
+                    Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)
+                  ));
+                  return todasConcluidas && provaConcluida;
+                })();
+
+                return (
+                  <div key={modulo.id} className={`border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden bg-white transition-all ${!isModuloDesbloqueado ? 'opacity-40 select-none pointer-events-none' : ''}`}>
+                    <div className="flex justify-between items-start border-b-4 border-black pb-3 mb-4">
+                      <div>
+                        <span className="bg-[#ff6b00] text-white font-black text-[9px] px-2 py-0.5 border border-black uppercase">
+                          Módulo {modulo.ordem}
+                        </span>
+                        <h4 className="text-sm font-black text-black uppercase tracking-tight mt-1">{modulo.nome}</h4>
+                        <p className="text-[10px] text-stone-500 font-bold uppercase">{modulo.descricao}</p>
+                      </div>
+                      
+                      {!isModuloDesbloqueado && (
+                        <span className="text-xs font-black text-stone-400">🔒 Bloqueado</span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-6 relative">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {modAulas.map((aula, aulaIdx) => {
+                          const isConcluida = trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
+                          const isAulaDesbloqueada = isModuloDesbloqueado && (aulaIdx === 0 || (() => {
+                            const aulaAnterior = modAulas[aulaIdx - 1];
+                            return trilhaProgresso.some(p => Number(p.aula_id) === Number(aulaAnterior.id));
+                          })());
+
+                          return (
+                            <button
+                              key={aula.id}
+                              disabled={!isAulaDesbloqueada}
+                              onClick={() => {
+                                setSelectedTrilhaAula(aula);
+                                setVideoCompleto(false);
+                                setQuestionarioFinalizado(false);
+                                setQuestionarioCorreto(null);
+                                setQuestionarioRespostas({});
+                                setCurrentQuestionIdx(0);
+                                setTentativaResultado(null);
+                              }}
+                              className={`flex flex-col items-center p-3 border-4 border-black transition-all ${
+                                isConcluida 
+                                  ? 'bg-emerald-100 hover:bg-emerald-200 shadow-[4px_4px_0_#10b981]' 
+                                  : isAulaDesbloqueada 
+                                    ? 'bg-[#ff6b00]/10 hover:bg-[#ff6b00]/20 shadow-[4px_4px_0_#ff6b00]' 
+                                    : 'bg-stone-100 opacity-50 cursor-not-allowed shadow-none'
+                              }`}
+                            >
+                              <div className="w-10 h-10 rounded-full border-4 border-black bg-white flex items-center justify-center font-black text-xs">
+                                {isConcluida ? '✔️' : isAulaDesbloqueada ? '▶️' : '🔒'}
+                              </div>
+                              <span className="text-[9px] font-black uppercase text-center mt-2 leading-tight line-clamp-2">{aula.titulo}</span>
+                            </button>
+                          );
+                        })}
+
+                        {modulo.prova_final && Array.isArray(modulo.prova_final) && modulo.prova_final.length > 0 && (() => {
+                          const todasAulasConcluidas = modAulas.length > 0 && modAulas.every(a => 
+                            trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
+                          );
+                          const isProvaConcluida = alunoData?.conquistas?.some((c: any) => 
+                            Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id)
+                          );
+                          const isProvaDesbloqueada = isModuloDesbloqueado && todasAulasConcluidas;
+
+                          return (
+                            <button
+                              disabled={!isProvaDesbloqueada}
+                              onClick={() => {
+                                setSelectedTrilhaModulo(modulo);
+                                setQuestionarioFinalizado(false);
+                                setQuestionarioCorreto(null);
+                                setQuestionarioRespostas({});
+                                setCurrentQuestionIdx(0);
+                                setTentativaResultado(null);
+                              }}
+                              className={`flex flex-col items-center p-3 border-4 border-black transition-all col-span-2 ${
+                                isProvaConcluida 
+                                  ? 'bg-[#ffeb3b] hover:bg-[#fdd835] shadow-[4px_4px_0_#ffeb3b] text-black' 
+                                  : isProvaDesbloqueada 
+                                    ? 'bg-black text-white hover:bg-stone-900 shadow-[4px_4px_0_#000]' 
+                                    : 'bg-stone-100 opacity-50 cursor-not-allowed shadow-none text-stone-400'
+                              }`}
+                            >
+                              <div className={`w-10 h-10 rounded-full border-4 border-black flex items-center justify-center font-black text-xs ${isProvaDesbloqueada && !isProvaConcluida ? 'bg-[#ff6b00]' : 'bg-white'}`}>
+                                {isProvaConcluida ? '👑' : '📝'}
+                              </div>
+                              <span className="text-[9px] font-black uppercase text-center mt-2 leading-tight">PROVA GERAL DO MÓDULO</span>
+                              <span className="text-[7.5px] font-black text-[#ff6b00] uppercase mt-0.5">{isProvaConcluida ? 'Concluída!' : 'Desbloqueada'}</span>
+                            </button>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {trilhaModulos.length === 0 && (
+                <div className="bg-[#261812] border-4 border-black p-8 text-center shadow-[4px_4px_0_#000]">
+                  <p className="text-[#feccba] font-black text-xs uppercase">Nenhum módulo EAD disponível para o seu curso ainda.</p>
+                  <p className="text-[#8e7164] font-black text-[9px] uppercase mt-2">Em breve, nossos professores adicionarão videoaulas exclusivas aqui!</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -2578,6 +2759,327 @@ export default function AreaAluno() {
           onClose={() => setIsAlunoModalOpen(false)} 
         />
       )}
+
+      {/* ================= MODAL ASSISTIR VIDEOAULA EAD ================= */}
+      {selectedTrilhaAula && !showQuestionarioModal && (
+        <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
+          <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-2xl relative shadow-[12px_12px_0_#000] space-y-4">
+            <div className="flex justify-between items-center border-b-4 border-black pb-3">
+              <div>
+                <span className="bg-[#ff6b00] text-white font-black text-[9px] px-2 py-0.5 border border-black uppercase">
+                  Assistindo Aula
+                </span>
+                <h3 className="font-black text-xs uppercase text-black mt-1">
+                  🎥 {selectedTrilhaAula.titulo}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedTrilhaAula(null)}
+                className="bg-black text-[#feccba] border-2 border-black font-black text-xs px-2 py-1 shadow-[4px_4px_0_#000] hover:bg-red-500 hover:text-white transition-all active:translate-y-0.5"
+              >
+                X
+              </button>
+            </div>
+
+            {/* Player do YouTube */}
+            <YoutubePlayer 
+              videoUrl={selectedTrilhaAula.youtube_url} 
+              onVideoComplete={() => {
+                setVideoCompleto(true);
+                toast.success('🎉 Aula assistida! Questionário desbloqueado!');
+              }} 
+            />
+
+            {/* Rodapé e Ações do Vídeo */}
+            <div className="pt-2 flex flex-col items-center gap-3">
+              {videoCompleto ? (
+                <button
+                  onClick={() => setShowQuestionarioModal(true)}
+                  className="w-full bg-[#ff6b00] text-white border-4 border-black py-3 font-black text-xs uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+                >
+                  📝 INICIAR QUESTIONÁRIO DA AULA
+                </button>
+              ) : (
+                <div className="w-full bg-stone-200 border-4 border-black p-3 text-center flex flex-col items-center justify-center gap-1 opacity-80">
+                  <p className="text-[10px] font-black text-stone-500 uppercase">🍿 ASSISTA AO VÍDEO COMPLETO PARA LIBERAR O QUESTIONÁRIO</p>
+                  <p className="text-[8px] font-black text-stone-400 uppercase">Não é permitido pular partes do vídeo para garantir o seu aprendizado.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL QUESTIONÁRIO / PROVA GERAL ================= */}
+      {(showQuestionarioModal || selectedTrilhaModulo) && (() => {
+        const isProva = !!selectedTrilhaModulo;
+        const questions = isProva 
+          ? selectedTrilhaModulo.prova_final 
+          : (selectedTrilhaAula?.questionario || []);
+        
+        const currentQ = questions[currentQuestionIdx];
+        const conqId = isProva ? selectedTrilhaModulo.conquista_id : selectedTrilhaAula?.conquista_id;
+        const correspondenteConquista = conquistas.find((c: any) => Number(c.id) === Number(conqId));
+
+        return (
+          <div className="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
+            <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-lg relative shadow-[12px_12px_0_#000] space-y-4">
+              <div className="flex justify-between items-center border-b-4 border-black pb-3">
+                <div>
+                  <span className={`text-white font-black text-[9px] px-2 py-0.5 border border-black uppercase ${isProva ? 'bg-black' : 'bg-[#ff6b00]'}`}>
+                    {isProva ? '👑 Prova Geral do Módulo' : '📝 Questionário de Aula'}
+                  </span>
+                  <h3 className="font-black text-xs uppercase text-black mt-1">
+                    {isProva ? selectedTrilhaModulo.nome : selectedTrilhaAula?.titulo}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowQuestionarioModal(false);
+                    setSelectedTrilhaModulo(null);
+                  }}
+                  className="bg-black text-[#feccba] border-2 border-black font-black text-xs px-2 py-1 shadow-[4px_4px_0_#000] hover:bg-red-500 hover:text-white transition-all active:translate-y-0.5"
+                >
+                  X
+                </button>
+              </div>
+
+              {questions.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-xs font-black uppercase text-stone-500">Nenhuma pergunta cadastrada.</p>
+                </div>
+              ) : !questionarioFinalizado ? (
+                <div className="space-y-4">
+                  {/* Pergunta Atual */}
+                  <div className="bg-white border-4 border-black p-4 space-y-2">
+                    <span className="bg-black text-white font-black text-[8px] px-1.5 py-0.5">PERGUNTA {currentQuestionIdx + 1} de {questions.length}</span>
+                    <h4 className="font-black text-xs uppercase leading-relaxed text-black mt-1">{currentQ?.pergunta}</h4>
+                  </div>
+
+                  {/* Alternativas */}
+                  <div className="space-y-2">
+                    {currentQ?.opcoes.map((opt: string, optIdx: number) => {
+                      const isSelected = questionarioRespostas[currentQuestionIdx] === optIdx;
+                      return (
+                        <button
+                          key={optIdx}
+                          onClick={() => setQuestionarioRespostas(prev => ({ ...prev, [currentQuestionIdx]: optIdx }))}
+                          className={`w-full text-left p-3 border-4 border-black transition-all font-black text-xs uppercase flex items-center justify-between ${
+                            isSelected 
+                              ? 'bg-[#ff6b00] text-white shadow-none translate-x-[2px] translate-y-[2px]' 
+                              : 'bg-white text-black hover:bg-stone-50 shadow-[3px_3px_0_#000]'
+                          }`}
+                        >
+                          <span>{String.fromCharCode(65 + optIdx)}) {opt}</span>
+                          {isSelected && <span>✔️</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Navegação entre questões */}
+                  <div className="flex justify-between items-center pt-4 border-t-2 border-stone-200">
+                    <button
+                      type="button"
+                      disabled={currentQuestionIdx === 0}
+                      onClick={() => setCurrentQuestionIdx(prev => prev - 1)}
+                      className={`border-2 border-black px-3 py-1 text-[10px] font-black uppercase transition-all ${currentQuestionIdx === 0 ? 'opacity-30 cursor-not-allowed' : 'bg-white hover:bg-stone-50 active:translate-y-0.5'}`}
+                    >
+                      ⬅️ ANTERIOR
+                    </button>
+
+                    {currentQuestionIdx < questions.length - 1 ? (
+                      <button
+                        type="button"
+                        disabled={questionarioRespostas[currentQuestionIdx] === undefined}
+                        onClick={() => setCurrentQuestionIdx(prev => prev + 1)}
+                        className={`border-2 border-black px-3 py-1 text-[10px] font-black uppercase transition-all ${questionarioRespostas[currentQuestionIdx] === undefined ? 'opacity-30 cursor-not-allowed' : 'bg-black text-white hover:bg-stone-900 active:translate-y-0.5'}`}
+                      >
+                        PRÓXIMA ➡️
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={questionarioRespostas[currentQuestionIdx] === undefined}
+                        onClick={() => handleSubmitQuestionario(isProva ? 'modulo' : 'aula')}
+                        className={`border-2 border-black px-4 py-1.5 text-[10px] font-black uppercase transition-all bg-emerald-500 text-white shadow-[2px_2px_0_#000] active:translate-y-0.5 ${questionarioRespostas[currentQuestionIdx] === undefined ? 'opacity-30 cursor-not-allowed' : 'hover:bg-emerald-600'}`}
+                      >
+                        ENVIAR PROVA 🚀
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Resultado da tentativa */
+                <div className="text-center p-4 bg-white border-4 border-black space-y-4">
+                  {questionarioCorreto ? (
+                    <div className="space-y-3">
+                      <span className="text-4xl block animate-bounce">🏆</span>
+                      <h4 className="font-black text-lg text-emerald-600 uppercase">PARABÉNS! VOCÊ PASSOU!</h4>
+                      <p className="text-xs font-black text-stone-500 uppercase">Sua nota: <span className="text-black text-sm">{tentativaResultado?.nota}%</span> ({tentativaResultado?.acertos}/{tentativaResultado?.totalPerguntas} acertos)</p>
+                      
+                      {tentativaResultado?.conquistouMedalha && correspondenteConquista && (
+                        <div className="border-4 border-[#ff6b00] p-4 bg-[#fff8f6] max-w-xs mx-auto space-y-2">
+                          <span className="text-[8px] font-black uppercase tracking-wider text-[#ff6b00] block">🏆 NOVO TROFÉU CONQUISTADO!</span>
+                          <div className="w-16 h-16 mx-auto">
+                            {correspondenteConquista.icone_url || resolveTrophyImage(correspondenteConquista.instrumento, correspondenteConquista.classe) ? (
+                              <img src={correspondenteConquista.icone_url || resolveTrophyImage(correspondenteConquista.instrumento, correspondenteConquista.classe)} alt="Medalha" className="w-full h-full object-contain" />
+                            ) : (
+                              <span className="text-3xl">🏅</span>
+                            )}
+                          </div>
+                          <h5 className="font-black text-[10px] uppercase text-black">{correspondenteConquista.nome}</h5>
+                          <p className="text-[7.5px] font-bold uppercase text-stone-400 leading-tight">{correspondenteConquista.descricao}</p>
+                        </div>
+                      )}
+                      
+                      <div className="bg-emerald-50 border border-emerald-300 p-2 text-[9px] font-black text-emerald-700 uppercase">
+                        🎁 +{tentativaResultado?.xpGanhos} XP &amp; +{tentativaResultado?.moedasGanhas} ACORDE COINS CREDITADOS!
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setShowQuestionarioModal(false);
+                          setSelectedTrilhaModulo(null);
+                          setSelectedTrilhaAula(null);
+                        }}
+                        className="w-full bg-black text-white border-2 border-black py-2.5 font-black text-xs uppercase shadow-[3px_3px_0_#ff6b00]"
+                      >
+                        CONCLUIR E CONTINUAR
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <span className="text-4xl block">😢</span>
+                      <h4 className="font-black text-lg text-red-500 uppercase">NÃO FOI DESTA VEZ...</h4>
+                      <p className="text-xs font-black text-stone-500 uppercase">Sua nota: <span className="text-black text-sm">{tentativaResultado?.nota}%</span> ({tentativaResultado?.acertos}/{tentativaResultado?.totalPerguntas} acertos)</p>
+                      <p className="text-[9px] font-black text-stone-400 uppercase">É necessário acertar no mínimo 80% das questões para avançar.</p>
+
+                      <button
+                        onClick={() => {
+                          setQuestionarioFinalizado(false);
+                          setQuestionarioCorreto(null);
+                          setQuestionarioRespostas({});
+                          setCurrentQuestionIdx(0);
+                          setTentativaResultado(null);
+                        }}
+                        className="w-full bg-red-500 text-white border-2 border-black py-2.5 font-black text-xs uppercase shadow-[3px_3px_0_#000] hover:bg-red-600 transition-colors"
+                      >
+                        TENTAR NOVAMENTE
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
+
+// ================= COMPONENTE PLAYER DE VÍDEO DO YOUTUBE =================
+function YoutubePlayer({ videoUrl, onVideoComplete }: { videoUrl: string, onVideoComplete: () => void }) {
+  const playerRef = React.useRef<HTMLDivElement>(null);
+  const [completed, setCompleted] = React.useState(false);
+  const playerInstance = React.useRef<any>(null);
+  const lastTime = React.useRef(0);
+
+  const getVideoId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const videoId = getVideoId(videoUrl);
+
+  React.useEffect(() => {
+    if (!videoId) return;
+
+    let interval: any;
+
+    const initPlayer = () => {
+      if (!window.YT || !window.YT.Player) return;
+      
+      playerInstance.current = new window.YT.Player(playerRef.current, {
+        videoId: videoId,
+        height: '100%',
+        width: '100%',
+        playerVars: {
+          autoplay: 1,
+          controls: 1,
+          modestbranding: 1,
+          rel: 0,
+          disablekb: 1
+        },
+        events: {
+          onStateChange: (event: any) => {
+            // Tocando (Playing = 1)
+            if (event.data === 1) {
+              interval = setInterval(() => {
+                if (playerInstance.current && playerInstance.current.getCurrentTime) {
+                  const currentTime = playerInstance.current.getCurrentTime();
+                  const duration = playerInstance.current.getDuration();
+                  
+                  // Trava de Avanço Rápido: se pulou mais de 3 segundos
+                  if (currentTime > lastTime.current + 3) {
+                    playerInstance.current.seekTo(lastTime.current, true);
+                    toast.warning("Assista ao conteúdo sem pular partes! 🍿");
+                  } else {
+                    lastTime.current = currentTime;
+                  }
+
+                  // Habilita com 90% assistido
+                  if (duration > 0 && currentTime >= duration * 0.9 && !completed) {
+                    setCompleted(true);
+                    onVideoComplete();
+                  }
+                }
+              }, 1000);
+            } else {
+              clearInterval(interval);
+            }
+          }
+        }
+      });
+    };
+
+    if (window.YT && window.YT.Player) {
+      initPlayer();
+    } else {
+      // Carrega o script globalmente
+      if (!document.getElementById('youtube-iframe-api-script')) {
+        const tag = document.createElement('script');
+        tag.id = 'youtube-iframe-api-script';
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+      }
+      
+      const prevOnReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (prevOnReady) prevOnReady();
+        initPlayer();
+      };
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (playerInstance.current && playerInstance.current.destroy) {
+        playerInstance.current.destroy();
+      }
+    };
+  }, [videoId]);
+
+  if (!videoId) {
+    return <div className="text-center p-4 text-xs font-bold text-red-500 bg-red-100 border border-red-300">Link do YouTube inválido.</div>;
+  }
+
+  return (
+    <div className="w-full aspect-video border-4 border-black bg-black">
+      <div ref={playerRef} className="w-full h-full"></div>
+    </div>
+  );
+}
+

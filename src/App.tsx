@@ -24,6 +24,7 @@ import Migracao from './pages/Migracao';
 import { Reposicoes } from './pages/Reposicoes';
 import Assinatura from './pages/Assinatura';
 import { GlobalUpdater } from './components/GlobalUpdater';
+import EadTrilhaAdmin from './pages/EadTrilhaAdmin';
 
 import { Toaster } from 'sonner';
 
@@ -245,6 +246,7 @@ export default function App() {
                       <Route path="/ranking" element={<Ranking />} />
                       <Route path="/usuarios" element={<Usuarios />} />
                       <Route path="/migracao" element={<Migracao />} />
+                      <Route path="/trilha-ead" element={<EadTrilhaAdmin />} />
                 <Route path="/reposicoes" element={<Reposicoes />} />
                     </Routes>
                   </MainLayout>

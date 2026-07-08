@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Music, CreditCard, Settings, LogOut, Trophy,
-  Briefcase, BookOpen, FileText, MessageCircle, UserCheck, ChevronLeft, ChevronRight, RefreshCcw
+  Briefcase, BookOpen, FileText, MessageCircle, UserCheck, ChevronLeft, ChevronRight, RefreshCcw, Video
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '@/src/lib/utils';
@@ -20,6 +20,7 @@ const adminItems = [
   { icon: MessageCircle, label: 'Atendimento', path: '/atendimento' },
   { icon: Briefcase, label: 'Professores', path: '/professores' },
   { icon: BookOpen, label: 'Cursos', path: '/cursos' },
+  { icon: Video, label: 'Trilha EAD', path: '/trilha-ead' },
   { icon: FileText, label: 'Contratos', path: '/contratos' },
   { icon: RefreshCcw, label: 'Migração', path: '/migracao' },
   { icon: Trophy, label: 'Conquistas', path: '/conquistas' },
