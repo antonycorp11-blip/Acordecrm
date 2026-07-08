@@ -2022,7 +2022,7 @@ async function startServer() {
 
     app.patch('/api/leads/:id', async (req, res) => {
         try {
-            const { nome, telefone, interesse_curso_id, status, observacoes } = req.body;
+            const { nome, telefone, interesse_curso_id, status, observacoes, origem } = req.body;
             const { id } = req.params;
             const updateData: any = { data_atualizacao: new Date() };
             if (nome !== undefined) updateData.nome = nome || null;
@@ -2033,6 +2033,7 @@ async function startServer() {
             if (interesse_curso_id !== undefined) updateData.interesse_curso_id = interesse_curso_id || null;
             if (status !== undefined) updateData.status = status;
             if (observacoes !== undefined) updateData.observacoes = observacoes || null;
+            if (origem !== undefined) updateData.origem = origem || null;
 
             const { data, error } = await supabase
                 .from('leads')

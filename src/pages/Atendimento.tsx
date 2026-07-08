@@ -185,7 +185,8 @@ export default function Atendimento() {
     telefone: '',
     interesse_curso_id: '',
     status: '',
-    observacoes: ''
+    observacoes: '',
+    origem: ''
   });
 
   // Sensores para Drag & Drop (com distância limite para não bugar cliques de botões)
@@ -208,8 +209,9 @@ export default function Atendimento() {
     nome: '',
     telefone: '',
     interesse_curso_id: '',
-    status: 'iniciado',
-    observacoes: ''
+    status: 'em_atendimento',
+    observacoes: '',
+    origem: ''
   });
 
   const [expData, setExpData] = useState({
@@ -351,7 +353,7 @@ export default function Atendimento() {
     if (res.ok) {
       setIsModalOpen(false);
       fetchLeads();
-      setFormData({ nome: '', telefone: '', interesse_curso_id: '', status: 'iniciado', observacoes: '' });
+      setFormData({ nome: '', telefone: '', interesse_curso_id: '', status: 'em_atendimento', observacoes: '', origem: '' });
     }
   };
 
@@ -436,8 +438,9 @@ export default function Atendimento() {
       nome: lead.nome || '',
       telefone: lead.telefone || '',
       interesse_curso_id: lead.interesse_curso_id || '',
-      status: lead.status || 'iniciado',
-      observacoes: lead.observacoes || ''
+      status: lead.status || 'em_atendimento',
+      observacoes: lead.observacoes || '',
+      origem: lead.origem || ''
     });
     setIsEditModalOpen(true);
   };
@@ -779,17 +782,55 @@ export default function Atendimento() {
                    />
                  </div>
                  <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CURSO_DE_INTERESSE</label>
-                   <select 
-                     required 
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
-                     value={formData.interesse_curso_id} 
-                     onChange={(e) => setFormData({...formData, interesse_curso_id: e.target.value})}
-                   >
-                     <option value="">SELECIONE...</option>
-                     {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                   </select>
-                 </div>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">CURSO_DE_INTERESSE</label>
+                    <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto custom-scrollbar border-4 border-black p-2 bg-white">
+                      {cursos
+                        .filter(c => !c.nome.includes('Black') && !c.nome.includes('Laranja') && !c.nome.includes('White'))
+                        .map(c => {
+                          const isSelected = formData.interesse_curso_id === String(c.id) || formData.interesse_curso_id === c.id;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setFormData({...formData, interesse_curso_id: String(c.id)})}
+                              className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
+                                  : 'bg-[#fff8f6] text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
+                              }`}
+                            >
+                              {c.nome}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">ORIGEM_DO_LEAD / CANAL</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'trafego_pago', label: 'Tráfego Pago' },
+                        { id: 'indicacao', label: 'Indicação' },
+                        { id: 'outros', label: 'Outros' }
+                      ].map((opt) => {
+                        const isSelected = formData.origem === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setFormData({...formData, origem: opt.id})}
+                            className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
+                                : 'bg-white text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                  <div>
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÃO_INICIAL</label>
                    <textarea 
@@ -853,16 +894,55 @@ export default function Atendimento() {
                    />
                  </div>
                  <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CURSO_DE_INTERESSE</label>
-                   <select 
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
-                     value={editFormData.interesse_curso_id} 
-                     onChange={(e) => setEditFormData({...editFormData, interesse_curso_id: e.target.value})}
-                   >
-                     <option value="">SELECIONE...</option>
-                     {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                   </select>
-                 </div>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">CURSO_DE_INTERESSE</label>
+                    <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto custom-scrollbar border-4 border-black p-2 bg-white">
+                      {cursos
+                        .filter(c => !c.nome.includes('Black') && !c.nome.includes('Laranja') && !c.nome.includes('White'))
+                        .map(c => {
+                          const isSelected = editFormData.interesse_curso_id === String(c.id) || editFormData.interesse_curso_id === c.id;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setEditFormData({...editFormData, interesse_curso_id: String(c.id)})}
+                              className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
+                                  : 'bg-[#fff8f6] text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
+                              }`}
+                            >
+                              {c.nome}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">ORIGEM_DO_LEAD / CANAL</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'trafego_pago', label: 'Tráfego Pago' },
+                        { id: 'indicacao', label: 'Indicação' },
+                        { id: 'outros', label: 'Outros' }
+                      ].map((opt) => {
+                        const isSelected = editFormData.origem === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setEditFormData({...editFormData, origem: opt.id})}
+                            className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
+                                : 'bg-white text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                  <div>
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">STATUS_CRM</label>
                    <select 
