@@ -33,6 +33,7 @@ import { format, subDays, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import GeradorContrato from '../components/GeradorContrato';
 import { toast } from 'sonner';
+import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 
 // --- STITCH COMPONENTS ---
 
@@ -1540,18 +1541,37 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
               
               {/* Repertório/Harmonia */}
               {(richData.chords?.length > 0 || richData.scales?.length > 0) && (
-                <div className="p-4 bg-[#fff8f6] border-2 border-black shadow-[2px_2px_0_#000]">
+                <div className="p-4 bg-[#fff8f6] border-2 border-black shadow-[2px_2px_0_#000] space-y-4">
                    <h4 className="font-black text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2">
                      <span className="text-lg">🎸</span> Estudo de Harmonia / Acordes
                    </h4>
-                   <div className="flex flex-wrap gap-2">
-                      {richData.chords?.map((c: any, i: number) => (
-                        <span key={i} className="px-2 py-1 bg-white border border-black text-xs font-bold">{c.root}{c.type}</span>
-                      ))}
-                      {richData.scales?.map((s: any, i: number) => (
-                        <span key={i} className="px-2 py-1 bg-black text-white border border-black text-xs font-bold">{s.root} {s.type}</span>
-                      ))}
-                   </div>
+                   
+                   {richData.chords?.length > 0 && (
+                     <div className="grid grid-cols-2 gap-4 items-start">
+                       {richData.chords.map((c: any, i: number) => (
+                         <div key={i} className="border-2 border-black p-1 bg-white w-full break-inside-avoid">
+                           <ChordVisualizer
+                             instrument={c.instrument || aula.curso_nome || 'Violão'}
+                             chordNotes={c.notes || []}
+                             root={c.root}
+                             type={c.typeId || c.type}
+                             ext={c.extId || c.extension}
+                             bass={c.bass}
+                             notesWithIndices={c.notesWithIndices}
+                             isCustom={c.isCustom}
+                           />
+                         </div>
+                       ))}
+                     </div>
+                   )}
+
+                   {richData.scales?.length > 0 && (
+                     <div className="flex flex-wrap gap-2 pt-2 border-t border-black/10">
+                       {richData.scales.map((s: any, i: number) => (
+                         <span key={i} className="px-2 py-1 bg-black text-white border border-black text-xs font-bold">{s.root} {s.type}</span>
+                       ))}
+                     </div>
+                   )}
                 </div>
               )}
 
