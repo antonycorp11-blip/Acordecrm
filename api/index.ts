@@ -1553,6 +1553,28 @@ async function startServer() {
                 await supabase.from('alunos').delete().eq('id', aluno.id);
                 throw errPagamentos;
             }
+            // 5. Automatização do Status do Lead para Matriculado
+            if (telefone) {
+                const telClean = telefone.replace(/\D/g, '');
+                if (telClean) {
+                    const { data: leadsMatch } = await supabase
+                        .from('leads')
+                        .select('id, status, telefone')
+                        .neq('status', 'matriculado');
+                    if (leadsMatch) {
+                        const matchedLead = leadsMatch.find((l: any) => {
+                            const lTelClean = (l.telefone || '').replace(/\D/g, '');
+                            return lTelClean && (lTelClean.includes(telClean) || telClean.includes(lTelClean));
+                        });
+                        if (matchedLead) {
+                            await supabase
+                                .from('leads')
+                                .update({ status: 'matriculado', data_atualizacao: new Date() })
+                                .eq('id', matchedLead.id);
+                        }
+                    }
+                }
+            }
 
             res.json({ id: aluno.id });
         } catch (error: any) { 
@@ -1902,10 +1924,172 @@ async function startServer() {
 
     app.post('/api/leads', async (req, res) => {
         try {
-            const { data, error } = await supabase.from('leads').insert([req.body]).select().single();
+            const { nome, telefone, interesse_curso_id, status, observacoes, origem } = req.body;
+            if (!telefone) {
+                return res.status(400).json({ error: 'O telefone do lead é obrigatório' });
+            }
+            const { data, error } = await supabase.from('leads').insert([{
+                nome: nome || null,
+                telefone,
+                interesse_curso_id: interesse_curso_id || null,
+                status: status || 'iniciado',
+                observacoes: observacoes || null,
+                origem: origem || null,
+                data_atualizacao: new Date()
+            }]).select().single();
             if (error) throw error;
             res.json(data);
-        } catch (error) { res.status(500).json({ error: 'Erro ao salvar lead' }); }
+        } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao salvar lead' }); }
+    });
+
+    app.patch('/api/leads/:id/status', async (req, res) => {
+        try {
+            const { status } = req.body;
+            const { id } = req.params;
+            const { data, error } = await supabase
+                .from('leads')
+                .update({ status, data_atualizacao: new Date() })
+                .eq('id', id)
+                .select()
+                .single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao atualizar status do lead' }); }
+    });
+
+    app.patch('/api/leads/:id', async (req, res) => {
+        try {
+            const { nome, telefone, interesse_curso_id, status, observacoes } = req.body;
+            const { id } = req.params;
+            const updateData: any = { data_atualizacao: new Date() };
+            if (nome !== undefined) updateData.nome = nome || null;
+            if (telefone !== undefined) {
+                if (!telefone) return res.status(400).json({ error: 'O telefone é obrigatório' });
+                updateData.telefone = telefone;
+            }
+            if (interesse_curso_id !== undefined) updateData.interesse_curso_id = interesse_curso_id || null;
+            if (status !== undefined) updateData.status = status;
+            if (observacoes !== undefined) updateData.observacoes = observacoes || null;
+
+            const { data, error } = await supabase
+                .from('leads')
+                .update(updateData)
+                .eq('id', id)
+                .select()
+                .single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao atualizar lead' }); }
+    });
+
+    app.post('/api/leads/verificar-followup', async (req, res) => {
+        try {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const { data: leadsPendentes, error: errL } = await supabase
+                .from('leads')
+                .select('*, cursos(nome)')
+                .in('status', ['iniciado', 'em_atendimento', 'nao_responde', 'aula_marcada']);
+
+            if (errL) throw errL;
+            if (!leadsPendentes || leadsPendentes.length === 0) {
+                return res.json({ success: true, message: 'Nenhum lead em aberto para follow-up.' });
+            }
+
+            const leadsParaNotificar = leadsPendentes.filter((lead: any) => {
+                const dataLead = new Date(lead.data_atualizacao || lead.data_criacao || new Date());
+                const dataLeadStr = dataLead.toISOString().split('T')[0];
+                const isOlderThanToday = dataLeadStr < todayStr;
+                const jaNotificadoHoje = lead.notificado_followup_em === todayStr;
+                return isOlderThanToday && !jaNotificadoHoje;
+            });
+
+            if (leadsParaNotificar.length === 0) {
+                return res.json({ success: true, message: 'Os leads já foram notificados hoje ou são recentes.' });
+            }
+
+            const { data: configs } = await supabase.from('configuracoes').select('*');
+            let smtpEmail = configs?.find((c: any) => c.chave === 'SMTP_EMAIL')?.valor || process.env.SMTP_EMAIL;
+            let smtpPass = configs?.find((c: any) => c.chave === 'SMTP_PASS')?.valor || process.env.SMTP_PASS;
+
+            if (!smtpEmail || !smtpPass) {
+                return res.status(400).json({ error: 'Configurações de SMTP não encontradas.' });
+            }
+
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: { user: smtpEmail, pass: smtpPass }
+            });
+
+            const leadsHtmlList = leadsParaNotificar.map((l: any) => {
+                const dataFormatada = new Date(l.data_atualizacao || l.data_criacao).toLocaleDateString('pt-BR');
+                const statusMap: { [key: string]: string } = {
+                    iniciado: 'Atendimento Iniciado',
+                    em_atendimento: 'Em Atendimento',
+                    nao_responde: 'Não Responde',
+                    aula_marcada: 'Aula Marcada'
+                };
+                const statusFormatado = statusMap[l.status] || l.status;
+                return `
+                    <tr style="border-bottom: 1px solid #ddd;">
+                        <td style="padding: 10px; font-weight: bold;">${l.nome || 'Sem Nome'}</td>
+                        <td style="padding: 10px;">${l.telefone || 'Sem Telefone'}</td>
+                        <td style="padding: 10px; color: #ff6b00; font-weight: bold;">${statusFormatado}</td>
+                        <td style="padding: 10px;">${l.cursos?.nome || 'Não Informado'}</td>
+                        <td style="padding: 10px;">${dataFormatada}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const emailHtml = `
+                <div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812; max-width: 650px; margin: 0 auto;">
+                    <h2 style="color: #ff6b00; text-transform: uppercase; border-bottom: 2px solid #261812; padding-bottom: 10px;">ALERTA DE FOLLOW-UP - ACORDE CRM</h2>
+                    <p style="font-size: 14px; font-weight: bold;">Olá!</p>
+                    <p>O sistema identificou <strong>${leadsParaNotificar.length} lead(s) em aberto</strong> aguardando contato ou acompanhamento (criados ou atualizados antes de hoje):</p>
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background: white; border: 1px solid #ccc;">
+                        <thead>
+                            <tr style="background: #261812; color: white;">
+                                <th style="padding: 10px; text-align: left; font-size: 12px; text-transform: uppercase;">Nome</th>
+                                <th style="padding: 10px; text-align: left; font-size: 12px; text-transform: uppercase;">Telefone</th>
+                                <th style="padding: 10px; text-align: left; font-size: 12px; text-transform: uppercase;">Status</th>
+                                <th style="padding: 10px; text-align: left; font-size: 12px; text-transform: uppercase;">Curso</th>
+                                <th style="padding: 10px; text-align: left; font-size: 12px; text-transform: uppercase;">Última Interação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${leadsHtmlList}
+                        </tbody>
+                    </table>
+                    
+                    <p>Por favor, acesse o painel de atendimento para dar andamento ou finalizar estes leads:</p>
+                    <div style="text-align: center; margin: 25px 0;">
+                        <a href="https://acordecrm.vercel.app/atendimento" style="background-color: #ff6b00; color: white; padding: 12px 25px; text-decoration: none; font-weight: bold; border: 2px solid #261812;">IR PARA O ATENDIMENTO</a>
+                    </div>
+                </div>
+            `;
+
+            const destinatarios = [smtpEmail, 'antonycorp11@gmail.com'].filter(Boolean).join(', ');
+
+            await transporter.sendMail({
+                from: `"Acorde CRM Follow-up" <${smtpEmail}>`,
+                to: destinatarios,
+                subject: `⚠️ ALERTA: ${leadsParaNotificar.length} Leads aguardando Follow-up - Studio Acorde`,
+                html: emailHtml
+            });
+
+            const leadIds = leadsParaNotificar.map((l: any) => l.id);
+            const { error: errU } = await supabase
+                .from('leads')
+                .update({ notificado_followup_em: todayStr })
+                .in('id', leadIds);
+
+            if (errU) throw errU;
+
+            res.json({ success: true, count: leadsParaNotificar.length });
+        } catch (error: any) {
+            console.error('[FOLLOW_UP] Erro:', error);
+            res.status(500).json({ error: error.message || 'Erro ao processar' });
+        }
     });
 
     // Agendamento de Aula Experimental
@@ -1918,7 +2102,7 @@ async function startServer() {
             if (errE) throw errE;
             
             // Atualizar status do lead
-            await supabase.from('leads').update({ status: 'experimental_agendada' }).eq('id', lead_id);
+            await supabase.from('leads').update({ status: 'aula_marcada', data_atualizacao: new Date() }).eq('id', lead_id);
             
             res.json(exp);
         } catch (error) { res.status(500).json({ error: 'Erro ao agendar aula experimental' }); }

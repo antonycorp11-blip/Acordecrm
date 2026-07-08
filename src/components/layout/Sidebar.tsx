@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Music, CreditCard, Settings, LogOut, Trophy,
   Briefcase, BookOpen, FileText, MessageCircle, UserCheck, ChevronLeft, ChevronRight, RefreshCcw
@@ -29,8 +29,17 @@ const adminItems = [
 
 export function Sidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
+
+  // Recolhe automaticamente a Sidebar em páginas específicas (Atendimento, Financeiro, Ranking)
+  React.useEffect(() => {
+    const collapseRoutes = ['/atendimento', '/financeiro', '/ranking'];
+    if (collapseRoutes.includes(location.pathname)) {
+      setIsCollapsed(true);
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();

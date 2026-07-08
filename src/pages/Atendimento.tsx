@@ -21,6 +21,156 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { WeeklyCalendar } from '../components/calendar/WeeklyCalendar';
+import { DndContext, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
+import { useDroppable } from '@dnd-kit/core';
+import { useDraggable } from '@dnd-kit/core';
+
+// Componente de coluna droppable do Kanban
+function DroppableColumn({ id, title, leads, children }: any) {
+  const { setNodeRef } = useDroppable({ id });
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      className="flex-1 min-w-[270px] bg-[#261812]/20 border-4 border-black p-4 shadow-[4px_4px_0_#000] flex flex-col gap-4 min-h-[500px]"
+    >
+      <div className="flex items-center justify-between border-b-2 border-black pb-2 px-1">
+        <h3 className="text-[10px] font-black text-white uppercase tracking-widest italic">{title}</h3>
+        <span className="bg-[#ff6b00] text-white text-[9px] px-2 py-0.5 border-2 border-black font-black shadow-[2px_2px_0_#000]">
+          {leads.length}
+        </span>
+      </div>
+      <div className="flex-1 flex flex-col gap-3 overflow-y-auto max-h-[60vh] custom-scrollbar pr-1">
+        {children}
+        {leads.length === 0 && (
+          <div className="flex-1 border-4 border-dashed border-white/5 p-8 flex items-center justify-center min-h-[150px]">
+            <p className="text-[8px] font-black text-white/10 uppercase">Arraste Leads aqui</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Componente de card draggable do Kanban
+function DraggableCard({ lead, cursos, onEdit, onMove, onAgendarExp }: any) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: String(lead.id)
+  });
+
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    opacity: isDragging ? 0.3 : 1,
+    cursor: 'grab'
+  };
+
+  const phoneClean = (lead.telefone || '').replace(/\D/g, '');
+  const courseName = cursos.find((c: any) => c.id === lead.interesse_curso_id)?.nome || 'CURSO INDEFINIDO';
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative flex flex-col gap-2 group hover:translate-y-[-2px] transition-all duration-150"
+    >
+      {/* Botão de arrastar (drag handle) para desktop */}
+      <div 
+        {...listeners} 
+        {...attributes}
+        className="absolute top-2 right-2 text-black/30 hover:text-black cursor-grab active:cursor-grabbing hidden md:block"
+        title="Arraste para mover"
+      >
+        <MoreVertical className="w-4 h-4" />
+      </div>
+
+      <div className="flex justify-between items-start pr-6">
+        <span className="text-[7px] font-black bg-[#feccba] text-black px-1.5 py-0.5 border border-black uppercase tracking-tighter">
+          {courseName}
+        </span>
+      </div>
+
+      <h4 className="font-black text-black uppercase italic text-xs leading-tight">
+        {lead.nome || <span className="italic opacity-50 font-normal lowercase">sem nome</span>}
+      </h4>
+
+      <p className="text-[9px] font-black text-[#8e7164] flex items-center gap-1 uppercase">
+        <Phone className="w-3 h-3 text-[#ff6b00]" /> {lead.telefone}
+      </p>
+
+      {lead.observacoes && (
+        <p className="text-[8px] font-bold text-black/60 bg-black/5 p-1.5 border border-black/10 line-clamp-2 uppercase">
+          {lead.observacoes}
+        </p>
+      )}
+
+      {/* Ações do Card */}
+      <div className="mt-3 pt-2 border-t border-black/10 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-1.5">
+          {/* WhatsApp */}
+          {phoneClean && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const msg = `Olá! Tudo bem? Entramos em contato a partir do Studio Acorde. 😊`;
+                window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
+              }}
+              title="Chamar no WhatsApp"
+              className="bg-[#25d366] text-black p-1 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center cursor-pointer"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
+          
+          {/* Agendar Experimental (se não for matriculado) */}
+          {lead.status !== 'matriculado' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAgendarExp(lead);
+              }}
+              title="Agendar Experimental"
+              className="bg-[#ff6b00] text-white p-1 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#ff8c33] transition-all flex items-center justify-center cursor-pointer"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Mudar de status pelo Mobile ou cliques */}
+        <div className="flex items-center gap-1.5 flex-1 justify-end">
+          {/* Select de status rápido */}
+          <select
+            value={lead.status || 'iniciado'}
+            onChange={(e) => {
+              e.stopPropagation();
+              onMove(lead.id, e.target.value);
+            }}
+            className="text-[8px] font-black uppercase bg-white border border-black p-0.5 focus:outline-none cursor-pointer"
+          >
+            <option value="iniciado">Iniciado</option>
+            <option value="em_atendimento">Em Atend.</option>
+            <option value="nao_responde">Não Resp.</option>
+            <option value="sem_interesse">Sem Inter.</option>
+            <option value="aula_marcada">Aula Marc.</option>
+            <option value="matriculado">Matriculado</option>
+            <option value="finalizado">Encerrado</option>
+          </select>
+
+          {/* Editar anotações */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(lead);
+            }}
+            className="bg-black text-white px-1.5 py-0.5 border border-black text-[8px] font-black uppercase shadow-[1.5px_1.5px_0_#000] cursor-pointer"
+          >
+            Anotar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Atendimento() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -33,6 +183,26 @@ export default function Atendimento() {
   const [cursos, setCursos] = useState<any[]>([]);
   const [professores, setProfessores] = useState<any[]>([]);
 
+  // Estados para Edição de Leads
+  const [editingLead, setEditingLead] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    nome: '',
+    telefone: '',
+    interesse_curso_id: '',
+    status: '',
+    observacoes: ''
+  });
+
+  // Sensores para Drag & Drop (com distância limite para não bugar cliques de botões)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
   // Estado para Busca de Vagas
   const [searchInstrumento, setSearchInstrumento] = useState('');
   const [searchDia, setSearchDia] = useState('');
@@ -44,7 +214,8 @@ export default function Atendimento() {
     nome: '',
     telefone: '',
     interesse_curso_id: '',
-    status: 'novo'
+    status: 'iniciado',
+    observacoes: ''
   });
 
   const [expData, setExpData] = useState({
@@ -90,6 +261,21 @@ export default function Atendimento() {
       .then(res => res.ok ? res.json() : [])
       .then(data => setProfessores(Array.isArray(data) ? data : []))
       .catch(() => setProfessores([]));
+
+    // Disparo da verificação de follow-up em background ao abrir o CRM
+    fetch('/api/leads/verificar-followup', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => {
+        if (res.ok) return res.json();
+      })
+      .then(data => {
+        if (data && data.count > 0) {
+          toast.info(`Follow-up por e-mail disparado para ${data.count} leads pendentes!`);
+        }
+      })
+      .catch(err => console.error("Erro ao verificar follow-up:", err));
   }, []);
 
   const sendReminder = (exp: any) => {
@@ -171,7 +357,7 @@ export default function Atendimento() {
     if (res.ok) {
       setIsModalOpen(false);
       fetchLeads();
-      setFormData({ nome: '', telefone: '', interesse_curso_id: '', status: 'novo' });
+      setFormData({ nome: '', telefone: '', interesse_curso_id: '', status: 'iniciado', observacoes: '' });
     }
   };
 
@@ -190,6 +376,76 @@ export default function Atendimento() {
       setIsExpModalOpen(false);
       fetchLeads();
     }
+  };
+
+  const updateLeadStatus = async (leadId: any, newStatus: string) => {
+    const token = localStorage.getItem('acorde_token');
+    try {
+      const res = await fetch(`/api/leads/${leadId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setLeads(prev => prev.map(l => l.id === Number(leadId) || l.id === leadId ? { ...l, ...updated } : l));
+        toast.success("Status do lead atualizado!");
+      } else {
+        toast.error("Erro ao atualizar status");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro na comunicação com o servidor");
+    }
+  };
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    if (over) {
+      const leadId = active.id;
+      const newStatus = over.id;
+      updateLeadStatus(leadId, newStatus);
+    }
+  };
+
+  const handleUpdateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = localStorage.getItem('acorde_token');
+    try {
+      const res = await fetch(`/api/leads/${editingLead.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editFormData)
+      });
+      if (res.ok) {
+        setIsEditModalOpen(false);
+        fetchLeads();
+        toast.success("Anotações e dados do lead salvos!");
+      } else {
+        toast.error("Erro ao atualizar lead");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro de conexão");
+    }
+  };
+
+  const openEditModal = (lead: any) => {
+    setEditingLead(lead);
+    setEditFormData({
+      nome: lead.nome || '',
+      telefone: lead.telefone || '',
+      interesse_curso_id: lead.interesse_curso_id || '',
+      status: lead.status || 'iniciado',
+      observacoes: lead.observacoes || ''
+    });
+    setIsEditModalOpen(true);
   };
 
   return (
@@ -241,15 +497,15 @@ export default function Atendimento() {
         </div>
 
         {activeTab === 'leads' && (
-          <div className="space-y-6">
+          <div className="space-y-6 flex flex-col flex-1 overflow-hidden">
             {/* Seção de Lembretes */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 shrink-0">
               {experimentaisPendentes.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2 px-2">
                     <Clock className="w-3 h-3 text-[#ff6b00]" /> CONFIRMAR_HOJE
                   </h3>
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
                     {experimentaisPendentes.map((exp) => (
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
@@ -262,13 +518,13 @@ export default function Atendimento() {
                             {exp.horario ? exp.horario.substring(0, 5) : '--:--'}
                           </div>
                           <div>
-                            <p className="text-xs font-black text-black uppercase italic italic">{exp.leads?.nome}</p>
+                            <p className="text-xs font-black text-black uppercase italic">{exp.leads?.nome || 'Sem Nome'}</p>
                             <p className="text-[8px] font-black text-[#8e7164] uppercase">{exp.cursos?.nome} • PROF. {exp.professores?.nome?.split(' ')[0]}</p>
                           </div>
                         </div>
                         <button 
                           onClick={() => sendReminder(exp)}
-                          className="bg-[#25d366] text-white p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all"
+                          className="bg-[#25d366] text-black p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
                         >
                           <MessageCircle className="w-4 h-4" />
                         </button>
@@ -282,9 +538,9 @@ export default function Atendimento() {
                 <h3 className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2 px-2">
                   <Users className="w-3 h-3 text-[#ff6b00]" /> PÓS-AULA: AGUARDANDO_MATRÍCULA
                 </h3>
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {leads.filter(l => l.status === 'experimental_concluida').length > 0 ? (
-                    leads.filter(l => l.status === 'experimental_concluida').map((lead) => (
+                <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                  {leads.filter(l => l.status === 'aula_marcada' && l.aulas_experimentais?.some((ae: any) => ae.status === 'concluida')).length > 0 ? (
+                    leads.filter(l => l.status === 'aula_marcada' && l.aulas_experimentais?.some((ae: any) => ae.status === 'concluida')).map((lead) => (
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -296,88 +552,66 @@ export default function Atendimento() {
                             <Check className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="text-xs font-black text-black uppercase italic italic">{lead.nome}</p>
-                            <p className="text-[8px] font-black text-[#8e7164] uppercase">AULA CONCLUÍDA • {lead.cursos?.nome}</p>
+                            <p className="text-xs font-black text-black uppercase italic">{lead.nome || 'Sem Nome'}</p>
+                            <p className="text-[8px] font-black text-[#8e7164] uppercase">AULA CONCLUÍDA • {lead.cursos?.nome || 'Música'}</p>
                           </div>
                         </div>
                         <button 
                           onClick={() => {
-                            const msg = `Olá ${lead.nome}! Gostamos muito de ter você aqui na Acorde! 😊 O que achou da aula? Vamos dar o próximo passo e garantir sua vaga na turma?`;
+                            const msg = `Olá ${lead.nome || 'tudo bem'}! Gostamos muito de ter você aqui na Acorde! 😊 O que achou da aula? Vamos dar o próximo passo e garantir sua vaga na turma?`;
                             const phone = (lead.telefone || '').replace(/\D/g, '');
-                            window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+                            window.open(`https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(msg)}`, '_blank');
                           }}
-                          className="bg-[#ff6b00] text-white p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all"
+                          className="bg-[#ff6b00] text-white p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
                         >
                           <ArrowRight className="w-4 h-4" />
                         </button>
                       </motion.div>
                     ))
                   ) : (
-                    <div className="p-8 border-4 border-dashed border-white/10 rounded-xl text-center">
-                      <p className="text-[10px] font-black text-white/20 uppercase">NENHUM_LEAD_EM_PÓS-VENDA</p>
+                    <div className="p-6 border-4 border-dashed border-white/10 text-center flex items-center justify-center h-[90px]">
+                      <p className="text-[9px] font-black text-white/20 uppercase">NENHUM_LEAD_EM_PÓS-VENDA</p>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {['novo', 'em_contato', 'experimental_agendada'].map((status) => (
-              <div key={status} className="space-y-4">
-                <div className="flex items-center justify-between px-2 border-b-2 border-white/10 pb-2">
-                  <h3 className="text-[10px] font-black text-white uppercase tracking-widest italic italic">
-                    {status.replace('_', ' ')}
-                  </h3>
-                  <span className="bg-[#ff6b00] text-white text-[10px] px-2 py-0.5 border-2 border-black font-black shadow-[2px_2px_0_#000]">
-                    {leads.filter(l => l.status === status).length}
-                  </span>
-                </div>
-                
-                <div className="space-y-4">
-                  {leads.filter(l => l.status === status).map((lead) => (
-                    <motion.div 
-                      layout
-                      key={lead.id} 
-                      className="bg-[#fff8f6] border-4 border-black p-5 cursor-pointer group shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[8px] font-black bg-[#feccba] text-black px-2 py-0.5 border-2 border-black uppercase tracking-tighter">
-                          {lead.cursos?.nome || 'CURSO_INDEFINIDO'}
-                        </span>
-                        <button className="text-black/20 hover:text-black"><MoreVertical className="w-4 h-4" /></button>
-                      </div>
-                      <h4 className="font-black text-black uppercase italic italic">{lead.nome}</h4>
-                      <p className="text-[10px] font-black text-[#8e7164] mt-1 flex items-center gap-1 uppercase">
-                        <Phone className="w-3 h-3" /> {lead.telefone}
-                      </p>
-                      
-                      <div className="mt-4 pt-3 border-t-2 border-black/5 flex items-center justify-between">
-                        <button 
-                          onClick={() => {
-                            setSelectedLead(lead);
-                            setExpData({ ...expData, lead_id: lead.id, curso_id: lead.curso_id });
+            {/* Kanban Board com DndContext */}
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <div className="flex gap-6 overflow-x-auto pb-6 pt-2 custom-scrollbar min-h-[500px] flex-1 max-w-full items-start">
+                {[
+                  { id: 'iniciado', title: 'Iniciado' },
+                  { id: 'em_atendimento', title: 'Em Atendimento' },
+                  { id: 'nao_responde', title: 'Não Responde' },
+                  { id: 'aula_marcada', title: 'Aula Marcada' },
+                  { id: 'sem_interesse', title: 'Não Tem Interesse' },
+                  { id: 'matriculado', title: 'Matriculado' },
+                  { id: 'finalizado', title: 'Finalizado' },
+                ].map((col) => {
+                  const colLeads = leads.filter((l) => l.status === col.id || (!l.status && col.id === 'iniciado'));
+                  
+                  return (
+                    <DroppableColumn key={col.id} id={col.id} title={col.title} leads={colLeads}>
+                      {colLeads.map((lead) => (
+                        <DraggableCard
+                          key={lead.id}
+                          lead={lead}
+                          cursos={cursos}
+                          onEdit={openEditModal}
+                          onMove={updateLeadStatus}
+                          onAgendarExp={(l: any) => {
+                            setSelectedLead(l);
+                            setExpData({ ...expData, lead_id: l.id, curso_id: l.interesse_curso_id });
                             setIsExpModalOpen(true);
                           }}
-                          className="text-[9px] font-black text-[#ff6b00] flex items-center gap-1 hover:underline uppercase"
-                        >
-                          <Calendar className="w-3 h-3" /> AGENDAR_EXP
-                        </button>
-                        <button className="text-black/20 group-hover:translate-x-1 transition-all">
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                  
-                  {leads.filter(l => l.status === status).length === 0 && (
-                    <div className="border-4 border-dashed border-white/5 rounded-xl p-8 text-center">
-                       <p className="text-[10px] font-black text-white/10 uppercase">VAZIO</p>
-                    </div>
-                  )}
-                </div>
+                        />
+                      ))}
+                    </DroppableColumn>
+                  );
+                })}
               </div>
-            ))}
-            </div>
+            </DndContext>
           </div>
         )}
 
@@ -517,13 +751,13 @@ export default function Atendimento() {
               className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-md"
             >
               <div className="absolute top-0 right-0 p-4">
-                 <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+                 <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
                     <X className="w-4 h-4" />
                  </button>
               </div>
 
               <div className="mb-8">
-                <h2 className="text-xl font-black text-black uppercase italic italic flex items-center gap-2">
+                <h2 className="text-xl font-black text-black uppercase italic flex items-center gap-2">
                    <Plus className="w-6 h-6 text-[#ff6b00]" /> NOVO_INTERESSADO
                 </h2>
                 <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
@@ -531,10 +765,9 @@ export default function Atendimento() {
 
               <form onSubmit={handleCreateLead} className="space-y-6">
                  <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO</label>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO (OPCIONAL)</label>
                    <input 
-                     required 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={formData.nome} 
                      onChange={(e) => setFormData({...formData, nome: e.target.value})} 
                    />
@@ -543,7 +776,7 @@ export default function Atendimento() {
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
                    <input 
                      required 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={formData.telefone} 
                      onChange={(e) => setFormData({...formData, telefone: e.target.value})} 
                    />
@@ -552,7 +785,7 @@ export default function Atendimento() {
                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CURSO_DE_INTERESSE</label>
                    <select 
                      required 
-                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none" 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
                      value={formData.interesse_curso_id} 
                      onChange={(e) => setFormData({...formData, interesse_curso_id: e.target.value})}
                    >
@@ -560,11 +793,110 @@ export default function Atendimento() {
                      {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                    </select>
                  </div>
+                 <div>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÃO_INICIAL</label>
+                   <textarea 
+                     rows={3}
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none" 
+                     value={formData.observacoes} 
+                     onChange={(e) => setFormData({...formData, observacoes: e.target.value})} 
+                   />
+                 </div>
                  <button 
                    type="submit" 
-                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
                  >
                    SALVAR_LEAD
+                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Edição de Lead (Anotações e Dados) */}
+      <AnimatePresence>
+         {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-md"
+            >
+              <div className="absolute top-0 right-0 p-4">
+                 <button onClick={() => setIsEditModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
+                    <X className="w-4 h-4" />
+                 </button>
+              </div>
+
+              <div className="mb-8">
+                <h2 className="text-xl font-black text-black uppercase italic flex items-center gap-2">
+                   <Plus className="w-6 h-6 text-[#ff6b00]" /> ANOTAÇÕES_&_DADOS
+                </h2>
+                <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
+              </div>
+
+              <form onSubmit={handleUpdateLead} className="space-y-6">
+                 <div>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO (OPCIONAL)</label>
+                   <input 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     value={editFormData.nome} 
+                     onChange={(e) => setEditFormData({...editFormData, nome: e.target.value})} 
+                   />
+                 </div>
+                 <div>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
+                   <input 
+                     required 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     value={editFormData.telefone} 
+                     onChange={(e) => setEditFormData({...editFormData, telefone: e.target.value})} 
+                   />
+                 </div>
+                 <div>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CURSO_DE_INTERESSE</label>
+                   <select 
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     value={editFormData.interesse_curso_id} 
+                     onChange={(e) => setEditFormData({...editFormData, interesse_curso_id: e.target.value})}
+                   >
+                     <option value="">SELECIONE...</option>
+                     {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                   </select>
+                 </div>
+                 <div>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">STATUS_CRM</label>
+                   <select 
+                     required
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                     value={editFormData.status} 
+                     onChange={(e) => setEditFormData({...editFormData, status: e.target.value})}
+                   >
+                     <option value="iniciado">Atendimento Iniciado</option>
+                     <option value="em_atendimento">Em Atendimento</option>
+                     <option value="nao_responde">Não Responde</option>
+                     <option value="sem_interesse">Não Tem Interesse</option>
+                     <option value="aula_marcada">Aula Marcada</option>
+                     <option value="matriculado">Matriculado</option>
+                     <option value="finalizado">Atendimento Encerrado</option>
+                   </select>
+                 </div>
+                 <div>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÕES_GERAIS</label>
+                   <textarea 
+                     rows={4}
+                     className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none" 
+                     value={editFormData.observacoes} 
+                     onChange={(e) => setEditFormData({...editFormData, observacoes: e.target.value})} 
+                   />
+                 </div>
+                 <button 
+                   type="submit" 
+                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+                 >
+                   SALVAR_ALTERAÇÕES
                  </button>
               </form>
             </motion.div>
