@@ -21,7 +21,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { WeeklyCalendar } from '../components/calendar/WeeklyCalendar';
-import { DndContext, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
+import { DndContext, useSensor, useSensors, PointerSensor, TouchSensor, DragOverlay } from '@dnd-kit/core';
 import { useDroppable } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
 
@@ -52,28 +52,18 @@ function DroppableColumn({ id, title, leads, children }: any) {
   );
 }
 
-// Componente de card draggable do Kanban
-function DraggableCard({ lead, cursos, onEdit, onMove, onAgendarExp }: any) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: String(lead.id)
-  });
-
-  const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.3 : 1,
-    cursor: 'grab'
-  };
-
+// Componente que renderiza a aparência do Card do Kanban
+function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isOverlay }: any) {
+  if (!lead) return null;
   const phoneClean = (lead.telefone || '').replace(/\D/g, '');
   const courseName = cursos.find((c: any) => c.id === lead.interesse_curso_id)?.nome || 'CURSO INDEFINIDO';
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative flex flex-col gap-2 group hover:translate-y-[-2px] transition-all duration-150 select-none"
+      {...dragProps}
+      className={`bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative flex flex-col gap-2 group transition-all duration-150 select-none ${
+        isOverlay ? 'shadow-[8px_8px_0_#000] border-dashed border-[#ff6b00] rotate-2 scale-95 opacity-90 z-[9999]' : 'hover:translate-y-[-2px]'
+      }`}
     >
       <div className="flex justify-between items-start pr-6">
         <span className="text-[7px] font-black bg-[#feccba] text-black px-1.5 py-0.5 border border-black uppercase tracking-tighter">
@@ -166,6 +156,33 @@ function DraggableCard({ lead, cursos, onEdit, onMove, onAgendarExp }: any) {
   );
 }
 
+// Componente de card draggable do Kanban
+function DraggableCard({ lead, cursos, onEdit, onMove, onAgendarExp }: any) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: String(lead.id)
+  });
+
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    opacity: isDragging ? 0.15 : 1,
+    cursor: 'grab'
+  };
+
+  const dragProps = { ref: setNodeRef, style, ...listeners, ...attributes };
+
+  return (
+    <CardVisual
+      lead={lead}
+      cursos={cursos}
+      onEdit={onEdit}
+      onMove={onMove}
+      onAgendarExp={onAgendarExp}
+      dragProps={dragProps}
+      isOverlay={false}
+    />
+  );
+}
+
 export default function Atendimento() {
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,6 +196,7 @@ export default function Atendimento() {
 
   // Estados para Edição de Leads
   const [editingLead, setEditingLead] = useState<any>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     nome: '',
@@ -496,86 +514,46 @@ export default function Atendimento() {
         {activeTab === 'leads' && (
           <div className="space-y-6 flex flex-col flex-1 overflow-hidden">
             {/* Seção de Lembretes */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 shrink-0">
-              {experimentaisPendentes.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2 px-2">
-                    <Clock className="w-3 h-3 text-[#ff6b00]" /> CONFIRMAR_HOJE
-                  </h3>
-                  <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
-                    {experimentaisPendentes.map((exp) => (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        key={exp.id}
-                        className="bg-[#fff8f6] border-4 border-black p-4 flex items-center justify-between gap-4 shadow-[4px_4px_0_#000]"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 border-2 border-black bg-white flex items-center justify-center font-black text-[#ff6b00] text-xs shadow-[2px_2px_0_#000]">
-                            {exp.horario ? exp.horario.substring(0, 5) : '--:--'}
-                          </div>
-                          <div>
-                            <p className="text-xs font-black text-black uppercase italic">{exp.leads?.nome || 'Sem Nome'}</p>
-                            <p className="text-[8px] font-black text-[#8e7164] uppercase">{exp.cursos?.nome} • PROF. {exp.professores?.nome?.split(' ')[0]}</p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => sendReminder(exp)}
-                          className="bg-[#25d366] text-black p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                        </button>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-3">
+            {experimentaisPendentes.length > 0 && (
+              <div className="space-y-3 shrink-0 max-w-md mb-4">
                 <h3 className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2 px-2">
-                  <Users className="w-3 h-3 text-[#ff6b00]" /> PÓS-AULA: AGUARDANDO_MATRÍCULA
+                  <Clock className="w-3 h-3 text-[#ff6b00]" /> CONFIRMAR_HOJE
                 </h3>
                 <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
-                  {leads.filter(l => l.status === 'aula_marcada' && l.aulas_experimentais?.some((ae: any) => ae.status === 'concluida')).length > 0 ? (
-                    leads.filter(l => l.status === 'aula_marcada' && l.aulas_experimentais?.some((ae: any) => ae.status === 'concluida')).map((lead) => (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        key={lead.id}
-                        className="bg-[#ffeae1] border-4 border-black p-4 flex items-center justify-between gap-4 shadow-[4px_4px_0_#000]"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 border-2 border-black bg-white flex items-center justify-center font-black text-[#ff6b00] text-xs shadow-[2px_2px_0_#000]">
-                            <Check className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-black text-black uppercase italic">{lead.nome || 'Sem Nome'}</p>
-                            <p className="text-[8px] font-black text-[#8e7164] uppercase">AULA CONCLUÍDA • {lead.cursos?.nome || 'Música'}</p>
-                          </div>
+                  {experimentaisPendentes.map((exp) => (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      key={exp.id}
+                      className="bg-[#fff8f6] border-4 border-black p-4 flex items-center justify-between gap-4 shadow-[4px_4px_0_#000]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 border-2 border-black bg-white flex items-center justify-center font-black text-[#ff6b00] text-xs shadow-[2px_2px_0_#000]">
+                          {exp.horario ? exp.horario.substring(0, 5) : '--:--'}
                         </div>
-                        <button 
-                          onClick={() => {
-                            const msg = `Olá ${lead.nome || 'tudo bem'}! Gostamos muito de ter você aqui na Acorde! 😊 O que achou da aula? Vamos dar o próximo passo e garantir sua vaga na turma?`;
-                            const phone = (lead.telefone || '').replace(/\D/g, '');
-                            window.open(`https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(msg)}`, '_blank');
-                          }}
-                          className="bg-[#ff6b00] text-white p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
-                        >
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-                      </motion.div>
-                    ))
-                  ) : (
-                    <div className="p-6 border-4 border-dashed border-white/10 text-center flex items-center justify-center h-[90px]">
-                      <p className="text-[9px] font-black text-white/20 uppercase">NENHUM_LEAD_EM_PÓS-VENDA</p>
-                    </div>
-                  )}
+                        <div>
+                          <p className="text-xs font-black text-black uppercase italic">{exp.leads?.nome || 'Sem Nome'}</p>
+                          <p className="text-[8px] font-black text-[#8e7164] uppercase">{exp.cursos?.nome} • PROF. {exp.professores?.nome?.split(' ')[0]}</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => sendReminder(exp)}
+                        className="bg-[#25d366] text-black p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  ))}
                 </div>
               </div>
-            </div>
-
+            )}
+ 
             {/* Kanban Board com DndContext */}
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <DndContext 
+              sensors={sensors} 
+              onDragStart={(event) => setActiveId(String(event.active.id))}
+              onDragEnd={(event) => { handleDragEnd(event); setActiveId(null); }}
+            >
               <div className="flex gap-6 overflow-x-auto pb-6 pt-2 custom-scrollbar min-h-[500px] flex-1 max-w-full items-start">
                 {[
                   { id: 'em_atendimento', title: 'Em Atendimento' },
@@ -611,6 +589,21 @@ export default function Atendimento() {
                   );
                 })}
               </div>
+
+              {/* Overlay que flutua junto com o cursor e tem z-index alto */}
+              <DragOverlay>
+                {activeId ? (
+                  <CardVisual
+                    lead={leads.find(l => String(l.id) === activeId)}
+                    cursos={cursos}
+                    onEdit={() => {}}
+                    onMove={() => {}}
+                    onAgendarExp={() => {}}
+                    dragProps={{}}
+                    isOverlay={true}
+                  />
+                ) : null}
+              </DragOverlay>
             </DndContext>
           </div>
         )}
@@ -748,7 +741,7 @@ export default function Atendimento() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-md"
+              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-3xl"
             >
               <div className="absolute top-0 right-0 p-4">
                  <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
@@ -756,96 +749,107 @@ export default function Atendimento() {
                  </button>
               </div>
 
-              <div className="mb-8">
+              <div className="mb-6">
                 <h2 className="text-xl font-black text-black uppercase italic flex items-center gap-2">
                    <Plus className="w-6 h-6 text-[#ff6b00]" /> NOVO_INTERESSADO
                 </h2>
                 <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
               </div>
 
-              <form onSubmit={handleCreateLead} className="space-y-6">
-                 <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO (OPCIONAL)</label>
-                   <input 
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
-                     value={formData.nome} 
-                     onChange={(e) => setFormData({...formData, nome: e.target.value})} 
-                   />
+              <form onSubmit={handleCreateLead} className="space-y-6 md:space-y-0 md:grid md:grid-cols-2 md:gap-6">
+                 {/* Coluna da Esquerda */}
+                 <div className="space-y-6">
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO (OPCIONAL)</label>
+                     <input 
+                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                       value={formData.nome} 
+                       onChange={(e) => setFormData({...formData, nome: e.target.value})} 
+                     />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
+                     <input 
+                       required 
+                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                       value={formData.telefone} 
+                       onChange={(e) => setFormData({...formData, telefone: e.target.value})} 
+                     />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">ORIGEM_DO_LEAD / CANAL</label>
+                     <div className="grid grid-cols-3 gap-2">
+                       {[
+                         { id: 'trafego_pago', label: 'Tráfego Pago' },
+                         { id: 'indicacao', label: 'Indicação' },
+                         { id: 'outros', label: 'Outros' }
+                       ].map((opt) => {
+                         const isSelected = formData.origem === opt.id;
+                         return (
+                           <button
+                             key={opt.id}
+                             type="button"
+                             onClick={() => setFormData({...formData, origem: opt.id})}
+                             className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
+                               isSelected
+                                 ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
+                                 : 'bg-white text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
+                             }`}
+                           >
+                             {opt.label}
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
                  </div>
-                 <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
-                   <input 
-                     required 
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
-                     value={formData.telefone} 
-                     onChange={(e) => setFormData({...formData, telefone: e.target.value})} 
-                   />
+
+                 {/* Coluna da Direita */}
+                 <div className="space-y-6 flex flex-col justify-between">
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">CURSO_DE_INTERESSE</label>
+                     <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto custom-scrollbar border-4 border-black p-2 bg-white">
+                       {cursos
+                         .filter(c => !c.nome.includes('Black') && !c.nome.includes('Laranja') && !c.nome.includes('White'))
+                         .map(c => {
+                           const isSelected = formData.interesse_curso_id === String(c.id) || formData.interesse_curso_id === c.id;
+                           return (
+                             <button
+                               key={c.id}
+                               type="button"
+                               onClick={() => setFormData({...formData, interesse_curso_id: String(c.id)})}
+                               className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
+                                 isSelected
+                                   ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
+                                   : 'bg-[#fff8f6] text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
+                               }`}
+                             >
+                               {c.nome}
+                             </button>
+                           );
+                         })}
+                     </div>
+                   </div>
+                   <div className="flex-1 flex flex-col mt-2">
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÃO_INICIAL</label>
+                     <textarea 
+                       rows={4}
+                       className="w-full flex-1 px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none min-h-[100px]" 
+                       value={formData.observacoes} 
+                       onChange={(e) => setFormData({...formData, observacoes: e.target.value})} 
+                     />
+                   </div>
                  </div>
-                 <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">CURSO_DE_INTERESSE</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto custom-scrollbar border-4 border-black p-2 bg-white">
-                      {cursos
-                        .filter(c => !c.nome.includes('Black') && !c.nome.includes('Laranja') && !c.nome.includes('White'))
-                        .map(c => {
-                          const isSelected = formData.interesse_curso_id === String(c.id) || formData.interesse_curso_id === c.id;
-                          return (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => setFormData({...formData, interesse_curso_id: String(c.id)})}
-                              className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
-                                  : 'bg-[#fff8f6] text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
-                              }`}
-                            >
-                              {c.nome}
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">ORIGEM_DO_LEAD / CANAL</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { id: 'trafego_pago', label: 'Tráfego Pago' },
-                        { id: 'indicacao', label: 'Indicação' },
-                        { id: 'outros', label: 'Outros' }
-                      ].map((opt) => {
-                        const isSelected = formData.origem === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => setFormData({...formData, origem: opt.id})}
-                            className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
-                                : 'bg-white text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                 <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÃO_INICIAL</label>
-                   <textarea 
-                     rows={3}
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none" 
-                     value={formData.observacoes} 
-                     onChange={(e) => setFormData({...formData, observacoes: e.target.value})} 
-                   />
+
+                 {/* Botão de Envio (Ocupa ambas colunas) */}
+                 <div className="md:col-span-2 pt-4">
+                   <button 
+                     type="submit" 
+                     className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+                   >
+                     SALVAR_LEAD
+                   </button>
                  </div>
-                 <button 
-                   type="submit" 
-                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
-                 >
-                   SALVAR_LEAD
-                 </button>
               </form>
             </motion.div>
           </div>
@@ -860,7 +864,7 @@ export default function Atendimento() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-md"
+              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-3xl"
             >
               <div className="absolute top-0 right-0 p-4">
                  <button onClick={() => setIsEditModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
@@ -868,111 +872,122 @@ export default function Atendimento() {
                  </button>
               </div>
 
-              <div className="mb-8">
+              <div className="mb-6">
                 <h2 className="text-xl font-black text-black uppercase italic flex items-center gap-2">
                    <Plus className="w-6 h-6 text-[#ff6b00]" /> ANOTAÇÕES_&_DADOS
                 </h2>
                 <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
               </div>
 
-              <form onSubmit={handleUpdateLead} className="space-y-6">
-                 <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO (OPCIONAL)</label>
-                   <input 
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
-                     value={editFormData.nome} 
-                     onChange={(e) => setEditFormData({...editFormData, nome: e.target.value})} 
-                   />
+              <form onSubmit={handleUpdateLead} className="space-y-6 md:space-y-0 md:grid md:grid-cols-2 md:gap-6">
+                 {/* Coluna da Esquerda */}
+                 <div className="space-y-6">
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_COMPLETO (OPCIONAL)</label>
+                     <input 
+                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                       value={editFormData.nome} 
+                       onChange={(e) => setEditFormData({...editFormData, nome: e.target.value})} 
+                     />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
+                     <input 
+                       required 
+                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                       value={editFormData.telefone} 
+                       onChange={(e) => setEditFormData({...editFormData, telefone: e.target.value})} 
+                     />
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">STATUS_CRM</label>
+                     <select 
+                       required
+                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                       value={editFormData.status} 
+                       onChange={(e) => setEditFormData({...editFormData, status: e.target.value})}
+                     >
+                       <option value="em_atendimento">Em Atendimento</option>
+                       <option value="nao_responde">Não Responde</option>
+                       <option value="sem_interesse">Não Tem Interesse</option>
+                       <option value="aula_marcada">Aula Marcada</option>
+                       <option value="finalizado">Atendimento Encerrado</option>
+                     </select>
+                   </div>
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">ORIGEM_DO_LEAD / CANAL</label>
+                     <div className="grid grid-cols-3 gap-2">
+                       {[
+                         { id: 'trafego_pago', label: 'Tráfego Pago' },
+                         { id: 'indicacao', label: 'Indicação' },
+                         { id: 'outros', label: 'Outros' }
+                       ].map((opt) => {
+                         const isSelected = editFormData.origem === opt.id;
+                         return (
+                           <button
+                             key={opt.id}
+                             type="button"
+                             onClick={() => setEditFormData({...editFormData, origem: opt.id})}
+                             className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
+                               isSelected
+                                 ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
+                                 : 'bg-white text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
+                             }`}
+                           >
+                             {opt.label}
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
                  </div>
-                 <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
-                   <input 
-                     required 
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
-                     value={editFormData.telefone} 
-                     onChange={(e) => setEditFormData({...editFormData, telefone: e.target.value})} 
-                   />
+
+                 {/* Coluna da Direita */}
+                 <div className="space-y-6 flex flex-col justify-between">
+                   <div>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">CURSO_DE_INTERESSE</label>
+                     <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto custom-scrollbar border-4 border-black p-2 bg-white">
+                       {cursos
+                         .filter(c => !c.nome.includes('Black') && !c.nome.includes('Laranja') && !c.nome.includes('White'))
+                         .map(c => {
+                           const isSelected = editFormData.interesse_curso_id === String(c.id) || editFormData.interesse_curso_id === c.id;
+                           return (
+                             <button
+                               key={c.id}
+                               type="button"
+                               onClick={() => setEditFormData({...editFormData, interesse_curso_id: String(c.id)})}
+                               className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
+                                 isSelected
+                                   ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
+                                   : 'bg-[#fff8f6] text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
+                               }`}
+                             >
+                               {c.nome}
+                             </button>
+                           );
+                         })}
+                     </div>
+                   </div>
+                   <div className="flex-1 flex flex-col mt-2">
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÕES_GERAIS</label>
+                     <textarea 
+                       rows={4}
+                       className="w-full flex-1 px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none min-h-[100px]" 
+                       value={editFormData.observacoes} 
+                       onChange={(e) => setEditFormData({...editFormData, observacoes: e.target.value})} 
+                     />
+                   </div>
                  </div>
-                 <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">CURSO_DE_INTERESSE</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto custom-scrollbar border-4 border-black p-2 bg-white">
-                      {cursos
-                        .filter(c => !c.nome.includes('Black') && !c.nome.includes('Laranja') && !c.nome.includes('White'))
-                        .map(c => {
-                          const isSelected = editFormData.interesse_curso_id === String(c.id) || editFormData.interesse_curso_id === c.id;
-                          return (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => setEditFormData({...editFormData, interesse_curso_id: String(c.id)})}
-                              className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
-                                  : 'bg-[#fff8f6] text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
-                              }`}
-                            >
-                              {c.nome}
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">ORIGEM_DO_LEAD / CANAL</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { id: 'trafego_pago', label: 'Tráfego Pago' },
-                        { id: 'indicacao', label: 'Indicação' },
-                        { id: 'outros', label: 'Outros' }
-                      ].map((opt) => {
-                        const isSelected = editFormData.origem === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => setEditFormData({...editFormData, origem: opt.id})}
-                            className={`p-2 border-2 text-[8px] font-black uppercase text-center transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-[#ff6b00] text-white border-black shadow-[2px_2px_0_#000] translate-x-[-1px] translate-y-[-1px]'
-                                : 'bg-white text-black border-black shadow-[2px_2px_0_#000] hover:bg-black/5'
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                 <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">STATUS_CRM</label>
-                   <select 
-                     required
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
-                     value={editFormData.status} 
-                     onChange={(e) => setEditFormData({...editFormData, status: e.target.value})}
+
+                 {/* Botão de Envio (Ocupa ambas colunas) */}
+                 <div className="md:col-span-2 pt-4">
+                   <button 
+                     type="submit" 
+                     className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
                    >
-                     <option value="em_atendimento">Em Atendimento</option>
-                     <option value="nao_responde">Não Responde</option>
-                     <option value="sem_interesse">Não Tem Interesse</option>
-                     <option value="aula_marcada">Aula Marcada</option>
-                     <option value="finalizado">Atendimento Encerrado</option>
-                   </select>
+                     SALVAR_ALTERAÇÕES
+                   </button>
                  </div>
-                 <div>
-                   <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÕES_GERAIS</label>
-                   <textarea 
-                     rows={4}
-                     className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none resize-none" 
-                     value={editFormData.observacoes} 
-                     onChange={(e) => setEditFormData({...editFormData, observacoes: e.target.value})} 
-                   />
-                 </div>
-                 <button 
-                   type="submit" 
-                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
-                 >
-                   SALVAR_ALTERAÇÕES
-                 </button>
               </form>
             </motion.div>
           </div>
