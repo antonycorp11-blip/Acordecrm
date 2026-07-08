@@ -55,103 +55,136 @@ function DroppableColumn({ id, title, leads, children }: any) {
 // Componente que renderiza a aparência do Card do Kanban
 function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isOverlay }: any) {
   if (!lead) return null;
+  const [expanded, setExpanded] = useState(false);
   const phoneClean = (lead.telefone || '').replace(/\D/g, '');
   const courseName = cursos.find((c: any) => c.id === lead.interesse_curso_id)?.nome || 'CURSO INDEFINIDO';
+
+  const origensMap: Record<string, string> = {
+    trafego_pago: 'Tráfego Pago',
+    indicacao: 'Indicação',
+    outros: 'Outros'
+  };
+  const origemLabel = lead.origem ? origensMap[lead.origem] || lead.origem : null;
 
   return (
     <div
       {...dragProps}
-      className={`bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative flex flex-col gap-2 group transition-all duration-150 select-none ${
+      className={`bg-[#fff8f6] border-4 border-black p-3.5 shadow-[4px_4px_0_#000] relative flex flex-col gap-2 group transition-all duration-150 select-none ${
         isOverlay ? 'shadow-[8px_8px_0_#000] border-dashed border-[#ff6b00] rotate-2 scale-95 opacity-90 z-[9999]' : 'hover:translate-y-[-2px]'
       }`}
     >
-      <div className="flex justify-between items-start pr-6">
-        <span className="text-[7px] font-black bg-[#feccba] text-black px-1.5 py-0.5 border border-black uppercase tracking-tighter">
+      {/* Header */}
+      <div className="flex justify-between items-start gap-2">
+        <span className="text-[7px] font-black bg-[#feccba] text-black px-1.5 py-0.5 border border-black uppercase tracking-tighter shrink-0">
           {courseName}
         </span>
+        {origemLabel && (
+          <span className="text-[6px] font-black bg-black/5 text-[#8e7164] px-1 py-0.5 border border-black/10 uppercase tracking-tighter shrink-0">
+            {origemLabel}
+          </span>
+        )}
       </div>
 
-      <h4 className="font-black text-black uppercase italic text-xs leading-tight">
-        {lead.nome || <span className="italic opacity-50 font-normal lowercase">sem nome</span>}
-      </h4>
+      <div className="flex justify-between items-center gap-2">
+        <h4 className="font-black text-black uppercase italic text-xs leading-tight flex-1 truncate">
+          {lead.nome || <span className="italic opacity-50 font-normal lowercase">sem nome</span>}
+        </h4>
+        
+        {/* Botão de Expandir/Recolher */}
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(!expanded);
+          }}
+          className="text-[7px] font-black bg-black text-white hover:bg-black/80 px-1.5 py-0.5 border border-black shadow-[1px_1px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-0.5 cursor-pointer shrink-0"
+        >
+          {expanded ? '▲ RECOLHER' : '▼ OPÇÕES'}
+        </button>
+      </div>
 
-      <p className="text-[9px] font-black text-[#8e7164] flex items-center gap-1 uppercase">
-        <Phone className="w-3 h-3 text-[#ff6b00]" /> {lead.telefone}
-      </p>
+      {/* Se expandido, exibe detalhes e ações */}
+      {expanded && (
+        <div className="mt-2 pt-2 border-t border-black/10 flex flex-col gap-2">
+          <p className="text-[9px] font-black text-[#8e7164] flex items-center gap-1 uppercase">
+            <Phone className="w-3 h-3 text-[#ff6b00]" /> {lead.telefone}
+          </p>
 
-      {lead.observacoes && (
-        <p className="text-[8px] font-bold text-black/60 bg-black/5 p-1.5 border border-black/10 line-clamp-2 uppercase">
-          {lead.observacoes}
-        </p>
+          {lead.observacoes && (
+            <p className="text-[8px] font-bold text-black/60 bg-black/5 p-1.5 border border-black/10 line-clamp-2 uppercase">
+              {lead.observacoes}
+            </p>
+          )}
+
+          {/* Ações do Card */}
+          <div className="mt-2 pt-2 border-t border-black/10 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex gap-1.5">
+              {/* WhatsApp */}
+              {phoneClean && (
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const msg = `Olá! Tudo bem? Entramos em contato a partir do Studio Acorde. 😊`;
+                    window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  title="Chamar no WhatsApp"
+                  className="bg-[#25d366] text-black p-1 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center cursor-pointer"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                </button>
+              )}
+              
+              {/* Agendar Experimental (se não for matriculado) */}
+              {lead.status !== 'matriculado' && (
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAgendarExp(lead);
+                  }}
+                  title="Agendar Experimental"
+                  className="bg-[#ff6b00] text-white p-1 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#ff8c33] transition-all flex items-center justify-center cursor-pointer"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Mudar de status pelo Mobile ou cliques */}
+            <div className="flex items-center gap-1.5 flex-1 justify-end">
+              {/* Select de status rápido */}
+              <select
+                onPointerDown={(e) => e.stopPropagation()}
+                value={lead.status === 'iniciado' ? 'em_atendimento' : (lead.status || 'em_atendimento')}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onMove(lead.id, e.target.value);
+                }}
+                className="text-[8px] font-black text-black uppercase bg-white border border-black p-0.5 focus:outline-none cursor-pointer"
+              >
+                <option value="em_atendimento">Em Atend.</option>
+                <option value="nao_responde">Não Resp.</option>
+                <option value="sem_interesse">Sem Inter.</option>
+                <option value="aula_marcada">Aula Marc.</option>
+                <option value="finalizado">Encerrado</option>
+              </select>
+
+              {/* Editar anotações */}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(lead);
+                }}
+                className="bg-black text-white px-1.5 py-0.5 border border-black text-[8px] font-black uppercase shadow-[1.5px_1.5px_0_#000] cursor-pointer"
+              >
+                Anotar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-
-      {/* Ações do Card */}
-      <div className="mt-3 pt-2 border-t border-black/10 flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex gap-1.5">
-          {/* WhatsApp */}
-          {phoneClean && (
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                const msg = `Olá! Tudo bem? Entramos em contato a partir do Studio Acorde. 😊`;
-                window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
-              }}
-              title="Chamar no WhatsApp"
-              className="bg-[#25d366] text-black p-1 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center cursor-pointer"
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-            </button>
-          )}
-          
-          {/* Agendar Experimental (se não for matriculado) */}
-          {lead.status !== 'matriculado' && (
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onAgendarExp(lead);
-              }}
-              title="Agendar Experimental"
-              className="bg-[#ff6b00] text-white p-1 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#ff8c33] transition-all flex items-center justify-center cursor-pointer"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Mudar de status pelo Mobile ou cliques */}
-        <div className="flex items-center gap-1.5 flex-1 justify-end">
-          {/* Select de status rápido */}
-          <select
-            onPointerDown={(e) => e.stopPropagation()}
-            value={lead.status === 'iniciado' ? 'em_atendimento' : (lead.status || 'em_atendimento')}
-            onChange={(e) => {
-              e.stopPropagation();
-              onMove(lead.id, e.target.value);
-            }}
-            className="text-[8px] font-black text-black uppercase bg-white border border-black p-0.5 focus:outline-none cursor-pointer"
-          >
-            <option value="em_atendimento">Em Atend.</option>
-            <option value="nao_responde">Não Resp.</option>
-            <option value="sem_interesse">Sem Inter.</option>
-            <option value="aula_marcada">Aula Marc.</option>
-            <option value="finalizado">Encerrado</option>
-          </select>
-
-          {/* Editar anotações */}
-          <button
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(lead);
-            }}
-            className="bg-black text-white px-1.5 py-0.5 border border-black text-[8px] font-black uppercase shadow-[1.5px_1.5px_0_#000] cursor-pointer"
-          >
-            Anotar
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

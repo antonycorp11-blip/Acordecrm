@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
 
   const [aulasSemStatus, setAulasSemStatus] = useState<any[]>([]);
+  const [leadsDoMes, setLeadsDoMes] = useState<any[]>([]);
   const [faturasPendentes, setFaturasPendentes] = useState<any[]>([]);
   const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 1' });
   const [feed, setFeed] = useState<any[]>([]);
@@ -43,12 +44,26 @@ export default function Dashboard() {
       fetch('/api/agenda/pendentes-passado', { headers }).then(r => r.ok ? r.json() : []),
       fetch('/api/dashboard/faturas-pendentes', { headers }).then(r => r.ok ? r.json() : []),
       fetch('/api/feed', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/temporada-atual', { headers }).then(r => r.ok ? r.json() : {nome: 'Temporada 1'})
-    ]).then(([aulas, faturas, feedData, temp]) => {
+      fetch('/api/temporada-atual', { headers }).then(r => r.ok ? r.json() : {nome: 'Temporada 1'}),
+      fetch('/api/leads', { headers }).then(r => r.ok ? r.json() : [])
+    ]).then(([aulas, faturas, feedData, temp, leadsList]) => {
       setAulasSemStatus(aulas);
       setFaturasPendentes(faturas);
       setFeed(Array.isArray(feedData) ? feedData : []);
       setTemporada(temp || {nome: 'Temporada 1'});
+
+      if (Array.isArray(leadsList)) {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        const doMes = leadsList.filter((lead: any) => {
+          const dateStr = lead.created_at || lead.data_atualizacao;
+          if (!dateStr) return false;
+          const leadDate = new Date(dateStr);
+          return leadDate.getFullYear() === currentYear && leadDate.getMonth() === currentMonth;
+        });
+        setLeadsDoMes(doMes);
+      }
       
       const quintoDia = getQuintoDiaUtil();
       const hoje = new Date();
@@ -156,55 +171,42 @@ export default function Dashboard() {
 
         {/* MIDDLE ROW: ALERTAS, FATURAS E FEED */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* AULAS SEM STATUS WIDGET */}
+          {/* LEADS RECEBIDOS WIDGET */}
           <div className="sticker-card rounded-lg flex flex-col overflow-hidden" style={{ background: '#fff8f6', border: '3px solid #261812', maxHeight: '350px' }}>
             <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#ffeb3b', borderBottom: '3px solid #261812' }}>
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-black" />
-                <p className="text-black text-[11px] font-black uppercase tracking-widest">Aulas Pendentes ({aulasSemStatus.length})</p>
+                <p className="text-black text-[11px] font-black uppercase tracking-widest">Leads Recebidos (Mês)</p>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-              {aulasSemStatus.length > 0 ? aulasSemStatus.map(aula => (
-                <div key={aula.id} className="bg-white p-3 border-2 border-black rounded shadow-[2px_2px_0_#000]">
-                  <p className="font-black text-black uppercase text-xs">{aula.alunos?.nome}</p>
-                  <p className="text-[9px] font-bold text-[#8e7164] uppercase mb-2">
-                    {aula.data.split('-').reverse().join('/')} às {aula.horario} - Prof. {aula.professores?.nome}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <button 
-                      onClick={() => {
-                        if (confirm('Marcar Presença? Isso creditará o saldo do professor.')) {
-                          fetch(`/api/aulas/${aula.id}/status`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
-                            body: JSON.stringify({ status: 'realizada', type: 'reg' })
-                          }).then(() => { toast.success('Presença marcada!'); loadAlerts(); });
-                        }
-                      }}
-                      className="px-2 py-1 bg-green-500 text-black border-2 border-black font-black text-[9px] uppercase active:translate-y-1 shadow-[1px_1px_0_#000] active:shadow-none"
-                    >✅ Pre.</button>
-                    <button 
-                      onClick={() => {
-                        if (confirm('Marcar Falta (Não paga)? A aula sairá da agenda.')) {
-                          fetch(`/api/agenda/${aula.id}/cancelar`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
-                            body: JSON.stringify({ reposicao: false })
-                          }).then(() => { toast.success('Marcado como falta!'); loadAlerts(); });
-                        }
-                      }}
-                      className="px-2 py-1 bg-red-500 text-white border-2 border-black font-black text-[9px] uppercase active:translate-y-1 shadow-[1px_1px_0_#000] active:shadow-none"
-                    >❌ Falta</button>
-                    <button 
-                      onClick={() => setCancelModalAula(aula)}
-                      className="px-2 py-1 bg-[#ffeb3b] text-black border-2 border-black font-black text-[9px] uppercase active:translate-y-1 shadow-[1px_1px_0_#000] active:shadow-none"
-                    >🔄 Rep.</button>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col custom-scrollbar">
+              <div className="flex flex-col items-center justify-center border-b-2 border-black/10 pb-4 mb-4 shrink-0">
+                <span className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest mb-1">Total do Mês</span>
+                <div className="text-5xl font-black text-[#ff6b00] italic leading-none">{leadsDoMes.length}</div>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {leadsDoMes.slice(0, 15).map((lead) => {
+                  const dateStr = lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : '';
+                  return (
+                    <div key={lead.id} className="bg-white p-2.5 border-2 border-black rounded flex items-center justify-between shadow-[1px_1px_0_#000]">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-black text-[10px] uppercase truncate">{lead.nome || 'Sem Nome'}</p>
+                        <p className="text-[7px] text-[#8e7164] font-black uppercase">{dateStr} • {lead.telefone}</p>
+                      </div>
+                      <span className={`text-[7px] px-1.5 py-0.5 border border-black font-black uppercase rounded shrink-0 ml-2 ${
+                        lead.status === 'finalizado' ? 'bg-black text-white' : 'bg-[#feccba] text-black'
+                      }`}>
+                        {lead.status === 'finalizado' ? 'Encerrado' : 'Ativo'}
+                      </span>
+                    </div>
+                  );
+                })}
+                {leadsDoMes.length === 0 && (
+                  <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center mt-6">
+                    Nenhum lead recebido este mês
                   </div>
-                </div>
-              )) : (
-                <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center">Tudo limpo! Nenhuma aula atrasada.</div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
