@@ -308,7 +308,7 @@ export default function Conquistas() {
                    <div>
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">INSTRUMENTO / CATEGORIA</label>
                      <select 
-                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none text-black"
                        value={formData.instrumento}
                        onChange={(e) => setFormData({...formData, instrumento: e.target.value})}
                      >
@@ -322,7 +322,7 @@ export default function Conquistas() {
                    <div>
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">CLASSE / RARIDADE</label>
                      <select 
-                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none text-black"
                        value={formData.classe}
                        onChange={(e) => handleClasseChange(e.target.value)}
                      >
@@ -337,7 +337,7 @@ export default function Conquistas() {
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">NOME_DA_CONQUISTA</label>
                      <input 
                        required
-                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none text-black"
                        value={formData.nome}
                        onChange={(e) => setFormData({...formData, nome: e.target.value})}
                      />
@@ -346,7 +346,7 @@ export default function Conquistas() {
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">DESCRIÇÃO_DA_MISSÃO</label>
                      <textarea 
                        required
-                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none resize-none h-24"
+                       className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none resize-none h-24 text-black"
                        value={formData.descricao}
                        onChange={(e) => setFormData({...formData, descricao: e.target.value})}
                      />
@@ -358,14 +358,14 @@ export default function Conquistas() {
                           type="number"
                           required
                           readOnly
-                          className="w-full px-4 py-3 bg-[#f3ebe8] border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none cursor-not-allowed"
+                          className="w-full px-4 py-3 bg-[#f3ebe8] border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none cursor-not-allowed text-black"
                           value={formData.pontos}
                         />
                       </div>
                       <div>
                         <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">GATILHO_AUTO</label>
                         <select 
-                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none"
+                          className="w-full px-4 py-3 bg-white border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 focus:outline-none text-black"
                           value={formData.regra_automatica}
                           onChange={(e) => setFormData({...formData, regra_automatica: e.target.value})}
                         >
