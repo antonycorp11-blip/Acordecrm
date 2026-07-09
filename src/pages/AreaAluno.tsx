@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
-import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle, Award, X } from 'lucide-react';
+import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle, Award, X, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
@@ -1350,7 +1350,10 @@ export default function AreaAluno() {
                 onChange={handlePhotoUpload} 
               />
             </div>
-            <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB <span className="text-[8px] text-[#ff6b00]">v1.0.2</span></h1>
+            <div className="flex flex-col items-center justify-center -ml-2">
+              <img src="/Logo Laranja.png" alt="Studio Acorde" className="h-5 object-contain" />
+              <span className="text-[7px] text-[#ff6b00] font-black uppercase text-center mt-0.5 tracking-widest">App v1.0.2</span>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <button 
@@ -1366,7 +1369,10 @@ export default function AreaAluno() {
                 ATIVAR PUSH
               </span>
             </button>
-            <button onClick={logout} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+            <button onClick={() => window.location.reload()} className="bg-white text-black p-2 border-2 border-black shadow-[4px_4px_0_#000] hover:bg-[#ff6b00] hover:text-white active:translate-y-1 active:shadow-none transition-all" title="Atualizar App">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button onClick={logout} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] hover:bg-red-600 active:translate-y-1 active:shadow-none transition-all">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -1567,7 +1573,7 @@ export default function AreaAluno() {
             }
 
             return (
-              <div className="px-4 py-6 space-y-12 bg-black min-h-screen text-white font-['Space_Mono'] pb-36 relative overflow-visible rounded-xl">
+              <div className="w-full min-h-screen bg-[#1a0a05] text-white font-['Space_Mono'] pb-36 relative overflow-visible">
                 {/* Carrega Material Symbols para ícones fiéis do Stitch */}
                 <link 
                   href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" 
@@ -1599,7 +1605,7 @@ export default function AreaAluno() {
                   }
                 `}</style>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 px-4 pt-6 pb-6 bg-[#1a0a05]">
                   <div className="bg-[#ff6b00] border-4 border-black px-4 py-1.5 shadow-[6px_6px_0_#000] -rotate-2">
                     <h3 className="text-white font-black text-xs uppercase tracking-widest font-['Space_Mono']">📚 JORNADA MUSICAL</h3>
                   </div>
@@ -1696,7 +1702,7 @@ export default function AreaAluno() {
                   }
 
                   return (
-                    <section key={modulo.id} className={`border-8 border-black p-6 shadow-[10px_10px_0_#000] relative overflow-hidden ${biomeBg} transition-all text-white rounded-xl ${(!isModuloDesbloqueado && !isEmProducao) ? 'opacity-30 select-none pointer-events-none' : ''} ${isEmProducao ? 'opacity-70' : ''}`}>
+                    <section key={modulo.id} className={`relative overflow-hidden ${biomeBg} transition-all text-white py-12 ${(!isModuloDesbloqueado && !isEmProducao) ? 'opacity-30 select-none pointer-events-none' : ''} ${isEmProducao ? 'opacity-70' : ''}`}>
                       {/* Cabeçalho do Bioma (Sticker-Skeuomorphism do Stitch) */}
                       <div className="flex justify-center mb-12 mt-2">
                         <div className={`${biomeLabelBg} ${biomeLabelText} px-6 py-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(38,24,18,1)] ${biomeLabelRotate} text-center min-w-[220px] relative`}>
@@ -1710,7 +1716,7 @@ export default function AreaAluno() {
                       </div>
 
                       {/* Canvas do Mapa do Bioma */}
-                      <div className="flex flex-col items-center gap-24 relative py-16 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[380px] rounded-lg">
+                      <div className="flex flex-col items-center gap-24 relative py-16 px-4 overflow-hidden min-h-[380px]">
                         {/* Decorações do Bioma */}
                         {biomeDecorations}
 
