@@ -2298,8 +2298,45 @@ export default function AreaAluno() {
                             <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(richData.tarefaCasaText)}</p>
                           </div>
                         )}
-                        {richData.acordes && richData.acordes.length > 0 && (
-                          <LessonChords chords={richData.acordes} currentInstrument={currentInstrument} />
+                        {richData.chords && richData.chords.length > 0 && (
+                          <LessonChords chords={richData.chords} currentInstrument={currentInstrument} />
+                        )}
+                        {richData.scales && richData.scales.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t-2 border-black/10">
+                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">🎼 ESCALAS / HARMONIA:</span>
+                            <div className="flex flex-wrap gap-2">
+                              {richData.scales.map((s: any, i: number) => (
+                                <span key={i} className="px-2 py-1 bg-black text-white border border-black text-[10px] font-bold uppercase">{s.root} {s.type}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {richData.melody && richData.melody.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t-2 border-black/10">
+                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">🎵 MELODIAS:</span>
+                            <div className="flex flex-col gap-2">
+                              {richData.melody.map((m: any, i: number) => (
+                                <div key={i} className="bg-white border-2 border-black p-2 shadow-[2px_2px_0_#000]">
+                                  <p className="text-black font-black text-[10px] uppercase mb-1">{m.title || m.titulo || 'Melodia'}</p>
+                                  <div className="text-[9px] font-bold text-black/70 flex flex-wrap gap-1">
+                                    {(m.phrases || []).map((phrase: any[], pIdx: number) => (
+                                      <span key={pIdx} className="bg-black/5 px-1 py-0.5 border border-black/20">{phrase.join(' - ')}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {richData.drums && richData.drums.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t-2 border-black/10">
+                             <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">🥁 GROOVES E RUDIMENTOS:</span>
+                             <ul className="list-disc pl-4 text-[10px] font-bold uppercase text-black">
+                               {richData.drums.map((d: any, i: number) => (
+                                 <li key={i}>{d.pattern} a {d.bpm} BPM</li>
+                               ))}
+                             </ul>
+                          </div>
                         )}
                         {Array.isArray(richData.exercises) && richData.exercises.length > 0 && (
                           <div className="space-y-2">

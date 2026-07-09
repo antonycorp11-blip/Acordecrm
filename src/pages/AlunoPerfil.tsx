@@ -1575,6 +1575,27 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
                 </div>
               )}
 
+              {/* Melodia */}
+              {richData.melody?.length > 0 && (
+                <div className="p-4 bg-yellow-50 border-2 border-black shadow-[2px_2px_0_#000] space-y-3">
+                   <h4 className="font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
+                     <span className="text-lg">🎵</span> Melodias Estudadas
+                   </h4>
+                   <div className="flex flex-col gap-2">
+                     {richData.melody.map((m: any, i: number) => (
+                       <div key={i} className="bg-white border-2 border-black p-2 shadow-[2px_2px_0_#000]">
+                         <p className="text-black font-black text-[10px] uppercase mb-1">{m.title || m.titulo || 'Melodia'}</p>
+                         <div className="text-[9px] font-bold text-black/70 flex flex-wrap gap-1">
+                           {(m.phrases || []).map((phrase: any[], pIdx: number) => (
+                             <span key={pIdx} className="bg-black/5 px-1 py-0.5 border border-black/20">{phrase.join(' - ')}</span>
+                           ))}
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                </div>
+              )}
+
               {/* Bateria/Ritmo */}
               {richData.drums?.length > 0 && (
                 <div className="p-4 bg-stone-100 border-2 border-black shadow-[2px_2px_0_#000]">
