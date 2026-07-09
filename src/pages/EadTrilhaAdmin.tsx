@@ -200,38 +200,69 @@ export default function EadTrilhaAdmin() {
     }
   };
 
-  // Processar questionário por IA
+  // Processar questionário por parse de texto local
   const handleProcessQuestionsWithIa = async (target: 'aula' | 'modulo') => {
     if (!rawTextIa.trim()) {
       toast.error('Por favor, cole as perguntas e respostas primeiro.');
       return;
     }
     setLoadingIa(true);
-    const token = localStorage.getItem('acorde_token');
     try {
-      const res = await fetch('/api/trilha/gerar-questionario-ia', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ textoBruto: rawTextIa })
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Erro ao processar');
+      const lines = rawTextIa.split('\n').map(l => l.trim()).filter(Boolean);
+      const questions: any[] = [];
+      let currentQuestion: any = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Match para identificar uma pergunta (ex: "1. O que é...", "2 - Qual...", "12) As...")
+        const questionMatch = line.match(/^(\d+)[\.\-\)\s]+(.*)/);
+        if (questionMatch) {
+          if (currentQuestion) {
+            questions.push(currentQuestion);
+          }
+          currentQuestion = {
+            pergunta: questionMatch[2].trim(),
+            opcoes: [] as string[],
+            resposta_correta_idx: 0
+          };
+          continue;
+        }
+
+        // Match para identificar uma alternativa (ex: "A) Um som...", "B - Outro...", "C. Algum...")
+        const optionMatch = line.match(/^([A-Da-d])[\.\-\)\s]+(.*)/);
+        if (optionMatch && currentQuestion) {
+          let optionText = optionMatch[2].trim();
+          const isCorrect = optionText.includes('✅') || optionText.includes('✔️');
+          
+          // Limpa marcadores de correto do texto visível
+          optionText = optionText.replace(/[✅✔️]/g, '').trim();
+          
+          currentQuestion.opcoes.push(optionText);
+          if (isCorrect) {
+            currentQuestion.resposta_correta_idx = currentQuestion.opcoes.length - 1;
+          }
+        }
       }
-      const questions = await res.json();
+
+      if (currentQuestion) {
+        questions.push(currentQuestion);
+      }
+
+      if (questions.length === 0) {
+        throw new Error('Nenhuma questão no formato correto foi detectada. Verifique a numeração das perguntas e as alternativas A, B, C, D.');
+      }
+
       if (target === 'aula') {
         setAulaForm(prev => ({ ...prev, questionario: [...prev.questionario, ...questions] }));
       } else {
         setModuloForm(prev => ({ ...prev, prova_final: [...prev.prova_final, ...questions] }));
       }
       setRawTextIa('');
-      toast.success(`${questions.length} questões geradas com sucesso!`);
+      toast.success(`Sucesso! ${questions.length} questões estruturadas localmente!`);
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Erro ao integrar com o Gemini.');
+      toast.error(err.message || 'Erro ao processar as questões.');
     } finally {
       setLoadingIa(false);
     }
@@ -513,11 +544,11 @@ export default function EadTrilhaAdmin() {
                     <span className="text-[8px] font-black bg-stone-100 px-1">{moduloForm.prova_final.length} PERGUNTAS</span>
                   </div>
 
-                  {/* IA Importador */}
+                  {/* Processador Local */}
                   <div className="border-2 border-dashed border-black p-2 space-y-2 bg-[#fff8f6]">
-                    <label className="text-[8px] font-black uppercase text-stone-500 block">🤖 IMPORTADOR AUTOMÁTICO DE QUESTÕES POR IA (ChatGPT)</label>
+                    <label className="text-[8px] font-black uppercase text-stone-500 block">🤖 IMPORTADOR AUTOMÁTICO DE QUESTÕES (TEXTO DO CHATGPT)</label>
                     <textarea
-                      placeholder="Cole o texto cru com as perguntas e respostas geradas pelo ChatGPT aqui..."
+                      placeholder="Cole o texto cru com as perguntas e respostas (Marque as respostas corretas com o emoji ✅) aqui..."
                       value={rawTextIa}
                       onChange={(e) => setRawTextIa(e.target.value)}
                       rows={2}
@@ -529,7 +560,7 @@ export default function EadTrilhaAdmin() {
                       onClick={() => handleProcessQuestionsWithIa('modulo')}
                       className="w-full bg-[#ff6b00] text-white border-2 border-black py-1 text-[8px] font-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all"
                     >
-                      {loadingIa ? 'PROCESSANDO COM GEMINI AI...' : 'ESTRUTURAR QUESTÕES VIA IA'}
+                      {loadingIa ? 'PROCESSANDO QUESTÕES...' : 'ESTRUTURAR QUESTÕES AGORA'}
                     </button>
                   </div>
 
@@ -710,11 +741,11 @@ export default function EadTrilhaAdmin() {
                     <span className="text-[8px] font-black bg-stone-100 px-1">{aulaForm.questionario.length} PERGUNTAS</span>
                   </div>
 
-                  {/* IA Importador */}
+                  {/* Processador Local */}
                   <div className="border-2 border-dashed border-black p-2 space-y-2 bg-[#fff8f6]">
-                    <label className="text-[8px] font-black uppercase text-stone-500 block">🤖 IMPORTADOR AUTOMÁTICO DE QUESTÕES POR IA (ChatGPT)</label>
+                    <label className="text-[8px] font-black uppercase text-stone-500 block">🤖 IMPORTADOR AUTOMÁTICO DE QUESTÕES (TEXTO DO CHATGPT)</label>
                     <textarea
-                      placeholder="Cole o texto cru com as perguntas e respostas geradas pelo ChatGPT aqui..."
+                      placeholder="Cole o texto cru com as perguntas e respostas (Marque as respostas corretas com o emoji ✅) aqui..."
                       value={rawTextIa}
                       onChange={(e) => setRawTextIa(e.target.value)}
                       rows={2}
@@ -726,7 +757,7 @@ export default function EadTrilhaAdmin() {
                       onClick={() => handleProcessQuestionsWithIa('aula')}
                       className="w-full bg-[#ff6b00] text-white border-2 border-black py-1 text-[8px] font-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all"
                     >
-                      {loadingIa ? 'PROCESSANDO COM GEMINI AI...' : 'ESTRUTURAR QUESTÕES VIA IA'}
+                      {loadingIa ? 'PROCESSANDO QUESTÕES...' : 'ESTRUTURAR QUESTÕES AGORA'}
                     </button>
                   </div>
 
