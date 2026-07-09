@@ -4220,9 +4220,19 @@ async function startServer() {
                 return res.status(400).json({ error: 'Texto bruto é obrigatório.' });
             }
 
-            const apiKey = process.env.GEMINI_API_KEY;
+            let apiKey = process.env.GEMINI_API_KEY;
             if (!apiKey) {
-                return res.status(500).json({ error: 'GEMINI_API_KEY não configurada no servidor.' });
+                const { data: dbConfig } = await supabase
+                    .from('system_config')
+                    .select('key_value')
+                    .eq('key_name', 'GEMINI_API_KEY')
+                    .maybeSingle();
+                if (dbConfig?.key_value) {
+                    apiKey = dbConfig.key_value;
+                }
+            }
+            if (!apiKey) {
+                return res.status(500).json({ error: 'GEMINI_API_KEY não configurada no servidor nem no banco de dados (tabela system_config).' });
             }
 
             const prompt = `Você é um assistente de educação musical especializado em estruturar questionários de múltipla escolha para alunos de música.
