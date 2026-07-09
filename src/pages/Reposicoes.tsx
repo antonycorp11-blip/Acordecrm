@@ -17,7 +17,7 @@ export function Reposicoes() {
       if (res.ok) {
         const data = await res.json();
         // Filtrar apenas aulas com status = 'reposicao'
-        const apenasReposicoes = data.filter((a: any) => a.status === 'reposicao');
+        const apenasReposicoes = data.filter((a: any) => a.status === 'reposicao' || a.status === 'a_repor' || a.tipo === 'reposicao');
         setReposicoes(apenasReposicoes);
       }
     } catch (e) {
@@ -53,24 +53,24 @@ export function Reposicoes() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {reposicoes.map(aula => (
-              <div key={aula.id} className="bg-white border-4 border-black shadow-[8px_8px_0_#000] p-6 flex flex-col gap-4">
+              <div key={aula.id} className="bg-white border-4 border-black shadow-[8px_8px_0_#000] p-6 flex flex-col gap-4 text-black">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-black text-white font-black flex items-center justify-center text-xl shrink-0">
                     {(aula.aluno_nome || 'A')[0]}
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-black text-lg uppercase truncate">{aula.aluno_nome}</h3>
+                    <h3 className="font-black text-lg uppercase truncate text-black">{aula.aluno_nome || 'Aluno'}</h3>
                     <p className="text-xs font-bold text-[#8e7164] uppercase flex items-center gap-1">
-                      <User className="w-3 h-3" /> Prof. {aula.professor_nome || '?'}
+                      <User className="w-3 h-3 text-[#8e7164]" /> <span className="text-[#8e7164]">Prof. {aula.professor_nome || '?'}</span>
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-[#f4f4f5] p-3 border-2 border-black">
+                <div className="bg-[#f4f4f5] p-3 border-2 border-black text-black">
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar className="w-4 h-4 text-[#ff6b00]" />
-                    <span className="text-xs font-black uppercase">Data Original:</span>
-                    <span className="text-xs font-bold">{aula.data_original ? aula.data_original.split('-').reverse().join('/') : 'Desconhecida'}</span>
+                    <span className="text-xs font-black uppercase text-black">Data Original:</span>
+                    <span className="text-xs font-bold text-black">{aula.data_original ? aula.data_original.split('-').reverse().join('/') : 'Desconhecida'}</span>
                   </div>
                   {aula.motivo_cancelamento && (
                     <div className="pt-2 border-t-2 border-black/10 mt-2">

@@ -2717,7 +2717,13 @@ async function startServer() {
             if (end) query = query.lte('data', end);
             if (filterProfId) query = query.eq('professor_id', filterProfId);
             if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
-            if (statusFilter) query = query.eq('status', statusFilter);
+            if (statusFilter) {
+                if (statusFilter === 'reposicao') {
+                    query = query.or('status.eq.reposicao,status.eq.a_repor,tipo.eq.reposicao');
+                } else {
+                    query = query.eq('status', statusFilter);
+                }
+            }
 
             const { data: rawAulas, error: errA } = await query;
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
@@ -2742,26 +2748,35 @@ async function startServer() {
             const { data: experimentais, error: errE } = await expQuery;
 
             const combined = [
-                ...(aulas?.map((a: any) => ({
-                    ...a,
-                    id: `reg-${a.id}`,
-                    originalId: a.id,
-                    type: 'regular',
-                    nome: a.alunos?.nome,
-                    aluno_nome: a.alunos?.nome,
-                    professor_nome: a.professores?.nome,
-                    curso_nome: a.cursos?.nome || 'Curso'
-                })) || []),
-                ...(experimentais?.map((e: any) => ({
-                    ...e,
-                    id: `exp-${e.id}`,
-                    originalId: e.id,
-                    type: 'experimental',
-                    nome: e.leads?.nome,
-                    aluno_nome: e.leads?.nome,
-                    professor_nome: e.professores?.nome,
-                    curso_nome: 'Experimental'
-                })) || [])
+                ...(aulas?.map((a: any) => {
+                    const aluno = Array.isArray(a.alunos) ? a.alunos[0] : a.alunos;
+                    const professor = Array.isArray(a.professores) ? a.professores[0] : a.professores;
+                    const curso = Array.isArray(a.cursos) ? a.cursos[0] : a.cursos;
+                    return {
+                        ...a,
+                        id: `reg-${a.id}`,
+                        originalId: a.id,
+                        type: 'regular',
+                        nome: aluno?.nome,
+                        aluno_nome: aluno?.nome,
+                        professor_nome: professor?.nome,
+                        curso_nome: curso?.nome || 'Curso'
+                    };
+                }) || []),
+                ...(experimentais?.map((e: any) => {
+                    const lead = Array.isArray(e.leads) ? e.leads[0] : e.leads;
+                    const professor = Array.isArray(e.professores) ? e.professores[0] : e.professores;
+                    return {
+                        ...e,
+                        id: `exp-${e.id}`,
+                        originalId: e.id,
+                        type: 'experimental',
+                        nome: lead?.nome,
+                        aluno_nome: lead?.nome,
+                        professor_nome: professor?.nome,
+                        curso_nome: 'Experimental'
+                    };
+                }) || [])
             ];
 
             res.json(combined);
