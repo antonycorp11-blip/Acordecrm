@@ -1538,8 +1538,8 @@ export default function AreaAluno() {
             if (!modulosCompletos.some(m => Number(m.ordem) === 2 || m.id === 'mock-2')) {
               modulosCompletos.push({
                 id: 'mock-2',
-                nome: 'TÉCNICAS EXPLOSIVAS E SOLOS',
-                descricao: 'Vulcão Heavy Metal',
+                nome: 'EM PRODUÇÃO...',
+                descricao: 'Aguarde as novidades',
                 ordem: 2,
                 em_producao: true,
                 prova_final: [{ id: 'mock-p2' }]
@@ -1548,8 +1548,8 @@ export default function AreaAluno() {
             if (!modulosCompletos.some(m => Number(m.ordem) === 3 || m.id === 'mock-3')) {
               modulosCompletos.push({
                 id: 'mock-3',
-                nome: 'HARMONIA & COMPOSIÇÃO CELULAR',
-                descricao: 'Céu Clássico',
+                nome: 'EM PRODUÇÃO...',
+                descricao: 'Aguarde as novidades',
                 ordem: 3,
                 em_producao: true,
                 prova_final: [{ id: 'mock-p3' }]
@@ -1559,16 +1559,16 @@ export default function AreaAluno() {
             const aulasCompletas = [...trilhaAulas];
             if (!trilhaAulas.some(a => a.modulo_id === 'mock-2')) {
               aulasCompletas.push(
-                { id: 'mock-a2-1', modulo_id: 'mock-2', titulo: 'RIFFS DE FOGO', em_producao: true },
-                { id: 'mock-a2-2', modulo_id: 'mock-2', titulo: 'SOLO FRÍGIO DOMINANTE', em_producao: true },
-                { id: 'mock-a2-3', modulo_id: 'mock-2', titulo: 'TAP COMPONENT', em_producao: true }
+                { id: 'mock-a2-1', modulo_id: 'mock-2', titulo: 'Em breve...', em_producao: true },
+                { id: 'mock-a2-2', modulo_id: 'mock-2', titulo: 'Em breve...', em_producao: true },
+                { id: 'mock-a2-3', modulo_id: 'mock-2', titulo: 'Em breve...', em_producao: true }
               );
             }
             if (!trilhaAulas.some(a => a.modulo_id === 'mock-3')) {
               aulasCompletas.push(
-                { id: 'mock-a3-1', modulo_id: 'mock-3', titulo: 'TEORIA DAS ESFERAS', em_producao: true },
-                { id: 'mock-a3-2', modulo_id: 'mock-3', titulo: 'HARMONIA CELULAR', em_producao: true },
-                { id: 'mock-a3-3', modulo_id: 'mock-3', titulo: 'COMPOSIÇÃO RETRÔ', em_producao: true }
+                { id: 'mock-a3-1', modulo_id: 'mock-3', titulo: 'Em breve...', em_producao: true },
+                { id: 'mock-a3-2', modulo_id: 'mock-3', titulo: 'Em breve...', em_producao: true },
+                { id: 'mock-a3-3', modulo_id: 'mock-3', titulo: 'Em breve...', em_producao: true }
               );
             }
 
