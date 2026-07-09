@@ -1291,10 +1291,10 @@ export default function AreaAluno() {
   );
 
   return (
-    <div className="min-h-screen bg-[#110804] flex flex-col font-['Space_Mono'] relative">
+    <div className="min-h-screen bg-[#110804] flex items-center justify-center p-0 md:p-8 overflow-hidden font-['Space_Mono']">
       
-      {/* MAIN LAYOUT WRAPPER — Ocupa toda a tela com recuo para a barra lateral fixa no desktop */}
-      <div className="w-full min-h-screen bg-[#1a0a05] flex flex-col md:pl-32 relative">
+      {/* MOBILE SIMULATOR WRAPPER */}
+      <div className="w-full h-full md:h-[844px] md:max-w-[390px] md:border-[12px] md:border-black md:rounded-[60px] md:shadow-[0_0_0_8px_#3d2d26,0_20px_50px_rgba(0,0,0,0.5)] bg-[#1a0a05] relative overflow-hidden flex flex-col">
         
         {needsUpdate && (
           <div className="bg-red-600 text-white border-b-8 border-black p-4 text-center font-black text-[9px] uppercase animate-pulse flex flex-col gap-2 z-[100] relative">
@@ -1322,7 +1322,8 @@ export default function AreaAluno() {
           </div>
         )}
         
-
+        {/* Notch simulation */}
+        <div className="hidden md:block absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-50"></div>
 
         {/* TOP BAR — Stitch style */}
         <header className="flex items-center justify-between px-6 py-4 pt-10 md:pt-10 shrink-0 bg-[#feccba] border-b-8 border-black">

@@ -17,7 +17,7 @@ export function Reposicoes() {
       if (res.ok) {
         const data = await res.json();
         // Filtrar apenas aulas com status = 'reposicao'
-        const apenasReposicoes = data.filter((a: any) => a.status === 'reposicao' || a.status === 'a_repor' || a.tipo === 'reposicao');
+        const apenasReposicoes = data.filter((a: any) => a.status === 'reposicao' || a.status === 'a_repor');
         setReposicoes(apenasReposicoes);
       }
     } catch (e) {

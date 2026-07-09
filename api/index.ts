@@ -2658,7 +2658,7 @@ async function startServer() {
             if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
             if (statusFilter) {
                 if (statusFilter === 'reposicao') {
-                    query = query.or('status.eq.reposicao,status.eq.a_repor,tipo.eq.reposicao');
+                    query = query.or('status.eq.reposicao,status.eq.a_repor');
                 } else {
                     query = query.eq('status', statusFilter);
                 }
@@ -2865,14 +2865,13 @@ async function startServer() {
             }
 
             if (reposicao) {
-                const { data: aulaAtual } = await supabase.from('aulas').select('data').eq('id', originalId).single();
-                const dataOriginal = aulaAtual ? (aulaAtual as any).data : null;
+                const hojeStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
 
                 await supabase.from('aulas').update({ 
                     status: 'reposicao', 
                     data: '2099-12-31', 
                     horario: '00:00',
-                    data_original: dataOriginal 
+                    data_original: hojeStr 
                 }).eq('id', originalId);
             } else {
                 await supabase.from('aulas').update({ status: 'falta' }).eq('id', originalId);
