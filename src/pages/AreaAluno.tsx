@@ -1351,7 +1351,7 @@ export default function AreaAluno() {
               />
             </div>
             <div className="flex flex-col items-center justify-center -ml-2">
-              <img src="/Logo Laranja.png" alt="Studio Acorde" className="h-5 object-contain" />
+              <img src="/assets/Logo%20Laranja.png" alt="Studio Acorde" className="h-5 object-contain" />
               <span className="text-[7px] text-[#ff6b00] font-black uppercase text-center mt-0.5 tracking-widest">App v1.0.2</span>
             </div>
           </div>
