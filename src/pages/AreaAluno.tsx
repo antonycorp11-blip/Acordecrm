@@ -1291,10 +1291,10 @@ export default function AreaAluno() {
   );
 
   return (
-    <div className="min-h-screen bg-[#110804] flex items-center justify-center p-0 md:p-8 overflow-hidden font-['Space_Mono']">
+    <div className="min-h-screen bg-[#110804] flex flex-col font-['Space_Mono'] relative">
       
-      {/* MOBILE SIMULATOR WRAPPER */}
-      <div className="w-full h-full md:h-[844px] md:max-w-[390px] md:border-[12px] md:border-black md:rounded-[60px] md:shadow-[0_0_0_8px_#3d2d26,0_20px_50px_rgba(0,0,0,0.5)] bg-[#1a0a05] relative overflow-hidden flex flex-col">
+      {/* MAIN LAYOUT WRAPPER — Ocupa toda a tela com recuo para a barra lateral fixa no desktop */}
+      <div className="w-full min-h-screen bg-[#1a0a05] flex flex-col md:pl-32 relative">
         
         {needsUpdate && (
           <div className="bg-red-600 text-white border-b-8 border-black p-4 text-center font-black text-[9px] uppercase animate-pulse flex flex-col gap-2 z-[100] relative">
@@ -1322,8 +1322,7 @@ export default function AreaAluno() {
           </div>
         )}
         
-        {/* Notch simulation */}
-        <div className="hidden md:block absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-50"></div>
+
 
         {/* TOP BAR — Stitch style */}
         <header className="flex items-center justify-between px-6 py-4 pt-10 md:pt-10 shrink-0 bg-[#feccba] border-b-8 border-black">
@@ -1526,313 +1525,371 @@ export default function AreaAluno() {
             )}
 
           {/* ===== ABA: TODAS AS AULAS (TRILHA EAD - DESIGN STITCH) ===== */}
-          {activeTab === 'aulas' && (
-            <div className="px-4 py-6 space-y-12 bg-black min-h-screen text-white font-['Space_Mono'] pb-36 relative overflow-visible rounded-xl">
-              {/* Carrega Material Symbols para ícones fiéis do Stitch */}
-              <link 
-                href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" 
-                rel="stylesheet" 
-              />
+          {activeTab === 'aulas' && (() => {
+            // Módulos adicionais simulados (Stitch original)
+            const modulosCompletos = [...trilhaModulos];
+            if (!modulosCompletos.some(m => Number(m.ordem) === 2 || m.id === 'mock-2')) {
+              modulosCompletos.push({
+                id: 'mock-2',
+                nome: 'TÉCNICAS EXPLOSIVAS E SOLOS',
+                descricao: 'Vulcão Heavy Metal',
+                ordem: 2,
+                em_producao: true,
+                prova_final: [{ id: 'mock-p2' }]
+              });
+            }
+            if (!modulosCompletos.some(m => Number(m.ordem) === 3 || m.id === 'mock-3')) {
+              modulosCompletos.push({
+                id: 'mock-3',
+                nome: 'HARMONIA & COMPOSIÇÃO CELULAR',
+                descricao: 'Céu Clássico',
+                ordem: 3,
+                em_producao: true,
+                prova_final: [{ id: 'mock-p3' }]
+              });
+            }
 
-              {/* Estilos locais para o design do Stitch */}
-              <style>{`
-                @keyframes float-stitch {
-                    0%, 100% { transform: translateY(0) rotate(0deg); }
-                    50% { transform: translateY(-10px) rotate(2deg); }
-                }
-                @keyframes pulse-white-orange-stitch {
-                    0%, 100% { background-color: #ffffff; box-shadow: 0 0 20px #ffffff, 4px 4px 0px 0px #261812; }
-                    50% { background-color: #ff6b00; box-shadow: 0 0 30px #ff6b00, 4px 4px 0px 0px #261812; }
-                }
-                @keyframes path-glow-stitch {
-                    0%, 100% { filter: drop-shadow(0 0 2px #ff6b00); }
-                    50% { filter: drop-shadow(0 0 8px #ff6b00); }
-                }
-                .floating-sticker-stitch {
-                    animation: float-stitch 4s ease-in-out infinite;
-                }
-                .active-node-stitch {
-                    animation: pulse-white-orange-stitch 1.5s infinite;
-                }
-                .sticker-shadow-stitch {
-                    filter: drop-shadow(4px 4px 0px #261812);
-                }
-              `}</style>
+            const aulasCompletas = [...trilhaAulas];
+            if (!trilhaAulas.some(a => a.modulo_id === 'mock-2')) {
+              aulasCompletas.push(
+                { id: 'mock-a2-1', modulo_id: 'mock-2', titulo: 'RIFFS DE FOGO', em_producao: true },
+                { id: 'mock-a2-2', modulo_id: 'mock-2', titulo: 'SOLO FRÍGIO DOMINANTE', em_producao: true },
+                { id: 'mock-a2-3', modulo_id: 'mock-2', titulo: 'TAP COMPONENT', em_producao: true }
+              );
+            }
+            if (!trilhaAulas.some(a => a.modulo_id === 'mock-3')) {
+              aulasCompletas.push(
+                { id: 'mock-a3-1', modulo_id: 'mock-3', titulo: 'TEORIA DAS ESFERAS', em_producao: true },
+                { id: 'mock-a3-2', modulo_id: 'mock-3', titulo: 'HARMONIA CELULAR', em_producao: true },
+                { id: 'mock-a3-3', modulo_id: 'mock-3', titulo: 'COMPOSIÇÃO RETRÔ', em_producao: true }
+              );
+            }
 
-              <div className="flex items-center gap-3">
-                <div className="bg-[#ff6b00] border-4 border-black px-4 py-1.5 shadow-[6px_6px_0_#000] -rotate-2">
-                  <h3 className="text-white font-black text-xs uppercase tracking-widest font-['Space_Mono']">📚 JORNADA MUSICAL</h3>
+            return (
+              <div className="px-4 py-6 space-y-12 bg-black min-h-screen text-white font-['Space_Mono'] pb-36 relative overflow-visible rounded-xl">
+                {/* Carrega Material Symbols para ícones fiéis do Stitch */}
+                <link 
+                  href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" 
+                  rel="stylesheet" 
+                />
+
+                {/* Estilos locais para o design do Stitch */}
+                <style>{`
+                  @keyframes float-stitch {
+                      0%, 100% { transform: translateY(0) rotate(0deg); }
+                      50% { transform: translateY(-10px) rotate(2deg); }
+                  }
+                  @keyframes pulse-white-orange-stitch {
+                      0%, 100% { background-color: #ffffff; box-shadow: 0 0 20px #ffffff, 4px 4px 0px 0px #261812; }
+                      50% { background-color: #ff6b00; box-shadow: 0 0 30px #ff6b00, 4px 4px 0px 0px #261812; }
+                  }
+                  @keyframes path-glow-stitch {
+                      0%, 100% { filter: drop-shadow(0 0 2px #ff6b00); }
+                      50% { filter: drop-shadow(0 0 8px #ff6b00); }
+                  }
+                  .floating-sticker-stitch {
+                      animation: float-stitch 4s ease-in-out infinite;
+                  }
+                  .active-node-stitch {
+                      animation: pulse-white-orange-stitch 1.5s infinite;
+                  }
+                  .sticker-shadow-stitch {
+                      filter: drop-shadow(4px 4px 0px #261812);
+                  }
+                `}</style>
+
+                <div className="flex items-center gap-3">
+                  <div className="bg-[#ff6b00] border-4 border-black px-4 py-1.5 shadow-[6px_6px_0_#000] -rotate-2">
+                    <h3 className="text-white font-black text-xs uppercase tracking-widest font-['Space_Mono']">📚 JORNADA MUSICAL</h3>
+                  </div>
+                  <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                 </div>
-                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-              </div>
 
-              {trilhaModulos.map((modulo, modIdx) => {
-                const modAulas = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modulo.id));
-                
-                // Módulo desbloqueado se o anterior foi concluído
-                const isModuloDesbloqueado = modIdx === 0 || (() => {
-                  const modAnterior = trilhaModulos[modIdx - 1];
-                  const aulasModAnterior = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modAnterior.id));
-                  const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => 
-                    trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
-                  );
-                  const provaConcluida = !modAnterior.prova_final || (
-                    Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0
-                  ) || (alunoData?.conquistas?.some((c: any) => 
-                    Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)
-                  ));
-                  return todasConcluidas && provaConcluida;
-                })();
+                {modulosCompletos.map((modulo, modIdx) => {
+                  const modAulas = aulasCompletas.filter(a => String(a.modulo_id) === String(modulo.id));
+                  const isEmProducao = modulo.em_producao;
 
-                // Lógica de Temas / Biomas do Stitch
-                let biomeBg = 'bg-[#1a0f0a]';
-                let biomeLabelBg = 'bg-[#ff6b00]';
-                let biomeLabelText = 'text-white';
-                let biomeLabelRotate = '-rotate-2';
-                let biomeTitle = modulo.nome;
-                let biomeDecorations = null;
+                  // Módulo desbloqueado se o anterior foi concluído
+                  const isModuloDesbloqueado = !isEmProducao && (modIdx === 0 || (() => {
+                    const modAnterior = modulosCompletos[modIdx - 1];
+                    const aulasModAnterior = aulasCompletas.filter(a => String(a.modulo_id) === String(modAnterior.id));
+                    const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => 
+                      trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
+                    );
+                    const provaConcluida = !modAnterior.prova_final || (
+                      Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0
+                    ) || (alunoData?.conquistas?.some((c: any) => 
+                      Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)
+                    ));
+                    return todasConcluidas && provaConcluida;
+                  })());
 
-                const themeIndex = modIdx % 3;
-                if (themeIndex === 0) {
-                  // Bioma 1: Floresta Synthwave
-                  biomeBg = 'bg-[#1a0f0a]';
-                  biomeLabelBg = 'bg-[#ff6b00]';
-                  biomeLabelText = 'text-white';
-                  biomeLabelRotate = '-rotate-2';
-                  biomeTitle = `Floresta Synthwave: ${modulo.nome}`;
-                  biomeDecorations = (
-                    <>
-                      <div className="absolute top-10 left-6 floating-sticker-stitch opacity-40 text-4xl select-none pointer-events-none">
-                        <span className="material-symbols-outlined text-[#ff6b00] text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>album</span>
-                      </div>
-                      <div className="absolute bottom-16 right-10 floating-sticker-stitch opacity-30 text-4xl select-none pointer-events-none" style={{ animationDelay: '1.5s' }}>
-                        <span className="material-symbols-outlined text-[#feccba] text-3xl">star</span>
-                      </div>
-                    </>
-                  );
-                } else if (themeIndex === 1) {
-                  // Bioma 2: Vulcão Heavy Metal
-                  biomeBg = 'bg-[#1e0808]';
-                  biomeLabelBg = 'bg-[#ba1a1a]';
-                  biomeLabelText = 'text-white';
-                  biomeLabelRotate = 'rotate-2';
-                  biomeTitle = `Vulcão Heavy Metal: ${modulo.nome}`;
-                  biomeDecorations = (
-                    <>
-                      <div 
-                        className="absolute -top-10 left-4 w-40 h-40 bg-cover bg-center opacity-30 mix-blend-screen select-none pointer-events-none floating-sticker-stitch" 
-                        style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDpW0B_1lS2FeRskK9yqBUgOfNaEumNklcIP9yJtyecn1zp3iVkikWUeq83mrYMKzL-rCiQ-3bvw9oEExLWSaVPixN-9RYvzCM1H9JlcBfgaMGOsUj4ozPZ-h_mlg4AnkdvFJTFTBaj4zjycCOnLd7wcIplUfxWsJeC29g8Fn8K4gpNY1tsD5FBIOKr157ypOamRNy3rv0BiWt43R2__EH_pmdacNXPnQQNbBzEAmyb1meBQx6ny74Q9blApT35gWkv4yYkx9TPoV0F')" }}
-                      ></div>
-                      <div className="absolute bottom-12 left-10 floating-sticker-stitch opacity-25 text-3xl select-none pointer-events-none" style={{ animationDelay: '1s' }}>
-                        <span className="material-symbols-outlined text-[#ba1a1a] text-4xl">skull</span>
-                      </div>
-                      <div className="absolute top-1/3 right-8 floating-sticker-stitch opacity-35 text-3xl select-none pointer-events-none" style={{ animationDelay: '2s' }}>
-                        <span className="material-symbols-outlined text-[#ff6b00] text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>speaker</span>
-                      </div>
-                    </>
-                  );
-                } else {
-                  // Bioma 3: Céu Clássico
-                  biomeBg = 'bg-[#111625]';
-                  biomeLabelBg = 'bg-[#e2e2e2]';
-                  biomeLabelText = 'text-black';
-                  biomeLabelRotate = '-rotate-1';
-                  biomeTitle = `Céu Clássico: ${modulo.nome}`;
-                  biomeDecorations = (
-                    <>
-                      <div 
-                        className="absolute -top-16 -left-10 w-24 h-24 bg-cover bg-center opacity-25 select-none pointer-events-none floating-sticker-stitch" 
-                        style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAF2igrvFQ1c4a1iaeRiviObNuX2T4iigpFcpIzkA2JVz2jTihK-AnlZf9JMb32tPpT7iLtALjGOhgOD3BMZ70gCw3l2SkCgLMLVFjKB54Sb8fsfaLuWG2i8Utxqy187Kb36S27uN6aPooZXx_WGRAwOjLPLFOK8trS6U7TyMFIXt4lRpHskueUThfadfVQHHj7QX4N71L2EuK6prTdM6yYezZBbptZQwadHt0ChANP0BZNFxVh2D5gn8meawJBmNYSbFwwKx9xc0nc')" }}
-                      ></div>
-                      <div className="absolute bottom-16 right-10 floating-sticker-stitch opacity-20 text-3xl select-none pointer-events-none" style={{ animationDelay: '0.5s' }}>
-                        <span className="material-symbols-outlined text-white text-4xl">cloud</span>
-                      </div>
-                      <div className="absolute top-1/2 left-10 floating-sticker-stitch opacity-30 text-3xl select-none pointer-events-none" style={{ animationDelay: '2.5s' }}>
-                        <span className="material-symbols-outlined text-[#e2e2e2] text-3xl">castle</span>
-                      </div>
-                    </>
-                  );
-                }
+                  // Lógica de Temas / Biomas do Stitch
+                  let biomeBg = 'bg-[#1a0f0a]';
+                  let biomeLabelBg = 'bg-[#ff6b00]';
+                  let biomeLabelText = 'text-white';
+                  let biomeLabelRotate = '-rotate-2';
+                  let biomeTitle = modulo.nome;
+                  let biomeDecorations = null;
 
-                return (
-                  <section key={modulo.id} className={`border-8 border-black p-6 shadow-[10px_10px_0_#000] relative overflow-hidden ${biomeBg} transition-all text-white rounded-xl ${!isModuloDesbloqueado ? 'opacity-30 select-none pointer-events-none' : ''}`}>
-                    {/* Cabeçalho do Bioma (Sticker-Skeuomorphism do Stitch) */}
-                    <div className="flex justify-center mb-12 mt-2">
-                      <div className={`${biomeLabelBg} ${biomeLabelText} px-6 py-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(38,24,18,1)] ${biomeLabelRotate} text-center min-w-[220px]`}>
-                        <h2 className="font-['Space_Mono'] font-bold uppercase tracking-tighter text-xs sm:text-sm">{biomeTitle}</h2>
+                  const themeIndex = modIdx % 3;
+                  if (themeIndex === 0) {
+                    // Bioma 1: Floresta Synthwave
+                    biomeBg = 'bg-[#1a0f0a]';
+                    biomeLabelBg = 'bg-[#ff6b00]';
+                    biomeLabelText = 'text-white';
+                    biomeLabelRotate = '-rotate-2';
+                    biomeTitle = `Floresta Synthwave: ${modulo.nome}`;
+                    biomeDecorations = (
+                      <>
+                        <div className="absolute top-10 left-6 floating-sticker-stitch opacity-40 text-4xl select-none pointer-events-none">
+                          <span className="material-symbols-outlined text-[#ff6b00] text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>album</span>
+                        </div>
+                        <div className="absolute bottom-16 right-10 floating-sticker-stitch opacity-30 text-4xl select-none pointer-events-none" style={{ animationDelay: '1.5s' }}>
+                          <span className="material-symbols-outlined text-[#feccba] text-3xl">star</span>
+                        </div>
+                      </>
+                    );
+                  } else if (themeIndex === 1) {
+                    // Bioma 2: Vulcão Heavy Metal
+                    biomeBg = 'bg-[#1e0808]';
+                    biomeLabelBg = 'bg-[#ba1a1a]';
+                    biomeLabelText = 'text-white';
+                    biomeLabelRotate = 'rotate-2';
+                    biomeTitle = `Vulcão Heavy Metal: ${modulo.nome}`;
+                    biomeDecorations = (
+                      <>
+                        <div 
+                          className="absolute -top-10 left-4 w-40 h-40 bg-cover bg-center opacity-30 mix-blend-screen select-none pointer-events-none floating-sticker-stitch" 
+                          style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDpW0B_1lS2FeRskK9yqBUgOfNaEumNklcIP9yJtyecn1zp3iVkikWUeq83mrYMKzL-rCiQ-3bvw9oEExLWSaVPixN-9RYvzCM1H9JlcBfgaMGOsUj4ozPZ-h_mlg4AnkdvFJTFTBaj4zjycCOnLd7wcIplUfxWsJeC29g8Fn8K4gpNY1tsD5FBIOKr157ypOamRNy3rv0BiWt43R2__EH_pmdacNXPnQQNbBzEAmyb1meBQx6ny74Q9blApT35gWkv4yYkx9TPoV0F')" }}
+                        ></div>
+                        <div className="absolute bottom-12 left-10 floating-sticker-stitch opacity-25 text-3xl select-none pointer-events-none" style={{ animationDelay: '1s' }}>
+                          <span className="material-symbols-outlined text-[#ba1a1a] text-4xl">skull</span>
+                        </div>
+                        <div className="absolute top-1/3 right-8 floating-sticker-stitch opacity-35 text-3xl select-none pointer-events-none" style={{ animationDelay: '2s' }}>
+                          <span className="material-symbols-outlined text-[#ff6b00] text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>speaker</span>
+                        </div>
+                      </>
+                    );
+                  } else {
+                    // Bioma 3: Céu Clássico
+                    biomeBg = 'bg-[#111625]';
+                    biomeLabelBg = 'bg-[#e2e2e2]';
+                    biomeLabelText = 'text-black';
+                    biomeLabelRotate = '-rotate-1';
+                    biomeTitle = `Céu Clássico: ${modulo.nome}`;
+                    biomeDecorations = (
+                      <>
+                        <div 
+                          className="absolute -top-16 -left-10 w-24 h-24 bg-cover bg-center opacity-25 select-none pointer-events-none floating-sticker-stitch" 
+                          style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAF2igrvFQ1c4a1iaeRiviObNuX2T4iigpFcpIzkA2JVz2jTihK-AnlZf9JMb32tPpT7iLtALjGOhgOD3BMZ70gCw3l2SkCgLMLVFjKB54Sb8fsfaLuWG2i8Utxqy187Kb36S27uN6aPooZXx_WGRAwOjLPLFOK8trS6U7TyMFIXt4lRpHskueUThfadfVQHHj7QX4N71L2EuK6prTdM6yYezZBbptZQwadHt0ChANP0BZNFxVh2D5gn8meawJBmNYSbFwwKx9xc0nc')" }}
+                        ></div>
+                        <div className="absolute bottom-16 right-10 floating-sticker-stitch opacity-20 text-3xl select-none pointer-events-none" style={{ animationDelay: '0.5s' }}>
+                          <span className="material-symbols-outlined text-white text-4xl">cloud</span>
+                        </div>
+                        <div className="absolute top-1/2 left-10 floating-sticker-stitch opacity-30 text-3xl select-none pointer-events-none" style={{ animationDelay: '2.5s' }}>
+                          <span className="material-symbols-outlined text-[#e2e2e2] text-3xl">castle</span>
+                        </div>
+                      </>
+                    );
+                  }
+
+                  return (
+                    <section key={modulo.id} className={`border-8 border-black p-6 shadow-[10px_10px_0_#000] relative overflow-hidden ${biomeBg} transition-all text-white rounded-xl ${(!isModuloDesbloqueado && !isEmProducao) ? 'opacity-30 select-none pointer-events-none' : ''} ${isEmProducao ? 'opacity-70' : ''}`}>
+                      {/* Cabeçalho do Bioma (Sticker-Skeuomorphism do Stitch) */}
+                      <div className="flex justify-center mb-12 mt-2">
+                        <div className={`${biomeLabelBg} ${biomeLabelText} px-6 py-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(38,24,18,1)] ${biomeLabelRotate} text-center min-w-[220px] relative`}>
+                          {isEmProducao && (
+                            <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#ba1a1a] text-white border border-black text-[7px] px-1.5 py-0.5 font-black uppercase font-['Space_Mono'] tracking-widest whitespace-nowrap">
+                              🛠️ EM BREVE
+                            </span>
+                          )}
+                          <h2 className="font-['Space_Mono'] font-bold uppercase tracking-tighter text-xs sm:text-sm">{biomeTitle}</h2>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Canvas do Mapa do Bioma */}
-                    <div className="flex flex-col items-center gap-24 relative py-16 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[380px] rounded-lg">
-                      {/* Decorações do Bioma */}
-                      {biomeDecorations}
+                      {/* Canvas do Mapa do Bioma */}
+                      <div className="flex flex-col items-center gap-24 relative py-16 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[380px] rounded-lg">
+                        {/* Decorações do Bioma */}
+                        {biomeDecorations}
 
-                      {/* Caminho Curvo Candy Crush Dinâmico (Stitch Style) */}
-                      <svg 
-                        className="absolute top-0 bottom-0 left-0 right-0 w-full h-full pointer-events-none z-0 opacity-70" 
-                        preserveAspectRatio="none"
-                        viewBox={`0 0 200 ${220 + modAulas.length * 140}`}
-                      >
-                        <path 
-                          d={generateSvgPath(modAulas.length)} 
-                          fill="none" 
-                          stroke="#5a4136" 
-                          strokeWidth="8"
-                          strokeLinecap="round"
-                        />
-                        <path 
-                          d={generateSvgPath(modAulas.length)} 
-                          fill="none" 
-                          stroke="#ff6b00" 
-                          strokeWidth="4" 
-                          strokeDasharray="6 6"
-                          strokeLinecap="round"
-                          className="animate-[path-glow-stitch_2s_infinite]"
-                        />
-                      </svg>
-                      
-                      {modAulas.map((aula, aulaIdx) => {
-                        const isConcluida = trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
-                        const isAulaDesbloqueada = isModuloDesbloqueado && (aulaIdx === 0 || (() => {
-                          const aulaAnterior = modAulas[aulaIdx - 1];
-                          return trilhaProgresso.some(p => Number(p.aula_id) === Number(aulaAnterior.id));
-                        })());
-
-                        // Lógica de desvio Candy Crush em Zig-Zag
-                        const modVal = aulaIdx % 4;
-                        const translateVal = modVal === 0 
-                          ? 'translate-x-[-45px] sm:translate-x-[-80px]' 
-                          : modVal === 1 
-                            ? 'translate-x-0' 
-                            : modVal === 2 
-                              ? 'translate-x-[45px] sm:translate-x-[80px]' 
-                              : 'translate-x-0';
+                        {/* Caminho Curvo Candy Crush Dinâmico (Stitch Style) */}
+                        <svg 
+                          className="absolute top-0 bottom-0 left-0 right-0 w-full h-full pointer-events-none z-0 opacity-70" 
+                          preserveAspectRatio="none"
+                          viewBox={`0 0 200 ${220 + modAulas.length * 140}`}
+                        >
+                          <path 
+                            d={generateSvgPath(modAulas.length)} 
+                            fill="none" 
+                            stroke="#5a4136" 
+                            strokeWidth="8"
+                            strokeLinecap="round"
+                          />
+                          <path 
+                            d={generateSvgPath(modAulas.length)} 
+                            fill="none" 
+                            stroke="#ff6b00" 
+                            strokeWidth="4" 
+                            strokeDasharray="6 6"
+                            strokeLinecap="round"
+                            className="animate-[path-glow-stitch_2s_infinite]"
+                          />
+                        </svg>
                         
-                        const titleAlign = modVal === 0 
-                          ? 'left-[76px] sm:left-[98px] top-1/2 -translate-y-1/2 text-left rotate-6' 
-                          : modVal === 2 
-                            ? 'right-[76px] sm:right-[98px] top-1/2 -translate-y-1/2 text-right -rotate-3' 
-                            : 'top-[76px] sm:top-[98px] left-1/2 -translate-x-1/2 text-center rotate-1';
+                        {modAulas.map((aula, aulaIdx) => {
+                          const isAulaEmProducao = aula.em_producao;
+                          const isConcluida = !isAulaEmProducao && trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
+                          const isAulaDesbloqueada = !isAulaEmProducao && isModuloDesbloqueado && (aulaIdx === 0 || (() => {
+                            const aulaAnterior = modAulas[aulaIdx - 1];
+                            return trilhaProgresso.some(p => Number(p.aula_id) === Number(aulaAnterior.id));
+                          })());
 
-                        const isAtiva = isAulaDesbloqueada && !isConcluida;
+                          // Lógica de desvio Candy Crush em Zig-Zag
+                          const modVal = aulaIdx % 4;
+                          const translateVal = modVal === 0 
+                            ? 'translate-x-[-45px] sm:translate-x-[-80px]' 
+                            : modVal === 1 
+                              ? 'translate-x-0' 
+                              : modVal === 2 
+                                ? 'translate-x-[45px] sm:translate-x-[80px]' 
+                                : 'translate-x-0';
+                          
+                          const titleAlign = modVal === 0 
+                            ? 'left-[76px] sm:left-[98px] top-1/2 -translate-y-1/2 text-left rotate-6' 
+                            : modVal === 2 
+                              ? 'right-[76px] sm:right-[98px] top-1/2 -translate-y-1/2 text-right -rotate-3' 
+                              : 'top-[76px] sm:top-[98px] left-1/2 -translate-x-1/2 text-center rotate-1';
 
-                        return (
-                          <div key={aula.id} className={`relative flex items-center justify-center transition-all ${translateVal} z-10`}>
-                            {/* Botão do Círculo da Aula no Estilo Stitch */}
-                            {isConcluida ? (
-                              <button
-                                disabled={!isAulaDesbloqueada}
-                                onClick={() => {
-                                  setSelectedTrilhaAula(aula);
-                                  setVideoCompleto(false);
-                                  setQuestionarioFinalizado(false);
-                                  setQuestionarioCorreto(null);
-                                  setQuestionarioRespostas({});
-                                  setCurrentQuestionIdx(0);
-                                  setTentativaResultado(null);
-                                }}
-                                className="w-16 h-16 bg-[#a04100] rounded-full border-2 border-black flex items-center justify-center hover:scale-115 transition-transform active:translate-y-1 shadow-[4px_4px_0px_0px_#261812] cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-white text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                  {obterIconeStitch(aula.titulo)}
-                                </span>
-                              </button>
-                            ) : isAtiva ? (
-                              <div 
-                                onClick={() => {
-                                  setSelectedTrilhaAula(aula);
-                                  setVideoCompleto(false);
-                                  setQuestionarioFinalizado(false);
-                                  setQuestionarioCorreto(null);
-                                  setQuestionarioRespostas({});
-                                  setCurrentQuestionIdx(0);
-                                  setTentativaResultado(null);
-                                }}
-                                className="active-node-stitch w-20 h-20 rounded-full border-4 border-black flex items-center justify-center cursor-pointer hover:scale-105 transition-all"
-                              >
-                                <span className="material-symbols-outlined text-black text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                  {obterIconeStitch(aula.titulo)}
-                                </span>
-                              </div>
-                            ) : (
-                              <button className="w-16 h-16 bg-[#3d2d26] rounded-full border-2 border-[#5a4136] flex items-center justify-center cursor-not-allowed opacity-60">
-                                <span className="material-symbols-outlined text-[#5a4136] text-3xl">lock</span>
-                              </button>
-                            )}
+                          const isAtiva = isAulaDesbloqueada && !isConcluida;
 
-                            {/* Título Adesivo da Aula */}
-                            {isAtiva ? (
-                              <div className={`absolute ${titleAlign} whitespace-nowrap bg-[#ba1a1a] text-white px-3 py-1 border-2 border-black font-['Space_Mono'] text-[9px] uppercase font-bold sticker-shadow-stitch whitespace-nowrap z-20`}>
-                                <span className="text-white animate-ping mr-1.5">●</span>
-                                ATUAL: {aula.titulo}
-                              </div>
-                            ) : (
-                              <div className={`absolute ${titleAlign} whitespace-nowrap bg-white border-2 border-black text-[8px] font-black uppercase text-black px-2 py-1 shadow-[3px_3px_0_#261812] pointer-events-none font-['Space_Mono'] sticker-shadow-stitch`}>
-                                {aula.titulo}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                          return (
+                            <div key={aula.id} className={`relative flex items-center justify-center transition-all ${translateVal} z-10`}>
+                              {/* Botão do Círculo da Aula no Estilo Stitch */}
+                              {isConcluida ? (
+                                <button
+                                  disabled={!isAulaDesbloqueada}
+                                  onClick={() => {
+                                    setSelectedTrilhaAula(aula);
+                                    setVideoCompleto(false);
+                                    setQuestionarioFinalizado(false);
+                                    setQuestionarioCorreto(null);
+                                    setQuestionarioRespostas({});
+                                    setCurrentQuestionIdx(0);
+                                    setTentativaResultado(null);
+                                  }}
+                                  className="w-16 h-16 bg-[#a04100] rounded-full border-2 border-black flex items-center justify-center hover:scale-115 transition-transform active:translate-y-1 shadow-[4px_4px_0px_0px_#261812] cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-white text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                    {obterIconeStitch(aula.titulo)}
+                                  </span>
+                                </button>
+                              ) : isAtiva ? (
+                                <div 
+                                  onClick={() => {
+                                    setSelectedTrilhaAula(aula);
+                                    setVideoCompleto(false);
+                                    setQuestionarioFinalizado(false);
+                                    setQuestionarioCorreto(null);
+                                    setQuestionarioRespostas({});
+                                    setCurrentQuestionIdx(0);
+                                    setTentativaResultado(null);
+                                  }}
+                                  className="active-node-stitch w-20 h-20 rounded-full border-4 border-black flex items-center justify-center cursor-pointer hover:scale-105 transition-all"
+                                >
+                                  <span className="material-symbols-outlined text-black text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                    {obterIconeStitch(aula.titulo)}
+                                  </span>
+                                </div>
+                              ) : isAulaEmProducao ? (
+                                <button className="w-16 h-16 bg-[#2d221d] rounded-full border-2 border-[#3d2d26] flex items-center justify-center cursor-not-allowed opacity-60">
+                                  <span className="material-symbols-outlined text-[#5a4136] text-3xl">build</span>
+                                </button>
+                              ) : (
+                                <button className="w-16 h-16 bg-[#3d2d26] rounded-full border-2 border-[#5a4136] flex items-center justify-center cursor-not-allowed opacity-60">
+                                  <span className="material-symbols-outlined text-[#5a4136] text-3xl">lock</span>
+                                </button>
+                              )}
 
-                      {/* Prova Geral do Módulo no final da trilha (Boss Level) */}
-                      {modulo.prova_final && Array.isArray(modulo.prova_final) && modulo.prova_final.length > 0 && (() => {
-                        const todasAulasConcluidas = modAulas.length > 0 && modAulas.every(a => 
-                          trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
-                        );
-                        const isProvaConcluida = alunoData?.conquistas?.some((c: any) => 
-                          Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id)
-                        );
-                        const isProvaDesbloqueada = isModuloDesbloqueado && todasAulasConcluidas;
-
-                        return (
-                          <div className="relative flex flex-col items-center justify-center mt-8 z-10">
-                            <button
-                              disabled={!isProvaDesbloqueada}
-                              onClick={() => {
-                                setSelectedTrilhaModulo(modulo);
-                                setQuestionarioFinalizado(false);
-                                setQuestionarioCorreto(null);
-                                setQuestionarioRespostas({});
-                                setCurrentQuestionIdx(0);
-                                setTentativaResultado(null);
-                              }}
-                              className={`w-20 h-20 border-4 border-black flex items-center justify-center font-black text-2xl transition-all active:translate-y-1 shadow-[8px_8px_0px_0px_rgba(38,24,18,0.5)] rounded-xl ${
-                                isProvaConcluida 
-                                  ? 'bg-[#ffeb3b] text-black border-yellow-600 hover:scale-105' 
-                                  : isProvaDesbloqueada 
-                                    ? 'bg-[#ba1a1a] text-white hover:scale-105 animate-bounce' 
-                                    : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'
-                              }`}
-                              title="Prova Geral do Módulo (Boss Level)"
-                            >
-                              <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: isProvaConcluida ? "'FILL' 1" : undefined }}>
-                                {isProvaConcluida ? 'grade' : 'grade'}
-                              </span>
-                            </button>
-
-                            {/* Placa da Prova */}
-                            <div className="absolute top-[88px] whitespace-nowrap bg-black border-2 border-[#ff6b00] text-[8px] font-black uppercase text-[#ff6b00] px-3 py-1 shadow-[3px_3px_0_#261812] text-center font-['Space_Mono'] -rotate-2">
-                              FINAL BOSS
-                              <span className="block text-[6px] text-white font-bold tracking-widest mt-0.5">{isProvaConcluida ? 'CONCLUÍDO! 👑' : isProvaDesbloqueada ? 'DESBLOQUEADO ⚔️' : 'BLOQUEADO 🔒'}</span>
+                              {/* Título Adesivo da Aula */}
+                              {isAtiva ? (
+                                <div className={`absolute ${titleAlign} whitespace-nowrap bg-[#ba1a1a] text-white px-3 py-1 border-2 border-black font-['Space_Mono'] text-[9px] uppercase font-bold sticker-shadow-stitch whitespace-nowrap z-20`}>
+                                  <span className="text-white animate-ping mr-1.5">●</span>
+                                  ATUAL: {aula.titulo}
+                                </div>
+                              ) : isAulaEmProducao ? (
+                                <div className={`absolute ${titleAlign} whitespace-nowrap bg-zinc-800 text-zinc-400 px-2 py-1 border-2 border-black font-['Space_Mono'] text-[8px] uppercase font-bold sticker-shadow-stitch opacity-75`}>
+                                  🛠️ EM PRODUÇÃO: {aula.titulo}
+                                </div>
+                              ) : (
+                                <div className={`absolute ${titleAlign} whitespace-nowrap bg-white border-2 border-black text-[8px] font-black uppercase text-black px-2 py-1 shadow-[3px_3px_0_#261812] pointer-events-none font-['Space_Mono'] sticker-shadow-stitch`}>
+                                  {aula.titulo}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </section>
-                );
-              })}
+                          );
+                        })}
 
-              {trilhaModulos.length === 0 && (
-                <div className="bg-[#261812] border-4 border-black p-8 text-center shadow-[4px_4px_0_#000]">
-                  <p className="text-[#feccba] font-black text-xs uppercase font-['Space_Mono']">Nenhum módulo EAD disponível para o seu curso ainda.</p>
-                  <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-wider mt-2">Em breve, nossos professores adicionarão videoaulas exclusivas aqui!</p>
-                </div>
-              )}
-            </div>
-          )}
+                        {/* Prova Geral do Módulo no final da trilha (Boss Level) */}
+                        {modulo.prova_final && Array.isArray(modulo.prova_final) && modulo.prova_final.length > 0 && (() => {
+                          const todasAulasConcluidas = modAulas.length > 0 && modAulas.every(a => 
+                            trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
+                          );
+                          const isProvaConcluida = alunoData?.conquistas?.some((c: any) => 
+                            Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id)
+                          );
+                          const isProvaDesbloqueada = !isEmProducao && isModuloDesbloqueado && todasAulasConcluidas;
+
+                          return (
+                            <div className="relative flex flex-col items-center justify-center mt-8 z-10">
+                              <button
+                                disabled={!isProvaDesbloqueada}
+                                onClick={() => {
+                                  setSelectedTrilhaModulo(modulo);
+                                  setQuestionarioFinalizado(false);
+                                  setQuestionarioCorreto(null);
+                                  setQuestionarioRespostas({});
+                                  setCurrentQuestionIdx(0);
+                                  setTentativaResultado(null);
+                                }}
+                                className={`w-20 h-20 border-4 border-black flex items-center justify-center font-black text-2xl transition-all active:translate-y-1 shadow-[8px_8px_0px_0px_rgba(38,24,18,0.5)] rounded-xl ${
+                                  isProvaConcluida 
+                                    ? 'bg-[#ffeb3b] text-black border-yellow-600 hover:scale-105' 
+                                    : isProvaDesbloqueada 
+                                      ? 'bg-[#ba1a1a] text-white hover:scale-105 animate-bounce' 
+                                      : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'
+                                }`}
+                                title="Prova Geral do Módulo (Boss Level)"
+                              >
+                                <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: isProvaConcluida ? "'FILL' 1" : undefined }}>
+                                  {isProvaConcluida ? 'grade' : 'grade'}
+                                </span>
+                              </button>
+
+                              {/* Placa da Prova */}
+                              <div className="absolute top-[88px] whitespace-nowrap bg-black border-2 border-[#ff6b00] text-[8px] font-black uppercase text-[#ff6b00] px-3 py-1 shadow-[3px_3px_0_#261812] text-center font-['Space_Mono'] -rotate-2">
+                                FINAL BOSS
+                                <span className="block text-[6px] text-white font-bold tracking-widest mt-0.5">
+                                  {isEmProducao ? 'EM BREVE 🛠️' : isProvaConcluida ? 'CONCLUÍDO! 👑' : isProvaDesbloqueada ? 'DESBLOQUEADO ⚔️' : 'BLOQUEADO 🔒'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </section>
+                  );
+                })}
+
+                {modulosCompletos.length === 0 && (
+                  <div className="bg-[#261812] border-4 border-black p-8 text-center shadow-[4px_4px_0_#000]">
+                    <p className="text-[#feccba] font-black text-xs uppercase font-['Space_Mono']">Nenhum módulo EAD disponível para o seu curso ainda.</p>
+                    <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-wider mt-2">Em breve, nossos professores adicionarão videoaulas exclusivas aqui!</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ===== ABA: JOGOS ===== */}
           {activeTab === 'jogos' && (

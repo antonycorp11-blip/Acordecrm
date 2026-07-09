@@ -2865,7 +2865,15 @@ async function startServer() {
             }
 
             if (reposicao) {
-                await supabase.from('aulas').update({ status: 'reposicao', data: null, horario: null }).eq('id', originalId);
+                const { data: aulaAtual } = await supabase.from('aulas').select('data').eq('id', originalId).single();
+                const dataOriginal = aulaAtual ? (aulaAtual as any).data : null;
+
+                await supabase.from('aulas').update({ 
+                    status: 'reposicao', 
+                    data: '2099-12-31', 
+                    horario: '00:00',
+                    data_original: dataOriginal 
+                }).eq('id', originalId);
             } else {
                 await supabase.from('aulas').update({ status: 'falta' }).eq('id', originalId);
             }

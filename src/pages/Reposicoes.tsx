@@ -70,7 +70,13 @@ export function Reposicoes() {
                   <div className="flex items-center gap-2 mb-2">
                     <Calendar className="w-4 h-4 text-[#ff6b00]" />
                     <span className="text-xs font-black uppercase text-black">Data Original:</span>
-                    <span className="text-xs font-bold text-black">{aula.data_original ? aula.data_original.split('-').reverse().join('/') : (aula.data ? aula.data.split('-').reverse().join('/') : 'Desconhecida')}</span>
+                    <span className="text-xs font-bold text-black">
+                      {aula.data_original && aula.data_original !== '2099-12-31'
+                        ? aula.data_original.split('-').reverse().join('/') 
+                        : (aula.data && aula.data !== '2099-12-31' 
+                          ? aula.data.split('-').reverse().join('/') 
+                          : 'A agendar')}
+                    </span>
                   </div>
                   {aula.motivo_cancelamento && (
                     <div className="pt-2 border-t-2 border-black/10 mt-2">
