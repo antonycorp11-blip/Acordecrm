@@ -1557,47 +1557,68 @@ export default function AreaAluno() {
               </div>
 
               {trilhaModulos.map((modulo, modIdx) => {
-                const modAulas = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modulo.id));
-                
-                // Módulo desbloqueado se o anterior foi concluído
-                const isModuloDesbloqueado = modIdx === 0 || (() => {
-                  const modAnterior = trilhaModulos[modIdx - 1];
-                  const aulasModAnterior = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modAnterior.id));
-                  const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => 
-                    trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
-                  );
-                  const provaConcluida = !modAnterior.prova_final || (
-                    Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0
-                  ) || (alunoData?.conquistas?.some((c: any) => 
-                    Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)
-                  ));
-                  return todasConcluidas && provaConcluida;
-                })();
+                  const modAulas = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modulo.id));
+                  
+                  // Módulo desbloqueado se o anterior foi concluído
+                  const isModuloDesbloqueado = modIdx === 0 || (() => {
+                    const modAnterior = trilhaModulos[modIdx - 1];
+                    const aulasModAnterior = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modAnterior.id));
+                    const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => 
+                      trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
+                    );
+                    const provaConcluida = !modAnterior.prova_final || (
+                      Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0
+                    ) || (alunoData?.conquistas?.some((c: any) => 
+                      Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)
+                    ));
+                    return todasConcluidas && provaConcluida;
+                  })();
 
-                return (
-                  <div key={modulo.id} className={`border-8 border-black p-6 shadow-[10px_10px_0_#000] relative overflow-hidden bg-[#261812] transition-all text-white rounded-xl ${!isModuloDesbloqueado ? 'opacity-30 select-none pointer-events-none' : ''}`}>
-                    {/* Cabeçalho do Bioma (Sticker-Skeuomorphism) */}
-                    <div className="flex justify-center mb-10 mt-2">
-                      <div className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black shadow-[6px_6px_0_#000] -rotate-2 text-center min-w-[200px]">
-                        <span className="bg-black text-white font-black text-[8px] px-2 py-0.5 border border-black uppercase font-['Space_Mono']">
-                          Módulo {modulo.ordem}
-                        </span>
-                        <h4 className="text-sm font-black uppercase tracking-tight mt-1 font-['Space_Mono']">{modulo.nome}</h4>
-                        <p className="text-[8px] text-[#ffdbcc] font-bold uppercase tracking-wider mt-0.5">{modulo.descricao || 'Estágio de aprendizado'}</p>
+                  return (
+                    <div key={modulo.id} className={`border-8 border-black p-6 shadow-[10px_10px_0_#000] relative overflow-hidden bg-[#261812] transition-all text-white rounded-xl ${!isModuloDesbloqueado ? 'opacity-30 select-none pointer-events-none' : ''}`}>
+                      {/* Cabeçalho do Bioma (Sticker-Skeuomorphism) */}
+                      <div className="flex justify-center mb-10 mt-2">
+                        <div className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black shadow-[6px_6px_0_#000] -rotate-2 text-center min-w-[200px]">
+                          <span className="bg-black text-white font-black text-[8px] px-2 py-0.5 border border-black uppercase font-['Space_Mono']">
+                            Módulo {modulo.ordem}
+                          </span>
+                          <h4 className="text-sm font-black uppercase tracking-tight mt-1 font-['Space_Mono']">{modulo.nome}</h4>
+                          <p className="text-[8px] text-[#ffdbcc] font-bold uppercase tracking-wider mt-0.5">{modulo.descricao || 'Estágio de aprendizado'}</p>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Canvas do Mapa do Bioma */}
-                    <div className="flex flex-col items-center gap-16 relative py-12 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[350px] rounded-lg">
-                      {/* Elementos flutuantes decorativos 8-bit no fundo */}
-                      <div className="absolute top-8 left-4 floating-sticker-stitch opacity-25 text-3xl select-none pointer-events-none">🎵</div>
-                      <div className="absolute bottom-12 right-6 floating-sticker-stitch opacity-20 text-4xl select-none pointer-events-none" style={{ animationDelay: '1.5s' }}>⭐</div>
-                      <div className="absolute top-1/2 right-4 floating-sticker-stitch opacity-15 text-3xl select-none pointer-events-none" style={{ animationDelay: '0.8s' }}>🎸</div>
+                      {/* Canvas do Mapa do Bioma */}
+                      <div className="flex flex-col items-center gap-20 relative py-12 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[350px] rounded-lg">
+                        {/* Elementos flutuantes decorativos 8-bit no fundo */}
+                        <div className="absolute top-8 left-4 floating-sticker-stitch opacity-25 text-3xl select-none pointer-events-none">🎵</div>
+                        <div className="absolute bottom-12 right-6 floating-sticker-stitch opacity-20 text-4xl select-none pointer-events-none" style={{ animationDelay: '1.5s' }}>⭐</div>
+                        <div className="absolute top-1/2 right-4 floating-sticker-stitch opacity-15 text-3xl select-none pointer-events-none" style={{ animationDelay: '0.8s' }}>🎸</div>
 
-                      {/* Linha vertical pontilhada de conexão (Candy Crush Trail) */}
-                      <div className="absolute top-0 bottom-0 w-1 border-l-4 border-dashed border-[#5a4136] left-1/2 -translate-x-1/2"></div>
-                      
-                      {modAulas.map((aula, aulaIdx) => {
+                        {/* Caminho Curvo Candy Crush Dinâmico (Stitch Style) */}
+                        <svg 
+                          className="absolute top-0 bottom-0 left-0 right-0 w-full h-full pointer-events-none z-0 opacity-80" 
+                          preserveAspectRatio="none"
+                          viewBox={`0 0 200 ${180 + modAulas.length * 140}`}
+                        >
+                          <path 
+                            d={generateSvgPath(modAulas.length)} 
+                            fill="none" 
+                            stroke="#261812" 
+                            strokeWidth="8"
+                            strokeLinecap="round"
+                          />
+                          <path 
+                            d={generateSvgPath(modAulas.length)} 
+                            fill="none" 
+                            stroke="#ff6b00" 
+                            strokeWidth="3.5" 
+                            strokeDasharray="6 6"
+                            strokeLinecap="round"
+                            className="animate-[path-glow_2s_infinite]"
+                          />
+                        </svg>
+                        
+                        {modAulas.map((aula, aulaIdx) => {
                         const isConcluida = trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
                         const isAulaDesbloqueada = isModuloDesbloqueado && (aulaIdx === 0 || (() => {
                           const aulaAnterior = modAulas[aulaIdx - 1];
@@ -3141,5 +3162,20 @@ function YoutubePlayer({ videoUrl, onVideoComplete }: { videoUrl: string, onVide
       <div ref={playerRef} className="w-full h-full"></div>
     </div>
   );
+}
+
+// Helper para gerar o caminho curvo da trilha Candy Crush
+function generateSvgPath(numAulas: number) {
+  if (numAulas === 0) return '';
+  let path = 'M 100 40'; 
+  for (let i = 0; i < numAulas; i++) {
+    const y = 100 + i * 140;
+    const modVal = i % 4;
+    const targetX = modVal === 0 ? 55 : modVal === 2 ? 145 : 100;
+    path += ` C 100 ${y - 70}, ${targetX} ${y - 70}, ${targetX} ${y}`;
+  }
+  const yFinal = 100 + numAulas * 140;
+  path += ` C 100 ${yFinal - 70}, 100 ${yFinal - 70}, 100 ${yFinal}`;
+  return path;
 }
 
