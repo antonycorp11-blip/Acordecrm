@@ -1509,25 +1509,31 @@ export default function AreaAluno() {
                             <p 
                               className={`font-black text-xs uppercase truncate mb-0 ${isMe ? 'text-[#ff6b00]' : 'text-white'}`}
                               style={playerFont ? { fontFamily: playerFont } : {}}
-                            >{player.nome}</p>
-                          </div>
-
-                          {/* XP */}
-                          <div className="text-right shrink-0">
-                            <p className={`font-black text-sm uppercase ${isMe ? 'text-[#ff6b00]' : 'text-[#ffb300]'}`}>{player.xp} PTS</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-             </div>
-           )}
+                             >{player.nome}</p>
+                           </div>
+ 
+                           {/* XP */}
+                           <div className="text-right shrink-0">
+                             <p className={`font-black text-sm uppercase ${isMe ? 'text-[#ff6b00]' : 'text-[#ffb300]'}`}>{player.xp} PTS</p>
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+               )}
+              </div>
+            )}
 
           {/* ===== ABA: TODAS AS AULAS (TRILHA EAD - DESIGN STITCH) ===== */}
           {activeTab === 'aulas' && (
-            <div className="px-4 py-5 space-y-8 relative overflow-visible">
+            <div className="px-4 py-6 space-y-12 bg-black min-h-screen text-white font-['Space_Mono'] pb-36 relative overflow-visible rounded-xl">
+              {/* Carrega Material Symbols para ícones fiéis do Stitch */}
+              <link 
+                href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" 
+                rel="stylesheet" 
+              />
+
               {/* Estilos locais para o design do Stitch */}
               <style>{`
                 @keyframes float-stitch {
@@ -1535,8 +1541,12 @@ export default function AreaAluno() {
                     50% { transform: translateY(-10px) rotate(2deg); }
                 }
                 @keyframes pulse-white-orange-stitch {
-                    0%, 100% { background-color: #ffffff; box-shadow: 0 0 15px #ffffff, 4px 4px 0px 0px #261812; }
-                    50% { background-color: #ff6b00; box-shadow: 0 0 25px #ff6b00, 4px 4px 0px 0px #261812; }
+                    0%, 100% { background-color: #ffffff; box-shadow: 0 0 20px #ffffff, 4px 4px 0px 0px #261812; }
+                    50% { background-color: #ff6b00; box-shadow: 0 0 30px #ff6b00, 4px 4px 0px 0px #261812; }
+                }
+                @keyframes path-glow-stitch {
+                    0%, 100% { filter: drop-shadow(0 0 2px #ff6b00); }
+                    50% { filter: drop-shadow(0 0 8px #ff6b00); }
                 }
                 .floating-sticker-stitch {
                     animation: float-stitch 4s ease-in-out infinite;
@@ -1549,76 +1559,140 @@ export default function AreaAluno() {
                 }
               `}</style>
 
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-[#ff6b00] border-4 border-black px-4 py-1.5 shadow-[6px_6px_0_#000] -rotate-1">
+              <div className="flex items-center gap-3">
+                <div className="bg-[#ff6b00] border-4 border-black px-4 py-1.5 shadow-[6px_6px_0_#000] -rotate-2">
                   <h3 className="text-white font-black text-xs uppercase tracking-widest font-['Space_Mono']">📚 JORNADA MUSICAL</h3>
                 </div>
                 <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
               </div>
 
               {trilhaModulos.map((modulo, modIdx) => {
-                  const modAulas = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modulo.id));
-                  
-                  // Módulo desbloqueado se o anterior foi concluído
-                  const isModuloDesbloqueado = modIdx === 0 || (() => {
-                    const modAnterior = trilhaModulos[modIdx - 1];
-                    const aulasModAnterior = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modAnterior.id));
-                    const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => 
-                      trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
-                    );
-                    const provaConcluida = !modAnterior.prova_final || (
-                      Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0
-                    ) || (alunoData?.conquistas?.some((c: any) => 
-                      Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)
-                    ));
-                    return todasConcluidas && provaConcluida;
-                  })();
+                const modAulas = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modulo.id));
+                
+                // Módulo desbloqueado se o anterior foi concluído
+                const isModuloDesbloqueado = modIdx === 0 || (() => {
+                  const modAnterior = trilhaModulos[modIdx - 1];
+                  const aulasModAnterior = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modAnterior.id));
+                  const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => 
+                    trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
+                  );
+                  const provaConcluida = !modAnterior.prova_final || (
+                    Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0
+                  ) || (alunoData?.conquistas?.some((c: any) => 
+                    Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)
+                  ));
+                  return todasConcluidas && provaConcluida;
+                })();
 
-                  return (
-                    <div key={modulo.id} className={`border-8 border-black p-6 shadow-[10px_10px_0_#000] relative overflow-hidden bg-[#261812] transition-all text-white rounded-xl ${!isModuloDesbloqueado ? 'opacity-30 select-none pointer-events-none' : ''}`}>
-                      {/* Cabeçalho do Bioma (Sticker-Skeuomorphism) */}
-                      <div className="flex justify-center mb-10 mt-2">
-                        <div className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black shadow-[6px_6px_0_#000] -rotate-2 text-center min-w-[200px]">
-                          <span className="bg-black text-white font-black text-[8px] px-2 py-0.5 border border-black uppercase font-['Space_Mono']">
-                            Módulo {modulo.ordem}
-                          </span>
-                          <h4 className="text-sm font-black uppercase tracking-tight mt-1 font-['Space_Mono']">{modulo.nome}</h4>
-                          <p className="text-[8px] text-[#ffdbcc] font-bold uppercase tracking-wider mt-0.5">{modulo.descricao || 'Estágio de aprendizado'}</p>
-                        </div>
+                // Lógica de Temas / Biomas do Stitch
+                let biomeBg = 'bg-[#1a0f0a]';
+                let biomeLabelBg = 'bg-[#ff6b00]';
+                let biomeLabelText = 'text-white';
+                let biomeLabelRotate = '-rotate-2';
+                let biomeTitle = modulo.nome;
+                let biomeDecorations = null;
+
+                const themeIndex = modIdx % 3;
+                if (themeIndex === 0) {
+                  // Bioma 1: Floresta Synthwave
+                  biomeBg = 'bg-[#1a0f0a]';
+                  biomeLabelBg = 'bg-[#ff6b00]';
+                  biomeLabelText = 'text-white';
+                  biomeLabelRotate = '-rotate-2';
+                  biomeTitle = `Floresta Synthwave: ${modulo.nome}`;
+                  biomeDecorations = (
+                    <>
+                      <div className="absolute top-10 left-6 floating-sticker-stitch opacity-40 text-4xl select-none pointer-events-none">
+                        <span className="material-symbols-outlined text-[#ff6b00] text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>album</span>
                       </div>
+                      <div className="absolute bottom-16 right-10 floating-sticker-stitch opacity-30 text-4xl select-none pointer-events-none" style={{ animationDelay: '1.5s' }}>
+                        <span className="material-symbols-outlined text-[#feccba] text-3xl">star</span>
+                      </div>
+                    </>
+                  );
+                } else if (themeIndex === 1) {
+                  // Bioma 2: Vulcão Heavy Metal
+                  biomeBg = 'bg-[#1e0808]';
+                  biomeLabelBg = 'bg-[#ba1a1a]';
+                  biomeLabelText = 'text-white';
+                  biomeLabelRotate = 'rotate-2';
+                  biomeTitle = `Vulcão Heavy Metal: ${modulo.nome}`;
+                  biomeDecorations = (
+                    <>
+                      <div 
+                        className="absolute -top-10 left-4 w-40 h-40 bg-cover bg-center opacity-30 mix-blend-screen select-none pointer-events-none floating-sticker-stitch" 
+                        style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDpW0B_1lS2FeRskK9yqBUgOfNaEumNklcIP9yJtyecn1zp3iVkikWUeq83mrYMKzL-rCiQ-3bvw9oEExLWSaVPixN-9RYvzCM1H9JlcBfgaMGOsUj4ozPZ-h_mlg4AnkdvFJTFTBaj4zjycCOnLd7wcIplUfxWsJeC29g8Fn8K4gpNY1tsD5FBIOKr157ypOamRNy3rv0BiWt43R2__EH_pmdacNXPnQQNbBzEAmyb1meBQx6ny74Q9blApT35gWkv4yYkx9TPoV0F')" }}
+                      ></div>
+                      <div className="absolute bottom-12 left-10 floating-sticker-stitch opacity-25 text-3xl select-none pointer-events-none" style={{ animationDelay: '1s' }}>
+                        <span className="material-symbols-outlined text-[#ba1a1a] text-4xl">skull</span>
+                      </div>
+                      <div className="absolute top-1/3 right-8 floating-sticker-stitch opacity-35 text-3xl select-none pointer-events-none" style={{ animationDelay: '2s' }}>
+                        <span className="material-symbols-outlined text-[#ff6b00] text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>speaker</span>
+                      </div>
+                    </>
+                  );
+                } else {
+                  // Bioma 3: Céu Clássico
+                  biomeBg = 'bg-[#111625]';
+                  biomeLabelBg = 'bg-[#e2e2e2]';
+                  biomeLabelText = 'text-black';
+                  biomeLabelRotate = '-rotate-1';
+                  biomeTitle = `Céu Clássico: ${modulo.nome}`;
+                  biomeDecorations = (
+                    <>
+                      <div 
+                        className="absolute -top-16 -left-10 w-24 h-24 bg-cover bg-center opacity-25 select-none pointer-events-none floating-sticker-stitch" 
+                        style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAF2igrvFQ1c4a1iaeRiviObNuX2T4iigpFcpIzkA2JVz2jTihK-AnlZf9JMb32tPpT7iLtALjGOhgOD3BMZ70gCw3l2SkCgLMLVFjKB54Sb8fsfaLuWG2i8Utxqy187Kb36S27uN6aPooZXx_WGRAwOjLPLFOK8trS6U7TyMFIXt4lRpHskueUThfadfVQHHj7QX4N71L2EuK6prTdM6yYezZBbptZQwadHt0ChANP0BZNFxVh2D5gn8meawJBmNYSbFwwKx9xc0nc')" }}
+                      ></div>
+                      <div className="absolute bottom-16 right-10 floating-sticker-stitch opacity-20 text-3xl select-none pointer-events-none" style={{ animationDelay: '0.5s' }}>
+                        <span className="material-symbols-outlined text-white text-4xl">cloud</span>
+                      </div>
+                      <div className="absolute top-1/2 left-10 floating-sticker-stitch opacity-30 text-3xl select-none pointer-events-none" style={{ animationDelay: '2.5s' }}>
+                        <span className="material-symbols-outlined text-[#e2e2e2] text-3xl">castle</span>
+                      </div>
+                    </>
+                  );
+                }
 
-                      {/* Canvas do Mapa do Bioma */}
-                      <div className="flex flex-col items-center gap-20 relative py-12 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[350px] rounded-lg">
-                        {/* Elementos flutuantes decorativos 8-bit no fundo */}
-                        <div className="absolute top-8 left-4 floating-sticker-stitch opacity-25 text-3xl select-none pointer-events-none">🎵</div>
-                        <div className="absolute bottom-12 right-6 floating-sticker-stitch opacity-20 text-4xl select-none pointer-events-none" style={{ animationDelay: '1.5s' }}>⭐</div>
-                        <div className="absolute top-1/2 right-4 floating-sticker-stitch opacity-15 text-3xl select-none pointer-events-none" style={{ animationDelay: '0.8s' }}>🎸</div>
+                return (
+                  <section key={modulo.id} className={`border-8 border-black p-6 shadow-[10px_10px_0_#000] relative overflow-hidden ${biomeBg} transition-all text-white rounded-xl ${!isModuloDesbloqueado ? 'opacity-30 select-none pointer-events-none' : ''}`}>
+                    {/* Cabeçalho do Bioma (Sticker-Skeuomorphism do Stitch) */}
+                    <div className="flex justify-center mb-12 mt-2">
+                      <div className={`${biomeLabelBg} ${biomeLabelText} px-6 py-3 border-2 border-black shadow-[4px_4px_0px_0px_rgba(38,24,18,1)] ${biomeLabelRotate} text-center min-w-[220px]`}>
+                        <h2 className="font-['Space_Mono'] font-bold uppercase tracking-tighter text-xs sm:text-sm">{biomeTitle}</h2>
+                      </div>
+                    </div>
 
-                        {/* Caminho Curvo Candy Crush Dinâmico (Stitch Style) */}
-                        <svg 
-                          className="absolute top-0 bottom-0 left-0 right-0 w-full h-full pointer-events-none z-0 opacity-80" 
-                          preserveAspectRatio="none"
-                          viewBox={`0 0 200 ${180 + modAulas.length * 140}`}
-                        >
-                          <path 
-                            d={generateSvgPath(modAulas.length)} 
-                            fill="none" 
-                            stroke="#261812" 
-                            strokeWidth="8"
-                            strokeLinecap="round"
-                          />
-                          <path 
-                            d={generateSvgPath(modAulas.length)} 
-                            fill="none" 
-                            stroke="#ff6b00" 
-                            strokeWidth="3.5" 
-                            strokeDasharray="6 6"
-                            strokeLinecap="round"
-                            className="animate-[path-glow_2s_infinite]"
-                          />
-                        </svg>
-                        
-                        {modAulas.map((aula, aulaIdx) => {
+                    {/* Canvas do Mapa do Bioma */}
+                    <div className="flex flex-col items-center gap-24 relative py-16 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[380px] rounded-lg">
+                      {/* Decorações do Bioma */}
+                      {biomeDecorations}
+
+                      {/* Caminho Curvo Candy Crush Dinâmico (Stitch Style) */}
+                      <svg 
+                        className="absolute top-0 bottom-0 left-0 right-0 w-full h-full pointer-events-none z-0 opacity-70" 
+                        preserveAspectRatio="none"
+                        viewBox={`0 0 200 ${220 + modAulas.length * 140}`}
+                      >
+                        <path 
+                          d={generateSvgPath(modAulas.length)} 
+                          fill="none" 
+                          stroke="#5a4136" 
+                          strokeWidth="8"
+                          strokeLinecap="round"
+                        />
+                        <path 
+                          d={generateSvgPath(modAulas.length)} 
+                          fill="none" 
+                          stroke="#ff6b00" 
+                          strokeWidth="4" 
+                          strokeDasharray="6 6"
+                          strokeLinecap="round"
+                          className="animate-[path-glow-stitch_2s_infinite]"
+                        />
+                      </svg>
+                      
+                      {modAulas.map((aula, aulaIdx) => {
                         const isConcluida = trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
                         const isAulaDesbloqueada = isModuloDesbloqueado && (aulaIdx === 0 || (() => {
                           const aulaAnterior = modAulas[aulaIdx - 1];
@@ -1636,54 +1710,73 @@ export default function AreaAluno() {
                               : 'translate-x-0';
                         
                         const titleAlign = modVal === 0 
-                          ? 'left-[72px] sm:left-[95px] top-1/2 -translate-y-1/2 text-left rotate-3' 
+                          ? 'left-[76px] sm:left-[98px] top-1/2 -translate-y-1/2 text-left rotate-6' 
                           : modVal === 2 
-                            ? 'right-[72px] sm:right-[95px] top-1/2 -translate-y-1/2 text-right -rotate-3' 
-                            : 'top-[72px] sm:top-[95px] left-1/2 -translate-x-1/2 text-center rotate-1';
+                            ? 'right-[76px] sm:right-[98px] top-1/2 -translate-y-1/2 text-right -rotate-3' 
+                            : 'top-[76px] sm:top-[98px] left-1/2 -translate-x-1/2 text-center rotate-1';
 
                         const isAtiva = isAulaDesbloqueada && !isConcluida;
 
                         return (
                           <div key={aula.id} className={`relative flex items-center justify-center transition-all ${translateVal} z-10`}>
-                            {/* Botão Círculo da Aula */}
-                            <button
-                              disabled={!isAulaDesbloqueada}
-                              onClick={() => {
-                                setSelectedTrilhaAula(aula);
-                                setVideoCompleto(false);
-                                setQuestionarioFinalizado(false);
-                                setQuestionarioCorreto(null);
-                                setQuestionarioRespostas({});
-                                setCurrentQuestionIdx(0);
-                                setTentativaResultado(null);
-                              }}
-                              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-black flex items-center justify-center font-black text-xl transition-all active:translate-y-1 shadow-[4px_4px_0_#261812] focus:outline-none ${
-                                isConcluida 
-                                  ? 'bg-[#a04100] text-white hover:scale-105' 
-                                  : isAtiva 
-                                    ? 'active-node-stitch text-black hover:scale-105' 
-                                    : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'
-                              }`}
-                            >
-                              {isConcluida ? (
-                                <span className="text-sm">⭐</span>
-                              ) : isAulaDesbloqueada ? (
-                                <span className="text-sm">▶️</span>
-                              ) : (
-                                <span className="text-xs">🔒</span>
-                              )}
-                            </button>
+                            {/* Botão do Círculo da Aula no Estilo Stitch */}
+                            {isConcluida ? (
+                              <button
+                                disabled={!isAulaDesbloqueada}
+                                onClick={() => {
+                                  setSelectedTrilhaAula(aula);
+                                  setVideoCompleto(false);
+                                  setQuestionarioFinalizado(false);
+                                  setQuestionarioCorreto(null);
+                                  setQuestionarioRespostas({});
+                                  setCurrentQuestionIdx(0);
+                                  setTentativaResultado(null);
+                                }}
+                                className="w-16 h-16 bg-[#a04100] rounded-full border-2 border-black flex items-center justify-center hover:scale-115 transition-transform active:translate-y-1 shadow-[4px_4px_0px_0px_#261812] cursor-pointer"
+                              >
+                                <span className="material-symbols-outlined text-white text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                  {obterIconeStitch(aula.titulo)}
+                                </span>
+                              </button>
+                            ) : isAtiva ? (
+                              <div 
+                                onClick={() => {
+                                  setSelectedTrilhaAula(aula);
+                                  setVideoCompleto(false);
+                                  setQuestionarioFinalizado(false);
+                                  setQuestionarioCorreto(null);
+                                  setQuestionarioRespostas({});
+                                  setCurrentQuestionIdx(0);
+                                  setTentativaResultado(null);
+                                }}
+                                className="active-node-stitch w-20 h-20 rounded-full border-4 border-black flex items-center justify-center cursor-pointer hover:scale-105 transition-all"
+                              >
+                                <span className="material-symbols-outlined text-black text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                  {obterIconeStitch(aula.titulo)}
+                                </span>
+                              </div>
+                            ) : (
+                              <button className="w-16 h-16 bg-[#3d2d26] rounded-full border-2 border-[#5a4136] flex items-center justify-center cursor-not-allowed opacity-60">
+                                <span className="material-symbols-outlined text-[#5a4136] text-3xl">lock</span>
+                              </button>
+                            )}
 
                             {/* Título Adesivo da Aula */}
-                            <div className={`absolute ${titleAlign} whitespace-nowrap bg-white border-2 border-[#261812] text-[8px] font-black uppercase text-black px-2 py-1 shadow-[3px_3px_0_#261812] pointer-events-none font-['Space_Mono'] sticker-shadow-stitch`}>
-                              {isAtiva && <span className="text-red-600 animate-pulse mr-1">●</span>}
-                              {aula.titulo}
-                            </div>
+                            {isAtiva ? (
+                              <div className={`absolute ${titleAlign} whitespace-nowrap bg-[#ba1a1a] text-white px-3 py-1 border-2 border-black font-['Space_Mono'] text-[9px] uppercase font-bold sticker-shadow-stitch whitespace-nowrap z-20`}>
+                                <span className="text-white animate-ping mr-1.5">●</span>
+                                ATUAL: {aula.titulo}
+                              </div>
+                            ) : (
+                              <div className={`absolute ${titleAlign} whitespace-nowrap bg-white border-2 border-black text-[8px] font-black uppercase text-black px-2 py-1 shadow-[3px_3px_0_#261812] pointer-events-none font-['Space_Mono'] sticker-shadow-stitch`}>
+                                {aula.titulo}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
 
-                      {/* Prova Geral do Módulo no final da trilha */}
+                      {/* Prova Geral do Módulo no final da trilha (Boss Level) */}
                       {modulo.prova_final && Array.isArray(modulo.prova_final) && modulo.prova_final.length > 0 && (() => {
                         const todasAulasConcluidas = modAulas.length > 0 && modAulas.every(a => 
                           trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
@@ -1705,30 +1798,30 @@ export default function AreaAluno() {
                                 setCurrentQuestionIdx(0);
                                 setTentativaResultado(null);
                               }}
-                              className={`w-18 h-18 sm:w-20 sm:h-20 border-4 border-black flex items-center justify-center font-black text-2xl transition-all active:translate-y-1 shadow-[6px_6px_0_#261812] rounded-xl ${
+                              className={`w-20 h-20 border-4 border-black flex items-center justify-center font-black text-2xl transition-all active:translate-y-1 shadow-[8px_8px_0px_0px_rgba(38,24,18,0.5)] rounded-xl ${
                                 isProvaConcluida 
                                   ? 'bg-[#ffeb3b] text-black border-yellow-600 hover:scale-105' 
                                   : isProvaDesbloqueada 
                                     ? 'bg-[#ba1a1a] text-white hover:scale-105 animate-bounce' 
                                     : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'
                               }`}
-                              title="Prova Geral do Módulo"
+                              title="Prova Geral do Módulo (Boss Level)"
                             >
-                              <div>
-                                {isProvaConcluida ? '👑' : '🏆'}
-                              </div>
+                              <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: isProvaConcluida ? "'FILL' 1" : undefined }}>
+                                {isProvaConcluida ? 'grade' : 'grade'}
+                              </span>
                             </button>
 
                             {/* Placa da Prova */}
-                            <div className="absolute top-[82px] whitespace-nowrap bg-black border-2 border-[#ff6b00] text-[7.5px] font-black uppercase text-[#ff6b00] px-3 py-1 shadow-[3px_3px_0_#261812] text-center font-['Space_Mono'] -rotate-1">
-                              PROVA GERAL DO MÓDULO
+                            <div className="absolute top-[88px] whitespace-nowrap bg-black border-2 border-[#ff6b00] text-[8px] font-black uppercase text-[#ff6b00] px-3 py-1 shadow-[3px_3px_0_#261812] text-center font-['Space_Mono'] -rotate-2">
+                              FINAL BOSS
                               <span className="block text-[6px] text-white font-bold tracking-widest mt-0.5">{isProvaConcluida ? 'CONCLUÍDO! 👑' : isProvaDesbloqueada ? 'DESBLOQUEADO ⚔️' : 'BLOQUEADO 🔒'}</span>
                             </div>
                           </div>
                         );
                       })()}
                     </div>
-                  </div>
+                  </section>
                 );
               })}
 
@@ -3177,5 +3270,15 @@ function generateSvgPath(numAulas: number) {
   const yFinal = 100 + numAulas * 140;
   path += ` C 100 ${yFinal - 70}, 100 ${yFinal - 70}, 100 ${yFinal}`;
   return path;
+}
+
+// Helper para selecionar os ícones 8-bit fiéis ao Stitch com base no título
+function obterIconeStitch(titulo: string) {
+  const t = (titulo || '').toLowerCase();
+  if (t.includes('piano') || t.includes('teclado') || t.includes('sintetizador') || t.includes('notas')) return 'piano';
+  if (t.includes('ritmo') || t.includes('bateria') || t.includes('tempo') || t.includes('síntese') || t.includes('som')) return 'graphic_eq';
+  if (t.includes('violão') || t.includes('guitarra') || t.includes('baixo') || t.includes('acorde')) return 'music_note';
+  if (t.includes('teoria') || t.includes('partitura') || t.includes('leitura') || t.includes('escrever')) return 'menu_book';
+  return 'music_note';
 }
 
