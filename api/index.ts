@@ -2649,7 +2649,7 @@ async function startServer() {
             }
 
             let query = supabase.from('aulas')
-                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, alunos(nome, status), professores(nome), cursos(nome), matriculas(status)')
+                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, tipo, alunos(nome, status), professores(nome), cursos(nome), matriculas(status)')
                 .order('data', { ascending: true });
             
             if (start) query = query.gte('data', start);
