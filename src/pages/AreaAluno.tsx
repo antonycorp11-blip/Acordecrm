@@ -1527,7 +1527,7 @@ export default function AreaAluno() {
 
           {/* ===== ABA: TODAS AS AULAS (TRILHA EAD) ===== */}
           {activeTab === 'aulas' && (
-            <div className="px-4 py-5 space-y-4">
+            <div className="px-4 py-5 space-y-6">
               <div className="flex items-center gap-3 mb-2">
                 <div className="bg-[#261812] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
                   <h3 className="text-[#feccba] font-black text-xs uppercase tracking-widest">📚 TRILHA PEDAGÓGICA EAD</h3>
@@ -1556,33 +1556,53 @@ export default function AreaAluno() {
                 })();
 
                 return (
-                  <div key={modulo.id} className={`border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden bg-white transition-all ${!isModuloDesbloqueado ? 'opacity-40 select-none pointer-events-none' : ''}`}>
-                    <div className="flex justify-between items-start border-b-4 border-black pb-3 mb-4">
+                  <div key={modulo.id} className={`border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden bg-[#261812] transition-all text-white ${!isModuloDesbloqueado ? 'opacity-30 select-none pointer-events-none' : ''}`}>
+                    <div className="flex justify-between items-start border-b-4 border-black pb-3 mb-6 bg-[#1a0f0a] -mx-5 -mt-5 p-4">
                       <div>
                         <span className="bg-[#ff6b00] text-white font-black text-[9px] px-2 py-0.5 border border-black uppercase">
                           Módulo {modulo.ordem}
                         </span>
-                        <h4 className="text-sm font-black text-black uppercase tracking-tight mt-1">{modulo.nome}</h4>
-                        <p className="text-[10px] text-stone-500 font-bold uppercase">{modulo.descricao}</p>
+                        <h4 className="text-sm font-black text-[#feccba] uppercase tracking-tight mt-1">{modulo.nome}</h4>
+                        <p className="text-[9px] text-[#8e7164] font-bold uppercase">{modulo.descricao}</p>
                       </div>
                       
                       {!isModuloDesbloqueado && (
-                        <span className="text-xs font-black text-stone-400">🔒 Bloqueado</span>
+                        <span className="text-xs font-black text-stone-500 flex items-center gap-1">🔒 BLOQUEADO</span>
                       )}
                     </div>
 
-                    <div className="flex flex-col gap-6 relative">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        {modAulas.map((aula, aulaIdx) => {
-                          const isConcluida = trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
-                          const isAulaDesbloqueada = isModuloDesbloqueado && (aulaIdx === 0 || (() => {
-                            const aulaAnterior = modAulas[aulaIdx - 1];
-                            return trilhaProgresso.some(p => Number(p.aula_id) === Number(aulaAnterior.id));
-                          })());
+                    {/* Trilha Candy Crush Vertical Zig-Zag */}
+                    <div className="flex flex-col items-center gap-14 relative py-10 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[300px]">
+                      {/* Linha vertical pontilhada de conexão */}
+                      <div className="absolute top-0 bottom-0 w-1 border-l-4 border-dashed border-[#ff6b00]/30 left-1/2 -translate-x-1/2"></div>
+                      
+                      {modAulas.map((aula, aulaIdx) => {
+                        const isConcluida = trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
+                        const isAulaDesbloqueada = isModuloDesbloqueado && (aulaIdx === 0 || (() => {
+                          const aulaAnterior = modAulas[aulaIdx - 1];
+                          return trilhaProgresso.some(p => Number(p.aula_id) === Number(aulaAnterior.id));
+                        })());
 
-                          return (
+                        // Lógica de desvio Candy Crush em Zig-Zag
+                        const modVal = aulaIdx % 4;
+                        const translateVal = modVal === 0 
+                          ? 'translate-x-[-45px] sm:translate-x-[-80px]' 
+                          : modVal === 1 
+                            ? 'translate-x-0' 
+                            : modVal === 2 
+                              ? 'translate-x-[45px] sm:translate-x-[80px]' 
+                              : 'translate-x-0';
+                        
+                        const titleAlign = modVal === 0 
+                          ? 'left-[68px] sm:left-[90px] top-1/2 -translate-y-1/2 text-left' 
+                          : modVal === 2 
+                            ? 'right-[68px] sm:right-[90px] top-1/2 -translate-y-1/2 text-right' 
+                            : 'top-[68px] sm:top-[90px] left-1/2 -translate-x-1/2 text-center';
+
+                        return (
+                          <div key={aula.id} className={`relative flex items-center justify-center transition-all ${translateVal} z-10`}>
+                            {/* Botão Círculo da Aula */}
                             <button
-                              key={aula.id}
                               disabled={!isAulaDesbloqueada}
                               onClick={() => {
                                 setSelectedTrilhaAula(aula);
@@ -1593,32 +1613,37 @@ export default function AreaAluno() {
                                 setCurrentQuestionIdx(0);
                                 setTentativaResultado(null);
                               }}
-                              className={`flex flex-col items-center p-3 border-4 border-black transition-all ${
+                              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-black flex items-center justify-center font-black text-lg transition-all active:scale-95 shadow-[4px_4px_0_#000] focus:outline-none ${
                                 isConcluida 
-                                  ? 'bg-emerald-100 hover:bg-emerald-200 shadow-[4px_4px_0_#10b981]' 
+                                  ? 'bg-[#4ade80] hover:bg-emerald-400 text-black shadow-[#10b981]/40' 
                                   : isAulaDesbloqueada 
-                                    ? 'bg-[#ff6b00]/10 hover:bg-[#ff6b00]/20 shadow-[4px_4px_0_#ff6b00]' 
-                                    : 'bg-stone-100 opacity-50 cursor-not-allowed shadow-none'
+                                    ? 'bg-[#ff6b00] hover:bg-[#ff8533] text-white animate-pulse' 
+                                    : 'bg-[#2b1b15] text-[#4d342a] opacity-50 cursor-not-allowed border-stone-800 shadow-none'
                               }`}
                             >
-                              <div className="w-10 h-10 rounded-full border-4 border-black bg-white flex items-center justify-center font-black text-xs">
-                                {isConcluida ? '✔️' : isAulaDesbloqueada ? '▶️' : '🔒'}
-                              </div>
-                              <span className="text-[9px] font-black uppercase text-center mt-2 leading-tight line-clamp-2">{aula.titulo}</span>
+                              {isConcluida ? '⭐' : isAulaDesbloqueada ? '▶️' : '🔒'}
                             </button>
-                          );
-                        })}
 
-                        {modulo.prova_final && Array.isArray(modulo.prova_final) && modulo.prova_final.length > 0 && (() => {
-                          const todasAulasConcluidas = modAulas.length > 0 && modAulas.every(a => 
-                            trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
-                          );
-                          const isProvaConcluida = alunoData?.conquistas?.some((c: any) => 
-                            Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id)
-                          );
-                          const isProvaDesbloqueada = isModuloDesbloqueado && todasAulasConcluidas;
+                            {/* Título Neo-Brutalista do Caminho */}
+                            <div className={`absolute ${titleAlign} whitespace-nowrap bg-[#feccba] border-2 border-black text-[8px] font-black uppercase text-black px-2 py-0.5 shadow-[2px_2px_0_#000] pointer-events-none`}>
+                              {aula.titulo}
+                            </div>
+                          </div>
+                        );
+                      })}
 
-                          return (
+                      {/* Prova Geral do Módulo no final da trilha */}
+                      {modulo.prova_final && Array.isArray(modulo.prova_final) && modulo.prova_final.length > 0 && (() => {
+                        const todasAulasConcluidas = modAulas.length > 0 && modAulas.every(a => 
+                          trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))
+                        );
+                        const isProvaConcluida = alunoData?.conquistas?.some((c: any) => 
+                          Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id)
+                        );
+                        const isProvaDesbloqueada = isModuloDesbloqueado && todasAulasConcluidas;
+
+                        return (
+                          <div className="relative flex flex-col items-center justify-center mt-6 z-10">
                             <button
                               disabled={!isProvaDesbloqueada}
                               onClick={() => {
@@ -1629,23 +1654,28 @@ export default function AreaAluno() {
                                 setCurrentQuestionIdx(0);
                                 setTentativaResultado(null);
                               }}
-                              className={`flex flex-col items-center p-3 border-4 border-black transition-all col-span-2 ${
+                              className={`w-16 h-16 sm:w-18 sm:h-18 border-4 border-black flex items-center justify-center font-black text-xl transition-all active:scale-95 shadow-[6px_6px_0_#000] rotate-45 ${
                                 isProvaConcluida 
-                                  ? 'bg-[#ffeb3b] hover:bg-[#fdd835] shadow-[4px_4px_0_#ffeb3b] text-black' 
+                                  ? 'bg-[#ffeb3b] hover:bg-[#fdd835] text-black border-yellow-600' 
                                   : isProvaDesbloqueada 
-                                    ? 'bg-black text-white hover:bg-stone-900 shadow-[4px_4px_0_#000]' 
-                                    : 'bg-stone-100 opacity-50 cursor-not-allowed shadow-none text-stone-400'
+                                    ? 'bg-[#a855f7] hover:bg-purple-600 text-white animate-bounce border-purple-800' 
+                                    : 'bg-[#2b1b15] text-[#4d342a] opacity-50 cursor-not-allowed border-stone-800 shadow-none'
                               }`}
+                              title="Prova Geral do Módulo"
                             >
-                              <div className={`w-10 h-10 rounded-full border-4 border-black flex items-center justify-center font-black text-xs ${isProvaDesbloqueada && !isProvaConcluida ? 'bg-[#ff6b00]' : 'bg-white'}`}>
-                                {isProvaConcluida ? '👑' : '📝'}
+                              <div className="-rotate-45">
+                                {isProvaConcluida ? '👑' : '🏆'}
                               </div>
-                              <span className="text-[9px] font-black uppercase text-center mt-2 leading-tight">PROVA GERAL DO MÓDULO</span>
-                              <span className="text-[7.5px] font-black text-[#ff6b00] uppercase mt-0.5">{isProvaConcluida ? 'Concluída!' : 'Desbloqueada'}</span>
                             </button>
-                          );
-                        })()}
-                      </div>
+
+                            {/* Placa da Prova */}
+                            <div className="absolute top-[75px] whitespace-nowrap bg-black border-2 border-[#ff6b00] text-[7.5px] font-black uppercase text-[#ff6b00] px-2 py-0.5 shadow-[3px_3px_0_#000] text-center">
+                              PROVA GERAL DO MÓDULO
+                              <span className="block text-[6px] text-white font-bold">{isProvaConcluida ? 'CONCLUÍDO!' : isProvaDesbloqueada ? 'DESBLOQUEADO' : 'BLOQUEADO'}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
@@ -2762,14 +2792,14 @@ export default function AreaAluno() {
 
       {/* ================= MODAL ASSISTIR VIDEOAULA EAD ================= */}
       {selectedTrilhaAula && !showQuestionarioModal && (
-        <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
-          <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-2xl relative shadow-[12px_12px_0_#000] space-y-4">
+        <div className="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-2 sm:p-4 overflow-y-auto font-['Space_Mono']">
+          <div className="bg-[#fff8f6] border-4 sm:border-8 border-black p-3 sm:p-6 w-full max-w-4xl relative shadow-[6px_6px_0_#000] sm:shadow-[12px_12px_0_#000] space-y-4">
             <div className="flex justify-between items-center border-b-4 border-black pb-3">
               <div>
                 <span className="bg-[#ff6b00] text-white font-black text-[9px] px-2 py-0.5 border border-black uppercase">
                   Assistindo Aula
                 </span>
-                <h3 className="font-black text-xs uppercase text-black mt-1">
+                <h3 className="font-black text-xs sm:text-sm uppercase text-black mt-1">
                   🎥 {selectedTrilhaAula.titulo}
                 </h3>
               </div>
@@ -2781,7 +2811,7 @@ export default function AreaAluno() {
               </button>
             </div>
 
-            {/* Player do YouTube */}
+            {/* Player do YouTube em proporção otimizada */}
             <YoutubePlayer 
               videoUrl={selectedTrilhaAula.youtube_url} 
               onVideoComplete={() => {
@@ -2795,7 +2825,7 @@ export default function AreaAluno() {
               {videoCompleto ? (
                 <button
                   onClick={() => setShowQuestionarioModal(true)}
-                  className="w-full bg-[#ff6b00] text-white border-4 border-black py-3 font-black text-xs uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-[#ff6b00] text-white border-4 border-black py-3 font-black text-xs sm:text-sm uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all flex items-center justify-center gap-2"
                 >
                   📝 INICIAR QUESTIONÁRIO DA AULA
                 </button>
