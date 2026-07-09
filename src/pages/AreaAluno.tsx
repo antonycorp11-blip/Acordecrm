@@ -1514,7 +1514,7 @@ export default function AreaAluno() {
 
                           {/* XP */}
                           <div className="text-right shrink-0">
-                            <p className={`font-black text-sm uppercase ${isMe ? 'text-[#ff6b00]' : 'text-[#ffb300]'}`}>{player.xp}</p>
+                            <p className={`font-black text-sm uppercase ${isMe ? 'text-[#ff6b00]' : 'text-[#ffb300]'}`}>{player.xp} PTS</p>
                           </div>
                         </div>
                       );
@@ -1522,15 +1522,36 @@ export default function AreaAluno() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
+             </div>
+           )}
 
-          {/* ===== ABA: TODAS AS AULAS (TRILHA EAD) ===== */}
+          {/* ===== ABA: TODAS AS AULAS (TRILHA EAD - DESIGN STITCH) ===== */}
           {activeTab === 'aulas' && (
-            <div className="px-4 py-5 space-y-6">
+            <div className="px-4 py-5 space-y-8 relative overflow-visible">
+              {/* Estilos locais para o design do Stitch */}
+              <style>{`
+                @keyframes float-stitch {
+                    0%, 100% { transform: translateY(0) rotate(0deg); }
+                    50% { transform: translateY(-10px) rotate(2deg); }
+                }
+                @keyframes pulse-white-orange-stitch {
+                    0%, 100% { background-color: #ffffff; box-shadow: 0 0 15px #ffffff, 4px 4px 0px 0px #261812; }
+                    50% { background-color: #ff6b00; box-shadow: 0 0 25px #ff6b00, 4px 4px 0px 0px #261812; }
+                }
+                .floating-sticker-stitch {
+                    animation: float-stitch 4s ease-in-out infinite;
+                }
+                .active-node-stitch {
+                    animation: pulse-white-orange-stitch 1.5s infinite;
+                }
+                .sticker-shadow-stitch {
+                    filter: drop-shadow(4px 4px 0px #261812);
+                }
+              `}</style>
+
               <div className="flex items-center gap-3 mb-2">
-                <div className="bg-[#261812] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
-                  <h3 className="text-[#feccba] font-black text-xs uppercase tracking-widest">📚 TRILHA PEDAGÓGICA EAD</h3>
+                <div className="bg-[#ff6b00] border-4 border-black px-4 py-1.5 shadow-[6px_6px_0_#000] -rotate-1">
+                  <h3 className="text-white font-black text-xs uppercase tracking-widest font-['Space_Mono']">📚 JORNADA MUSICAL</h3>
                 </div>
                 <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
               </div>
@@ -1538,9 +1559,7 @@ export default function AreaAluno() {
               {trilhaModulos.map((modulo, modIdx) => {
                 const modAulas = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modulo.id));
                 
-                // Um módulo é desbloqueado se:
-                // 1. For o primeiro módulo
-                // 2. O módulo anterior foi completamente concluído
+                // Módulo desbloqueado se o anterior foi concluído
                 const isModuloDesbloqueado = modIdx === 0 || (() => {
                   const modAnterior = trilhaModulos[modIdx - 1];
                   const aulasModAnterior = trilhaAulas.filter(a => Number(a.modulo_id) === Number(modAnterior.id));
@@ -1556,25 +1575,27 @@ export default function AreaAluno() {
                 })();
 
                 return (
-                  <div key={modulo.id} className={`border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden bg-[#261812] transition-all text-white ${!isModuloDesbloqueado ? 'opacity-30 select-none pointer-events-none' : ''}`}>
-                    <div className="flex justify-between items-start border-b-4 border-black pb-3 mb-6 bg-[#1a0f0a] -mx-5 -mt-5 p-4">
-                      <div>
-                        <span className="bg-[#ff6b00] text-white font-black text-[9px] px-2 py-0.5 border border-black uppercase">
+                  <div key={modulo.id} className={`border-8 border-black p-6 shadow-[10px_10px_0_#000] relative overflow-hidden bg-[#261812] transition-all text-white rounded-xl ${!isModuloDesbloqueado ? 'opacity-30 select-none pointer-events-none' : ''}`}>
+                    {/* Cabeçalho do Bioma (Sticker-Skeuomorphism) */}
+                    <div className="flex justify-center mb-10 mt-2">
+                      <div className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black shadow-[6px_6px_0_#000] -rotate-2 text-center min-w-[200px]">
+                        <span className="bg-black text-white font-black text-[8px] px-2 py-0.5 border border-black uppercase font-['Space_Mono']">
                           Módulo {modulo.ordem}
                         </span>
-                        <h4 className="text-sm font-black text-[#feccba] uppercase tracking-tight mt-1">{modulo.nome}</h4>
-                        <p className="text-[9px] text-[#8e7164] font-bold uppercase">{modulo.descricao}</p>
+                        <h4 className="text-sm font-black uppercase tracking-tight mt-1 font-['Space_Mono']">{modulo.nome}</h4>
+                        <p className="text-[8px] text-[#ffdbcc] font-bold uppercase tracking-wider mt-0.5">{modulo.descricao || 'Estágio de aprendizado'}</p>
                       </div>
-                      
-                      {!isModuloDesbloqueado && (
-                        <span className="text-xs font-black text-stone-500 flex items-center gap-1">🔒 BLOQUEADO</span>
-                      )}
                     </div>
 
-                    {/* Trilha Candy Crush Vertical Zig-Zag */}
-                    <div className="flex flex-col items-center gap-14 relative py-10 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[300px]">
-                      {/* Linha vertical pontilhada de conexão */}
-                      <div className="absolute top-0 bottom-0 w-1 border-l-4 border-dashed border-[#ff6b00]/30 left-1/2 -translate-x-1/2"></div>
+                    {/* Canvas do Mapa do Bioma */}
+                    <div className="flex flex-col items-center gap-16 relative py-12 px-4 bg-[#1a0f0a] border-4 border-black shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)] overflow-hidden min-h-[350px] rounded-lg">
+                      {/* Elementos flutuantes decorativos 8-bit no fundo */}
+                      <div className="absolute top-8 left-4 floating-sticker-stitch opacity-25 text-3xl select-none pointer-events-none">🎵</div>
+                      <div className="absolute bottom-12 right-6 floating-sticker-stitch opacity-20 text-4xl select-none pointer-events-none" style={{ animationDelay: '1.5s' }}>⭐</div>
+                      <div className="absolute top-1/2 right-4 floating-sticker-stitch opacity-15 text-3xl select-none pointer-events-none" style={{ animationDelay: '0.8s' }}>🎸</div>
+
+                      {/* Linha vertical pontilhada de conexão (Candy Crush Trail) */}
+                      <div className="absolute top-0 bottom-0 w-1 border-l-4 border-dashed border-[#5a4136] left-1/2 -translate-x-1/2"></div>
                       
                       {modAulas.map((aula, aulaIdx) => {
                         const isConcluida = trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
@@ -1594,10 +1615,12 @@ export default function AreaAluno() {
                               : 'translate-x-0';
                         
                         const titleAlign = modVal === 0 
-                          ? 'left-[68px] sm:left-[90px] top-1/2 -translate-y-1/2 text-left' 
+                          ? 'left-[72px] sm:left-[95px] top-1/2 -translate-y-1/2 text-left rotate-3' 
                           : modVal === 2 
-                            ? 'right-[68px] sm:right-[90px] top-1/2 -translate-y-1/2 text-right' 
-                            : 'top-[68px] sm:top-[90px] left-1/2 -translate-x-1/2 text-center';
+                            ? 'right-[72px] sm:right-[95px] top-1/2 -translate-y-1/2 text-right -rotate-3' 
+                            : 'top-[72px] sm:top-[95px] left-1/2 -translate-x-1/2 text-center rotate-1';
+
+                        const isAtiva = isAulaDesbloqueada && !isConcluida;
 
                         return (
                           <div key={aula.id} className={`relative flex items-center justify-center transition-all ${translateVal} z-10`}>
@@ -1613,19 +1636,26 @@ export default function AreaAluno() {
                                 setCurrentQuestionIdx(0);
                                 setTentativaResultado(null);
                               }}
-                              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-black flex items-center justify-center font-black text-lg transition-all active:scale-95 shadow-[4px_4px_0_#000] focus:outline-none ${
+                              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full border-4 border-black flex items-center justify-center font-black text-xl transition-all active:translate-y-1 shadow-[4px_4px_0_#261812] focus:outline-none ${
                                 isConcluida 
-                                  ? 'bg-[#4ade80] hover:bg-emerald-400 text-black shadow-[#10b981]/40' 
-                                  : isAulaDesbloqueada 
-                                    ? 'bg-[#ff6b00] hover:bg-[#ff8533] text-white animate-pulse' 
-                                    : 'bg-[#2b1b15] text-[#4d342a] opacity-50 cursor-not-allowed border-stone-800 shadow-none'
+                                  ? 'bg-[#a04100] text-white hover:scale-105' 
+                                  : isAtiva 
+                                    ? 'active-node-stitch text-black hover:scale-105' 
+                                    : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'
                               }`}
                             >
-                              {isConcluida ? '⭐' : isAulaDesbloqueada ? '▶️' : '🔒'}
+                              {isConcluida ? (
+                                <span className="text-sm">⭐</span>
+                              ) : isAulaDesbloqueada ? (
+                                <span className="text-sm">▶️</span>
+                              ) : (
+                                <span className="text-xs">🔒</span>
+                              )}
                             </button>
 
-                            {/* Título Neo-Brutalista do Caminho */}
-                            <div className={`absolute ${titleAlign} whitespace-nowrap bg-[#feccba] border-2 border-black text-[8px] font-black uppercase text-black px-2 py-0.5 shadow-[2px_2px_0_#000] pointer-events-none`}>
+                            {/* Título Adesivo da Aula */}
+                            <div className={`absolute ${titleAlign} whitespace-nowrap bg-white border-2 border-[#261812] text-[8px] font-black uppercase text-black px-2 py-1 shadow-[3px_3px_0_#261812] pointer-events-none font-['Space_Mono'] sticker-shadow-stitch`}>
+                              {isAtiva && <span className="text-red-600 animate-pulse mr-1">●</span>}
                               {aula.titulo}
                             </div>
                           </div>
@@ -1643,7 +1673,7 @@ export default function AreaAluno() {
                         const isProvaDesbloqueada = isModuloDesbloqueado && todasAulasConcluidas;
 
                         return (
-                          <div className="relative flex flex-col items-center justify-center mt-6 z-10">
+                          <div className="relative flex flex-col items-center justify-center mt-8 z-10">
                             <button
                               disabled={!isProvaDesbloqueada}
                               onClick={() => {
@@ -1654,24 +1684,24 @@ export default function AreaAluno() {
                                 setCurrentQuestionIdx(0);
                                 setTentativaResultado(null);
                               }}
-                              className={`w-16 h-16 sm:w-18 sm:h-18 border-4 border-black flex items-center justify-center font-black text-xl transition-all active:scale-95 shadow-[6px_6px_0_#000] rotate-45 ${
+                              className={`w-18 h-18 sm:w-20 sm:h-20 border-4 border-black flex items-center justify-center font-black text-2xl transition-all active:translate-y-1 shadow-[6px_6px_0_#261812] rounded-xl ${
                                 isProvaConcluida 
-                                  ? 'bg-[#ffeb3b] hover:bg-[#fdd835] text-black border-yellow-600' 
+                                  ? 'bg-[#ffeb3b] text-black border-yellow-600 hover:scale-105' 
                                   : isProvaDesbloqueada 
-                                    ? 'bg-[#a855f7] hover:bg-purple-600 text-white animate-bounce border-purple-800' 
-                                    : 'bg-[#2b1b15] text-[#4d342a] opacity-50 cursor-not-allowed border-stone-800 shadow-none'
+                                    ? 'bg-[#ba1a1a] text-white hover:scale-105 animate-bounce' 
+                                    : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'
                               }`}
                               title="Prova Geral do Módulo"
                             >
-                              <div className="-rotate-45">
+                              <div>
                                 {isProvaConcluida ? '👑' : '🏆'}
                               </div>
                             </button>
 
                             {/* Placa da Prova */}
-                            <div className="absolute top-[75px] whitespace-nowrap bg-black border-2 border-[#ff6b00] text-[7.5px] font-black uppercase text-[#ff6b00] px-2 py-0.5 shadow-[3px_3px_0_#000] text-center">
+                            <div className="absolute top-[82px] whitespace-nowrap bg-black border-2 border-[#ff6b00] text-[7.5px] font-black uppercase text-[#ff6b00] px-3 py-1 shadow-[3px_3px_0_#261812] text-center font-['Space_Mono'] -rotate-1">
                               PROVA GERAL DO MÓDULO
-                              <span className="block text-[6px] text-white font-bold">{isProvaConcluida ? 'CONCLUÍDO!' : isProvaDesbloqueada ? 'DESBLOQUEADO' : 'BLOQUEADO'}</span>
+                              <span className="block text-[6px] text-white font-bold tracking-widest mt-0.5">{isProvaConcluida ? 'CONCLUÍDO! 👑' : isProvaDesbloqueada ? 'DESBLOQUEADO ⚔️' : 'BLOQUEADO 🔒'}</span>
                             </div>
                           </div>
                         );
@@ -1683,8 +1713,8 @@ export default function AreaAluno() {
 
               {trilhaModulos.length === 0 && (
                 <div className="bg-[#261812] border-4 border-black p-8 text-center shadow-[4px_4px_0_#000]">
-                  <p className="text-[#feccba] font-black text-xs uppercase">Nenhum módulo EAD disponível para o seu curso ainda.</p>
-                  <p className="text-[#8e7164] font-black text-[9px] uppercase mt-2">Em breve, nossos professores adicionarão videoaulas exclusivas aqui!</p>
+                  <p className="text-[#feccba] font-black text-xs uppercase font-['Space_Mono']">Nenhum módulo EAD disponível para o seu curso ainda.</p>
+                  <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-wider mt-2">Em breve, nossos professores adicionarão videoaulas exclusivas aqui!</p>
                 </div>
               )}
             </div>
