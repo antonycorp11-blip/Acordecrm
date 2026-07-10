@@ -80,7 +80,10 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         
         {/* Header Mobile (visível apenas em telas pequenas) */}
-        <header className="flex md:hidden items-center justify-between px-4 py-3 bg-[#fff8f6] border-b-4 border-[#261812] sticky top-0 z-30 w-full shrink-0">
+        <header 
+          className="flex md:hidden items-center justify-between px-4 pb-3 bg-[#fff8f6] border-b-4 border-[#261812] sticky top-0 z-30 w-full shrink-0"
+          style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}
+        >
           <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-1 text-[#261812] active:scale-95 transition-transform"
