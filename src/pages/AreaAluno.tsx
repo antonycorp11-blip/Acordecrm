@@ -2975,7 +2975,7 @@ export default function AreaAluno() {
         
         const currentQ = questions[currentQuestionIdx];
         const conqId = isProva ? selectedTrilhaModulo.conquista_id : selectedTrilhaAula?.conquista_id;
-        const correspondenteConquista = conquistas.find((c: any) => Number(c.id) === Number(conqId));
+        const correspondenteConquista = (todasConquistas || []).find((c: any) => Number(c.id) === Number(conqId));
 
         return (
           <div className="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
