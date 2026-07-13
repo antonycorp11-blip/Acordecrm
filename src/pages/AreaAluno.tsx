@@ -2964,9 +2964,14 @@ export default function AreaAluno() {
       {/* ================= MODAL QUESTIONÁRIO / PROVA GERAL ================= */}
       {(showQuestionarioModal || selectedTrilhaModulo) && (() => {
         const isProva = !!selectedTrilhaModulo;
-        const questions = isProva 
+        let rawQuestions = isProva 
           ? selectedTrilhaModulo.prova_final 
-          : (selectedTrilhaAula?.questionario || []);
+          : selectedTrilhaAula?.questionario;
+        
+        if (typeof rawQuestions === 'string') {
+            try { rawQuestions = JSON.parse(rawQuestions); } catch(e) { rawQuestions = []; }
+        }
+        const questions = Array.isArray(rawQuestions) ? rawQuestions : [];
         
         const currentQ = questions[currentQuestionIdx];
         const conqId = isProva ? selectedTrilhaModulo.conquista_id : selectedTrilhaAula?.conquista_id;
@@ -3009,7 +3014,7 @@ export default function AreaAluno() {
 
                   {/* Alternativas */}
                   <div className="space-y-2">
-                    {currentQ?.opcoes.map((opt: string, optIdx: number) => {
+                    {(currentQ?.opcoes || []).map((opt: string, optIdx: number) => {
                       const isSelected = questionarioRespostas[currentQuestionIdx] === optIdx;
                       return (
                         <button
