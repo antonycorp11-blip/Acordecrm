@@ -1566,10 +1566,11 @@ async function startServer() {
             if (pagamentosToInsert.length > 0) {
                 const { error: errPagamentos } = await supabase.from('pagamentos').insert(pagamentosToInsert);
                 if (errPagamentos) {
-                await supabase.from('aulas').delete().eq('matricula_id', matricula.id);
-                await supabase.from('matriculas').delete().eq('id', matricula.id);
-                await supabase.from('alunos').delete().eq('id', aluno.id);
-                throw errPagamentos;
+                    await supabase.from('aulas').delete().eq('matricula_id', matricula.id);
+                    await supabase.from('matriculas').delete().eq('id', matricula.id);
+                    await supabase.from('alunos').delete().eq('id', aluno.id);
+                    throw errPagamentos;
+                }
             }
             // 5. Automatização do Status do Lead para Matriculado
             if (telefone) {
