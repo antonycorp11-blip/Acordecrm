@@ -1473,13 +1473,14 @@ async function startServer() {
             if (errA) throw errA;
 
             // 2. Criar Matrícula
+            const parsedDiaSemana = dia_semana ? new Date(dia_semana) : new Date();
             const { data: matricula, error: errM } = await supabase.from('matriculas').insert([{
                 aluno_id: aluno.id, 
                 curso_id, 
                 professor_id, 
-                dia_semana: dia_semana ? new Date(dia_semana).getDay() : null,
+                dia_semana: !isNaN(parsedDiaSemana.getTime()) ? parsedDiaSemana.getDay() : null,
                 horario, 
-                sala_id, 
+                sala_id: sala_id || null, 
                 pacote_id,
                 data_primeira_parcela: data_primeira_parcela || null,
                 dia_vencimento,
@@ -1489,7 +1490,7 @@ async function startServer() {
             }]).select().single();
             if (errM) {
                 await supabase.from('alunos').delete().eq('id', aluno.id);
-                throw errM;
+                throw new Error(`Erro ao criar matrícula: ${errM.message || JSON.stringify(errM)}`);
             }
 
             // 3. Automação de Aulas (Reserva na Agenda)
@@ -1497,7 +1498,8 @@ async function startServer() {
             const totalAulas = pacote?.total_aulas || 1;
             
             const aulasToInsert = [];
-            let currentAulaDate = new Date(dia_semana);
+            let currentAulaDate = new Date(dia_semana || new Date());
+            if (isNaN(currentAulaDate.getTime())) currentAulaDate = new Date();
             
             for (let i = 0; i < totalAulas; i++) {
                 // Pular feriados
@@ -1510,7 +1512,7 @@ async function startServer() {
                     matricula_id: matricula.id,
                     professor_id,
                     curso_id,
-                    sala_id,
+                    sala_id: sala_id || null,
                     data: currentAulaDate.toISOString().split('T')[0],
                     horario,
                     status: 'pendente',
@@ -1519,16 +1521,19 @@ async function startServer() {
                 // Próxima semana
                 currentAulaDate.setDate(currentAulaDate.getDate() + 7);
             }
-            const { error: errAulas } = await supabase.from('aulas').insert(aulasToInsert);
-            if (errAulas) {
-                await supabase.from('matriculas').delete().eq('id', matricula.id);
-                await supabase.from('alunos').delete().eq('id', aluno.id);
-                throw errAulas;
+            if (aulasToInsert.length > 0) {
+                const { error: errAulas } = await supabase.from('aulas').insert(aulasToInsert);
+                if (errAulas) {
+                    await supabase.from('matriculas').delete().eq('id', matricula.id);
+                    await supabase.from('alunos').delete().eq('id', aluno.id);
+                    throw new Error(`Erro ao gerar aulas: ${errAulas.message || JSON.stringify(errAulas)}`);
+                }
             }
 
             // 4. Geração de Pagamentos (Parcelas)
             const pagamentosToInsert = [];
-            let currentVencimento = new Date(data_primeira_parcela);
+            let currentVencimento = new Date(data_primeira_parcela || new Date());
+            if (isNaN(currentVencimento.getTime())) currentVencimento = new Date();
 
             for (let i = 0; i < (total_parcelas || 1); i++) {
                 pagamentosToInsert.push({
@@ -1544,10 +1549,13 @@ async function startServer() {
                 // Próximo mês
                 currentVencimento.setMonth(currentVencimento.getMonth() + 1);
                 // Ajustar para o dia de vencimento escolhido (caso o mês tenha menos dias, o JS cuida disso ou vira o mês)
-                currentVencimento.setDate(dia_vencimento);
+                if (dia_vencimento) {
+                    currentVencimento.setDate(parseInt(dia_vencimento, 10) || 10);
+                }
             }
-            const { error: errPagamentos } = await supabase.from('pagamentos').insert(pagamentosToInsert);
-            if (errPagamentos) {
+            if (pagamentosToInsert.length > 0) {
+                const { error: errPagamentos } = await supabase.from('pagamentos').insert(pagamentosToInsert);
+                if (errPagamentos) {
                 await supabase.from('aulas').delete().eq('matricula_id', matricula.id);
                 await supabase.from('matriculas').delete().eq('id', matricula.id);
                 await supabase.from('alunos').delete().eq('id', aluno.id);
