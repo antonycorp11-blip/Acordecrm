@@ -1822,11 +1822,11 @@ export default function AreaAluno() {
                         nodes.push(
                           <div key={`aula-${aula.id}`} className={`absolute -translate-x-1/2 -translate-y-1/2 z-30 transition-all ${(!isModuloDesbloqueado && !isEmProducao) ? 'opacity-30' : ''}`} style={{ top: `${globalY}px`, left: `${targetX}%` }}>
                             {isConcluida ? (
-                              <button disabled={!isAulaDesbloqueada} onClick={() => { setSelectedTrilhaAula(aula); setVideoCompleto(false); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }} className="w-14 h-14 bg-[#a04100] rounded-full border-2 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_#261812] cursor-pointer hover:scale-110">
+                              <button disabled={!isAulaDesbloqueada} onClick={() => { setSelectedTrilhaAula(aula); setVideoCompleto(isConcluida); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }} className="w-14 h-14 bg-[#a04100] rounded-full border-2 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_#261812] cursor-pointer hover:scale-110">
                                 <span className="material-symbols-outlined text-white text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>{obterIconeStitch(aula.titulo)}</span>
                               </button>
                             ) : isAtiva ? (
-                              <div onClick={() => { setSelectedTrilhaAula(aula); setVideoCompleto(false); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }} className="active-node-stitch w-16 h-16 rounded-full border-4 border-black flex items-center justify-center cursor-pointer hover:scale-110 relative z-40">
+                              <div onClick={() => { setSelectedTrilhaAula(aula); setVideoCompleto(isConcluida); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }} className="active-node-stitch w-16 h-16 rounded-full border-4 border-black flex items-center justify-center cursor-pointer hover:scale-110 relative z-40">
                                 <span className="material-symbols-outlined text-black text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>{obterIconeStitch(aula.titulo)}</span>
                                 <div className="absolute top-2 -right-32 whitespace-nowrap bg-[#ba1a1a] text-white px-2 py-1 border-2 border-black text-[8px] uppercase font-bold sticker-shadow-stitch -rotate-2"><span className="animate-ping mr-1">●</span>ATUAL: {aula.titulo}</div>
                               </div>
@@ -3229,19 +3229,38 @@ export default function AreaAluno() {
                   {/* Alternativas */}
                   <div className="space-y-2">
                     {(currentQ?.opcoes || []).map((opt: string, optIdx: number) => {
-                      const isSelected = questionarioRespostas[currentQuestionIdx] === optIdx;
+                      const isSelected = questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === optIdx;
+                      const hasAnswered = questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] !== undefined;
+                      const corretaIdx = currentQ.resposta_esperada !== undefined ? parseInt(currentQ.resposta_esperada, 10) : parseInt(currentQ.resposta_correta_idx || currentQ.resposta_correta, 10);
+                      const isCorrectOpt = corretaIdx === optIdx;
+
+                      let btnClass = 'bg-white text-black hover:bg-stone-50 shadow-[3px_3px_0_#000]';
+                      if (hasAnswered) {
+                        if (isCorrectOpt) {
+                           btnClass = 'bg-emerald-500 text-white shadow-none translate-x-[2px] translate-y-[2px]';
+                        } else if (isSelected) {
+                           btnClass = 'bg-red-500 text-white shadow-none translate-x-[2px] translate-y-[2px]';
+                        } else {
+                           btnClass = 'bg-stone-200 text-stone-500 opacity-50 shadow-none';
+                        }
+                      } else if (isSelected) {
+                        btnClass = 'bg-[#ff6b00] text-white shadow-none translate-x-[2px] translate-y-[2px]';
+                      }
+
                       return (
                         <button
                           key={optIdx}
-                          onClick={() => setQuestionarioRespostas(prev => ({ ...prev, [currentQuestionIdx]: optIdx }))}
-                          className={`w-full text-left p-3 border-4 border-black transition-all font-black text-xs uppercase flex items-center justify-between ${
-                            isSelected 
-                              ? 'bg-[#ff6b00] text-white shadow-none translate-x-[2px] translate-y-[2px]' 
-                              : 'bg-white text-black hover:bg-stone-50 shadow-[3px_3px_0_#000]'
-                          }`}
+                          onClick={() => {
+                            if (!hasAnswered) {
+                               setQuestionarioRespostas(prev => ({ ...prev, [perguntasSorteadas[currentQuestionIdx]]: optIdx }));
+                            }
+                          }}
+                          disabled={hasAnswered}
+                          className={`w-full text-left p-3 border-4 border-black transition-all font-black text-xs uppercase flex items-center justify-between ${btnClass}`}
                         >
                           <span>{String.fromCharCode(65 + optIdx)}) {opt}</span>
-                          {isSelected && <span>✔️</span>}
+                          {hasAnswered && isCorrectOpt && <span>✔️</span>}
+                          {hasAnswered && isSelected && !isCorrectOpt && <span>❌</span>}
                         </button>
                       );
                     })}

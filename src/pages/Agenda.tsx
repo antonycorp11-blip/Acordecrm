@@ -402,7 +402,7 @@ export default function Agenda() {
                                    setReschedulingAula(aula);
                                    setSelectedAula(null);
                                  }}
-                                 className="w-full px-4 py-3 bg-blue-500 text-white border-4 border-black font-black text-xs uppercase text-left hover:bg-blue-600 transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
+                                 className="w-full px-4 py-3 bg-[#e0f2fe] text-black border-4 border-black font-black text-xs uppercase text-left hover:bg-[#bae6fd] transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
                                >
                                  <RefreshCcw className="w-4 h-4 shrink-0" /> Reagendar
                                </button>
@@ -572,7 +572,7 @@ export default function Agenda() {
               setReschedulingAula(selectedAula);
               setSelectedAula(null);
             }}
-            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-blue-600"
+            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
           >
             <RefreshCcw className="w-3.5 h-3.5" /> Reagendar
           </button>
