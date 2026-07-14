@@ -530,7 +530,7 @@ export default function Agenda() {
       {/* MINI MENU DESKTOP */}
       {selectedAula && menuPos && (
         <div 
-          className="hidden md:flex fixed z-[100] bg-white border-4 border-black shadow-[6px_6px_0_#000] p-2 flex-col gap-1 animate-in zoom-in-95 duration-200"
+          className="hidden md:flex fixed z-[100] bg-white border-4 border-black shadow-[6px_6px_0_#000] p-2 flex-col gap-1 animate-in zoom-in-95 duration-200 font-['Space_Mono']"
           style={{ top: menuPos.y, left: menuPos.x }}
           onClick={e => e.stopPropagation()}
         >
