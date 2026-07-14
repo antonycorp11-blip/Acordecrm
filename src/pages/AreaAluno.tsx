@@ -30,6 +30,13 @@ import html2canvas from 'html2canvas';
 import html2pdf from 'html2pdf.js';
 import { jsPDF } from 'jspdf';
 import { Download } from 'lucide-react';
+import SignatureCanvas from 'react-signature-canvas';
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: any;
+  }
+}
 
 // Função para tornar links no texto clicáveis
 const linkify = (text: string) => {
@@ -354,6 +361,17 @@ export default function AreaAluno() {
   const [showQuestionarioModal, setShowQuestionarioModal] = useState(false);
   const [tentativaResultado, setTentativaResultado] = useState<any | null>(null);
 
+  // Estados Questionário 15 aleatórias + Timer
+  const [perguntasSorteadas, setPerguntasSorteadas] = useState<number[]>([]);
+  const [questoesAtuais, setQuestoesAtuais] = useState<any[]>([]);
+  const [tempoRestante, setTempoRestante] = useState<number>(600);
+
+  // Estados Contratos
+  const [showContratoModal, setShowContratoModal] = useState(false);
+  const [contratoAtivo, setContratoAtivo] = useState<any>(null);
+  const sigPad = useRef<any>(null);
+  const [savingContrato, setSavingContrato] = useState(false);
+
   // Estados para o Sistema de Treino Diário
   const [treinos, setTreinos] = useState<any[]>([]);
   const [recording, setRecording] = useState(false);
@@ -427,7 +445,8 @@ export default function AreaAluno() {
       aluno_id: alunoData?.id,
       aula_trilha_id: target === 'aula' ? targetId : null,
       modulo_trilha_id: target === 'modulo' ? targetId : null,
-      respostas: questionarioRespostas
+      respostas: questionarioRespostas,
+      perguntas_sorteadas: perguntasSorteadas
     };
 
     try {
@@ -1234,6 +1253,111 @@ export default function AreaAluno() {
   ];
 
   // --------------------------------------------------------------------------------
+  // QUESTIONÁRIO (TIMER E ALEATORIEDADE)
+  // --------------------------------------------------------------------------------
+  const handleStartQuestionario = (isProva: boolean, targetOverride: any = null) => {
+    const target = targetOverride || (isProva ? selectedTrilhaModulo : selectedTrilhaAula);
+    let rawQuestions = isProva ? target?.prova_final : target?.questionario;
+    if (typeof rawQuestions === 'string') {
+        try { rawQuestions = JSON.parse(rawQuestions); } catch(e) { rawQuestions = []; }
+    }
+    const allQuestions = Array.isArray(rawQuestions) ? rawQuestions : [];
+    
+    const mapped = allQuestions.map((q, idx) => ({ q, originalIdx: idx }));
+    mapped.sort(() => Math.random() - 0.5);
+    const selecionadas = mapped.slice(0, 15);
+    
+    setQuestoesAtuais(selecionadas.map(item => item.q));
+    setPerguntasSorteadas(selecionadas.map(item => item.originalIdx));
+    
+    setQuestionarioRespostas({});
+    setQuestionarioFinalizado(false);
+    setQuestionarioCorreto(null);
+    setCurrentQuestionIdx(0);
+    setTentativaResultado(null);
+    setTempoRestante(600); // 10 min
+    setShowQuestionarioModal(true);
+  };
+
+  useEffect(() => {
+    if (!showQuestionarioModal || questionarioFinalizado) return;
+    
+    const interval = setInterval(() => {
+      setTempoRestante(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleSubmitQuestionario(selectedTrilhaModulo ? 'modulo' : 'aula');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    const handleBlur = () => {
+      if (!questionarioFinalizado && showQuestionarioModal && document.hidden) {
+         setQuestionarioFinalizado(true);
+         setQuestionarioCorreto(false);
+         setTentativaResultado({
+           nota: 0,
+           aprovado: false,
+           feedback: {}
+         });
+         toast.error("O questionário foi cancelado porque você saiu da tela.");
+      }
+    };
+
+    window.addEventListener('blur', handleBlur);
+    document.addEventListener('visibilitychange', handleBlur);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('visibilitychange', handleBlur);
+    };
+  }, [showQuestionarioModal, questionarioFinalizado, selectedTrilhaModulo, selectedTrilhaAula, questionarioRespostas]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  // --------------------------------------------------------------------------------
+  // ASSINATURA DE CONTRATO
+  // --------------------------------------------------------------------------------
+  const handleSaveContrato = async () => {
+    if (sigPad.current?.isEmpty()) {
+      return toast.error("Por favor, assine antes de confirmar.");
+    }
+    const assinaturaBase64 = sigPad.current?.getTrimmedCanvas().toDataURL('image/png');
+    try {
+      setSavingContrato(true);
+      const res = await fetch(`/api/contratos/${contratoAtivo.id}/assinar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
+        body: JSON.stringify({ assinatura_base64 })
+      });
+      if (res.ok) {
+        toast.success("Contrato assinado com sucesso!");
+        setContratoAtivo((prev: any) => ({ ...prev, status: 'assinado', assinatura_base64 }));
+        setAlunoData((prev: any) => {
+            if (!prev) return prev;
+            return {
+               ...prev,
+               contratos: prev.contratos.map((c: any) => c.id === contratoAtivo.id ? { ...c, status: 'assinado', assinatura_base64 } : c)
+            };
+        });
+      } else {
+        toast.error("Erro ao assinar o contrato.");
+      }
+    } catch (e) {
+      toast.error("Erro de conexão ao enviar assinatura.");
+    } finally {
+      setSavingContrato(false);
+    }
+  };
+
+  // --------------------------------------------------------------------------------
   // DOWNLOAD PROFILE CARD
   // --------------------------------------------------------------------------------
   const handleDownloadProfileCard = async () => {
@@ -1734,7 +1858,7 @@ export default function AreaAluno() {
 
                          nodes.push(
                            <div key={`prova-${modulo.id}`} className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 z-30" style={{ top: `${globalY}px` }}>
-                              <button disabled={!isProvaDesbloqueada} onClick={() => { setSelectedTrilhaModulo(modulo); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }} className={`w-16 h-16 border-4 border-black flex items-center justify-center shadow-[6px_6px_0_rgba(0,0,0,0.5)] rounded-2xl ${isProvaConcluida ? 'bg-[#ffeb3b] text-black border-yellow-600 hover:scale-105' : isProvaDesbloqueada ? 'bg-[#ba1a1a] text-white hover:scale-105 animate-bounce' : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'}`}>
+                              <button disabled={!isProvaDesbloqueada} onClick={() => { setSelectedTrilhaModulo(modulo); handleStartQuestionario(true, modulo); }} className={`w-16 h-16 border-4 border-black flex items-center justify-center shadow-[6px_6px_0_rgba(0,0,0,0.5)] rounded-2xl ${isProvaConcluida ? 'bg-[#ffeb3b] text-black border-yellow-600 hover:scale-105' : isProvaDesbloqueada ? 'bg-[#ba1a1a] text-white hover:scale-105 animate-bounce' : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'}`}>
                                 <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: isProvaConcluida ? "'FILL' 1" : undefined }}>{isProvaConcluida ? 'grade' : 'grade'}</span>
                               </button>
                            </div>
@@ -2907,8 +3031,101 @@ export default function AreaAluno() {
         <PerfilEstudanteModal 
           selectedAluno={selectedAluno} 
           user={user} 
-          onClose={() => setIsAlunoModalOpen(false)} 
+          onClose={() => setIsAlunoModalOpen(false)}
+          onOpenContrato={(contrato) => {
+             setContratoAtivo(contrato);
+             setShowContratoModal(true);
+          }}
         />
+      )}
+
+      {/* ================= MODAL CONTRATO ================= */}
+      {showContratoModal && contratoAtivo && (
+        <div className="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
+          <div className="bg-[#fff8f6] border-8 border-black w-full max-w-5xl shadow-[12px_12px_0_#000] flex flex-col md:flex-row max-h-[90vh]">
+            
+            {/* Lado esquerdo: Conteúdo do Contrato */}
+            <div className="w-full md:w-2/3 p-6 border-b-4 md:border-b-0 md:border-r-4 border-black flex flex-col bg-white">
+              <div className="flex justify-between items-center mb-4 border-b-4 border-black pb-4">
+                <h2 className="font-black text-xl uppercase text-black">
+                  Contrato de Matrícula
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowContratoModal(false);
+                    setContratoAtivo(null);
+                  }}
+                  className="bg-black text-[#feccba] border-2 border-black font-black text-xs px-2 py-1 shadow-[4px_4px_0_#000] hover:bg-red-500 hover:text-white transition-all active:translate-y-0.5"
+                >
+                  FECHAR
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto pr-2 border-2 border-stone-200 p-4 bg-stone-50 prose prose-sm max-w-none text-stone-800">
+                 {contratoAtivo.conteudo_html ? (
+                     <div dangerouslySetInnerHTML={{ __html: contratoAtivo.conteudo_html }} />
+                 ) : (
+                     <p className="text-center italic text-stone-500">O conteúdo deste contrato não está disponível.</p>
+                 )}
+              </div>
+            </div>
+
+            {/* Lado direito: Área de Assinatura */}
+            <div className="w-full md:w-1/3 p-6 flex flex-col bg-[#fff8f6] justify-center space-y-4">
+              <div className="text-center space-y-2 mb-2">
+                <h3 className="font-black uppercase text-sm">Área de Assinatura</h3>
+                {contratoAtivo.status === 'assinado' ? (
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase">Este contrato já foi assinado e está vigente.</p>
+                ) : (
+                  <p className="text-[10px] font-bold text-stone-500 uppercase">Assine abaixo com o mouse ou o dedo no celular para confirmar sua concordância com os termos.</p>
+                )}
+              </div>
+
+              {contratoAtivo.status === 'assinado' ? (
+                  <div className="flex-1 flex items-center justify-center border-4 border-black bg-white p-4 relative min-h-[200px]">
+                      {contratoAtivo.assinatura_base64 ? (
+                         <img src={contratoAtivo.assinatura_base64} alt="Assinatura" className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                      ) : (
+                         <p className="text-stone-400 font-bold uppercase text-[10px]">Assinatura em sistema (não visível)</p>
+                      )}
+                      <div className="absolute bottom-2 right-2 opacity-50 font-black text-[8px] uppercase tracking-widest text-emerald-500">
+                          VALIDADO PELA ACORDE
+                      </div>
+                  </div>
+              ) : (
+                  <>
+                      <div className="flex-1 border-4 border-black bg-white relative cursor-crosshair min-h-[200px] overflow-hidden">
+                          <SignatureCanvas
+                              ref={sigPad}
+                              canvasProps={{ className: 'w-full h-full' }}
+                              backgroundColor="rgba(255,255,255,1)"
+                          />
+                          <div className="absolute bottom-2 left-0 right-0 text-center opacity-30 pointer-events-none">
+                              <span className="font-['Space_Mono'] text-[10px] uppercase font-bold text-stone-400 block border-t border-stone-400 w-3/4 mx-auto pt-1">
+                                Assine Aqui
+                              </span>
+                          </div>
+                      </div>
+                      <div className="flex gap-2 mt-4">
+                          <button
+                              onClick={() => sigPad.current?.clear()}
+                              className="w-1/3 bg-stone-200 text-stone-600 border-2 border-black py-2 font-black text-[10px] uppercase shadow-[2px_2px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all"
+                          >
+                              LIMPAR
+                          </button>
+                          <button
+                              disabled={savingContrato}
+                              onClick={handleSaveContrato}
+                              className={`w-2/3 text-white border-2 border-black py-2 font-black text-xs uppercase shadow-[2px_2px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all ${savingContrato ? 'bg-stone-500 cursor-not-allowed' : 'bg-[#ff6b00]'}`}
+                          >
+                              {savingContrato ? 'SALVANDO...' : 'CONFIRMAR ASSINATURA'}
+                          </button>
+                      </div>
+                  </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ================= MODAL ASSISTIR VIDEOAULA EAD ================= */}
@@ -2945,7 +3162,7 @@ export default function AreaAluno() {
             <div className="pt-2 flex flex-col items-center gap-3">
               {videoCompleto || user?.email === 'ta@ta.com' ? (
                 <button
-                  onClick={() => setShowQuestionarioModal(true)}
+                  onClick={() => handleStartQuestionario(false)}
                   className="w-full bg-[#ff6b00] text-white border-4 border-black py-3 font-black text-xs sm:text-sm uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all flex items-center justify-center gap-2"
                 >
                   📝 INICIAR QUESTIONÁRIO DA AULA
@@ -2964,15 +3181,7 @@ export default function AreaAluno() {
       {/* ================= MODAL QUESTIONÁRIO / PROVA GERAL ================= */}
       {(showQuestionarioModal || selectedTrilhaModulo) && (() => {
         const isProva = !!selectedTrilhaModulo;
-        let rawQuestions = isProva 
-          ? selectedTrilhaModulo.prova_final 
-          : selectedTrilhaAula?.questionario;
-        
-        if (typeof rawQuestions === 'string') {
-            try { rawQuestions = JSON.parse(rawQuestions); } catch(e) { rawQuestions = []; }
-        }
-        const questions = Array.isArray(rawQuestions) ? rawQuestions : [];
-        
+        const questions = questoesAtuais;
         const currentQ = questions[currentQuestionIdx];
         const conqId = isProva ? selectedTrilhaModulo.conquista_id : selectedTrilhaAula?.conquista_id;
         const correspondenteConquista = (todasConquistas || []).find((c: any) => Number(c.id) === Number(conqId));
@@ -3002,13 +3211,18 @@ export default function AreaAluno() {
 
               {questions.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-xs font-black uppercase text-stone-500">Nenhuma pergunta cadastrada.</p>
+                  <p className="text-xs font-black uppercase text-stone-500">Nenhuma pergunta carregada.</p>
                 </div>
               ) : !questionarioFinalizado ? (
                 <div className="space-y-4">
                   {/* Pergunta Atual */}
-                  <div className="bg-white border-4 border-black p-4 space-y-2">
-                    <span className="bg-black text-white font-black text-[8px] px-1.5 py-0.5">PERGUNTA {currentQuestionIdx + 1} de {questions.length}</span>
+                  <div className="bg-white border-4 border-black p-4 space-y-2 relative">
+                    <div className="flex justify-between items-center w-full mb-2">
+                        <span className="bg-black text-white font-black text-[8px] px-1.5 py-0.5">PERGUNTA {currentQuestionIdx + 1} de {questions.length}</span>
+                        <span className={`font-black text-xs px-2 py-0.5 border-2 border-black ${tempoRestante < 60 ? 'bg-red-500 text-white animate-pulse' : 'bg-[#ffeb3b] text-black'}`}>
+                            ⏱ {formatTime(tempoRestante)}
+                        </span>
+                    </div>
                     <h4 className="font-black text-xs uppercase leading-relaxed text-black mt-1">{currentQ?.pergunta}</h4>
                   </div>
 
@@ -3092,6 +3306,35 @@ export default function AreaAluno() {
                       <div className="bg-emerald-50 border border-emerald-300 p-2 text-[9px] font-black text-emerald-700 uppercase">
                         🎁 +{tentativaResultado?.xpGanhos} XP &amp; +{tentativaResultado?.moedasGanhas} ACORDE COINS CREDITADOS!
                       </div>
+
+                      {/* FEEDBACK DAS QUESTÕES */}
+                      {tentativaResultado?.feedback && (
+                         <div className="mt-4 text-left border-t-2 border-dashed border-stone-300 pt-4 max-h-48 overflow-y-auto pr-2">
+                            <h5 className="font-black text-[10px] text-stone-500 mb-2 uppercase">Revisão das Suas Respostas:</h5>
+                            <div className="space-y-3">
+                                {perguntasSorteadas.map((origIdx, i) => {
+                                   const fb = tentativaResultado.feedback[origIdx];
+                                   if (!fb) return null;
+                                   const questaoReal = questoesAtuais[i];
+                                   if (!questaoReal) return null;
+                                   
+                                   return (
+                                       <div key={`fb-${origIdx}`} className={`p-2 border-2 border-black text-[9px] font-bold ${fb.correta ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                                          <p className="uppercase mb-1">{i + 1}. {questaoReal.pergunta}</p>
+                                          {fb.correta ? (
+                                              <p className="text-emerald-700">✔️ Correto: {questaoReal.opcoes[fb.sua_resposta]}</p>
+                                          ) : (
+                                              <>
+                                                <p className="text-red-700">❌ Sua resposta: {fb.sua_resposta !== undefined ? questaoReal.opcoes[fb.sua_resposta] : 'Não respondida'}</p>
+                                                <p className="text-emerald-700">✔️ Correta: {questaoReal.opcoes[fb.resposta_esperada]}</p>
+                                              </>
+                                          )}
+                                       </div>
+                                   );
+                                })}
+                            </div>
+                         </div>
+                      )}
 
                       <button
                         onClick={() => {

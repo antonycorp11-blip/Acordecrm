@@ -158,7 +158,12 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
         onSuccess();
         onClose();
       } else {
-        alert('Erro ao cadastrar aluno');
+        const errorData = await response.json().catch(() => ({}));
+        let errorMessage = 'Erro ao cadastrar aluno';
+        if (errorData.details || errorData.error) {
+            errorMessage += `\nDetalhes: ${errorData.details || errorData.error}`;
+        }
+        alert(errorMessage);
       }
     } catch (error) {
       console.error(error);

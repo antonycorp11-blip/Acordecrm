@@ -26,6 +26,7 @@ interface PerfilEstudanteModalProps {
   user: any; // The logged-in user to check roles
   onClose: () => void;
   onConquistaRemoved?: () => void;
+  onOpenContrato?: (contrato: any) => void;
 }
 
 export const getClasse = (xp: number) => {
@@ -38,7 +39,7 @@ export const getClasse = (xp: number) => {
 
 export const getInstrumento = (aluno: any) => aluno.curso || aluno.curso_ativo || aluno.instrumento || aluno.curso_nome || 'MÚSICA';
 
-export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onConquistaRemoved }: PerfilEstudanteModalProps) {
+export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onConquistaRemoved, onOpenContrato }: PerfilEstudanteModalProps) {
   const [selectedTrophy, setSelectedTrophy] = useState<any>(null);
   
   const handleRemoverConquistaLocal = async (alunoId: number, conquistaId: number, conquistaNome: string) => {
@@ -116,6 +117,46 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
               </div>
             </div>
           </div>
+
+          {/* WARNING CONTRATOS */}
+          {selectedAluno?.contratos && selectedAluno.contratos.filter((c: any) => c.status === 'pendente').map((contrato: any) => (
+            <div key={`pendente-${contrato.id}`} className="bg-red-500 border-4 border-black p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
+                <div>
+                    <h3 className="text-white font-black uppercase text-sm flex items-center gap-2">
+                        ⚠️ ATENÇÃO: CONTRATO PENDENTE
+                    </h3>
+                    <p className="text-white text-[10px] font-bold uppercase mt-1">Você tem um contrato aguardando assinatura. Por favor, assine para regularizar sua matrícula.</p>
+                </div>
+                <button 
+                  onClick={() => onOpenContrato && onOpenContrato(contrato)}
+                  className="bg-black text-white px-4 py-2 border-2 border-white font-black text-xs uppercase hover:bg-stone-900 transition-colors whitespace-nowrap"
+                >
+                  ASSINAR AGORA
+                </button>
+            </div>
+          ))}
+
+          {/* CONTRATOS ASSINADOS (Histórico) */}
+          {selectedAluno?.contratos && selectedAluno.contratos.some((c: any) => c.status === 'assinado') && (
+            <div className="bg-[#1a0a05] border-2 border-[#ff6b00] p-4 flex flex-col gap-2">
+                <h3 className="text-[#ff6b00] font-black uppercase text-xs flex items-center gap-2">
+                    📄 MEUS CONTRATOS
+                </h3>
+                <div className="space-y-2">
+                    {selectedAluno.contratos.filter((c: any) => c.status === 'assinado').map((contrato: any) => (
+                        <div key={`assinado-${contrato.id}`} className="flex items-center justify-between bg-black/40 p-2 border border-stone-800">
+                            <span className="text-[10px] text-stone-400 uppercase">Contrato Assinado ({new Date(contrato.created_at).toLocaleDateString()})</span>
+                            <button 
+                              onClick={() => onOpenContrato && onOpenContrato(contrato)}
+                              className="text-[9px] font-black text-[#ff6b00] border border-[#ff6b00] px-2 py-1 uppercase hover:bg-[#ff6b00] hover:text-black transition-colors"
+                            >
+                              VISUALIZAR
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+          )}
 
           {/* SEQUÊNCIA ATUAL Section */}
           <div className="bg-black/60 border-2 border-[#ff6b00] p-4 flex items-center gap-4">

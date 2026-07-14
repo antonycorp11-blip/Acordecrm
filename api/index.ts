@@ -565,7 +565,7 @@ async function startServer() {
             // 1. Buscar o aluno logado (usando ilike para ser case-insensitive)
             const { data: aluno, error } = await supabase
                 .from('alunos')
-                .select('*, matriculas(*, cursos(nome))')
+                .select('*, matriculas(*, cursos(nome)), contratos(*)')
                 .ilike('email', req.user.email)
                 .single();
             
@@ -4310,7 +4310,7 @@ ${textoBruto}
 
     app.post('/api/trilha/responder-questionario', async (req, res) => {
         try {
-            const { aluno_id, aula_trilha_id, modulo_trilha_id, respostas } = req.body;
+            const { aluno_id, aula_trilha_id, modulo_trilha_id, respostas, perguntas_sorteadas } = req.body;
             if (!aluno_id || (!aula_trilha_id && !modulo_trilha_id) || !respostas) {
                 return res.status(400).json({ error: 'aluno_id, respostas e um identificador de aula ou módulo são obrigatórios.' });
             }
@@ -4363,17 +4363,35 @@ ${textoBruto}
                 return res.status(400).json({ error: 'Nenhum questionário cadastrado para esta referência.' });
             }
 
+            // Se o frontend passou perguntas sorteadas, avaliar só nelas, se não avalia tudo.
+            const indicesAvaliados = (perguntas_sorteadas && Array.isArray(perguntas_sorteadas))
+                ? perguntas_sorteadas
+                : gabaQuestions.map((_, i) => i);
+
             // Calcula acertos
             let acertos = 0;
-            gabaQuestions.forEach((q, idx) => {
+            let feedback = {};
+            
+            indicesAvaliados.forEach((idx) => {
+                const q = gabaQuestions[idx];
+                if (!q) return;
+                
                 const respAluno = respostas[idx];
                 const respCorreta = q.resposta_correta_idx !== undefined ? q.resposta_correta_idx : q.resposta_correta;
-                if (Number(respAluno) === Number(respCorreta)) {
+                const isCorrect = Number(respAluno) === Number(respCorreta);
+                
+                if (isCorrect) {
                     acertos++;
                 }
+                
+                feedback[idx] = {
+                    correta: isCorrect,
+                    resposta_esperada: respCorreta,
+                    sua_resposta: respAluno
+                };
             });
 
-            const nota = Math.round((acertos / gabaQuestions.length) * 100);
+            const nota = Math.round((acertos / indicesAvaliados.length) * 100);
             const aprovado = nota >= 80;
 
             let xpGanhos = 0;
@@ -4459,10 +4477,11 @@ ${textoBruto}
                 aprovado,
                 nota,
                 acertos,
-                totalPerguntas: gabaQuestions.length,
+                totalPerguntas: indicesAvaliados.length,
                 xpGanhos,
                 moedasGanhas,
-                conquistouMedalha
+                conquistouMedalha,
+                feedback
             });
         } catch (error) {
             res.status(500).json({ error: error.message });
