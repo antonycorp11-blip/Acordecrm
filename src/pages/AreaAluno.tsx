@@ -3280,18 +3280,18 @@ export default function AreaAluno() {
                     {currentQuestionIdx < questions.length - 1 ? (
                       <button
                         type="button"
-                        disabled={questionarioRespostas[currentQuestionIdx] === undefined}
+                        disabled={questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === undefined}
                         onClick={() => setCurrentQuestionIdx(prev => prev + 1)}
-                        className={`border-2 border-black px-3 py-1 text-[10px] font-black uppercase transition-all ${questionarioRespostas[currentQuestionIdx] === undefined ? 'opacity-30 cursor-not-allowed' : 'bg-black text-white hover:bg-stone-900 active:translate-y-0.5'}`}
+                        className={`border-2 border-black px-3 py-1 text-[10px] font-black uppercase transition-all ${questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === undefined ? 'opacity-30 cursor-not-allowed' : 'bg-black text-white hover:bg-stone-900 active:translate-y-0.5'}`}
                       >
                         PRÓXIMA ➡️
                       </button>
                     ) : (
                       <button
                         type="button"
-                        disabled={questionarioRespostas[currentQuestionIdx] === undefined}
+                        disabled={questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === undefined}
                         onClick={() => handleSubmitQuestionario(isProva ? 'modulo' : 'aula')}
-                        className={`border-2 border-black px-4 py-1.5 text-[10px] font-black uppercase transition-all bg-emerald-500 text-white shadow-[2px_2px_0_#000] active:translate-y-0.5 ${questionarioRespostas[currentQuestionIdx] === undefined ? 'opacity-30 cursor-not-allowed' : 'hover:bg-emerald-600'}`}
+                        className={`border-2 border-black px-4 py-1.5 text-[10px] font-black uppercase transition-all bg-emerald-500 text-white shadow-[2px_2px_0_#000] active:translate-y-0.5 ${questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === undefined ? 'opacity-30 cursor-not-allowed' : 'hover:bg-emerald-600'}`}
                       >
                         ENVIAR PROVA 🚀
                       </button>

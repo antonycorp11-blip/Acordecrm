@@ -610,7 +610,7 @@ export default function Agenda() {
                   }
                 });
               }}
-              className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ff6b00] hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black"
+              className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ff6b00] hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
             >
               <Bell className="w-3.5 h-3.5" /> Solicitar Confirmação
             </button>
@@ -621,7 +621,7 @@ export default function Agenda() {
               setCancelModalAula(selectedAula);
               setSelectedAula(null);
             }}
-            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black"
+            className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-red-500 hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
           >
             <Trash2 className="w-3.5 h-3.5" /> Cancelar Aula
           </button>
