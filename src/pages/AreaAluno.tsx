@@ -441,11 +441,21 @@ export default function AreaAluno() {
   const handleSubmitQuestionario = async (target: 'aula' | 'modulo') => {
     const token = localStorage.getItem('acorde_token');
     const targetId = target === 'aula' ? selectedTrilhaAula.id : selectedTrilhaModulo.id;
+    
+    // Mapear respostas do formato linear (0..14) para o formato original esperado pelo backend
+    const backendRespostas: Record<number, number> = {};
+    perguntasSorteadas.forEach((origIdx, i) => {
+      const resp = questionarioRespostas[i];
+      if (resp !== undefined) {
+        backendRespostas[origIdx] = resp;
+      }
+    });
+
     const body = {
       aluno_id: alunoData?.id,
       aula_trilha_id: target === 'aula' ? targetId : null,
       modulo_trilha_id: target === 'modulo' ? targetId : null,
-      respostas: questionarioRespostas,
+      respostas: backendRespostas,
       perguntas_sorteadas: perguntasSorteadas
     };
 
@@ -3229,8 +3239,8 @@ export default function AreaAluno() {
                   {/* Alternativas */}
                   <div className="space-y-2">
                     {(currentQ?.opcoes || []).map((opt: string, optIdx: number) => {
-                      const isSelected = questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === optIdx;
-                      const hasAnswered = questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] !== undefined;
+                      const isSelected = questionarioRespostas[currentQuestionIdx] === optIdx;
+                      const hasAnswered = questionarioRespostas[currentQuestionIdx] !== undefined;
                       const corretaIdx = currentQ.resposta_esperada !== undefined ? parseInt(currentQ.resposta_esperada, 10) : parseInt(currentQ.resposta_correta_idx || currentQ.resposta_correta, 10);
                       const isCorrectOpt = corretaIdx === optIdx;
 
@@ -3252,7 +3262,7 @@ export default function AreaAluno() {
                           key={optIdx}
                           onClick={() => {
                             if (!hasAnswered) {
-                               setQuestionarioRespostas(prev => ({ ...prev, [perguntasSorteadas[currentQuestionIdx]]: optIdx }));
+                               setQuestionarioRespostas(prev => ({ ...prev, [currentQuestionIdx]: optIdx }));
                             }
                           }}
                           disabled={hasAnswered}
@@ -3280,18 +3290,18 @@ export default function AreaAluno() {
                     {currentQuestionIdx < questions.length - 1 ? (
                       <button
                         type="button"
-                        disabled={questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === undefined}
+                        disabled={questionarioRespostas[currentQuestionIdx] === undefined}
                         onClick={() => setCurrentQuestionIdx(prev => prev + 1)}
-                        className={`border-2 border-black px-3 py-1 text-[10px] font-black uppercase transition-all ${questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === undefined ? 'opacity-30 cursor-not-allowed' : 'bg-black text-white hover:bg-stone-900 active:translate-y-0.5'}`}
+                        className={`border-2 border-black px-3 py-1 text-[10px] font-black uppercase transition-all ${questionarioRespostas[currentQuestionIdx] === undefined ? 'opacity-30 cursor-not-allowed' : 'bg-black text-white hover:bg-stone-900 active:translate-y-0.5'}`}
                       >
                         PRÓXIMA ➡️
                       </button>
                     ) : (
                       <button
                         type="button"
-                        disabled={questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === undefined}
+                        disabled={questionarioRespostas[currentQuestionIdx] === undefined}
                         onClick={() => handleSubmitQuestionario(isProva ? 'modulo' : 'aula')}
-                        className={`border-2 border-black px-4 py-1.5 text-[10px] font-black uppercase transition-all bg-emerald-500 text-white shadow-[2px_2px_0_#000] active:translate-y-0.5 ${questionarioRespostas[perguntasSorteadas[currentQuestionIdx]] === undefined ? 'opacity-30 cursor-not-allowed' : 'hover:bg-emerald-600'}`}
+                        className={`border-2 border-black px-4 py-1.5 text-[10px] font-black uppercase transition-all bg-emerald-500 text-white shadow-[2px_2px_0_#000] active:translate-y-0.5 ${questionarioRespostas[currentQuestionIdx] === undefined ? 'opacity-30 cursor-not-allowed' : 'hover:bg-emerald-600'}`}
                       >
                         ENVIAR PROVA 🚀
                       </button>
