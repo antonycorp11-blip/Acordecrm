@@ -492,7 +492,9 @@ export default function Agenda() {
                                       </span>
                                     )}
                                     {(aula.type === 'experimental' || aula.tipo === 'experimental')
-                                      ? ((aula.aluno_nome || '').split(' ')[0].substring(0, 10) || 'EXPERIMENTAL')
+                                      ? (aula.aluno_nome && aula.aluno_nome !== 'Aula Experimental'
+                                          ? aula.aluno_nome.split(' ')[0].substring(0, 8)
+                                          : 'EXP')
                                       : (aula.aluno_nome || 'ALUNO').split(' ')[0].substring(0, 10)
                                     }
                                   </div>

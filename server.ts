@@ -2902,7 +2902,7 @@ async function startServer() {
             console.log(`[AGENDA] Retornadas ${aulas.length} aulas regulares`);
 
             let expQuery = supabase.from('aulas_experimentais')
-                .select('id, data, horario, status, professor_id, lead_id, leads(nome), professores(nome)');
+                .select('id, data, horario, status, professor_id, lead_id, leads(id, nome, contato, telefone), professores(nome)');
                 
             if (start) expQuery = expQuery.gte('data', start);
             if (end) expQuery = expQuery.lte('data', end);
@@ -2930,13 +2930,15 @@ async function startServer() {
                 ...(experimentais?.map((e: any) => {
                     const lead = Array.isArray(e.leads) ? e.leads[0] : e.leads;
                     const professor = Array.isArray(e.professores) ? e.professores[0] : e.professores;
+                    // Usa nome do lead, ou contato, ou telefone como fallback
+                    const nomeExibido = lead?.nome || lead?.contato || lead?.telefone || null;
                     return {
                         ...e,
                         id: `exp-${e.id}`,
                         originalId: e.id,
                         type: 'experimental',
-                        nome: lead?.nome || 'Aula Experimental',
-                        aluno_nome: lead?.nome || 'Aula Experimental',
+                        nome: nomeExibido,
+                        aluno_nome: nomeExibido,
                         professor_nome: professor?.nome,
                         curso_nome: 'Experimental'
                     };
