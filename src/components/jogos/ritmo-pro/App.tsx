@@ -190,6 +190,11 @@ export const RitmoPro: React.FC<{ onClose: () => void, onGameOver: (score: numbe
 
     console.log("Tentando encerrar partida...", { pts: currentScore.pts, bpm: currentBpmRef.current });
 
+    // Notifica o jogo finalizado e pontos para o AreaAluno ganhar XP
+    if (currentScore.pts > 0 && onGameOver) {
+      onGameOver(Math.round(currentScore.pts));
+    }
+
     // Só salvamos se atingiu o BPM mínimo e tem pontos
     if (currentBpmRef.current >= 80 && currentScore.pts > 0) {
       setSaveStatus('saving');
@@ -223,7 +228,7 @@ export const RitmoPro: React.FC<{ onClose: () => void, onGameOver: (score: numbe
     } else {
       console.warn("Partida não elegível para ranking");
     }
-  }, []);
+  }, [onGameOver, onClose]);
 
   const handleMiss = useCallback(() => {
     consecutiveMissesRef.current += 1;
