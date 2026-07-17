@@ -383,7 +383,6 @@ export default function AreaAluno() {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
           setSigCanvasDims({ width: Math.floor(width), height: Math.floor(height) });
-          if (sigPad.current) sigPad.current.clear();
         }
       }
     });
@@ -1408,19 +1407,19 @@ export default function AreaAluno() {
         body: JSON.stringify({ assinatura_base64: assinaturaBase64 })
       });
       if (res.ok) {
-        toast.success("Contrato assinado com sucesso!");
-        setContratoAtivo((prev: any) => ({ ...prev, status: 'assinado', assinatura_base64 }));
-        setAlunoContrato((prev: any) => ({ ...prev, status: 'assinado', assinatura_base64 }));
+        toast.success("✅ Contrato assinado com sucesso! Obrigado.");
+        setAlunoContrato((prev: any) => ({ ...prev, status: 'assinado', assinatura_base64: assinaturaBase64 }));
         setAlunoData((prev: any) => {
             if (!prev) return prev;
-            const updatedContratos = prev.contratos ? prev.contratos.map((c: any) => c.id === contratoAtivo.id ? { ...c, status: 'assinado', assinatura_base64 } : c) : [];
-            return {
-               ...prev,
-               contratos: updatedContratos
-            };
+            const updatedContratos = prev.contratos ? prev.contratos.map((c: any) => c.id === contratoAtivo.id ? { ...c, status: 'assinado', assinatura_base64: assinaturaBase64 } : c) : [];
+            return { ...prev, contratos: updatedContratos };
         });
+        // Fechar o modal após assinar com sucesso
+        setShowContratoModal(false);
+        setContratoAtivo(null);
       } else {
-        toast.error("Erro ao assinar o contrato.");
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData?.error || "Erro ao assinar o contrato.");
       }
     } catch (e) {
       toast.error("Erro de conexão ao enviar assinatura.");
