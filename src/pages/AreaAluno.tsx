@@ -1176,7 +1176,7 @@ export default function AreaAluno() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
         },
         body: JSON.stringify({ pontos: pontosGanhos, jogo })
       });

@@ -81,7 +81,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   const fetchTemplate = async () => {
     try {
       const res = await fetch('/api/contratos/template', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` }
       });
       if (res.ok) {
         const data = await res.json();
@@ -103,7 +103,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
         },
         body: JSON.stringify({ clausulas })
       });
@@ -162,7 +162,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
         },
         body: JSON.stringify({
           aluno_id: aluno.id,
