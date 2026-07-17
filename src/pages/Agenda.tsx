@@ -364,23 +364,49 @@ export default function Agenda() {
                                <button 
                                  onClick={(e) => {
                                     e.stopPropagation();
-                                    const isToday = aula.data === format(currentBaseDate, 'yyyy-MM-dd');
+                                    
+                                    const today = new Date();
+                                    const todayStr = format(today, 'yyyy-MM-dd');
+                                    const tomorrow = new Date();
+                                    tomorrow.setDate(tomorrow.getDate() + 1);
+                                    const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
+
+                                    const datePart = aula.data || '';
+                                    const parts = datePart.split('-');
+                                    let dateText = 'hoje';
+                                    const isToday = datePart === todayStr;
+                                    const isTomorrow = datePart === tomorrowStr;
+                                    
+                                    if (isToday) {
+                                      dateText = 'hoje';
+                                    } else if (isTomorrow) {
+                                      dateText = 'amanhã';
+                                    } else if (parts.length === 3) {
+                                      const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                                      const weekday = dateObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+                                      const dayMonth = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                                      dateText = `no dia ${dayMonth} (${weekday})`;
+                                    }
+
                                     const hour = parseInt((aula.horario || '00:00:00').substring(0, 2), 10);
                                     const isMorning = hour < 12;
-                                    const timeText = isToday ? `hoje às ${(aula.horario || '').substring(0, 5)}` : `amanhã às ${(aula.horario || '').substring(0, 5)}${isMorning ? ' da manhã' : ''}`;
+                                    const timeText = `${dateText} às ${(aula.horario || '').substring(0, 5)}${!isToday && !isTomorrow ? '' : (isMorning ? ' da manhã' : '')}`;
+                                    
                                     const name = (aula.aluno_nome || 'Aluno(a)').split(' ')[0];
                                     const msg = `Olá ${name}, tudo bem? Passando para confirmar a sua aula ${timeText}. Podemos aguardar sua presença?`;
 
-                                    navigator.clipboard.writeText(msg).then(() => {
-                                        toast.success('Mensagem de WhatsApp copiada!');
-                                        const phoneClean = (aula.telefone || '').replace(/\D/g, '');
-                                        if (phoneClean) {
-                                            window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
-                                        } else {
-                                            toast.error('Telefone do aluno não cadastrado.');
-                                        }
-                                        setSelectedAula(null);
-                                    });
+                                    // 1. Copy message
+                                    navigator.clipboard.writeText(msg);
+                                    toast.success('Mensagem de WhatsApp copiada!');
+                                    
+                                    // 2. Open WhatsApp link directly (synchronously to bypass mobile popup blockers)
+                                    const phoneClean = (aula.telefone || '').replace(/\D/g, '');
+                                    if (phoneClean) {
+                                        window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
+                                    } else {
+                                        toast.error('Telefone do aluno não cadastrado.');
+                                    }
+                                    setSelectedAula(null);
                                   }}
                                  className="w-full px-4 py-3 bg-green-500 text-white border-4 border-black font-black text-xs uppercase text-left hover:bg-green-600 transition-colors flex items-center gap-2 shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none mt-2"
                                >
@@ -618,23 +644,48 @@ export default function Agenda() {
           </button>
           <button 
             onClick={() => {
-              const isToday = selectedAula.data === format(currentBaseDate, 'yyyy-MM-dd');
+              const today = new Date();
+              const todayStr = format(today, 'yyyy-MM-dd');
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
+
+              const datePart = selectedAula.data || '';
+              const parts = datePart.split('-');
+              let dateText = 'hoje';
+              const isToday = datePart === todayStr;
+              const isTomorrow = datePart === tomorrowStr;
+              
+              if (isToday) {
+                dateText = 'hoje';
+              } else if (isTomorrow) {
+                dateText = 'amanhã';
+              } else if (parts.length === 3) {
+                const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                const weekday = dateObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+                const dayMonth = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                dateText = `no dia ${dayMonth} (${weekday})`;
+              }
+
               const hour = parseInt((selectedAula.horario || '00:00:00').substring(0, 2), 10);
               const isMorning = hour < 12;
-              const timeText = isToday ? `hoje às ${(selectedAula.horario || '').substring(0, 5)}` : `amanhã às ${(selectedAula.horario || '').substring(0, 5)}${isMorning ? ' da manhã' : ''}`;
+              const timeText = `${dateText} às ${(selectedAula.horario || '').substring(0, 5)}${!isToday && !isTomorrow ? '' : (isMorning ? ' da manhã' : '')}`;
+              
               const name = (selectedAula.aluno_nome || 'Aluno(a)').split(' ')[0];
               const msg = `Olá ${name}, tudo bem? Passando para confirmar a sua aula ${timeText}. Podemos aguardar sua presença?`;
 
-              navigator.clipboard.writeText(msg).then(() => {
-                  toast.success('Mensagem de confirmação copiada!');
-                  const phoneClean = (selectedAula.telefone || '').replace(/\D/g, '');
-                  if (phoneClean) {
-                      window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
-                  } else {
-                      toast.error('Telefone do aluno não cadastrado.');
-                  }
-                  setSelectedAula(null);
-              });
+              // 1. Copy message
+              navigator.clipboard.writeText(msg);
+              toast.success('Mensagem de confirmação copiada!');
+              
+              // 2. Open WhatsApp link directly (synchronously to bypass mobile popup blockers)
+              const phoneClean = (selectedAula.telefone || '').replace(/\D/g, '');
+              if (phoneClean) {
+                  window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
+              } else {
+                  toast.error('Telefone do aluno não cadastrado.');
+              }
+              setSelectedAula(null);
             }}
             className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-green-500 hover:text-white transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
           >
