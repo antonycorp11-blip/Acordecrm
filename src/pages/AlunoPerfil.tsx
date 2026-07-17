@@ -1491,7 +1491,7 @@ export default function AlunoPerfil() {
               <div className="flex-1 overflow-y-auto border-4 border-black bg-white p-6 my-4 font-serif text-sm text-stone-850 leading-relaxed custom-scrollbar uppercase">
                 <div 
                   className="space-y-4 whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ __html: contratoAssinadoAtivo.texto_contrato }}
+                  dangerouslySetInnerHTML={{ __html: contratoAssinadoAtivo.conteudo_html || contratoAssinadoAtivo.texto_contrato }}
                 />
                 
                 {/* Rodapé do contrato com a assinatura manuscrita */}
@@ -1535,7 +1535,7 @@ export default function AlunoPerfil() {
                           </head>
                           <body>
                             <h2>CONTRATO DE MATRÍCULA E PRESTAÇÃO DE SERVIÇOS</h2>
-                            <div class="contract-text">${contratoAssinadoAtivo.texto_contrato}</div>
+                            <div class="contract-text">${contratoAssinadoAtivo.conteudo_html || contratoAssinadoAtivo.texto_contrato}</div>
                             <div class="footer" style="display: flex; justify-content: space-between; margin-top: 60px; border-top: 2px solid #000; padding-top: 20px;">
                               <div class="footer-left">
                                 <p><strong>CONTRATANTE:</strong> ${aluno?.nome}</p>

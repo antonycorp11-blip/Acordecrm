@@ -687,6 +687,12 @@ export default function AreaAluno() {
       ]).then(([me, agenda]) => {
         if (me) {
           setAlunoData(me);
+          if (me.contratos && me.contratos.length > 0) {
+            const sortedContratos = [...me.contratos].sort((a: any, b: any) => 
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            setAlunoContrato(sortedContratos[0]);
+          }
           fetchTrilhaProgresso(me.id);
           fetchFinanceiroEContrato(me.id);
           if (me.avatar_inventory && Array.isArray(me.avatar_inventory)) {
@@ -1380,7 +1386,7 @@ export default function AreaAluno() {
       const res = await fetch(`/api/contratos/${contratoAtivo.id}/assinar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
-        body: JSON.stringify({ assinatura_base64 })
+        body: JSON.stringify({ assinatura_base64: assinaturaBase64 })
       });
       if (res.ok) {
         toast.success("Contrato assinado com sucesso!");
