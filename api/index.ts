@@ -1001,7 +1001,7 @@ async function startServer() {
                 .maybeSingle();
                 
             if (error) throw error;
-            if (contrato) {
+            if (contrato && contrato.status === 'assinado') {
                 return res.json(contrato);
             }
             
@@ -1080,6 +1080,16 @@ async function startServer() {
 </div>
             `.trim();
             
+            if (contrato && contrato.status === 'pendente') {
+                const { data: updatedContrato, error: updateError } = await supabase.from('contratos').update({
+                    dados_dinamicos: { responsavel, cpf, endereco, cursoNome, valorPlano, diaVencimento, qtdParcelas },
+                    conteudo_html
+                }).eq('id', contrato.id).select().single();
+                
+                if (updateError) throw updateError;
+                return res.json(updatedContrato);
+            }
+
             const { data: newContrato, error: insertError } = await supabase.from('contratos').insert([{
                 aluno_id: id,
                 dados_dinamicos: { responsavel, cpf, endereco, cursoNome, valorPlano, diaVencimento, qtdParcelas },
