@@ -90,6 +90,18 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
           {lead.nome || <span className="italic opacity-50 font-normal lowercase">sem nome</span>}
         </h4>
         
+        {/* Botão de Editar Lead */}
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(lead);
+          }}
+          className="text-[7px] font-black bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black px-1.5 py-0.5 border border-black shadow-[1px_1px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer shrink-0"
+        >
+          EDITAR
+        </button>
+
         {/* Botão de Expandir/Recolher */}
         <button
           onPointerDown={(e) => e.stopPropagation()}
@@ -179,7 +191,7 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
                 }}
                 className="bg-black text-white px-1.5 py-0.5 border border-black text-[8px] font-black uppercase shadow-[1.5px_1.5px_0_#000] cursor-pointer"
               >
-                Anotar
+                Editar
               </button>
             </div>
           </div>
