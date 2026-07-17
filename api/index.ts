@@ -2825,7 +2825,7 @@ async function startServer() {
             }
 
             let query = supabase.from('aulas')
-                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, tipo, alunos(nome, status), professores(nome), cursos(nome), matriculas(status)')
+                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, tipo, alunos(nome, status, telefone), professores(nome), cursos(nome), matriculas(status)')
                 .order('data', { ascending: true });
             
             if (start) query = query.gte('data', start);
@@ -2876,7 +2876,8 @@ async function startServer() {
                         nome: aluno?.nome,
                         aluno_nome: aluno?.nome,
                         professor_nome: professor?.nome,
-                        curso_nome: curso?.nome || 'Curso'
+                        curso_nome: curso?.nome || 'Curso',
+                        telefone: aluno?.telefone
                     };
                 }) || []),
                 ...(experimentais?.map((e: any) => {
@@ -2892,7 +2893,8 @@ async function startServer() {
                         nome: nomeExibido,
                         aluno_nome: nomeExibido,
                         professor_nome: professor?.nome,
-                        curso_nome: 'Experimental'
+                        curso_nome: 'Experimental',
+                        telefone: lead?.telefone
                     };
                 }) || [])
             ];
