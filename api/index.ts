@@ -2092,10 +2092,15 @@ async function startServer() {
             if (!telefone) {
                 return res.status(400).json({ error: 'O telefone do lead é obrigatório' });
             }
+            let parsedCursoId = null;
+            if (interesse_curso_id !== undefined && interesse_curso_id !== null && interesse_curso_id !== '') {
+                const parsed = parseInt(String(interesse_curso_id), 10);
+                if (!isNaN(parsed)) parsedCursoId = parsed;
+            }
             const { data, error } = await supabase.from('leads').insert([{
                 nome: nome || null,
                 telefone,
-                interesse_curso_id: interesse_curso_id || null,
+                interesse_curso_id: parsedCursoId,
                 status: status || 'em_atendimento',
                 observacoes: observacoes || null,
                 origem: origem || null,
@@ -2131,7 +2136,14 @@ async function startServer() {
                 if (!telefone) return res.status(400).json({ error: 'O telefone é obrigatório' });
                 updateData.telefone = telefone;
             }
-            if (interesse_curso_id !== undefined) updateData.interesse_curso_id = interesse_curso_id || null;
+            if (interesse_curso_id !== undefined) {
+                let parsedCursoId = null;
+                if (interesse_curso_id !== null && interesse_curso_id !== '') {
+                    const parsed = parseInt(String(interesse_curso_id), 10);
+                    if (!isNaN(parsed)) parsedCursoId = parsed;
+                }
+                updateData.interesse_curso_id = parsedCursoId;
+            }
             if (status !== undefined) updateData.status = status;
             if (observacoes !== undefined) updateData.observacoes = observacoes || null;
             if (origem !== undefined) updateData.origem = origem || null;
