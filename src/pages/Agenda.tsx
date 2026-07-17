@@ -348,11 +348,19 @@ export default function Agenda() {
                         {selectedAula?.id === aula.id && (
                            <div className="mt-4 pt-4 border-t-4 border-dashed border-[#ff6b00] flex flex-col gap-2">
                                <button 
-                                 onClick={(e) => { e.stopPropagation(); navigate(`/alunos/${aula.aluno_id}`) }}
-                                 className="w-full px-4 py-3 bg-[#feccba] border-4 border-black font-black text-xs uppercase text-left hover:bg-[#ff6b00] hover:text-white transition-colors flex items-center gap-2 text-black shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"
-                               >
-                                 <Users className="w-4 h-4 shrink-0" /> Perfil do Aluno
-                               </button>
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (aula.type === 'experimental') {
+                                      navigate('/atendimento');
+                                      toast.info('Edite o lead na tela de Atendimento & CRM.');
+                                    } else {
+                                      navigate(`/alunos/${aula.aluno_id}`);
+                                    }
+                                  }}
+                                  className="w-full px-4 py-3 bg-[#feccba] border-4 border-black font-black text-xs uppercase text-left hover:bg-[#ff6b00] hover:text-white transition-colors flex items-center gap-2 text-black shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"
+                                >
+                                  <Users className="w-4 h-4 shrink-0" /> {aula.type === 'experimental' ? 'Editar Lead (Atendimento)' : 'Perfil do Aluno'}
+                                </button>
                                <button 
                                  onClick={(e) => {
                                    e.stopPropagation();
@@ -579,10 +587,18 @@ export default function Agenda() {
             <Zap className="w-3.5 h-3.5" /> Confirmar Aula
           </button>
           <button 
-            onClick={() => navigate(`/alunos/${selectedAula.aluno_id}`)}
+            onClick={() => {
+              if (selectedAula?.type === 'experimental') {
+                navigate('/atendimento');
+                toast.info('Edite o lead na tela de Atendimento & CRM.');
+                setSelectedAula(null);
+              } else {
+                navigate(`/alunos/${selectedAula.aluno_id}`);
+              }
+            }}
             className="px-4 py-2 text-[10px] font-black uppercase text-left hover:bg-[#ffeae1] transition-colors flex items-center gap-2 border-2 border-transparent hover:border-black text-black"
           >
-            <Users className="w-3.5 h-3.5" /> Ver Perfil
+            <Users className="w-3.5 h-3.5" /> {selectedAula?.type === 'experimental' ? 'Editar Lead' : 'Ver Perfil'}
           </button>
           <button 
             onClick={(e) => {
