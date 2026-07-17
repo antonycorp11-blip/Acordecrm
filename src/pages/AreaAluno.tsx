@@ -371,8 +371,25 @@ export default function AreaAluno() {
   const [contratoAtivo, setContratoAtivo] = useState<any>(null);
   const sigPad = useRef<any>(null);
   const sigCanvasContainer = useRef<HTMLDivElement>(null);
-  const [sigCanvasDims, setSigCanvasDims] = useState({ width: 600, height: 200 });
+  const [sigCanvasDims, setSigCanvasDims] = useState({ width: 600, height: 250 });
   const [savingContrato, setSavingContrato] = useState(false);
+
+  // Mede o container da assinatura para passar dimensões reais ao canvas
+  useEffect(() => {
+    const el = sigCanvasContainer.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setSigCanvasDims({ width: Math.floor(width), height: Math.floor(height) });
+          if (sigPad.current) sigPad.current.clear();
+        }
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showContratoModal]);
   const [alunoFinanceiro, setAlunoFinanceiro] = useState<any[]>([]);
   const [alunoContrato, setAlunoContrato] = useState<any | null>(null);
   const [alunoEadProgresso, setAlunoEadProgresso] = useState<{aulasAssistidas: any[], questionariosAprovados: any[]} | null>(null);
@@ -3452,17 +3469,9 @@ export default function AreaAluno() {
               ) : (
                   <>
                       <div
+                          ref={sigCanvasContainer}
                           className="flex-1 border-4 border-black bg-white relative cursor-crosshair overflow-hidden"
-                          style={{ minHeight: '200px' }}
-                          ref={(el) => {
-                            (sigCanvasContainer as any).current = el;
-                            if (el) {
-                              const rect = el.getBoundingClientRect();
-                              if (rect.width > 0 && rect.height > 0) {
-                                setSigCanvasDims({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
-                              }
-                            }
-                          }}
+                          style={{ minHeight: '250px' }}
                       >
                           <SignatureCanvas
                               ref={sigPad}
