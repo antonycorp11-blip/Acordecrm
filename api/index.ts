@@ -2874,8 +2874,8 @@ async function startServer() {
                         id: `exp-${e.id}`,
                         originalId: e.id,
                         type: 'experimental',
-                        nome: lead?.nome,
-                        aluno_nome: lead?.nome,
+                        nome: lead?.nome || 'Aula Experimental',
+                        aluno_nome: lead?.nome || 'Aula Experimental',
                         professor_nome: professor?.nome,
                         curso_nome: 'Experimental'
                     };

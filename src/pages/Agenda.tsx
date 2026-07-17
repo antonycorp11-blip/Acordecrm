@@ -78,7 +78,7 @@ export default function Agenda() {
   const getAulaColor = (aula: any) => {
     if (aula.status === 'realizada' || aula.status === 'presente') return { bg: '#22c55e', border: '#14532d', text: '#ffffff' }; // Verde
     if (aula.status === 'confirmada') return { bg: '#3b82f6', border: '#1e3a8a', text: '#ffffff' }; // Azul
-    if (aula.tipo === 'experimental') return { bg: '#fff8f6', border: '#7b5647', text: '#261812' };
+    if (aula.type === 'experimental' || aula.tipo === 'experimental') return { bg: '#fef08a', border: '#a16207', text: '#713f12' }; // Amarelo
     return { bg: '#ff6b00', border: '#261812', text: '#fff' };
   };
 
@@ -474,11 +474,27 @@ export default function Agenda() {
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, aula)}
                                     onClick={(e) => handleAulaClick(e, aula)}
-                                    className="px-2 py-1.5 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95 z-0"
+                                    className="px-2 py-1 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95 z-0 relative"
                                     style={{ background: c.bg, border: `2px solid ${c.border}`, color: c.text, boxShadow: `3px 3px 0 ${c.border}` }}
-                                    title={aula.aluno_nome || 'Aula'}
+                                    title={aula.aluno_nome || (aula.type === 'experimental' ? 'Aula Experimental' : 'Aula')}
                                   >
-                                    {(aula.aluno_nome || 'ALUNO').split(' ')[0].substring(0, 10)}
+                                    {(aula.type === 'experimental' || aula.tipo === 'experimental') && (
+                                      <span
+                                        className="absolute -top-1.5 -right-1 text-[7px] font-black px-1 py-px rounded border border-yellow-600 leading-tight"
+                                        style={{
+                                          background: 'linear-gradient(135deg, #facc15 0%, #fbbf24 50%, #f59e0b 100%)',
+                                          color: '#713f12',
+                                          boxShadow: '0 0 6px 1px #fde047, 0 0 12px 2px #fbbf2466',
+                                          animation: 'pulse 1.5s ease-in-out infinite'
+                                        }}
+                                      >
+                                        ✨EXP
+                                      </span>
+                                    )}
+                                    {(aula.type === 'experimental' || aula.tipo === 'experimental')
+                                      ? ((aula.aluno_nome || '').split(' ')[0].substring(0, 10) || 'EXPERIMENTAL')
+                                      : (aula.aluno_nome || 'ALUNO').split(' ')[0].substring(0, 10)
+                                    }
                                   </div>
                                 );
                               })}
