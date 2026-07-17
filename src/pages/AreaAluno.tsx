@@ -3204,6 +3204,7 @@ export default function AreaAluno() {
             </div>
           )}
 
+        </div>
 
         {/* Botão Flutuante Musiclass Tools */}
         <button
