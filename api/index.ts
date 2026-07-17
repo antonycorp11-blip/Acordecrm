@@ -565,7 +565,7 @@ async function startServer() {
             // 1. Buscar o aluno logado (usando ilike para ser case-insensitive)
             const { data: aluno, error } = await supabase
                 .from('alunos')
-                .select('*, matriculas(*, cursos(nome)), contratos(*)')
+                .select('*, matriculas(*, cursos(nome), pacotes(*)), contratos(*)')
                 .ilike('email', req.user.email)
                 .single();
             
@@ -868,7 +868,7 @@ async function startServer() {
         try {
             const { data, error } = await supabase
                 .from('alunos')
-                .select('*, matriculas(*, cursos(nome)), contratos(id)')
+                .select('*, matriculas(*, cursos(nome), pacotes(*)), contratos(*)')
                 .eq('id', req.params.id)
                 .single();
             if (error) throw error;
@@ -988,6 +988,151 @@ async function startServer() {
 
             res.json(data || []);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.get('/api/alunos/:id/contrato', async (req, res) => {
+        try {
+            const { id } = req.params;
+            let { data: contrato, error } = await supabase.from('contratos')
+                .select('*')
+                .eq('aluno_id', id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+                
+            if (error) throw error;
+            if (contrato) {
+                return res.json(contrato);
+            }
+            
+            const { data: aluno, error: alunoError } = await supabase.from('alunos')
+                .select('*, matriculas(*, cursos(nome))')
+                .eq('id', id)
+                .single();
+                
+            if (alunoError || !aluno) {
+                return res.status(404).json({ error: 'Aluno não encontrado' });
+            }
+            const matricula = aluno.matriculas?.[0];
+            const { data: template } = await supabase.from('contrato_templates').select('*').limit(1).maybeSingle();
+            const clausulas = (template && template.clausulas && template.clausulas.length > 0)
+                ? template.clausulas
+                : [
+                  "REPOSIÇÕES E REAGENDAMENTOS: A reposição de faltas será concedida exclusivamente mediante apresentação de atestado ou receita médica. Fica permitido o reagendamento de aulas no limite de apenas 1 (uma) vez ao mês.",
+                  "DA ADESÃO: A assinatura implica ciência e aceitação integral das condições vigentes. Solicitação de cancelamento posterior não afasta as obrigações assumidas.",
+                  "DA INADIMPLÊNCIA: Atrasos geram multa de 2% e juros de 1% a.m. Após 30 dias inadimplente, as aulas poderão ser suspensas até regularização, sem direito à reposição.",
+                  "FALTAS PELA ESCOLA: Cancelamentos motivados pela escola ou professor terão reposição integral em data a combinar.",
+                  "FERIADOS: Feriados e recessos já compõem o calendário acadêmico anual, não gerando reposição ou desconto.",
+                  "PORTAL DO ALUNO: Acesso pessoal, intransferível e gratuito a materiais complementares. Sujeito a manutenções técnicas.",
+                  "CERTIFICADO: A execução exige conclusão do curso, adimplência financeira e realização das atividades no Portal.",
+                  "ABANDONO: A ausência injustificada não cancela o contrato. As parcelas seguem devidas até a solicitação formal de cancelamento.",
+                  "TOLERÂNCIA: Limite de 15 minutos de atraso, sem reposição do tempo perdido, encerrando-se a aula no horário previsto original.",
+                  "DADOS E IMAGEM: Dados tratados conforme LGPD. Autoriza-se o uso de imagem do aluno para fins institucionais da escola, salvo oposição formal por escrito.",
+                  "EQUIPAMENTOS: O contratante responsabiliza-se pelo ressarcimento de danos aos equipamentos da escola causados por mau uso. Exclui-se o desgaste natural.",
+                  "RESCISÃO PELO ALUNO: Vigência de 12 meses. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
+                  "NORMAS E RESCISÃO PELA ESCOLA: Exige-se respeito às normas. Inadimplência, mau comportamento ou danos ao patrimônio podem gerar advertência ou rescisão imediata do contrato pela escola.",
+                  "PROFESSORES: A escola reserva-se o direito de substituir professores, horários ou alterar metodologias, não justificando cancelamento isento de multa.",
+                  "FORO: Eleito o foro da Comarca de Cuiabá-MT para dirimir controvérsias judiciais decorrentes deste contrato."
+                ];
+                
+            const responsavel = aluno.responsavel_nome || aluno.nome;
+            const cpf = aluno.responsavel_cpf || aluno.cpf || '';
+            const endereco = aluno.endereco || '';
+            const cursoNome = matricula?.cursos?.nome || 'Música';
+            const valorPlano = matricula?.valor_parcela || '370';
+            const diaVencimento = matricula?.dia_vencimento || '10';
+            const qtdParcelas = matricula?.total_parcelas || '6';
+            const clausulasHtml = clausulas.map((c: string, idx: number) => `<p style="margin-bottom: 10px;"><strong>Cláusula ${idx + 1}ª.</strong> ${c}</p>`).join('');
+            
+            const dataAtual = new Date();
+            const mesesStr = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+            const dataFormatada = `${dataAtual.getDate()} de ${mesesStr[dataAtual.getMonth()]} de ${dataAtual.getFullYear()}`;
+            
+            const conteudo_html = `
+<div style="font-family: serif; font-size: 14px; line-height: 1.5; color: black; padding: 20px; background-color: white;">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="font-size: 20px; font-weight: bold; margin: 0 0 5px 0;">STUDIO ACORDE ESCOLA DE MÚSICA</h1>
+        <h2 style="font-size: 16px; font-weight: bold; margin: 0;">CONTRATO DE PRESTAÇÃO DE SERVIÇOS MUSICAIS</h2>
+    </div>
+    <div style="text-align: justify; margin-bottom: 20px;">
+        <p style="margin-bottom: 10px;"><strong>CONTRATADA:</strong> STUDIO ACORDE ESCOLA DE MUSICA LTDA, inscrita no CNPJ/MF sob o nº 55.273.720/0001-12, com sede à AV NEWTON RABELLO, nº 26, Pedra 90, Cuiabá - MT.</p>
+        <p style="margin-bottom: 10px;"><strong>CONTRATANTE:</strong> ${aluno.nome}, representado(a) neste ato por seu Responsável Legal, <strong>${responsavel}</strong>, inscrito(a) no CPF/MF sob o nº <strong>${cpf}</strong>, residente e domiciliado à <strong>${endereco}</strong>.</p>
+        <p style="margin-bottom: 10px;"><strong>CURSO CONTRATADO:</strong> O objeto deste instrumento é o ensino de <strong>${cursoNome}</strong>, sendo 1 aula por semana, com duração de 50 minutos cada.</p>
+    </div>
+    <div style="text-align: justify; margin-bottom: 20px;">
+        ${clausulasHtml}
+        <p style="margin-bottom: 10px;"><strong>Cláusula ${clausulas.length + 1}ª.</strong> Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor certo e ajustado de <strong>R$ ${valorPlano}</strong> por mensalidade, com vencimento todo dia <strong>${diaVencimento}</strong> de cada mês, durante o plano de <strong>${qtdParcelas} meses</strong>.</p>
+    </div>
+    <div style="text-align: justify; margin-bottom: 40px;">
+        <p>E por estarem justas e contratadas, as partes assinam o presente contrato eletronicamente.</p>
+        <p style="text-align: right; margin-top: 10px;">Cuiabá - MT, ${dataFormatada}</p>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 60px; text-align: center;">
+        <div style="width: 45%; border-top: 1px solid black; padding-top: 5px;">
+            <p style="font-weight: bold; margin: 0;">STUDIO ACORDE</p>
+            <p style="font-size: 10px; margin: 0;">CONTRATADA</p>
+        </div>
+        <div style="width: 45%; border-top: 1px solid black; padding-top: 5px;">
+            <p style="font-weight: bold; margin: 0;">${responsavel}</p>
+            <p style="font-size: 10px; margin: 0;">CONTRATANTE</p>
+        </div>
+    </div>
+</div>
+            `.trim();
+            
+            const { data: newContrato, error: insertError } = await supabase.from('contratos').insert([{
+                aluno_id: id,
+                dados_dinamicos: { responsavel, cpf, endereco, cursoNome, valorPlano, diaVencimento, qtdParcelas },
+                conteudo_html,
+                status: 'pendente'
+            }]).select().single();
+            
+            if (insertError) throw insertError;
+            res.json(newContrato);
+        } catch (error: any) {
+            console.error('Erro get/create contrato:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get('/api/alunos/:id/ead-progresso', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { data: progresso, error: progError } = await supabase
+                .from('progresso_trilha')
+                .select('*, aulas_trilha(titulo, modulo_id, modulos_trilha(nome))')
+                .eq('aluno_id', id);
+            if (progError) throw progError;
+            
+            const { data: tentativas, error: tentError } = await supabase
+                .from('tentativas_questionario_trilha')
+                .select('*, aulas_trilha(titulo), modulos_trilha(nome)')
+                .eq('aluno_id', id)
+                .eq('aprovado', true)
+                .order('created_at', { ascending: false });
+            if (tentError) throw tentError;
+            
+            res.json({
+                aulasAssistidas: (progresso || []).map((p: any) => ({
+                    id: p.id,
+                    aulaId: p.aula_id,
+                    concluidoAt: p.concluido_at,
+                    titulo: p.aulas_trilha?.titulo || 'Aula sem título',
+                    moduloNome: p.aulas_trilha?.modulos_trilha?.nome || 'Módulo sem nome'
+                })),
+                questionariosAprovados: (tentativas || []).map((t: any) => ({
+                    id: t.id,
+                    aulaTrilhaId: t.aula_trilha_id,
+                    moduloTrilhaId: t.modulo_trilha_id,
+                    nota: t.nota,
+                    concluidoAt: t.created_at,
+                    titulo: t.aulas_trilha?.titulo || (t.modulos_trilha?.nome ? `Prova Geral: ${t.modulos_trilha.nome}` : 'Questionário')
+                }))
+            });
+        } catch (error: any) {
+            console.error('Erro get ead-progresso:', error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     app.delete('/api/alunos/:id', requireAdmin, async (req, res) => {

@@ -371,6 +371,10 @@ export default function AreaAluno() {
   const [contratoAtivo, setContratoAtivo] = useState<any>(null);
   const sigPad = useRef<any>(null);
   const [savingContrato, setSavingContrato] = useState(false);
+  const [alunoFinanceiro, setAlunoFinanceiro] = useState<any[]>([]);
+  const [alunoContrato, setAlunoContrato] = useState<any | null>(null);
+  const [alunoEadProgresso, setAlunoEadProgresso] = useState<{aulasAssistidas: any[], questionariosAprovados: any[]} | null>(null);
+  const [loadingFinanceiroEContrato, setLoadingFinanceiroEContrato] = useState(false);
 
   // Estados para o Sistema de Treino Diário
   const [treinos, setTreinos] = useState<any[]>([]);
@@ -436,6 +440,36 @@ export default function AreaAluno() {
       const prog = await res.json();
       setTrilhaProgresso(Array.isArray(prog) ? prog : []);
     } catch (err) { console.error(err); }
+  };
+
+  const fetchFinanceiroEContrato = async (alunoId: any) => {
+    const token = localStorage.getItem('acorde_token');
+    const h = { Authorization: `Bearer ${token}` };
+    try {
+      setLoadingFinanceiroEContrato(true);
+      
+      const resFin = await fetch(`/api/alunos/${alunoId}/financeiro`, { headers: h });
+      if (resFin.ok) {
+        const dataFin = await resFin.json();
+        setAlunoFinanceiro(Array.isArray(dataFin) ? dataFin : []);
+      }
+      
+      const resCon = await fetch(`/api/alunos/${alunoId}/contrato`, { headers: h });
+      if (resCon.ok) {
+        const dataCon = await resCon.json();
+        setAlunoContrato(dataCon);
+      }
+      
+      const resEad = await fetch(`/api/alunos/${alunoId}/ead-progresso`, { headers: h });
+      if (resEad.ok) {
+        const dataEad = await resEad.json();
+        setAlunoEadProgresso(dataEad);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar dados do perfil:", err);
+    } finally {
+      setLoadingFinanceiroEContrato(false);
+    }
   };
 
   const handleSubmitQuestionario = async (target: 'aula' | 'modulo') => {
@@ -654,6 +688,7 @@ export default function AreaAluno() {
         if (me) {
           setAlunoData(me);
           fetchTrilhaProgresso(me.id);
+          fetchFinanceiroEContrato(me.id);
           if (me.avatar_inventory && Array.isArray(me.avatar_inventory)) {
             setAvatarInventory(me.avatar_inventory);
           } else {
@@ -1350,11 +1385,13 @@ export default function AreaAluno() {
       if (res.ok) {
         toast.success("Contrato assinado com sucesso!");
         setContratoAtivo((prev: any) => ({ ...prev, status: 'assinado', assinatura_base64 }));
+        setAlunoContrato((prev: any) => ({ ...prev, status: 'assinado', assinatura_base64 }));
         setAlunoData((prev: any) => {
             if (!prev) return prev;
+            const updatedContratos = prev.contratos ? prev.contratos.map((c: any) => c.id === contratoAtivo.id ? { ...c, status: 'assinado', assinatura_base64 } : c) : [];
             return {
                ...prev,
-               contratos: prev.contratos.map((c: any) => c.id === contratoAtivo.id ? { ...c, status: 'assinado', assinatura_base64 } : c)
+               contratos: updatedContratos
             };
         });
       } else {
@@ -2591,144 +2628,59 @@ export default function AreaAluno() {
                 </div>
               </div>
 
-              {/* Painel do Jogador Retrô 8-Bit */}
-              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[12px_12px_0_#000] flex flex-col items-center text-center relative overflow-visible gap-4">
-                <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
+              {/* Painel Simplificado do Jogador */}
+              <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col md:flex-row items-center gap-4">
+                {/* Avatar config */}
+                <div className="w-16 h-16 shrink-0 shadow-[4px_4px_0_#000] relative">
+                  {alunoData?.avatar_config ? (
+                    <AvatarPixel config={alunoData.avatar_config} hideBackground />
+                  ) : alunoData?.foto_url ? (
+                    <img src={alunoData.foto_url} alt="Avatar" className="w-full h-full object-cover border-2 border-black" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-[#ff6b00] border-2 border-black text-black font-black text-xl uppercase">
+                      {(alunoData?.nome || user?.nome || 'A').charAt(0)}
+                    </div>
+                  )}
+                </div>
                 
-                {/* Nome do Estudante */}
-                <div className="space-y-0.5">
-                  <h2 className="text-black font-black text-xl uppercase italic leading-tight">{alunoData?.nome || user?.nome}</h2>
-                  <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-widest">{alunoData?.email}</p>
-                </div>
-
-                {/* Avatar Interativo Grande */}
-                <div className="relative group cursor-pointer w-full max-w-[220px] aspect-[3/4]" onClick={() => document.getElementById('photo-input-home')?.click()}>
-                  <div className="w-full h-full shadow-[6px_6px_0_#000] relative">
-                    {alunoData?.avatar_config ? (
-                      <AvatarPixel config={alunoData.avatar_config} />
-                    ) : alunoData?.foto_url ? (
-                      <img src={alunoData.foto_url} alt="Avatar" className="w-full h-full object-cover border-4 border-black" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-[#ff6b00] border-4 border-black text-black font-black text-5xl uppercase">
-                        {(alunoData?.nome || user?.nome || 'A').charAt(0)}
-                      </div>
-                    )}
+                <div className="flex-1 w-full text-center md:text-left space-y-2">
+                  <div>
+                    <h2 className="text-black font-black text-lg uppercase italic leading-tight">{alunoData?.nome || user?.nome}</h2>
+                    <span className="text-[7.5px] font-black uppercase px-2 py-0.5 bg-black text-white border border-black tracking-widest">
+                      NÍVEL_0{Math.floor((alunoData?.xp || 0) / 1000) + 1} • {alunoData?.curso_ativo || 'MÚSICA'}
+                    </span>
                   </div>
-                  <div className="absolute -bottom-2 -right-2 bg-black border-4 border-white text-white p-1.5 rounded-none hover:scale-105 transition-transform">
-                    <Camera className="w-4 h-4" />
-                  </div>
-                  <input 
-                    id="photo-input-home" 
-                    type="file" 
-                    className="hidden" 
-                    accept="image/*" 
-                    onChange={handlePhotoUpload} 
-                  />
-                </div>
-
-                {/* Nível do Estudante */}
-                <span className="text-[9px] font-black uppercase px-3 py-1 bg-black text-white border-2 border-black tracking-widest">
-                  NÍVEL_0{Math.floor((alunoData?.xp || 0) / 1000) + 1} • {alunoData?.curso_ativo || 'MÚSICA'}
-                </span>
-
-                {/* Barra de Progresso de XP */}
-                <div className="w-full space-y-1">
-                  <div className="flex justify-between items-center text-[7.5px] font-black text-black tracking-wider">
-                    <span>XP PARA PRÓXIMO LVL</span>
-                    <span>{(alunoData?.xp || 0) % 1000} / 1000 XP</span>
-                  </div>
-                  <div className="h-5 bg-black p-0.5 border-4 border-black overflow-hidden w-full">
-                    <div 
-                      className="h-full bg-[#ff6b00] transition-all duration-500" 
-                      style={{ width: `${((alunoData?.xp || 0) % 1000) / 10}%` }}
-                    ></div>
+                  {/* Barra de Progresso de XP */}
+                  <div className="w-full space-y-1">
+                    <div className="flex justify-between items-center text-[7px] font-black text-black tracking-wider">
+                      <span>XP PARA PRÓXIMO LVL</span>
+                      <span>{(alunoData?.xp || 0) % 1000} / 1000 XP</span>
+                    </div>
+                    <div className="h-3 bg-black p-0.5 border-2 border-black overflow-hidden w-full">
+                      <div 
+                        className="h-full bg-[#ff6b00] transition-all duration-500" 
+                        style={{ width: `${((alunoData?.xp || 0) % 1000) / 10}%` }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Ações Rápidas (Editor & Loja) */}
-                <div className="w-full flex flex-col gap-2.5 border-t-4 border-black pt-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={() => setShowAvatarEditor(!showAvatarEditor)}
-                      className="bg-[#ff6b00] text-white border-4 border-black py-2.5 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black transition-all"
-                    >
-                      {showAvatarEditor ? 'FECHAR EDITOR' : '👕 CUSTOMIZAR'}
-                    </button>
-                    
-                    <button 
-                      onClick={() => setShowAvatarStore(true)}
-                      className="bg-[#ffeb3b] text-black border-4 border-black py-2.5 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black hover:text-white transition-all"
-                    >
-                      🛒 LOJA DE SKINS
-                    </button>
+                {/* Mini Stats */}
+                <div className="flex gap-2 w-full md:w-auto shrink-0 justify-center">
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1 text-center shadow-[1px_1px_0_#000] min-w-[60px]">
+                    <p className="text-black font-black text-[5.5px] uppercase tracking-widest leading-none">XP TOTAL</p>
+                    <p className="text-[#ff6b00] font-black text-xs italic mt-1 leading-none">{alunoData?.xp || 0}</p>
                   </div>
-
-                  <button 
-                    onClick={handleDownloadProfileCard}
-                    className="w-full bg-[#4ade80] text-black border-4 border-black py-2 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 transition-all flex items-center justify-center gap-1"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    SALVAR CARD DO JOGADOR
-                  </button>
-                </div>
-
-                {/* Editor Inline se showAvatarEditor for true */}
-                {showAvatarEditor && (
-                  <div className="w-full border-t-4 border-dashed border-black pt-4 mt-2">
-                    <AvatarEditor 
-                      alunoId={alunoData?.id} 
-                      currentConfig={alunoData?.avatar_config}
-                      unlockedItems={avatarInventory}
-                      onSave={async (newConfig) => {
-                         setAlunoData((prev: any) => ({ ...prev, avatar_config: newConfig }));
-                         setShowAvatarEditor(false);
-                         const token = localStorage.getItem('acorde_token');
-                         if (alunoData?.id) {
-                           await fetch(`/api/alunos/${alunoData.id}/avatar`, {
-                             method: 'PUT',
-                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                             body: JSON.stringify({ avatar_config: newConfig })
-                           });
-                         }
-                      }}
-                    />
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1 text-center shadow-[1px_1px_0_#000] min-w-[60px]">
+                    <p className="text-black font-black text-[5.5px] uppercase tracking-widest leading-none">MOEDAS</p>
+                    <p className="text-black font-black text-xs italic mt-1 leading-none">{acordeCoins}</p>
                   </div>
-                )}
-
-                {/* Stats do Player */}
-                <div className="grid grid-cols-3 gap-2 w-full mt-2 pt-4 border-t-4 border-dashed border-black/20">
-                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
-                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">XP TOTAL</p>
-                    <p className="text-[#ff6b00] font-black text-sm italic mt-1 leading-none">{alunoData?.xp || 0}</p>
-                  </div>
-                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
-                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">MOEDAS</p>
-                    <p className="text-black font-black text-sm italic mt-1 leading-none">{acordeCoins}</p>
-                  </div>
-                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
-                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">CONQUISTAS</p>
-                    <p className="text-[#ff6b00] font-black text-sm italic mt-1 leading-none">{alunoData?.conquistas?.length || 0}</p>
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1 text-center shadow-[1px_1px_0_#000] min-w-[60px]">
+                    <p className="text-black font-black text-[5.5px] uppercase tracking-widest leading-none">CONQUISTAS</p>
+                    <p className="text-[#ff6b00] font-black text-xs italic mt-1 leading-none">{alunoData?.conquistas?.length || 0}</p>
                   </div>
                 </div>
               </div>
-
-              {/* Loja de Skins Overlay Modal */}
-              {showAvatarStore && (
-                <div className="fixed inset-0 bg-black/85 z-[200] flex items-center justify-center p-4 overflow-y-auto">
-                  <div className="w-full max-w-[500px] my-6">
-                    <AvatarStore 
-                      xp={acordeCoins}
-                      pontos={acordeCoins}
-                      unlockedItems={avatarInventory}
-                      onClose={() => setShowAvatarStore(false)}
-                      onBuy={(itemId, price) => handleSpendXp(price, itemId)}
-                      onConvertXp={(amountXp, points) => {
-                        toast.error('A conversão de XP não é mais necessária!');
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Zepp Gallery - Galeria de Troféus (Integrada à Home) */}
               <div className="space-y-4">
@@ -2866,7 +2818,391 @@ export default function AreaAluno() {
             </div>
           )} {/* end activeTab === home */}
 
-        </div>
+          {activeTab === 'perfil' && (
+            <div className="px-4 py-5 space-y-6">
+              
+              {/* FICHA DO ESTUDANTE: DADOS & FINANCEIRO */}
+              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[12px_12px_0_#000] space-y-6">
+                <div className="border-b-4 border-black pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h2 className="text-black font-black text-xl uppercase italic">Ficha do Estudante</h2>
+                    <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-widest">Matrícula ativa & situação acadêmica</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Situação do Financeiro */}
+                    {(() => {
+                      const hasLatePayment = alunoFinanceiro.some(p => p.status === 'pendente' && new Date(p.data_vencimento) < new Date());
+                      return hasLatePayment ? (
+                        <span className="bg-red-500 text-white border-2 border-black font-black text-[9px] uppercase px-3 py-1 shadow-[2px_2px_0_#000]">
+                          🔴 INADIMPLENTE
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-500 text-white border-2 border-black font-black text-[9px] uppercase px-3 py-1 shadow-[2px_2px_0_#000]">
+                          🟢 REGULAR
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Dados Acadêmicos */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white border-4 border-black p-3 shadow-[4px_4px_0_#000] space-y-1">
+                    <p className="text-[#8e7164] font-black text-[7.5px] uppercase tracking-wider">Nome Completo</p>
+                    <p className="text-black font-black text-xs uppercase truncate">{alunoData?.nome}</p>
+                  </div>
+                  <div className="bg-white border-4 border-black p-3 shadow-[4px_4px_0_#000] space-y-1">
+                    <p className="text-[#8e7164] font-black text-[7.5px] uppercase tracking-wider">Data de Matrícula</p>
+                    <p className="text-black font-black text-xs uppercase truncate">
+                      {alunoData?.matriculas?.[0]?.data_inicio ? new Date(alunoData.matriculas[0].data_inicio).toLocaleDateString('pt-BR') : 'NÃO REGISTRADA'}
+                    </p>
+                  </div>
+                  <div className="bg-white border-4 border-black p-3 shadow-[4px_4px_0_#000] space-y-1">
+                    <p className="text-[#8e7164] font-black text-[7.5px] uppercase tracking-wider">Aulas Realizadas (Pacote)</p>
+                    <p className="text-black font-black text-xs uppercase">
+                      {aulasRealizadas.length} aulas realizadas
+                    </p>
+                  </div>
+                  <div className="bg-white border-4 border-black p-3 shadow-[4px_4px_0_#000] space-y-1">
+                    <p className="text-[#8e7164] font-black text-[7.5px] uppercase tracking-wider">Aulas Restantes</p>
+                    <p className="text-black font-black text-xs uppercase">
+                      {Math.max(0, (alunoData?.matriculas?.[0]?.pacotes?.total_aulas || 0) - aulasRealizadas.length)} restantes
+                    </p>
+                  </div>
+                </div>
+
+                {/* Caixa PIX CNPJ */}
+                <div className="bg-[#261812] border-4 border-black p-4 text-white flex flex-col md:flex-row justify-between items-center gap-4 shadow-[4px_4px_0_#000]">
+                  <div className="space-y-1 text-center md:text-left">
+                    <h3 className="font-black text-xs uppercase text-[#ff6b00] tracking-wider">PAGAMENTO DE MENSALIDADE VIA PIX</h3>
+                    <p className="text-[10px] font-bold text-stone-300">Utilize a chave CNPJ abaixo para realizar o pagamento. Envie o comprovante para a secretaria.</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-black border-2 border-white/20 px-3 py-2 w-full md:w-auto justify-between">
+                    <span className="font-mono text-xs text-[#4ade80] font-black tracking-widest select-all">55.273.720/0001-12</span>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText("55273720000112");
+                        toast.success("Chave PIX copiada para a área de transferência!");
+                      }}
+                      className="bg-[#ff6b00] text-white font-black text-[8px] uppercase px-2.5 py-1 border border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-white hover:text-black transition-all"
+                    >
+                      COPIAR
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tabela de Mensalidades */}
+                <div className="space-y-2">
+                  <h3 className="text-black font-black text-xs uppercase tracking-widest">Histórico Financeiro (Mensalidades)</h3>
+                  <div className="overflow-x-auto border-4 border-black bg-white">
+                    <table className="w-full text-left border-collapse text-xs font-['Space_Mono']">
+                      <thead>
+                        <tr className="bg-black text-white border-b-4 border-black font-black text-[9px] uppercase">
+                          <th className="p-3 border-r-2 border-black">Referência</th>
+                          <th className="p-3 border-r-2 border-black">Vencimento</th>
+                          <th className="p-3 border-r-2 border-black text-right">Valor Normal</th>
+                          <th className="p-3 border-r-2 border-black text-right">Com Desconto</th>
+                          <th className="p-3 text-center">Situação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {alunoFinanceiro.map((pag, idx) => {
+                          const valorOriginal = pag.valor || 0;
+                          const valorDesconto = pag.valor_com_desconto || (alunoData?.matriculas?.[0]?.valor_com_desconto) || (valorOriginal * 0.8);
+                          const isVencido = pag.status === 'pendente' && new Date(pag.data_vencimento) < new Date();
+                          
+                          return (
+                            <tr key={pag.id || idx} className="border-b-2 border-black/10 hover:bg-[#ffeae1]/10">
+                              <td className="p-3 border-r-2 border-black font-black">{pag.referencia_mes_ano || 'MENSALIDADE'}</td>
+                              <td className="p-3 border-r-2 border-black font-black">
+                                {pag.data_vencimento ? new Date(pag.data_vencimento + 'T12:00:00Z').toLocaleDateString('pt-BR') : '---'}
+                              </td>
+                              <td className="p-3 border-r-2 border-black text-right font-black">R$ {Number(valorOriginal).toFixed(2)}</td>
+                              <td className="p-3 border-r-2 border-black text-right font-black text-[#ff6b00]">
+                                R$ {Number(valorDesconto).toFixed(2)}
+                              </td>
+                              <td className="p-3 text-center font-black">
+                                {pag.status === 'pago' ? (
+                                  <span className="text-emerald-600 uppercase text-[9px]">🟢 PAGO</span>
+                                ) : isVencido ? (
+                                  <span className="text-red-500 uppercase text-[9px] animate-pulse">🔴 EM ATRASO</span>
+                                ) : (
+                                  <span className="text-stone-500 uppercase text-[9px]">🟡 A VENCER</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {alunoFinanceiro.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="p-4 text-center font-black text-stone-400 uppercase text-[9px]">Nenhuma fatura encontrada.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* CONTRATO DE MATRÍCULA */}
+                <div className="bg-[#feccba]/20 border-4 border-black p-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 shadow-[4px_4px_0_#000]">
+                  <div className="space-y-1">
+                    <h3 className="font-black text-xs uppercase text-black">CONTRATO DE PRESTAÇÃO DE SERVIÇOS</h3>
+                    {alunoContrato?.status === 'assinado' ? (
+                      <p className="text-[9px] font-bold text-emerald-600 uppercase flex items-center gap-1.5">
+                        ✅ Contrato assinado eletronicamente em {new Date(alunoContrato.data_assinatura).toLocaleDateString('pt-BR')}
+                      </p>
+                    ) : (
+                      <p className="text-[9px] font-bold text-red-500 uppercase flex items-center gap-1.5 animate-pulse">
+                        ⚠️ Contrato pendente de assinatura! Assinatura obrigatória.
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    {alunoContrato?.status === 'assinado' ? (
+                      <button 
+                        onClick={() => {
+                          setContratoAtivo(alunoContrato);
+                          setShowContratoModal(true);
+                        }}
+                        className="bg-black text-[#feccba] border-4 border-black py-2 px-4 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-stone-800 transition-all w-full sm:w-auto"
+                      >
+                        👁️ Visualizar Contrato
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          if (alunoContrato) {
+                            setContratoAtivo(alunoContrato);
+                            setShowContratoModal(true);
+                          } else {
+                            toast.error("Contrato ainda não gerado. Tente novamente em instantes.");
+                          }
+                        }}
+                        className="bg-[#ff6b00] text-white border-4 border-black py-2 px-4 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black transition-all animate-bounce w-full sm:w-auto"
+                      >
+                        ✍️ Ler e Assinar Contrato
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* HISTÓRICO EAD */}
+              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[12px_12px_0_#000] space-y-6">
+                <div>
+                  <h2 className="text-black font-black text-xl uppercase italic">Histórico de Cursos EAD</h2>
+                  <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-widest">Aulas concluídas e questionários da trilha de conhecimento</p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Tabela de Aulas Assistidas */}
+                  <div className="space-y-2">
+                    <h3 className="text-black font-black text-xs uppercase tracking-widest">🎓 Aulas Assistidas (Trilha EAD)</h3>
+                    <div className="max-h-60 overflow-y-auto border-4 border-black bg-white custom-scrollbar">
+                      <table className="w-full text-left border-collapse text-xs font-['Space_Mono']">
+                        <thead>
+                          <tr className="bg-black text-white border-b-4 border-black font-black text-[8px] uppercase">
+                            <th className="p-2.5 border-r border-black">Aula</th>
+                            <th className="p-2.5 border-r border-black">Módulo</th>
+                            <th className="p-2.5 text-center">Data</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {alunoEadProgresso?.aulasAssistidas?.map((p, idx) => (
+                            <tr key={p.id || idx} className="border-b border-black/10 hover:bg-stone-50">
+                              <td className="p-2.5 border-r border-black font-black uppercase text-[10px]">{p.titulo}</td>
+                              <td className="p-2.5 border-r border-black font-black text-stone-500 text-[9px]">{p.moduloNome}</td>
+                              <td className="p-2.5 text-center font-black text-stone-600">
+                                {p.concluidoAt ? new Date(p.concluidoAt).toLocaleDateString('pt-BR') : '---'}
+                              </td>
+                            </tr>
+                          ))}
+                          {(!alunoEadProgresso || alunoEadProgresso.aulasAssistidas.length === 0) && (
+                            <tr>
+                              <td colSpan={3} className="p-4 text-center font-black text-stone-400 uppercase text-[9px]">Nenhuma aula assistida registrada.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Tabela de Questionários Aprovados */}
+                  <div className="space-y-2">
+                    <h3 className="text-black font-black text-xs uppercase tracking-widest">🏆 Questionários Aprovados</h3>
+                    <div className="max-h-60 overflow-y-auto border-4 border-black bg-white custom-scrollbar">
+                      <table className="w-full text-left border-collapse text-xs font-['Space_Mono']">
+                        <thead>
+                          <tr className="bg-black text-white border-b-4 border-black font-black text-[8px] uppercase">
+                            <th className="p-2.5 border-r border-black">Referência</th>
+                            <th className="p-2.5 border-r border-black text-center">Nota</th>
+                            <th className="p-2.5 text-center">Data</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {alunoEadProgresso?.questionariosAprovados?.map((t, idx) => (
+                            <tr key={t.id || idx} className="border-b border-black/10 hover:bg-stone-50">
+                              <td className="p-2.5 border-r border-black font-black uppercase text-[10px]">{t.titulo}</td>
+                              <td className="p-2.5 border-r border-black text-center font-black text-emerald-600 text-xs">
+                                {t.nota}%
+                              </td>
+                              <td className="p-2.5 text-center font-black text-stone-600">
+                                {t.concluidoAt ? new Date(t.concluidoAt).toLocaleDateString('pt-BR') : '---'}
+                              </td>
+                            </tr>
+                          ))}
+                          {(!alunoEadProgresso || alunoEadProgresso.questionariosAprovados.length === 0) && (
+                            <tr>
+                              <td colSpan={3} className="p-4 text-center font-black text-stone-400 uppercase text-[9px]">Nenhum questionário aprovado registrado.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* PAINEL RETRÔ DE PERSONALIZAÇÃO DO AVATAR */}
+              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[12px_12px_0_#000] flex flex-col items-center text-center relative overflow-visible gap-4">
+                <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
+                
+                <div className="space-y-0.5">
+                  <h2 className="text-black font-black text-xl uppercase italic leading-tight">Painel do Jogador &amp; Avatar</h2>
+                  <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-widest">Personalize seu visual e confira seu progresso</p>
+                </div>
+
+                {/* Avatar Interativo Grande */}
+                <div className="relative group cursor-pointer w-full max-w-[220px] aspect-[3/4]" onClick={() => document.getElementById('photo-input-profile')?.click()}>
+                  <div className="w-full h-full shadow-[6px_6px_0_#000] relative">
+                    {alunoData?.avatar_config ? (
+                      <AvatarPixel config={alunoData.avatar_config} />
+                    ) : alunoData?.foto_url ? (
+                      <img src={alunoData.foto_url} alt="Avatar" className="w-full h-full object-cover border-4 border-black" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-[#ff6b00] border-4 border-black text-black font-black text-5xl uppercase">
+                        {(alunoData?.nome || user?.nome || 'A').charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 bg-black border-4 border-white text-white p-1.5 rounded-none hover:scale-105 transition-transform">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <input 
+                    id="photo-input-profile" 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/*" 
+                    onChange={handlePhotoUpload} 
+                  />
+                </div>
+
+                {/* Nível do Estudante */}
+                <span className="text-[9px] font-black uppercase px-3 py-1 bg-black text-white border-2 border-black tracking-widest">
+                  NÍVEL_0{Math.floor((alunoData?.xp || 0) / 1000) + 1} • {alunoData?.curso_ativo || 'MÚSICA'}
+                </span>
+
+                {/* Barra de Progresso de XP */}
+                <div className="w-full space-y-1">
+                  <div className="flex justify-between items-center text-[7.5px] font-black text-black tracking-wider">
+                    <span>XP PARA PRÓXIMO LVL</span>
+                    <span>{(alunoData?.xp || 0) % 1000} / 1000 XP</span>
+                  </div>
+                  <div className="h-5 bg-black p-0.5 border-4 border-black overflow-hidden w-full">
+                    <div 
+                      className="h-full bg-[#ff6b00] transition-all duration-500" 
+                      style={{ width: `${((alunoData?.xp || 0) % 1000) / 10}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Ações Rápidas (Editor & Loja) */}
+                <div className="w-full flex flex-col gap-2.5 border-t-4 border-black pt-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => setShowAvatarEditor(!showAvatarEditor)}
+                      className="bg-[#ff6b00] text-white border-4 border-black py-2.5 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black transition-all"
+                    >
+                      {showAvatarEditor ? 'FECHAR EDITOR' : '👕 CUSTOMIZAR'}
+                    </button>
+                    
+                    <button 
+                      onClick={() => setShowAvatarStore(true)}
+                      className="bg-[#ffeb3b] text-black border-4 border-black py-2.5 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none hover:bg-black hover:text-white transition-all"
+                    >
+                      🛒 LOJA DE SKINS
+                    </button>
+                  </div>
+
+                  <button 
+                    onClick={handleDownloadProfileCard}
+                    className="w-full bg-[#4ade80] text-black border-4 border-black py-2 font-black text-[9px] uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 transition-all flex items-center justify-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    SALVAR CARD DO JOGADOR
+                  </button>
+                </div>
+
+                {/* Editor Inline se showAvatarEditor for true */}
+                {showAvatarEditor && (
+                  <div className="w-full border-t-4 border-dashed border-black pt-4 mt-2">
+                    <AvatarEditor 
+                      alunoId={alunoData?.id} 
+                      currentConfig={alunoData?.avatar_config}
+                      unlockedItems={avatarInventory}
+                      onSave={async (newConfig) => {
+                         setAlunoData((prev: any) => ({ ...prev, avatar_config: newConfig }));
+                         setShowAvatarEditor(false);
+                         const token = localStorage.getItem('acorde_token');
+                         if (alunoData?.id) {
+                           await fetch(`/api/alunos/${alunoData.id}/avatar`, {
+                             method: 'PUT',
+                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                             body: JSON.stringify({ avatar_config: newConfig })
+                           });
+                         }
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Stats do Player */}
+                <div className="grid grid-cols-3 gap-2 w-full mt-2 pt-4 border-t-4 border-dashed border-black/20">
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
+                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">XP TOTAL</p>
+                    <p className="text-[#ff6b00] font-black text-sm italic mt-1 leading-none">{alunoData?.xp || 0}</p>
+                  </div>
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
+                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">MOEDAS</p>
+                    <p className="text-black font-black text-sm italic mt-1 leading-none">{acordeCoins}</p>
+                  </div>
+                  <div className="bg-[#feccba]/40 border-2 border-black p-1.5 text-center shadow-[2px_2px_0_#000]">
+                    <p className="text-black font-black text-[6.5px] uppercase tracking-widest leading-none">CONQUISTAS</p>
+                    <p className="text-[#ff6b00] font-black text-sm italic mt-1 leading-none">{alunoData?.conquistas?.length || 0}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Loja de Skins Overlay Modal */}
+              {showAvatarStore && (
+                <div className="fixed inset-0 bg-black/85 z-[200] flex items-center justify-center p-4 overflow-y-auto">
+                  <div className="w-full max-w-[500px] my-6">
+                    <AvatarStore 
+                      xp={acordeCoins}
+                      pontos={acordeCoins}
+                      unlockedItems={avatarInventory}
+                      onClose={() => setShowAvatarStore(false)}
+                      onBuy={(itemId, price) => handleSpendXp(price, itemId)}
+                      onConvertXp={(amountXp, points) => {
+                        toast.error('A conversão de XP não é mais necessária!');
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
 
 
         {/* Botão Flutuante Musiclass Tools */}
@@ -2957,7 +3293,6 @@ export default function AreaAluno() {
           </div>
         </div>
       </div>
-
         {/* BOTTOM NAV — Mobile Flutuante 8-Bit */}
         <div className="fixed bottom-4 left-4 right-4 z-50 flex justify-center md:hidden">
           <nav className="bg-[#261812] border-8 border-black flex items-center justify-around px-2 py-1 shadow-[8px_8px_0_#000] w-full max-w-[450px]">
@@ -2967,6 +3302,7 @@ export default function AreaAluno() {
               { icon: Trophy, label: 'RANKING', tab: 'ranking' as const },
               { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
               { icon: Gamepad2, label: 'JOGOS', tab: 'jogos' as const },
+              { icon: User, label: 'PERFIL', tab: 'perfil' as const },
             ].map((item) => (
               <button 
                 key={item.tab} 
@@ -3002,6 +3338,7 @@ export default function AreaAluno() {
             { icon: Trophy, label: 'RANKING', tab: 'ranking' as const },
             { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
             { icon: Gamepad2, label: 'JOGOS', tab: 'jogos' as const },
+            { icon: User, label: 'PERFIL', tab: 'perfil' as const },
           ].map((item) => (
             <button 
               key={item.tab} 
@@ -3027,6 +3364,7 @@ export default function AreaAluno() {
             </button>
           ))}
         </nav>
+
       </div>
       {printAula && (
         <PrintModal 

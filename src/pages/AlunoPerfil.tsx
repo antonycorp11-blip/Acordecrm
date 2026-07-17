@@ -588,6 +588,8 @@ export default function AlunoPerfil() {
   const [activeTab, setActiveTab] = useState('geral');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [contratoModal, setContratoModal] = useState(false);
+  const [verContratoAssinadoModal, setVerContratoAssinadoModal] = useState(false);
+  const [contratoAssinadoAtivo, setContratoAssinadoAtivo] = useState<any>(null);
   const [editFormData, setEditFormData] = useState<any>({});
   const [cursos, setCursos] = useState<any[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -1012,6 +1014,34 @@ export default function AlunoPerfil() {
                       return <p className="font-black text-white/40 uppercase text-xs">SEM_AGENDAMENTO</p>;
                     })()}
                  </Card>
+
+                  {/* CARD DE STATUS CONTRATUAL */}
+                  {(() => {
+                    const contratoAssinado = aluno?.contratos?.find((c: any) => c.status === 'assinado');
+                    return contratoAssinado ? (
+                      <div className="bg-[#4ade80]/10 border-4 border-[#4ade80] p-4 text-left shadow-[4px_4px_0_#000] space-y-2">
+                        <div className="flex justify-between items-center border-b border-[#4ade80]/20 pb-2">
+                          <span className="text-[10px] font-black text-[#4ade80] uppercase tracking-widest">📝 CONTRATO_ASSINADO</span>
+                          <span className="text-[8px] font-bold text-black uppercase">EM {new Date(contratoAssinado.data_assinatura).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <p className="text-[10px] font-bold text-black uppercase leading-tight">O aluno assinou eletronicamente o contrato de prestação de serviços.</p>
+                        <button 
+                          onClick={() => {
+                            setContratoAssinadoAtivo(contratoAssinado);
+                            setVerContratoAssinadoModal(true);
+                          }} 
+                          className="w-full text-[9px] py-2 px-3 mt-2 bg-black text-white hover:bg-stone-800 uppercase font-black border-2 border-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none"
+                        >
+                          👁️ VISUALIZAR CONTRATO
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bg-[#ffeb3b]/10 border-4 border-[#ffeb3b] p-4 text-left shadow-[4px_4px_0_#000] space-y-2">
+                        <span className="text-[10px] font-black text-[#b49e00] uppercase tracking-widest block border-b border-[#ffeb3b]/30 pb-2">⚠️ CONTRATO_PENDENTE</span>
+                        <p className="text-[10px] font-bold text-black uppercase leading-tight">O aluno ainda não assinou o contrato eletrônico pelo portal.</p>
+                      </div>
+                    );
+                  })()}
               </div>
             </motion.div>
           )}
@@ -1435,6 +1465,107 @@ export default function AlunoPerfil() {
 
       {/* Gerador de Contrato */}
       <GeradorContrato isOpen={contratoModal} onClose={() => setContratoModal(false)} aluno={aluno} />
+
+      {/* Visualizador de Contrato Assinado */}
+      <AnimatePresence>
+        {verContratoAssinadoModal && contratoAssinadoAtivo && (
+          <div className="fixed inset-0 z-[150] bg-black/80 flex items-center justify-center p-4">
+            <Card className="w-full max-w-3xl h-[85vh] flex flex-col p-6 bg-[#fff8f6] border-8 border-black shadow-[12px_12px_0_#000] relative rounded-none">
+              <div className="flex items-center justify-between border-b-4 border-black pb-4 shrink-0">
+                <div>
+                  <h2 className="text-xl font-black text-black uppercase italic">Contrato Assinado</h2>
+                  <p className="text-[#8e7164] font-black text-[9px] uppercase tracking-widest">Visualização do documento com assinatura manuscrita</p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setVerContratoAssinadoModal(false);
+                    setContratoAssinadoAtivo(null);
+                  }}
+                  className="bg-black text-white p-2 border-2 border-black hover:bg-red-600 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Corpo do Contrato com Scroll */}
+              <div className="flex-1 overflow-y-auto border-4 border-black bg-white p-6 my-4 font-serif text-sm text-stone-850 leading-relaxed custom-scrollbar uppercase">
+                <div 
+                  className="space-y-4 whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: contratoAssinadoAtivo.texto_contrato }}
+                />
+                
+                {/* Rodapé do contrato com a assinatura manuscrita */}
+                <div className="mt-12 pt-6 border-t-4 border-black flex flex-col md:flex-row justify-between items-center gap-6 bg-stone-50 p-4 border-dashed">
+                  <div className="space-y-1 text-center md:text-left">
+                    <p className="font-sans font-black text-[10px] text-[#8e7164] uppercase tracking-wider">ASSINATURA DO ALUNO / RESPONSÁVEL</p>
+                    <p className="font-sans font-black text-sm text-black">{aluno?.nome}</p>
+                    <p className="font-sans font-medium text-[9px] text-stone-500">
+                      ASSINADO EM: {new Date(contratoAssinadoAtivo.data_assinatura).toLocaleDateString('pt-BR')} ÀS {new Date(contratoAssinadoAtivo.data_assinatura).toLocaleTimeString('pt-BR')}
+                    </p>
+                    <p className="font-sans font-medium text-[8px] text-stone-400 font-mono tracking-tighter">HASH: {contratoAssinadoAtivo.id?.substring(0, 18).toUpperCase()}</p>
+                  </div>
+                  <div className="bg-white border-4 border-black p-2 shadow-[4px_4px_0_#000] shrink-0">
+                    <img 
+                      src={contratoAssinadoAtivo.assinatura_base64} 
+                      alt="Assinatura Digital Manuscrita" 
+                      className="max-h-24 object-contain max-w-[200px] bg-white filter contrast-125" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2 shrink-0">
+                <Button 
+                  onClick={() => {
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Contrato - ${aluno?.nome}</title>
+                            <style>
+                              body { font-family: Georgia, serif; padding: 40px; color: #111; line-height: 1.6; }
+                              h1, h2, h3 { font-family: Arial, sans-serif; text-transform: uppercase; text-align: center; }
+                              .contract-text { font-size: 13px; text-transform: uppercase; white-space: pre-wrap; }
+                              .footer { margin-top: 50px; border-top: 2px solid #000; padding-top: 20px; display: flex; justify-between: space-between; align-items: center; }
+                              .footer-left { font-family: Arial, sans-serif; font-size: 11px; }
+                              .signature-box { border: 1px solid #000; padding: 10px; background: #fff; }
+                              .signature-img { max-height: 90px; }
+                            </style>
+                          </head>
+                          <body>
+                            <h2>CONTRATO DE MATRÍCULA E PRESTAÇÃO DE SERVIÇOS</h2>
+                            <div class="contract-text">${contratoAssinadoAtivo.texto_contrato}</div>
+                            <div class="footer" style="display: flex; justify-content: space-between; margin-top: 60px; border-top: 2px solid #000; padding-top: 20px;">
+                              <div class="footer-left">
+                                <p><strong>CONTRATANTE:</strong> ${aluno?.nome}</p>
+                                <p>DATA DA ASSINATURA: ${new Date(contratoAssinadoAtivo.data_assinatura).toLocaleDateString('pt-BR')}</p>
+                                <p style="font-size: 8px; color: #777;">ID: ${contratoAssinadoAtivo.id}</p>
+                              </div>
+                              <div class="signature-box">
+                                <img src="${contratoAssinadoAtivo.assinatura_base64}" class="signature-img" />
+                              </div>
+                            </div>
+                            <script>
+                              window.onload = function() {
+                                window.print();
+                              }
+                            </script>
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                    }
+                  }}
+                  className="bg-black text-[#feccba] uppercase font-black px-6 py-2 shadow-[4px_4px_0_#000] border-2 border-black hover:bg-stone-800 transition-colors"
+                >
+                  🖨️ IMPRIMIR / SALVAR PDF
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de Impressão de Ficha */}
       {printAula && (
