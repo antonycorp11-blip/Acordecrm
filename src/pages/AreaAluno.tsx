@@ -370,6 +370,8 @@ export default function AreaAluno() {
   const [showContratoModal, setShowContratoModal] = useState(false);
   const [contratoAtivo, setContratoAtivo] = useState<any>(null);
   const sigPad = useRef<any>(null);
+  const sigCanvasContainer = useRef<HTMLDivElement>(null);
+  const [sigCanvasDims, setSigCanvasDims] = useState({ width: 600, height: 200 });
   const [savingContrato, setSavingContrato] = useState(false);
   const [alunoFinanceiro, setAlunoFinanceiro] = useState<any[]>([]);
   const [alunoContrato, setAlunoContrato] = useState<any | null>(null);
@@ -3449,11 +3451,28 @@ export default function AreaAluno() {
                   </div>
               ) : (
                   <>
-                      <div className="flex-1 border-4 border-black bg-white relative cursor-crosshair min-h-[200px] overflow-hidden">
+                      <div
+                          className="flex-1 border-4 border-black bg-white relative cursor-crosshair overflow-hidden"
+                          style={{ minHeight: '200px' }}
+                          ref={(el) => {
+                            (sigCanvasContainer as any).current = el;
+                            if (el) {
+                              const rect = el.getBoundingClientRect();
+                              if (rect.width > 0 && rect.height > 0) {
+                                setSigCanvasDims({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
+                              }
+                            }
+                          }}
+                      >
                           <SignatureCanvas
                               ref={sigPad}
-                              canvasProps={{ className: 'w-full h-full' }}
+                              penColor="#000000"
                               backgroundColor="rgba(255,255,255,1)"
+                              canvasProps={{
+                                width: sigCanvasDims.width,
+                                height: sigCanvasDims.height,
+                                style: { width: '100%', height: '100%', touchAction: 'none' }
+                              }}
                           />
                           <div className="absolute bottom-2 left-0 right-0 text-center opacity-30 pointer-events-none">
                               <span className="font-['Space_Mono'] text-[10px] uppercase font-bold text-stone-400 block border-t border-stone-400 w-3/4 mx-auto pt-1">
