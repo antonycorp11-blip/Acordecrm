@@ -3251,24 +3251,24 @@ export default function AreaAluno() {
             </div>
           )}
 
-        </div>
+          {/* Botão Flutuante Musiclass Tools */}
+          <button
+            onClick={() => setShowTools(true)}
+            className="fixed md:absolute bottom-24 right-4 z-40 bg-[#ff6b00] text-white border-4 border-black p-2.5 shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none font-black text-[8px] uppercase tracking-wider hover:bg-[#ff8c3a] flex items-center gap-1 cursor-pointer"
+          >
+            🎸 FERRAMENTAS
+          </button>
 
-        {/* Botão Flutuante Musiclass Tools */}
-        <button
-          onClick={() => setShowTools(true)}
-          className="fixed md:absolute bottom-24 right-4 z-40 bg-[#ff6b00] text-white border-4 border-black p-2.5 shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none font-black text-[8px] uppercase tracking-wider hover:bg-[#ff8c3a] flex items-center gap-1 cursor-pointer"
-        >
-          🎸 FERRAMENTAS
-        </button>
-
-        {/* Modal de Ferramentas */}
-        {showTools && (
-          <div className="fixed md:absolute inset-0 bg-black/90 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-            <div className="w-full max-w-[500px] md:max-w-[560px]">
-              <MusiclassTools onClose={() => setShowTools(false)} />
+          {/* Modal de Ferramentas */}
+          {showTools && (
+            <div className="fixed md:absolute inset-0 bg-black/90 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
+              <div className="w-full max-w-[500px] md:max-w-[560px]">
+                <MusiclassTools onClose={() => setShowTools(false)} />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+        </div>
 
       {/* ---------------------------------------------------------------------- */}
       {/* HIDDEN PROFILE CARD FOR HTML2CANVAS */}
