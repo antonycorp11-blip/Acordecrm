@@ -238,6 +238,7 @@ export default function Atendimento() {
   
   const [cursos, setCursos] = useState<any[]>([]);
   const [professores, setProfessores] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Estados para Edição de Leads
   const [editingLead, setEditingLead] = useState<any>(null);
@@ -593,63 +594,116 @@ export default function Atendimento() {
               </div>
             )}
  
-            {/* Kanban Board com DndContext */}
-            <DndContext 
-              sensors={sensors} 
-              onDragStart={(event) => setActiveId(String(event.active.id))}
-              onDragEnd={(event) => { handleDragEnd(event); setActiveId(null); }}
-            >
-              <div className="flex gap-6 overflow-x-auto pb-6 pt-2 custom-scrollbar min-h-[500px] flex-1 max-w-full items-start">
-                {[
-                  { id: 'em_atendimento', title: 'Em Atendimento' },
-                  { id: 'nao_responde', title: 'Não Responde' },
-                  { id: 'aula_marcada', title: 'Aula Marcada' },
-                  { id: 'sem_interesse', title: 'Não Tem Interesse' },
-                  { id: 'finalizado', title: 'Atendimento Encerrado' },
-                ].map((col) => {
-                  const colLeads = leads.filter((l) => {
-                    if (col.id === 'em_atendimento') {
-                      return l.status === 'em_atendimento' || l.status === 'iniciado' || !l.status;
-                    }
-                    return l.status === col.id;
-                  });
-                  
-                  return (
-                    <DroppableColumn key={col.id} id={col.id} title={col.title} leads={colLeads}>
-                      {colLeads.map((lead) => (
-                        <DraggableCard
-                          key={lead.id}
-                          lead={lead}
-                          cursos={cursos}
-                          onEdit={openEditModal}
-                          onMove={updateLeadStatus}
-                          onAgendarExp={(l: any) => {
-                            setSelectedLead(l);
-                            setExpData({ ...expData, lead_id: l.id, curso_id: l.interesse_curso_id });
-                            setIsExpModalOpen(true);
-                          }}
-                        />
-                      ))}
-                    </DroppableColumn>
-                  );
-                })}
-              </div>
+            {/* Barra de Pesquisa por Nome ou Número de Telefone */}
+            {(() => {
+              const term = searchTerm.toLowerCase().trim();
+              const cleanTerm = term.replace(/\D/g, '');
+              const filteredLeads = leads.filter((l) => {
+                if (!term) return true;
+                const nameMatch = (l.nome || '').toLowerCase().includes(term);
+                const phoneClean = (l.telefone || '').replace(/\D/g, '');
+                const phoneMatch = (l.telefone || '').toLowerCase().includes(term) || (cleanTerm.length > 0 && phoneClean.includes(cleanTerm));
+                return nameMatch || phoneMatch;
+              });
 
-              {/* Overlay que flutua junto com o cursor e tem z-index alto */}
-              <DragOverlay>
-                {activeId ? (
-                  <CardVisual
-                    lead={leads.find(l => String(l.id) === activeId)}
-                    cursos={cursos}
-                    onEdit={() => {}}
-                    onMove={() => {}}
-                    onAgendarExp={() => {}}
-                    dragProps={{}}
-                    isOverlay={true}
-                  />
-                ) : null}
-              </DragOverlay>
-            </DndContext>
+              return (
+                <>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-[#261812]/40 border-4 border-black p-3 shadow-[4px_4px_0_#000] shrink-0">
+                    <div className="flex items-center gap-2 flex-1 bg-[#fff8f6] border-2 border-black px-3 py-2 shadow-[2px_2px_0_#000]">
+                      <Search className="w-4 h-4 text-[#ff6b00] shrink-0" />
+                      <input
+                        type="text"
+                        placeholder="PESQUISAR LEAD POR NOME OU NÚMERO DE TELEFONE..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="bg-transparent text-black font-black text-xs uppercase w-full focus:outline-none placeholder:text-[#8e7164] font-['Space_Mono']"
+                      />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className="text-[#8e7164] hover:text-black shrink-0 p-0.5"
+                          title="Limpar pesquisa"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {searchTerm && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-black bg-[#ff6b00] text-white px-3 py-2 border-2 border-black shadow-[2px_2px_0_#000] uppercase tracking-wider">
+                          {filteredLeads.length} ENCONTRADO(S)
+                        </span>
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className="bg-black text-white px-3 py-2 border-2 border-black text-xs font-black uppercase shadow-[2px_2px_0_#000] hover:bg-red-600 transition-all cursor-pointer"
+                        >
+                          LIMPAR
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Kanban Board com DndContext */}
+                  <DndContext 
+                    sensors={sensors} 
+                    onDragStart={(event) => setActiveId(String(event.active.id))}
+                    onDragEnd={(event) => { handleDragEnd(event); setActiveId(null); }}
+                  >
+                    <div className="flex gap-6 overflow-x-auto pb-6 pt-2 custom-scrollbar min-h-[500px] flex-1 max-w-full items-start">
+                      {[
+                        { id: 'em_atendimento', title: 'Em Atendimento' },
+                        { id: 'nao_responde', title: 'Não Responde' },
+                        { id: 'aula_marcada', title: 'Aula Marcada' },
+                        { id: 'sem_interesse', title: 'Não Tem Interesse' },
+                        { id: 'finalizado', title: 'Atendimento Encerrado' },
+                      ].map((col) => {
+                        const colLeads = filteredLeads.filter((l) => {
+                          if (col.id === 'em_atendimento') {
+                            return l.status === 'em_atendimento' || l.status === 'iniciado' || !l.status;
+                          }
+                          return l.status === col.id;
+                        });
+                        
+                        return (
+                          <DroppableColumn key={col.id} id={col.id} title={col.title} leads={colLeads}>
+                            {colLeads.map((lead) => (
+                              <DraggableCard
+                                key={lead.id}
+                                lead={lead}
+                                cursos={cursos}
+                                onEdit={openEditModal}
+                                onMove={updateLeadStatus}
+                                onAgendarExp={(l: any) => {
+                                  setSelectedLead(l);
+                                  setExpData({ ...expData, lead_id: l.id, curso_id: l.interesse_curso_id });
+                                  setIsExpModalOpen(true);
+                                }}
+                              />
+                            ))}
+                          </DroppableColumn>
+                        );
+                      })}
+                    </div>
+
+                    {/* Overlay que flutua junto com o cursor e tem z-index alto */}
+                    <DragOverlay>
+                      {activeId ? (
+                        <CardVisual
+                          lead={leads.find(l => String(l.id) === activeId)}
+                          cursos={cursos}
+                          onEdit={() => {}}
+                          onMove={() => {}}
+                          onAgendarExp={() => {}}
+                          dragProps={{}}
+                          isOverlay={true}
+                        />
+                      ) : null}
+                    </DragOverlay>
+                  </DndContext>
+                </>
+              );
+            })()}
           </div>
         )}
 

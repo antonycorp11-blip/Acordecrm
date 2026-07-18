@@ -3794,7 +3794,6 @@ export default function AreaAluno() {
                 </div>
               )}
             </div>
-          </div>
         );
       })()}
     </div>
