@@ -1800,9 +1800,8 @@ export default function AreaAluno() {
                   }
                 `}</style>
 
-                {/* ===== ABA: AULAS ===== */}
-                {activeTab === 'aulas' && (
-                  <div className="flex flex-col gap-8 px-4 py-8 max-w-md mx-auto w-full font-['Space_Mono']">
+                {/* Header Sticker Bar */}
+                <div className="flex flex-col gap-8 px-4 py-8 max-w-md mx-auto w-full">
                     {/* Header Sticker Bar */}
                     <div className="flex items-center justify-between w-full">
                       <div className="bg-[#ff6b00] text-white border-2 border-[#261812] px-4 py-1.5 shadow-[4px_4px_0_#261812] -rotate-2">
@@ -1990,7 +1989,9 @@ export default function AreaAluno() {
                       </div>
                     )}
                   </div>
-                )}
+                </div>
+              );
+            })()}
 
           {/* ===== ABA: JOGOS ===== */}
           {activeTab === 'jogos' && (
@@ -3794,8 +3795,7 @@ export default function AreaAluno() {
               )}
             </div>
           </div>
-        );
-      })()}
+        )}
     </div>
   );
 }
