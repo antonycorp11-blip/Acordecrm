@@ -1800,241 +1800,184 @@ export default function AreaAluno() {
                   }
                 `}</style>
 
-                <div className="flex flex-col gap-3 px-4 pt-6 pb-4 bg-[#1a0a05] border-b-4 border-black">
-                  <div className="flex items-center justify-between">
-                    <div className="bg-[#ff6b00] border-4 border-black px-4 py-1.5 shadow-[4px_4px_0_#000] -rotate-2">
-                      <h3 className="text-white font-black text-xs uppercase tracking-widest font-['Space_Mono']">📚 JORNADA MUSICAL</h3>
-                    </div>
-                    {(() => {
-                      const totalAulas = aulasCompletas.length;
-                      const concluidasCount = aulasCompletas.filter(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))).length;
-                      const pct = totalAulas > 0 ? Math.round((concluidasCount / totalAulas) * 100) : 0;
-                      return (
-                        <div className="bg-[#261812] border-2 border-black px-3 py-1 shadow-[2px_2px_0_#000] flex items-center gap-2">
-                          <span className="text-[9px] font-['Space_Mono'] text-zinc-400 font-bold">PROGRESSO:</span>
-                          <span className="text-[#ff6b00] font-['Space_Mono'] font-extrabold text-xs">{pct}%</span>
-                        </div>
-                      );
-                    })()}
+                {/* Header Sticker Bar */}
+                <div className="flex items-center justify-between px-4 pt-6 pb-2 max-w-md mx-auto w-full">
+                  <div className="bg-[#ff6b00] text-white border-2 border-[#261812] px-4 py-1.5 shadow-[4px_4px_0_#261812] -rotate-2">
+                    <h3 className="font-['Space_Mono'] font-bold text-xs uppercase tracking-widest">📚 JORNADA MUSICAL</h3>
                   </div>
                   {(() => {
                     const totalAulas = aulasCompletas.length;
                     const concluidasCount = aulasCompletas.filter(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))).length;
                     const pct = totalAulas > 0 ? Math.round((concluidasCount / totalAulas) * 100) : 0;
                     return (
-                      <div className="w-full h-3 bg-[#261812] border-2 border-black rounded-full overflow-hidden p-0.5 mt-1">
-                        <div className="h-full bg-gradient-to-r from-[#ff6b00] to-[#ff9e00] rounded-full transition-all duration-500 shadow-[0_0_10px_#ff6b00]" style={{ width: `${pct}%` }}></div>
+                      <div className="bg-[#fff8f6] text-[#261812] border-2 border-[#261812] px-3 py-1 font-['Space_Mono'] font-bold text-xs shadow-[2px_2px_0_#261812]">
+                        PROGRESSO: {pct}%
                       </div>
                     );
                   })()}
                 </div>
 
-                {/* Lógica Contínua de Mapa */}
-                <div className="relative w-full overflow-hidden flex flex-col" style={{ minHeight: '800px' }}>
-                  {(() => {
-                    let globalY = 0;
-                    const nodes = [];
-                    const biomes = [];
-                    let lastX = 100;
-                    let lastY = 0;
-                    let svgPaths = [];
+                {/* Course Track Container (Stitch 2c579b324ea94823a81bad4b4fa14b93 Layout) */}
+                {modulosCompletos.map((modulo, modIdx) => {
+                  const modAulas = aulasCompletas.filter(a => String(a.modulo_id) === String(modulo.id));
+                  const isEmProducao = modulo.em_producao;
 
-                    modulosCompletos.forEach((modulo, modIdx) => {
-                      const modAulas = aulasCompletas.filter(a => String(a.modulo_id) === String(modulo.id));
-                      const isEmProducao = modulo.em_producao;
+                  const isModuloDesbloqueado = !isEmProducao && (modIdx === 0 || (() => {
+                    const modAnterior = modulosCompletos[modIdx - 1];
+                    const aulasModAnterior = aulasCompletas.filter(a => String(a.modulo_id) === String(modAnterior.id));
+                    const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id)));
+                    const provaConcluida = !modAnterior.prova_final || (Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0) || (alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)));
+                    return todasConcluidas && provaConcluida;
+                  })());
 
-                      const isModuloDesbloqueado = !isEmProducao && (modIdx === 0 || (() => {
-                        const modAnterior = modulosCompletos[modIdx - 1];
-                        const aulasModAnterior = aulasCompletas.filter(a => String(a.modulo_id) === String(modAnterior.id));
-                        const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id)));
-                        const provaConcluida = !modAnterior.prova_final || (Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0) || (alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)));
-                        return todasConcluidas && provaConcluida;
-                      })());
+                  const moduloConcluidoCount = modAulas.filter(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))).length;
+                  const modPct = modAulas.length > 0 ? Math.round((moduloConcluidoCount / modAulas.length) * 100) : 0;
+                  const totalXpModulo = modAulas.length * 100;
 
-                      let biomeLabelBg = 'bg-[#ff6b00]';
-                      let biomeLabelText = 'text-white';
-                      let biomeLabelRotate = '-rotate-2';
-                      let biomeGradient = 'from-[#1a0f0a] to-[#1e0808]';
-                      let themePrefix = 'FLORESTA SYNTHWAVE';
-                      let decors = null;
-
-                      const themeIndex = modIdx % 3;
-                      if (themeIndex === 0) {
-                        biomeGradient = 'from-[#1a0f0a] to-[#1e0808]';
-                        biomeLabelBg = 'bg-[#ff6b00]';
-                        biomeLabelRotate = '-rotate-2';
-                        themePrefix = 'FLORESTA SYNTHWAVE';
-                        decors = <div className="absolute top-10 left-6 opacity-40 text-4xl pointer-events-none floating-sticker-stitch"><span className="material-symbols-outlined text-[#ff6b00] text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>album</span></div>;
-                      } else if (themeIndex === 1) {
-                        biomeGradient = 'from-[#1e0808] to-[#111625]';
-                        biomeLabelBg = 'bg-[#ba1a1a]';
-                        biomeLabelRotate = 'rotate-2';
-                        themePrefix = 'VULCÃO HEAVY METAL';
-                        decors = <div className="absolute top-20 right-6 opacity-30 text-4xl pointer-events-none floating-sticker-stitch"><span className="material-symbols-outlined text-[#ba1a1a] text-4xl">skull</span></div>;
-                      } else {
-                        biomeGradient = 'from-[#111625] to-[#1a0f0a]';
-                        biomeLabelBg = 'bg-[#e2e2e2]';
-                        biomeLabelText = 'text-black';
-                        biomeLabelRotate = '-rotate-1';
-                        themePrefix = 'CÉU CLÁSSICO';
-                        decors = <div className="absolute top-10 right-10 opacity-20 text-4xl pointer-events-none floating-sticker-stitch"><span className="material-symbols-outlined text-white text-4xl">cloud</span></div>;
-                      }
-
-                      const startY = globalY;
-                      
-                      // Title Tag no SVG path
-                      globalY += 60;
-                      svgPaths.push(`C ${lastX} ${lastY + 30}, 100 ${globalY - 30}, 100 ${globalY}`);
-                      lastX = 100;
-                      lastY = globalY;
-
-                      nodes.push(
-                        <div key={`label-${modulo.id}`} className={`absolute left-1/2 -translate-x-1/2 w-full max-w-[92%] z-20 ${(!isModuloDesbloqueado && !isEmProducao) ? 'opacity-40' : ''} ${isEmProducao ? 'opacity-70' : ''}`} style={{ top: `${globalY}px` }}>
-                          <div className={`${biomeLabelBg} ${biomeLabelText} px-4 py-2.5 border-4 border-black shadow-[6px_6px_0px_0px_rgba(38,24,18,1)] ${biomeLabelRotate} text-center relative rounded-2xl mx-auto transition-transform hover:scale-105`}>
-                            {isEmProducao && (
-                              <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#ba1a1a] text-white border-2 border-black text-[8px] px-2 py-0.5 font-black uppercase tracking-widest whitespace-nowrap shadow-[2px_2px_0_#000]">
-                                🛠️ EM BREVE
-                              </span>
-                            )}
-                            <span className="block text-[8px] font-['Space_Mono'] uppercase tracking-widest opacity-80 font-black mb-0.5">
-                              {themePrefix} • MÓDULO {modIdx + 1}
-                            </span>
-                            <h2 className="font-['Space_Mono'] font-black uppercase tracking-tight text-xs sm:text-sm leading-tight">
-                              {modulo.nome}
-                            </h2>
-                          </div>
+                  // Módulo Bloqueado ou Em Produção (Fidelidade total ao Stitch 2c579b324ea94823a81bad4b4fa14b93)
+                  if (!isModuloDesbloqueado || isEmProducao) {
+                    return (
+                      <section key={modulo.id} className="relative w-full font-['Space_Mono']">
+                        {/* Zone Sticker Header */}
+                        <div className="absolute -top-5 -left-2 z-20 bg-[#7b5647] text-[#fff8f6] border-2 border-[#261812] px-4 py-1 text-xs font-bold uppercase tracking-tight rotate-[1deg] shadow-[4px_4px_0px_0px_#261812]">
+                          MÓDULO {modIdx + 1}: {modulo.nome}
                         </div>
-                      );
 
-                      globalY += 80;
-
-                      modAulas.forEach((aula, aIdx) => {
-                        const isLeft = (aIdx % 2 === 0);
-                        const targetX = isLeft ? 30 : 70; // zigzag esq dir
-                        const svgX = targetX * 2; // viewBox 0..200
-                        
-                        svgPaths.push(`C ${lastX} ${lastY + 40}, ${svgX} ${globalY - 40}, ${svgX} ${globalY}`);
-                        lastX = svgX;
-                        lastY = globalY;
-
-                        const isAulaEmProducao = aula.em_producao;
-                        const isConcluida = !isAulaEmProducao && trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
-                        const isAulaDesbloqueada = !isAulaEmProducao && isModuloDesbloqueado && (aIdx === 0 || trilhaProgresso.some(p => Number(p.aula_id) === Number(modAulas[aIdx - 1].id)));
-                        const isAtiva = isAulaDesbloqueada && !isConcluida;
-
-                        nodes.push(
-                          <div key={`aula-${aula.id}`} className={`absolute -translate-x-1/2 -translate-y-1/2 z-30 transition-all ${(!isModuloDesbloqueado && !isEmProducao) ? 'opacity-30' : ''}`} style={{ top: `${globalY}px`, left: `${targetX}%` }}>
-                            <div className="relative flex items-center justify-center">
-                              {/* Botão do Node */}
-                              {isConcluida ? (
-                                <div className="relative group">
-                                  <button disabled={!isAulaDesbloqueada} onClick={() => { setSelectedTrilhaAula(aula); setVideoCompleto(isConcluida); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }} className="w-14 h-14 bg-gradient-to-br from-[#ff6b00] to-[#a04100] rounded-full border-4 border-black flex items-center justify-center shadow-[4px_4px_0_#261812] cursor-pointer hover:scale-110 active:translate-y-1 transition-all">
-                                    <span className="material-symbols-outlined text-white text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>{obterIconeStitch(aula.titulo)}</span>
-                                  </button>
-                                  <div className="absolute -bottom-1 -right-1 bg-green-500 text-white rounded-full p-0.5 border-2 border-black flex items-center justify-center shadow-[2px_2px_0_#000]">
-                                    <span className="material-symbols-outlined text-[10px] font-black">check</span>
-                                  </div>
-                                </div>
-                              ) : isAtiva ? (
-                                <div className="relative group">
-                                  <div onClick={() => { setSelectedTrilhaAula(aula); setVideoCompleto(isConcluida); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }} className="active-node-stitch w-16 h-16 rounded-full border-4 border-black bg-white flex items-center justify-center cursor-pointer hover:scale-110 relative z-40 shadow-[0_0_25px_#ff6b00]">
-                                    <span className="material-symbols-outlined text-black text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>{obterIconeStitch(aula.titulo)}</span>
-                                  </div>
-                                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[#ba1a1a] text-white px-2 py-0.5 border-2 border-black text-[8px] uppercase font-black tracking-wider shadow-[2px_2px_0_#000] -rotate-2 animate-bounce pointer-events-none">
-                                    ● ATUAL
-                                  </div>
-                                </div>
-                              ) : isAulaEmProducao ? (
-                                <button className="w-14 h-14 bg-[#2d221d] rounded-full border-2 border-[#3d2d26] flex items-center justify-center opacity-60">
-                                  <span className="material-symbols-outlined text-[#5a4136] text-2xl">build</span>
-                                </button>
-                              ) : (
-                                <button className="w-12 h-12 bg-[#3d2d26] rounded-full border-2 border-[#5a4136] flex items-center justify-center opacity-60 cursor-not-allowed">
-                                  <span className="material-symbols-outlined text-[#5a4136] text-xl">lock</span>
-                                </button>
-                              )}
-
-                              {/* Card de Título da Aula (Sticker) */}
-                              <div className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap max-w-[160px] sm:max-w-[220px] pointer-events-auto ${
-                                isLeft ? 'left-full ml-3.5' : 'right-full mr-3.5'
-                              }`}>
-                                <div 
-                                  onClick={() => {
-                                    if (isAulaDesbloqueada) {
-                                      setSelectedTrilhaAula(aula);
-                                      setVideoCompleto(isConcluida);
-                                      setQuestionarioFinalizado(false);
-                                      setQuestionarioCorreto(null);
-                                      setQuestionarioRespostas({});
-                                      setCurrentQuestionIdx(0);
-                                      setTentativaResultado(null);
-                                    }
-                                  }}
-                                  className={`px-3 py-1.5 border-2 border-black font-['Space_Mono'] font-bold text-[9px] uppercase shadow-[3px_3px_0_#261812] rounded-xl transition-all cursor-pointer truncate ${
-                                    isConcluida 
-                                      ? 'bg-[#fff8f6] text-[#261812] border-black hover:scale-105' 
-                                      : isAtiva 
-                                        ? 'bg-[#ff6b00] text-white border-black font-extrabold shadow-[4px_4px_0_#000] hover:scale-105' 
-                                        : 'bg-[#261812] text-[#8e7164] border-[#3d2d26] opacity-60'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-1.5 truncate">
-                                    <span className="text-[8px] font-black opacity-70 shrink-0">AULA {aIdx + 1}</span>
-                                    <span className="truncate">{aula.titulo}</span>
-                                  </div>
-                                </div>
-                              </div>
+                        {/* Module Content Card (Locked State) */}
+                        <div className="bg-[#feccba]/30 border-4 border-[#7b5647] p-8 pt-10 flex flex-col gap-8 rounded-lg overflow-hidden relative">
+                          {/* Overlay Bloqueado */}
+                          <div className="absolute inset-0 bg-black/80 p-6 flex items-center justify-center z-30">
+                            <div className="bg-black/90 p-6 border-4 border-white text-center flex flex-col items-center gap-2 -rotate-2 shadow-[6px_6px_0px_0px_#261812]">
+                              <span className="material-symbols-outlined text-6xl text-white">lock_person</span>
+                              <p className="text-sm font-bold uppercase text-white tracking-widest">
+                                {isEmProducao ? 'ÁREA EM PRODUÇÃO' : 'ÁREA BLOQUEADA'}
+                              </p>
+                              <p className="text-[11px] text-white/70 font-['Plus_Jakarta_Sans'] font-medium">
+                                {isEmProducao ? 'Nossos professores estão gravando este módulo!' : `Complete o Módulo ${modIdx} para desbloquear`}
+                              </p>
                             </div>
                           </div>
-                        );
-                        globalY += 120;
-                      });
 
-                      if (modulo.prova_final && modulo.prova_final.length > 0) {
-                         svgPaths.push(`C ${lastX} ${lastY + 40}, 100 ${globalY - 40}, 100 ${globalY}`);
-                         lastX = 100;
-                         lastY = globalY;
-
-                         const isProvaConcluida = alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id));
-                         const isProvaDesbloqueada = !isEmProducao && isModuloDesbloqueado && (modAulas.length === 0 || modAulas.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))));
-
-                         nodes.push(
-                           <div key={`prova-${modulo.id}`} className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 z-30" style={{ top: `${globalY}px` }}>
-                              <div className="relative flex flex-col items-center">
-                                <button disabled={!isProvaDesbloqueada} onClick={() => { setSelectedTrilhaModulo(modulo); handleStartQuestionario(true, modulo); }} className={`w-16 h-16 border-4 border-black flex items-center justify-center shadow-[6px_6px_0_rgba(38,24,18,1)] rounded-2xl transition-all ${isProvaConcluida ? 'bg-[#ffeb3b] text-black border-yellow-600 hover:scale-105' : isProvaDesbloqueada ? 'bg-[#ba1a1a] text-white hover:scale-105 animate-bounce shadow-[0_0_20px_#ba1a1a]' : 'bg-[#3d2d26] text-[#5a4136] opacity-60 cursor-not-allowed border-[#5a4136] shadow-none'}`}>
-                                  <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: isProvaConcluida ? "'FILL' 1" : undefined }}>{isProvaConcluida ? 'workspace_premium' : 'sports_esports'}</span>
-                                </button>
-                                <div className={`absolute -bottom-4 whitespace-nowrap px-2 py-0.5 border-2 border-black font-['Space_Mono'] text-[8px] font-black uppercase tracking-wider shadow-[2px_2px_0_#000] ${isProvaConcluida ? 'bg-yellow-400 text-black' : isProvaDesbloqueada ? 'bg-red-600 text-white' : 'bg-[#2d221d] text-[#5a4136]'}`}>
-                                  {isProvaConcluida ? 'DESAFIO CONCLUÍDO ✨' : 'DESAFIO DO MÓDULO 🏆'}
-                                </div>
-                              </div>
-                           </div>
-                         );
-                         globalY += 130;
-                      }
-
-                      biomes.push(
-                        <div key={`bg-${modulo.id}`} className={`absolute w-full bg-gradient-to-b ${biomeGradient} left-0`} style={{ top: `${startY}px`, height: `${globalY - startY}px` }}>
-                          {decors}
+                          {/* Dummy Grid Background */}
+                          <div className="grid grid-cols-2 gap-x-12 gap-y-12 relative opacity-20 py-4">
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="w-16 h-16 rounded-lg bg-[#7b5647] border-4 border-[#261812] flex items-center justify-center"></div>
+                            </div>
+                            <div className="flex flex-col items-center gap-2 mt-12">
+                              <div className="w-16 h-16 rounded-lg bg-[#7b5647] border-4 border-[#261812] flex items-center justify-center"></div>
+                            </div>
+                          </div>
                         </div>
-                      );
-                    });
-                    
-                    globalY += 50;
-
-                    return (
-                      <div style={{ height: `${globalY}px` }} className="relative w-full">
-                        {biomes}
-                        <svg className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-90 z-10" viewBox={`0 0 200 ${globalY}`} preserveAspectRatio="none">
-                           <path d={`M 100 0 ${svgPaths.join(' ')}`} fill="none" stroke="#261812" strokeWidth="12" strokeLinecap="round" />
-                           <path d={`M 100 0 ${svgPaths.join(' ')}`} fill="none" stroke="#5a4136" strokeWidth="6" strokeLinecap="round" />
-                           <path d={`M 100 0 ${svgPaths.join(' ')}`} fill="none" stroke="#ff6b00" strokeWidth="3" strokeLinecap="round" strokeDasharray="8 8" className="animate-[path-glow-stitch_2s_infinite]" />
-                        </svg>
-                        {nodes}
-                      </div>
+                      </section>
                     );
-                  })()}
-                </div>
+                  }
+
+                  // Módulo Desbloqueado (Cartão Ilha Flutuante Stitch)
+                  return (
+                    <section key={modulo.id} className="relative w-full font-['Space_Mono']">
+                      {/* Zone Sticker Header */}
+                      <div className="absolute -top-5 -left-2 z-20 bg-[#fff8f6] text-[#261812] border-2 border-[#261812] px-4 py-1 text-xs font-bold uppercase tracking-tight -rotate-2 shadow-[4px_4px_0px_0px_#261812]">
+                        MÓDULO {modIdx + 1}: {modulo.nome}
+                      </div>
+
+                      {/* Module Content Card (Floating Island) */}
+                      <div className="bg-[#fff8f6] text-[#261812] p-8 pt-10 flex flex-col gap-8 rounded-lg border-4 border-[#261812] shadow-[6px_6px_0px_0px_#261812] relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none">
+                          <span className="material-symbols-outlined text-6xl text-[#261812]">piano</span>
+                        </div>
+
+                        {/* Lesson Nodes (Zig-Zag Grid 100% Stitch) */}
+                        <div className="grid grid-cols-2 gap-x-12 gap-y-12 relative">
+                          {/* Connecting Line SVG (Background of grid) */}
+                          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-30" preserveAspectRatio="none">
+                            <path d="M 40,40 L 160,120 L 40,200 L 160,280" fill="none" stroke="#261812" strokeWidth="4" strokeDasharray="8 8"></path>
+                          </svg>
+
+                          {modAulas.map((aula, aIdx) => {
+                            const isAulaEmProducao = aula.em_producao;
+                            const isConcluida = !isAulaEmProducao && trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
+                            const isAulaDesbloqueada = !isAulaEmProducao && isModuloDesbloqueado && (aIdx === 0 || trilhaProgresso.some(p => Number(p.aula_id) === Number(modAulas[aIdx - 1].id)));
+                            const isAtiva = isAulaDesbloqueada && !isConcluida;
+                            const isSecondColumn = (aIdx % 2 !== 0);
+
+                            return (
+                              <div key={aula.id} className={`flex flex-col items-center gap-2 relative z-10 ${isSecondColumn ? 'mt-12' : ''}`}>
+                                {isAtiva && (
+                                  <div className="absolute -top-4 -right-2 bg-[#ff6b00] text-white px-2 py-0.5 rounded font-bold text-[10px] animate-bounce z-20 border border-black shadow-[2px_2px_0_#000]">
+                                    AGORA
+                                  </div>
+                                )}
+
+                                {isConcluida ? (
+                                  <button 
+                                    onClick={() => { setSelectedTrilhaAula(aula); setVideoCompleto(true); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }}
+                                    className="lesson-node w-16 h-16 rounded-lg bg-green-500 border-4 border-[#261812] shadow-[4px_4px_0px_0px_#261812] flex items-center justify-center text-white hover:scale-105 active:translate-y-1 transition-all cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                  </button>
+                                ) : isAtiva ? (
+                                  <button 
+                                    onClick={() => { setSelectedTrilhaAula(aula); setVideoCompleto(false); setQuestionarioFinalizado(false); setQuestionarioCorreto(null); setQuestionarioRespostas({}); setCurrentQuestionIdx(0); setTentativaResultado(null); }}
+                                    className="lesson-node w-20 h-20 rounded-lg bg-[#ff6b00] border-4 border-[#261812] shadow-[6px_6px_0px_0px_#261812] flex items-center justify-center text-white scale-110 hover:scale-115 active:translate-y-1 transition-all cursor-pointer animate-pulse"
+                                  >
+                                    <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                                  </button>
+                                ) : (
+                                  <button className="lesson-node w-16 h-16 rounded-lg bg-[#e2bfb0] border-4 border-[#261812] shadow-[4px_4px_0px_0px_#261812] flex items-center justify-center text-[#5a4136] opacity-50 cursor-not-allowed">
+                                    <span className="material-symbols-outlined text-4xl">lock</span>
+                                  </button>
+                                )}
+
+                                <span className={`text-[12px] text-[#261812] text-center uppercase leading-tight line-clamp-2 max-w-[140px] mt-1 ${isAtiva ? 'font-bold' : ''}`}>
+                                  {aula.titulo}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Challenge Prova Final (Boss Stage Stitch) */}
+                        {modulo.prova_final && modulo.prova_final.length > 0 && (() => {
+                          const isProvaConcluida = alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id));
+                          const isProvaDesbloqueada = !isEmProducao && isModuloDesbloqueado && (modAulas.length === 0 || modAulas.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))));
+                          return (
+                            <div className="mt-2 pt-4 border-t-2 border-dashed border-[#261812] flex flex-col items-center gap-2">
+                              <button
+                                disabled={!isProvaDesbloqueada}
+                                onClick={() => { setSelectedTrilhaModulo(modulo); handleStartQuestionario(true, modulo); }}
+                                className={`w-full py-3 px-4 rounded-lg border-4 border-[#261812] shadow-[4px_4px_0px_0px_#261812] font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                                  isProvaConcluida ? 'bg-yellow-400 text-black' : isProvaDesbloqueada ? 'bg-red-600 text-white animate-bounce' : 'bg-[#e2bfb0] text-[#5a4136] opacity-60 cursor-not-allowed'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-xl">workspace_premium</span>
+                                {isProvaConcluida ? 'DESAFIO CONCLUÍDO ✨' : 'DESAFIO DO MÓDULO 🏆'}
+                              </button>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Progress Footer (Exact Stitch 2c579b324ea94823a81bad4b4fa14b93) */}
+                        <div className="mt-2 pt-4 border-t-2 border-dashed border-[#e2bfb0] flex justify-between items-center">
+                          <div className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[#a04100] text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
+                            <span className="text-[12px] text-[#5a4136] uppercase font-bold">{totalXpModulo} XP DISPONÍVEL</span>
+                          </div>
+                          <span className="text-[12px] font-bold bg-[#feccba] text-[#7a5446] px-2 py-1 border-2 border-[#261812]">
+                            PROGRESSO: {modPct}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Floating Sticker Decoration (Stitch style) */}
+                      <div className="absolute -right-4 top-1/3 pointer-events-none floating-sticker-stitch hidden sm:block">
+                        <div className="bg-[#fff8f6] border-2 border-[#261812] p-2 shadow-[2px_2px_0px_0px_#261812] rotate-12">
+                          <span className="material-symbols-outlined text-[#a04100] text-3xl">music_note</span>
+                        </div>
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
 
                 {modulosCompletos.length === 0 && (
                   <div className="bg-[#261812] border-4 border-black p-8 text-center shadow-[4px_4px_0_#000]">
