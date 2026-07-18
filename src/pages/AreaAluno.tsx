@@ -3793,11 +3793,12 @@ export default function AreaAluno() {
                   )}
                 </div>
               </div>
-            );
-          })()}
-        </div>
-      );
-    }
+            </div>
+          );
+        })()}
+      </div>
+    );
+  }
 
 // ================= COMPONENTE PLAYER DE VÍDEO DO YOUTUBE =================
 function YoutubePlayer({ videoUrl, onVideoComplete }: { videoUrl: string, onVideoComplete: () => void }) {
