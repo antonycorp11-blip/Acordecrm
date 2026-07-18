@@ -1800,7 +1800,10 @@ export default function AreaAluno() {
                   }
                 `}</style>
 
-                {/* Header Sticker Bar */}
+                {/* ===== ABA: AULAS ===== */}
+                {activeTab === 'aulas' && (
+                  <div>
+                    {/* Header Sticker Bar */}
                 <div className="flex items-center justify-between px-4 pt-6 pb-2 max-w-md mx-auto w-full">
                   <div className="bg-[#ff6b00] text-white border-2 border-[#261812] px-4 py-1.5 shadow-[4px_4px_0_#261812] -rotate-2">
                     <h3 className="font-['Space_Mono'] font-bold text-xs uppercase tracking-widest">📚 JORNADA MUSICAL</h3>
