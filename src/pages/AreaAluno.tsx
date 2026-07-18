@@ -1986,8 +1986,7 @@ export default function AreaAluno() {
                   </div>
                 )}
               </div>
-            );
-          })()}
+            )}
 
           {/* ===== ABA: JOGOS ===== */}
           {activeTab === 'jogos' && (
