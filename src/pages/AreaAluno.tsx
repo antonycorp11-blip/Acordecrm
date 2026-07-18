@@ -3542,7 +3542,7 @@ export default function AreaAluno() {
 
             {/* Rodapé e Ações do Vídeo */}
             <div className="pt-2 flex flex-col items-center gap-3">
-              {videoCompleto || user?.email === 'ta@ta.com' ? (
+              {videoCompleto ? (
                 <button
                   onClick={() => handleStartQuestionario(false)}
                   className="w-full bg-[#ff6b00] text-white border-4 border-black py-3 font-black text-xs sm:text-sm uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all flex items-center justify-center gap-2"
