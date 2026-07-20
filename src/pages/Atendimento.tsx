@@ -32,19 +32,24 @@ function DroppableColumn({ id, title, leads, children }: any) {
   return (
     <div 
       ref={setNodeRef} 
-      className="flex-1 min-w-[270px] bg-[#261812]/20 border-4 border-black p-4 shadow-[4px_4px_0_#000] flex flex-col gap-4 min-h-[500px]"
+      className="flex-1 min-w-[280px] bg-[#2b1c16]/90 backdrop-blur-sm border-3 border-[#ffb693] p-4 shadow-[6px_6px_0_#170b06] flex flex-col gap-4 min-h-[520px] rounded-sm relative z-10"
     >
-      <div className="flex items-center justify-between border-b-2 border-black pb-2 px-1">
-        <h3 className="text-[10px] font-black text-white uppercase tracking-widest italic">{title}</h3>
-        <span className="bg-[#ff6b00] text-white text-[9px] px-2 py-0.5 border-2 border-black font-black shadow-[2px_2px_0_#000]">
+      <div className="flex items-center justify-between border-b-3 border-[#ffb693]/30 pb-3 px-1">
+        <h3 className="text-[11px] font-black text-[#ffb693] uppercase tracking-widest italic font-['Space_Grotesk'] flex items-center gap-1.5">
+          <span className="w-2 h-2 bg-[#ff6b00] inline-block animate-pulse"></span>
+          {title}
+        </h3>
+        <span className="bg-[#ff6b00] text-white text-[10px] px-2 py-0.5 border-2 border-black font-black shadow-[2px_2px_0_#000] font-['Space_Mono']">
           {leads.length}
         </span>
       </div>
-      <div className="flex-1 flex flex-col gap-3 overflow-y-auto max-h-[60vh] custom-scrollbar pr-1">
+      <div className="flex-1 flex flex-col gap-3.5 overflow-y-auto max-h-[62vh] custom-scrollbar pr-1">
         {children}
         {leads.length === 0 && (
-          <div className="flex-1 border-4 border-dashed border-white/5 p-8 flex items-center justify-center min-h-[150px]">
-            <p className="text-[8px] font-black text-white/10 uppercase">Arraste Leads aqui</p>
+          <div className="flex-1 border-3 border-dashed border-[#ffb693]/20 p-8 flex items-center justify-center min-h-[160px] bg-[#170b06]/40">
+            <p className="text-[9px] font-black text-[#e2bfb0]/40 uppercase tracking-widest font-['Space_Mono'] text-center">
+              Arraste Leads aqui
+            </p>
           </div>
         )}
       </div>
@@ -69,24 +74,24 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
   return (
     <div
       {...dragProps}
-      className={`bg-[#fff8f6] border-4 border-black p-3.5 shadow-[4px_4px_0_#000] relative flex flex-col gap-2 group transition-all duration-150 select-none ${
-        isOverlay ? 'shadow-[8px_8px_0_#000] border-dashed border-[#ff6b00] rotate-2 scale-95 opacity-90 z-[9999]' : 'hover:translate-y-[-2px]'
+      className={`bg-[#fff8f6] text-[#261812] border-3 border-black p-3.5 shadow-[4px_4px_0_#000] relative flex flex-col gap-2.5 group transition-all duration-150 select-none ${
+        isOverlay ? 'shadow-[8px_8px_0_#ff6b00] border-dashed border-[#ff6b00] rotate-2 scale-95 opacity-90 z-[9999]' : 'hover:-translate-y-1 hover:shadow-[6px_6px_0_#ff6b00]'
       }`}
     >
       {/* Header */}
       <div className="flex justify-between items-start gap-2">
-        <span className="text-[7px] font-black bg-[#feccba] text-black px-1.5 py-0.5 border border-black uppercase tracking-tighter shrink-0">
+        <span className="text-[8px] font-black bg-[#ff6b00] text-white px-2 py-0.5 border border-black uppercase tracking-tighter shrink-0 font-['Space_Mono'] shadow-[1px_1px_0_#000]">
           {courseName}
         </span>
         {origemLabel && (
-          <span className="text-[6px] font-black bg-black/5 text-[#8e7164] px-1 py-0.5 border border-black/10 uppercase tracking-tighter shrink-0">
+          <span className="text-[7px] font-black bg-[#2b1c16] text-[#ffb693] px-1.5 py-0.5 border border-black uppercase tracking-tighter shrink-0 font-['Space_Mono']">
             {origemLabel}
           </span>
         )}
       </div>
 
       <div className="flex justify-between items-center gap-2">
-        <h4 className="font-black text-black uppercase italic text-xs leading-tight flex-1 truncate">
+        <h4 className="font-black text-[#1d100a] uppercase italic text-xs leading-tight flex-1 truncate font-['Space_Grotesk']">
           {lead.nome || <span className="italic opacity-50 font-normal lowercase">sem nome</span>}
         </h4>
         
@@ -97,7 +102,7 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
             e.stopPropagation();
             onEdit(lead);
           }}
-          className="text-[7px] font-black bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black px-1.5 py-0.5 border border-black shadow-[1px_1px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer shrink-0"
+          className="text-[8px] font-black bg-[#ffdbcc] hover:bg-[#ff6b00] hover:text-white text-[#351000] px-2 py-0.5 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer shrink-0 font-['Space_Mono'] uppercase"
         >
           EDITAR
         </button>
@@ -109,27 +114,27 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
             e.stopPropagation();
             setExpanded(!expanded);
           }}
-          className="text-[7px] font-black bg-black text-white hover:bg-black/80 px-1.5 py-0.5 border border-black shadow-[1px_1px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-0.5 cursor-pointer shrink-0"
+          className="text-[8px] font-black bg-black text-white hover:bg-black/80 px-2 py-0.5 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-0.5 cursor-pointer shrink-0 font-['Space_Mono']"
         >
-          {expanded ? '▲ RECOLHER' : '▼ OPÇÕES'}
+          {expanded ? '▲' : '▼'}
         </button>
       </div>
 
       {/* Se expandido, exibe detalhes e ações */}
       {expanded && (
-        <div className="mt-2 pt-2 border-t border-black/10 flex flex-col gap-2">
-          <p className="text-[9px] font-black text-[#8e7164] flex items-center gap-1 uppercase">
+        <div className="mt-2 pt-2 border-t-2 border-black/15 flex flex-col gap-2">
+          <p className="text-[9px] font-black text-[#5a4136] flex items-center gap-1 uppercase font-['Space_Mono']">
             <Phone className="w-3 h-3 text-[#ff6b00]" /> {lead.telefone}
           </p>
 
           {lead.observacoes && (
-            <p className="text-[8px] font-bold text-black/60 bg-black/5 p-1.5 border border-black/10 line-clamp-2 uppercase">
+            <p className="text-[8px] font-bold text-[#261812]/80 bg-[#ffdbcc]/50 p-2 border border-black/20 line-clamp-2 uppercase font-['Space_Mono']">
               {lead.observacoes}
             </p>
           )}
 
           {/* Ações do Card */}
-          <div className="mt-2 pt-2 border-t border-black/10 flex items-center justify-between gap-2 flex-wrap">
+          <div className="mt-2 pt-2 border-t border-black/15 flex items-center justify-between gap-2 flex-wrap">
             <div className="flex gap-1.5">
               {/* WhatsApp */}
               {phoneClean && (
@@ -141,7 +146,7 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
                     window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
                   }}
                   title="Chamar no WhatsApp"
-                  className="bg-[#25d366] text-black p-1 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center cursor-pointer"
+                  className="bg-[#25d366] text-black p-1.5 border border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#20bd5a] transition-all flex items-center justify-center cursor-pointer"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
                 </button>
@@ -156,7 +161,7 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
                     onAgendarExp(lead);
                   }}
                   title="Agendar Experimental"
-                  className="bg-[#ff6b00] text-white p-1 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#ff8c33] transition-all flex items-center justify-center cursor-pointer"
+                  className="bg-[#ff6b00] text-white p-1.5 border border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#ff8c33] transition-all flex items-center justify-center cursor-pointer"
                 >
                   <Calendar className="w-3.5 h-3.5" />
                 </button>
@@ -165,7 +170,6 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
 
             {/* Mudar de status pelo Mobile ou cliques */}
             <div className="flex items-center gap-1.5 flex-1 justify-end">
-              {/* Select de status rápido */}
               <select
                 onPointerDown={(e) => e.stopPropagation()}
                 value={lead.status === 'iniciado' ? 'em_atendimento' : (lead.status || 'em_atendimento')}
@@ -173,7 +177,7 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
                   e.stopPropagation();
                   onMove(lead.id, e.target.value);
                 }}
-                className="text-[8px] font-black text-black uppercase bg-white border border-black p-0.5 focus:outline-none cursor-pointer"
+                className="text-[8px] font-black text-black uppercase bg-white border border-black p-1 focus:outline-none cursor-pointer font-['Space_Mono'] shadow-[1px_1px_0_#000]"
               >
                 <option value="em_atendimento">Em Atend.</option>
                 <option value="nao_responde">Não Resp.</option>
@@ -181,18 +185,6 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
                 <option value="aula_marcada">Aula Marc.</option>
                 <option value="finalizado">Encerrado</option>
               </select>
-
-              {/* Editar anotações */}
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(lead);
-                }}
-                className="bg-black text-white px-1.5 py-0.5 border border-black text-[8px] font-black uppercase shadow-[1.5px_1.5px_0_#000] cursor-pointer"
-              >
-                Editar
-              </button>
             </div>
           </div>
         </div>
@@ -510,50 +502,99 @@ export default function Atendimento() {
   };
 
   return (
-    <div className="flex flex-col flex-1 animate-in fade-in duration-500 overflow-hidden h-screen bg-[#1a0f0a]">
-      <header className="h-24 px-8 bg-[#feccba] border-b-4 border-black flex items-center justify-between shrink-0">
-        <div>
-          <h1 className="text-2xl font-black text-black uppercase italic italic tracking-tighter">Atendimento & CRM</h1>
-          <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Transforme interessados em alunos matriculados.</p>
-        </div>
+    <div className="flex flex-col flex-1 animate-in fade-in duration-500 overflow-hidden h-screen bg-[#1d100a] text-[#f8ddd2] relative">
+      {/* Floating Background Decor (8-Bit Music Stickers) */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none select-none z-0">
+        <span className="material-symbols-outlined floating-sticker text-[80px] top-[10%] left-[5%] text-[#ff6b00]" style={{ animationDelay: '0s' }}>piano</span>
+        <span className="material-symbols-outlined floating-sticker text-[60px] top-[40%] left-[80%] text-[#ffb693]" style={{ animationDelay: '1s' }}>music_note</span>
+        <span className="material-symbols-outlined floating-sticker text-[120px] top-[70%] left-[15%] text-[#ff6b00]" style={{ animationDelay: '2s' }}>album</span>
+        <span className="material-symbols-outlined floating-sticker text-[90px] top-[20%] left-[60%] text-[#ffb693]" style={{ animationDelay: '3s' }}>event</span>
+        <span className="material-symbols-outlined floating-sticker text-[70px] top-[80%] left-[85%] text-[#ff6b00]" style={{ animationDelay: '4s' }}>electric_car</span>
+        <span className="material-symbols-outlined floating-sticker text-[50px] top-[15%] left-[25%] text-[#ffb693]" style={{ animationDelay: '5s' }}>graphic_eq</span>
+      </div>
+
+      <header className="px-8 py-4 bg-[#2b1c16] border-b-3 border-[#ffb693] flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-[0_6px_0_#170b06] relative z-10">
         <div className="flex items-center gap-4">
+          <div className="bg-[#ff6b00] text-white p-3 border-3 border-black shadow-[4px_4px_0_#000] -rotate-1">
+            <span className="material-symbols-outlined text-3xl">person_add</span>
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-[#ffb693] uppercase tracking-tighter italic font-['Space_Grotesk']">
+              STUDIO_MASTER <span className="text-[#ff6b00] text-sm not-italic font-['Space_Mono']">// CRM 8-BIT</span>
+            </h1>
+            <p className="text-[10px] font-bold text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono']">
+              VIBE CHECK: ACTIVE • GESTÃO DE LEADS MAXIMALISTA
+            </p>
+          </div>
+        </div>
+
+        {/* Dashboard de Métricas / KPI Bar */}
+        <div className="hidden lg:flex items-center gap-4 bg-[#170b06] px-5 py-2.5 border-3 border-[#41312a] shadow-[4px_4px_0_#000]">
+          <div className="text-center">
+            <p className="text-[8px] font-black text-[#e2bfb0] uppercase font-['Space_Mono'] tracking-widest">EM ATENDIMENTO</p>
+            <p className="text-lg font-black text-[#ffb693] font-['Space_Grotesk']">
+              {leads.filter(l => l.status === 'em_atendimento' || l.status === 'iniciado' || !l.status).length}
+            </p>
+          </div>
+          <div className="w-px h-8 bg-[#41312a]"></div>
+          <div className="text-center">
+            <p className="text-[8px] font-black text-[#e2bfb0] uppercase font-['Space_Mono'] tracking-widest">AULAS MARCADAS</p>
+            <p className="text-lg font-black text-[#25d366] font-['Space_Grotesk']">
+              {leads.filter(l => l.status === 'aula_marcada').length}
+            </p>
+          </div>
+          <div className="w-px h-8 bg-[#41312a]"></div>
+          <div className="text-center">
+            <p className="text-[8px] font-black text-[#e2bfb0] uppercase font-['Space_Mono'] tracking-widest">NÃO RESPONDE</p>
+            <p className="text-lg font-black text-[#ff6b00] font-['Space_Grotesk']">
+              {leads.filter(l => l.status === 'nao_responde').length}
+            </p>
+          </div>
+          <div className="w-px h-8 bg-[#41312a]"></div>
+          <div className="text-center">
+            <p className="text-[8px] font-black text-[#e2bfb0] uppercase font-['Space_Mono'] tracking-widest">TOTAL LEADS</p>
+            <p className="text-lg font-black text-white font-['Space_Grotesk']">{leads.length}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-[#ff6b00] text-white px-6 py-3 border-4 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all"
+            className="bg-[#ff6b00] hover:bg-[#ff8c33] text-white px-5 py-2.5 border-3 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all cursor-pointer font-['Space_Mono']"
           >
             <Plus className="w-4 h-4" /> NOVO_LEAD
           </button>
         </div>
       </header>
 
-      <div className="p-8 space-y-6 flex-1 overflow-auto">
-        <div className="flex items-center gap-6 border-b-4 border-black/20">
+      <div className="p-8 space-y-6 flex-1 overflow-auto relative z-10 font-['Space_Mono']">
+        <div className="flex items-center gap-6 border-b-3 border-[#ffb693]/20">
            <button 
              onClick={() => setActiveTab('leads')}
-             className={`pb-4 px-2 text-xs font-black uppercase tracking-widest transition-all relative ${
-               activeTab === 'leads' ? 'text-[#ff6b00]' : 'text-[#8e7164] hover:text-white'
+             className={`pb-4 px-2 text-xs font-black uppercase tracking-widest transition-all relative cursor-pointer ${
+               activeTab === 'leads' ? 'text-[#ff6b00]' : 'text-[#e2bfb0]/60 hover:text-[#ffb693]'
              }`}
            >
              LEADS_INTERESSADOS
-             {activeTab === 'leads' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#ff6b00]" />}
+             {activeTab === 'leads' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#ff6b00] shadow-[0_2px_0_#000]" />}
            </button>
            <button 
              onClick={() => setActiveTab('vagas')}
-             className={`pb-4 px-2 text-xs font-black uppercase tracking-widest transition-all relative ${
-               activeTab === 'vagas' ? 'text-[#ff6b00]' : 'text-[#8e7164] hover:text-white'
+             className={`pb-4 px-2 text-xs font-black uppercase tracking-widest transition-all relative cursor-pointer ${
+               activeTab === 'vagas' ? 'text-[#ff6b00]' : 'text-[#e2bfb0]/60 hover:text-[#ffb693]'
              }`}
            >
              BUSCA_DE_VAGAS
-             {activeTab === 'vagas' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#ff6b00]" />}
+             {activeTab === 'vagas' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#ff6b00] shadow-[0_2px_0_#000]" />}
            </button>
            <button 
              onClick={() => setActiveTab('experimentais')}
-             className={`pb-4 px-2 text-xs font-black uppercase tracking-widest transition-all relative ${
-               activeTab === 'experimentais' ? 'text-[#ff6b00]' : 'text-[#8e7164] hover:text-white'
+             className={`pb-4 px-2 text-xs font-black uppercase tracking-widest transition-all relative cursor-pointer ${
+               activeTab === 'experimentais' ? 'text-[#ff6b00]' : 'text-[#e2bfb0]/60 hover:text-[#ffb693]'
              }`}
            >
              CALENDÁRIO_EXP
-             {activeTab === 'experimentais' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#ff6b00]" />}
+             {activeTab === 'experimentais' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#ff6b00] shadow-[0_2px_0_#000]" />}
            </button>
         </div>
 
