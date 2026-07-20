@@ -16,7 +16,8 @@ import {
   X, 
   Check,
   Save,
-  XCircle
+  XCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -25,29 +26,52 @@ import { DndContext, useSensor, useSensors, PointerSensor, TouchSensor, DragOver
 import { useDroppable } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
 
+// Helper para selecionar os ícones 8-bit fiéis ao Stitch com base no curso/instrumento
+function getStitchIconName(cursoNome: string): string {
+  const t = (cursoNome || '').toLowerCase();
+  if (t.includes('piano') || t.includes('teclado') || t.includes('sintetizador') || t.includes('notas')) return 'piano';
+  if (t.includes('canto') || t.includes('vocal') || t.includes('voz')) return 'mic';
+  if (t.includes('bateria') || t.includes('percussão') || t.includes('ritmo')) return 'album';
+  if (t.includes('guitarra') || t.includes('violão') || t.includes('baixo') || t.includes('ukulele')) return 'music_note';
+  if (t.includes('teoria') || t.includes('partitura')) return 'menu_book';
+  return 'graphic_eq';
+}
+
+// Configuração visual das colunas do Stitch 8-bit
+const STITCH_COLUMNS = [
+  { id: 'em_atendimento', title: 'Novos Leads / Atendimento', bgHeader: 'bg-[#ff6b00] text-white', rotate: '-rotate-1', shadow: 'shadow-[6px_6px_0_#170b06]' },
+  { id: 'nao_responde', title: 'Não Responde', bgHeader: 'bg-[#5b443b] text-[#feccba]', rotate: 'rotate-1', shadow: 'shadow-[6px_6px_0_#170b06]' },
+  { id: 'aula_marcada', title: 'Experimental Marcada', bgHeader: 'bg-[#41312a] text-[#ffb693]', rotate: '-rotate-1', shadow: 'shadow-[6px_6px_0_#170b06]' },
+  { id: 'sem_interesse', title: 'Sem Interesse', bgHeader: 'bg-[#3d2d26] text-[#e2bfb0]', rotate: 'rotate-2', shadow: 'shadow-[6px_6px_0_#170b06]' },
+  { id: 'finalizado', title: 'Matriculado / Encerrado', bgHeader: 'bg-[#261812] text-[#8e7164]', rotate: 'rotate-1', shadow: 'shadow-[6px_6px_0_#170b06]' },
+];
+
 // Componente de coluna droppable do Kanban
-function DroppableColumn({ id, title, leads, children }: any) {
+function DroppableColumn({ id, title, leads, bgHeader, rotate, shadow, children }: any) {
   const { setNodeRef } = useDroppable({ id });
 
   return (
     <div 
       ref={setNodeRef} 
-      className="flex-1 min-w-[280px] bg-[#2b1c16]/90 backdrop-blur-sm border-3 border-[#ffb693] p-4 shadow-[6px_6px_0_#170b06] flex flex-col gap-4 min-h-[520px] rounded-sm relative z-10"
+      className="flex-1 min-w-[290px] bg-[#2b1c16]/90 backdrop-blur-sm border-3 border-[#ffb693] p-4 shadow-[8px_8px_0_#170b06] flex flex-col gap-4 min-h-[540px] rounded-sm relative z-10"
     >
-      <div className="flex items-center justify-between border-b-3 border-[#ffb693]/30 pb-3 px-1">
-        <h3 className="text-[11px] font-black text-[#ffb693] uppercase tracking-widest italic font-['Space_Grotesk'] flex items-center gap-1.5">
-          <span className="w-2 h-2 bg-[#ff6b00] inline-block animate-pulse"></span>
+      {/* Header Estilo Badge Retro Stitch */}
+      <div className={`${bgHeader} ${rotate} ${shadow} px-4 py-3 border-3 border-black flex items-center justify-between transition-transform hover:rotate-0`}>
+        <h3 className="text-xs font-black uppercase tracking-tight italic font-['Space_Grotesk'] flex items-center gap-2">
+          <span className="w-2 h-2 bg-white inline-block animate-pulse"></span>
           {title}
         </h3>
-        <span className="bg-[#ff6b00] text-white text-[10px] px-2 py-0.5 border-2 border-black font-black shadow-[2px_2px_0_#000] font-['Space_Mono']">
+        <span className="bg-black text-white text-[10px] px-2 py-0.5 border border-white font-black shadow-[2px_2px_0_#000] font-['Space_Mono']">
           {leads.length}
         </span>
       </div>
+
       <div className="flex-1 flex flex-col gap-3.5 overflow-y-auto max-h-[62vh] custom-scrollbar pr-1">
         {children}
         {leads.length === 0 && (
-          <div className="flex-1 border-3 border-dashed border-[#ffb693]/20 p-8 flex items-center justify-center min-h-[160px] bg-[#170b06]/40">
-            <p className="text-[9px] font-black text-[#e2bfb0]/40 uppercase tracking-widest font-['Space_Mono'] text-center">
+          <div className="flex-1 border-3 border-dashed border-[#ffb693]/20 p-8 flex flex-col items-center justify-center min-h-[160px] bg-[#170b06]/40 text-center">
+            <span className="material-symbols-outlined text-3xl text-[#e2bfb0]/20 mb-2">drag_indicator</span>
+            <p className="text-[9px] font-black text-[#e2bfb0]/40 uppercase tracking-widest font-['Space_Mono']">
               Arraste Leads aqui
             </p>
           </div>
@@ -57,12 +81,14 @@ function DroppableColumn({ id, title, leads, children }: any) {
   );
 }
 
-// Componente que renderiza a aparência do Card do Kanban
+// Componente do Card do Kanban (Fiel ao Design Stitch 8-Bit)
 function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isOverlay }: any) {
   if (!lead) return null;
   const [expanded, setExpanded] = useState(false);
   const phoneClean = (lead.telefone || '').replace(/\D/g, '');
-  const courseName = cursos.find((c: any) => c.id === lead.interesse_curso_id)?.nome || 'CURSO INDEFINIDO';
+  const courseObj = cursos.find((c: any) => c.id === lead.interesse_curso_id || String(c.id) === String(lead.interesse_curso_id));
+  const courseName = courseObj?.nome || 'CURSO INDEFINIDO';
+  const iconName = getStitchIconName(courseName);
 
   const origensMap: Record<string, string> = {
     trafego_pago: 'Tráfego Pago',
@@ -74,118 +100,120 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
   return (
     <div
       {...dragProps}
-      className={`bg-[#fff8f6] text-[#261812] border-3 border-black p-3.5 shadow-[4px_4px_0_#000] relative flex flex-col gap-2.5 group transition-all duration-150 select-none ${
-        isOverlay ? 'shadow-[8px_8px_0_#ff6b00] border-dashed border-[#ff6b00] rotate-2 scale-95 opacity-90 z-[9999]' : 'hover:-translate-y-1 hover:shadow-[6px_6px_0_#ff6b00]'
+      className={`bg-[#f8ddd2] text-[#1d100a] border-3 border-black p-4 shadow-[6px_6px_0_#ffb693] relative flex flex-col gap-2.5 group transition-all duration-150 select-none ${
+        isOverlay ? 'shadow-[10px_10px_0_#ff6b00] border-dashed border-[#ff6b00] rotate-2 scale-95 opacity-90 z-[9999]' : 'hover:-translate-y-1 hover:shadow-[8px_8px_0_#ff6b00]'
       }`}
     >
-      {/* Header */}
+      {/* Top badges & Icon */}
       <div className="flex justify-between items-start gap-2">
-        <span className="text-[8px] font-black bg-[#ff6b00] text-white px-2 py-0.5 border border-black uppercase tracking-tighter shrink-0 font-['Space_Mono'] shadow-[1px_1px_0_#000]">
-          {courseName}
-        </span>
-        {origemLabel && (
-          <span className="text-[7px] font-black bg-[#2b1c16] text-[#ffb693] px-1.5 py-0.5 border border-black uppercase tracking-tighter shrink-0 font-['Space_Mono']">
-            {origemLabel}
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <span className="text-[8px] font-black bg-[#ff6b00] text-white px-2 py-0.5 border border-black uppercase tracking-tighter shrink-0 font-['Space_Mono'] shadow-[1px_1px_0_#000]">
+            {courseName}
           </span>
-        )}
+          {origemLabel && (
+            <span className="text-[7px] font-black bg-[#2b1c16] text-[#ffb693] px-1.5 py-0.5 border border-black uppercase tracking-tighter shrink-0 font-['Space_Mono']">
+              {origemLabel}
+            </span>
+          )}
+        </div>
+        <span className="material-symbols-outlined text-xl text-[#ff6b00] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
+          {iconName}
+        </span>
       </div>
 
+      {/* Title & Phone */}
       <div className="flex justify-between items-center gap-2">
-        <h4 className="font-black text-[#1d100a] uppercase italic text-xs leading-tight flex-1 truncate font-['Space_Grotesk']">
-          {lead.nome || <span className="italic opacity-50 font-normal lowercase">sem nome</span>}
-        </h4>
-        
-        {/* Botão de Editar Lead */}
+        <div>
+          <h4 className="font-black text-[#1d100a] uppercase italic text-sm leading-tight font-['Space_Grotesk']">
+            {lead.nome || <span className="italic opacity-50 font-normal lowercase">sem nome</span>}
+          </h4>
+          <p className="text-[9px] font-black text-[#7a5446] font-['Space_Mono'] flex items-center gap-1 mt-0.5">
+            <Phone className="w-3 h-3 text-[#ff6b00]" /> {lead.telefone || 'Sem Telefone'}
+          </p>
+        </div>
+      </div>
+
+      {/* Quick Actions Row (Stitch Style) */}
+      <div className="flex items-center gap-2 mt-1">
+        {phoneClean && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              const msg = `Olá ${lead.nome || ''}! Tudo bem? Falo do Studio Acorde. 😊`;
+              window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
+            }}
+            title="Chamar no WhatsApp"
+            className="flex-1 border-2 border-black bg-[#25d366] text-black py-1.5 font-black text-[9px] uppercase font-['Space_Mono'] flex items-center justify-center gap-1 shadow-[2px_2px_0_#000] hover:bg-[#20bd5a] active:translate-y-0.5 active:shadow-none cursor-pointer"
+          >
+            <MessageCircle className="w-3.5 h-3.5" /> CHAT
+          </button>
+        )}
+
+        {lead.status !== 'matriculado' && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAgendarExp(lead);
+            }}
+            title="Agendar Experimental"
+            className="flex-1 border-2 border-black bg-[#ff6b00] text-white py-1.5 font-black text-[9px] uppercase font-['Space_Mono'] flex items-center justify-center gap-1 shadow-[2px_2px_0_#000] hover:bg-[#ff8c33] active:translate-y-0.5 active:shadow-none cursor-pointer"
+          >
+            <Calendar className="w-3.5 h-3.5" /> AULA
+          </button>
+        )}
+
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onEdit(lead);
           }}
-          className="text-[8px] font-black bg-[#ffdbcc] hover:bg-[#ff6b00] hover:text-white text-[#351000] px-2 py-0.5 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer shrink-0 font-['Space_Mono'] uppercase"
+          title="Editar Lead"
+          className="border-2 border-black bg-white text-black p-1.5 font-black text-[9px] uppercase font-['Space_Mono'] flex items-center justify-center shadow-[2px_2px_0_#000] hover:bg-[#ffeae1] active:translate-y-0.5 active:shadow-none cursor-pointer"
         >
-          EDITAR
+          <span className="material-symbols-outlined text-sm">edit</span>
         </button>
 
-        {/* Botão de Expandir/Recolher */}
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             setExpanded(!expanded);
           }}
-          className="text-[8px] font-black bg-black text-white hover:bg-black/80 px-2 py-0.5 border border-black shadow-[1.5px_1.5px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-0.5 cursor-pointer shrink-0 font-['Space_Mono']"
+          className="border-2 border-black bg-black text-white px-2 py-1.5 font-black text-[9px] uppercase font-['Space_Mono'] flex items-center justify-center shadow-[2px_2px_0_#000] cursor-pointer"
         >
           {expanded ? '▲' : '▼'}
         </button>
       </div>
 
-      {/* Se expandido, exibe detalhes e ações */}
+      {/* Expanded details */}
       {expanded && (
         <div className="mt-2 pt-2 border-t-2 border-black/15 flex flex-col gap-2">
-          <p className="text-[9px] font-black text-[#5a4136] flex items-center gap-1 uppercase font-['Space_Mono']">
-            <Phone className="w-3 h-3 text-[#ff6b00]" /> {lead.telefone}
-          </p>
-
           {lead.observacoes && (
-            <p className="text-[8px] font-bold text-[#261812]/80 bg-[#ffdbcc]/50 p-2 border border-black/20 line-clamp-2 uppercase font-['Space_Mono']">
+            <p className="text-[8.5px] font-bold text-[#261812]/80 bg-[#ffdbcc]/50 p-2 border border-black/20 font-['Space_Mono'] uppercase">
               {lead.observacoes}
             </p>
           )}
 
-          {/* Ações do Card */}
-          <div className="mt-2 pt-2 border-t border-black/15 flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex gap-1.5">
-              {/* WhatsApp */}
-              {phoneClean && (
-                <button
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const msg = `Olá! Tudo bem? Entramos em contato a partir do Studio Acorde. 😊`;
-                    window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
-                  }}
-                  title="Chamar no WhatsApp"
-                  className="bg-[#25d366] text-black p-1.5 border border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#20bd5a] transition-all flex items-center justify-center cursor-pointer"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                </button>
-              )}
-              
-              {/* Agendar Experimental (se não for matriculado) */}
-              {lead.status !== 'matriculado' && (
-                <button
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAgendarExp(lead);
-                  }}
-                  title="Agendar Experimental"
-                  className="bg-[#ff6b00] text-white p-1.5 border border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#ff8c33] transition-all flex items-center justify-center cursor-pointer"
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Mudar de status pelo Mobile ou cliques */}
-            <div className="flex items-center gap-1.5 flex-1 justify-end">
-              <select
-                onPointerDown={(e) => e.stopPropagation()}
-                value={lead.status === 'iniciado' ? 'em_atendimento' : (lead.status || 'em_atendimento')}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  onMove(lead.id, e.target.value);
-                }}
-                className="text-[8px] font-black text-black uppercase bg-white border border-black p-1 focus:outline-none cursor-pointer font-['Space_Mono'] shadow-[1px_1px_0_#000]"
-              >
-                <option value="em_atendimento">Em Atend.</option>
-                <option value="nao_responde">Não Resp.</option>
-                <option value="sem_interesse">Sem Inter.</option>
-                <option value="aula_marcada">Aula Marc.</option>
-                <option value="finalizado">Encerrado</option>
-              </select>
-            </div>
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <span className="text-[8px] font-black uppercase text-[#5a4136] font-['Space_Mono']">STATUS RÁPIDO:</span>
+            <select
+              onPointerDown={(e) => e.stopPropagation()}
+              value={lead.status === 'iniciado' ? 'em_atendimento' : (lead.status || 'em_atendimento')}
+              onChange={(e) => {
+                e.stopPropagation();
+                onMove(lead.id, e.target.value);
+              }}
+              className="text-[8px] font-black text-black uppercase bg-white border border-black p-1 focus:outline-none cursor-pointer font-['Space_Mono'] shadow-[1px_1px_0_#000]"
+            >
+              <option value="em_atendimento">Em Atendimento</option>
+              <option value="nao_responde">Não Responde</option>
+              <option value="sem_interesse">Sem Interesse</option>
+              <option value="aula_marcada">Aula Marcada</option>
+              <option value="finalizado">Matriculado/Encerrado</option>
+            </select>
           </div>
         </div>
       )}
@@ -245,7 +273,7 @@ export default function Atendimento() {
     origem: ''
   });
 
-  // Sensores para Drag & Drop (com distância limite para não bugar cliques de botões)
+  // Sensores para Drag & Drop
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -278,6 +306,19 @@ export default function Atendimento() {
     horario: '',
     sala_id: undefined as number | undefined
   });
+
+  // Helper de Trava de Duplicidade de Telefone
+  const isDuplicatePhone = (phone: string, currentLeadId?: any) => {
+    const cleanNew = (phone || '').replace(/\D/g, '');
+    if (!cleanNew || cleanNew.length < 8) return false;
+    return leads.some(l => {
+      if (currentLeadId && (l.id === currentLeadId || String(l.id) === String(currentLeadId))) {
+        return false;
+      }
+      const cleanExisting = (l.telefone || '').replace(/\D/g, '');
+      return cleanExisting === cleanNew;
+    });
+  };
 
   const fetchLeads = () => {
     const token = localStorage.getItem('acorde_token');
@@ -314,14 +355,11 @@ export default function Atendimento() {
       .then(data => setProfessores(Array.isArray(data) ? data : []))
       .catch(() => setProfessores([]));
 
-    // Disparo da verificação de follow-up em background ao abrir o CRM
     fetch('/api/leads/verificar-followup', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(res => {
-        if (res.ok) return res.json();
-      })
+      .then(res => { if (res.ok) return res.json(); })
       .then(data => {
         if (data && data.count > 0) {
           toast.info(`Follow-up por e-mail disparado para ${data.count} leads pendentes!`);
@@ -331,9 +369,8 @@ export default function Atendimento() {
   }, []);
 
   const sendReminder = (exp: any) => {
-    const dataFormatted = new Date(exp.data + 'T12:00:00').toLocaleDateString('pt-BR');
     const horario = exp.horario ? exp.horario.substring(0, 5) : '--:--';
-    const msg = `Olá ${exp.leads?.nome}! 🎸 Passando para confirmar nossa aula experimental de ${exp.cursos?.nome || 'música'} hoje às ${horario} com o Prof. ${exp.professores?.nome}? Estamos te esperando aqui na Acorde! 😊`;
+    const msg = `Olá ${exp.leads?.nome}! 🎸 Passando para confirmar nossa aula experimental de ${exp.cursos?.nome || 'música'} hoje às ${horario} com o Prof. ${exp.professores?.nome}? Estamos te esperando na Acorde! 😊`;
     const phone = exp.leads?.telefone?.replace(/\D/g, '');
     window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -342,7 +379,6 @@ export default function Atendimento() {
     if (!inst || !dia) return;
     setSearchingVagas(true);
     
-    // Mapeamento de nomes para busca
     const searchTerms: { [key: string]: string } = {
       'Canto': 'Vocal',
       'Guitarra': 'Guitarra',
@@ -395,9 +431,21 @@ export default function Atendimento() {
     toast.success('Texto formatado copiado com sucesso!');
   };
 
+  // Criar Lead com Trava de Duplicidade por Telefone
   const handleCreateLead = async (e: React.FormEvent) => {
-    const token = localStorage.getItem('acorde_token');
     e.preventDefault();
+    const cleanPhone = (formData.telefone || '').replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 8) {
+      toast.error("⚠️ Digite um número de WhatsApp/telefone válido (mínimo 8 dígitos).");
+      return;
+    }
+
+    if (isDuplicatePhone(formData.telefone)) {
+      toast.error("⛔ TRAVA DE DUPLICIDADE: Já existe um lead cadastrado com este telefone! Não é permitido criar leads duplicados.", { duration: 6000 });
+      return;
+    }
+
+    const token = localStorage.getItem('acorde_token');
     const res = await fetch('/api/leads', {
       method: 'POST',
       headers: { 
@@ -406,10 +454,14 @@ export default function Atendimento() {
       },
       body: JSON.stringify(formData),
     });
+
     if (res.ok) {
+      toast.success("✨ Lead cadastrado com sucesso!");
       setIsModalOpen(false);
       fetchLeads();
       setFormData({ nome: '', telefone: '', interesse_curso_id: '', status: 'em_atendimento', observacoes: '', origem: '' });
+    } else {
+      toast.error("Erro ao cadastrar lead.");
     }
   };
 
@@ -425,6 +477,7 @@ export default function Atendimento() {
       body: JSON.stringify(expData),
     });
     if (res.ok) {
+      toast.success("Aula experimental agendada!");
       setIsExpModalOpen(false);
       fetchLeads();
     }
@@ -463,8 +516,20 @@ export default function Atendimento() {
     }
   };
 
+  // Editar Lead com Trava de Duplicidade por Telefone
   const handleUpdateLead = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanPhone = (editFormData.telefone || '').replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 8) {
+      toast.error("⚠️ Digite um número de WhatsApp/telefone válido.");
+      return;
+    }
+
+    if (isDuplicatePhone(editFormData.telefone, editingLead?.id)) {
+      toast.error("⛔ TRAVA DE DUPLICIDADE: Já existe outro lead cadastrado com este telefone!", { duration: 6000 });
+      return;
+    }
+
     const token = localStorage.getItem('acorde_token');
     try {
       const res = await fetch(`/api/leads/${editingLead.id}`, {
@@ -501,9 +566,61 @@ export default function Atendimento() {
     setIsEditModalOpen(true);
   };
 
+  // ALGORITMO DE BUSCA POR NOME OU TELEFONE (PRIORIDADE ABSOLUTA AOS ÚLTIMOS 4 DÍGITOS)
+  const filterAndSortLeads = (leadsList: any[]) => {
+    const rawTerm = searchTerm.trim();
+    if (!rawTerm) return leadsList;
+
+    const termLower = rawTerm.toLowerCase();
+    const searchDigits = rawTerm.replace(/\D/g, '');
+
+    const scored = leadsList
+      .map((lead) => {
+        const name = (lead.nome || '').toLowerCase();
+        const phoneClean = (lead.telefone || '').replace(/\D/g, '');
+        const phoneRaw = (lead.telefone || '').toLowerCase();
+
+        let score = 0;
+
+        // Regra de Ouro: Se a busca é por dígitos de telefone (especialmente últimos 4 dígitos)
+        if (searchDigits.length >= 4) {
+          if (phoneClean.endsWith(searchDigits)) {
+            // PRIORIDADE MÁXIMA: Termina exatamente com os últimos dígitos pesquisados
+            score = 2000 + (phoneClean.length === searchDigits.length ? 1000 : 0);
+          } else if (phoneClean.includes(searchDigits)) {
+            score = 500;
+          }
+        } else if (searchDigits.length > 0 && phoneClean.includes(searchDigits)) {
+          score = 300;
+        }
+
+        // Match por nome ou texto
+        if (name.includes(termLower)) {
+          score = Math.max(score, 200);
+        } else if (phoneRaw.includes(termLower)) {
+          score = Math.max(score, 150);
+        }
+
+        return { lead, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return scored.map((item) => item.lead);
+  };
+
+  const processedLeads = filterAndSortLeads(leads);
+
+  // Cálculos de KPI Fiem ao Stitch
+  const totalLeads = leads.length;
+  const emAtendimentoCount = leads.filter(l => l.status === 'em_atendimento' || l.status === 'iniciado' || !l.status).length;
+  const aulaMarcadaCount = leads.filter(l => l.status === 'aula_marcada').length;
+  const naoRespondeCount = leads.filter(l => l.status === 'nao_responde').length;
+  const conversaoRate = totalLeads > 0 ? Math.round((leads.filter(l => l.status === 'finalizado' || l.status === 'matriculado').length / totalLeads) * 100) : 0;
+
   return (
-    <div className="flex flex-col flex-1 animate-in fade-in duration-500 overflow-hidden h-screen bg-[#1d100a] text-[#f8ddd2] relative">
-      {/* Floating Background Decor (8-Bit Music Stickers) */}
+    <div className="flex flex-col flex-1 animate-in fade-in duration-500 overflow-hidden h-screen bg-[#1d100a] text-[#f8ddd2] relative font-['Space_Mono']">
+      {/* Floating Background Decor (8-Bit Music Stickers - Stitch Maximalist) */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none select-none z-0">
         <span className="material-symbols-outlined floating-sticker text-[80px] top-[10%] left-[5%] text-[#ff6b00]" style={{ animationDelay: '0s' }}>piano</span>
         <span className="material-symbols-outlined floating-sticker text-[60px] top-[40%] left-[80%] text-[#ffb693]" style={{ animationDelay: '1s' }}>music_note</span>
@@ -513,47 +630,65 @@ export default function Atendimento() {
         <span className="material-symbols-outlined floating-sticker text-[50px] top-[15%] left-[25%] text-[#ffb693]" style={{ animationDelay: '5s' }}>graphic_eq</span>
       </div>
 
-      <header className="px-8 py-4 bg-[#2b1c16] border-b-3 border-[#ffb693] flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-[0_6px_0_#170b06] relative z-10">
+      {/* TopAppBar Fiel ao Stitch com Buscador Integrado */}
+      <header className="px-8 py-4 bg-[#2b1c16] border-b-3 border-[#ffb693] flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-[0_6px_0_#170b06] relative z-20">
         <div className="flex items-center gap-4">
           <div className="bg-[#ff6b00] text-white p-3 border-3 border-black shadow-[4px_4px_0_#000] -rotate-1">
             <span className="material-symbols-outlined text-3xl">person_add</span>
           </div>
           <div>
-            <h1 className="text-2xl font-black text-[#ffb693] uppercase tracking-tighter italic font-['Space_Grotesk']">
-              STUDIO_MASTER <span className="text-[#ff6b00] text-sm not-italic font-['Space_Mono']">// CRM 8-BIT</span>
+            <h1 className="text-xl font-black text-[#ffb693] uppercase tracking-tighter italic font-['Space_Grotesk'] flex items-center gap-2">
+              STUDIO_MASTER <span className="bg-[#ff6b00] text-white text-[9px] px-2 py-0.5 border border-black not-italic font-['Space_Mono'] shadow-[2px_2px_0_#000]">CRM 8-BIT</span>
             </h1>
-            <p className="text-[10px] font-bold text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono']">
+            <p className="text-[9.5px] font-bold text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono'] mt-0.5">
               VIBE CHECK: ACTIVE • GESTÃO DE LEADS MAXIMALISTA
             </p>
           </div>
         </div>
 
-        {/* Dashboard de Métricas / KPI Bar */}
-        <div className="hidden lg:flex items-center gap-4 bg-[#170b06] px-5 py-2.5 border-3 border-[#41312a] shadow-[4px_4px_0_#000]">
+        {/* BARRA DE PESQUISA POR NOME OU TELEFONE (INTEGRADA NO HEADER) */}
+        <div className="flex-1 max-w-xl mx-4">
+          <div className="bg-[#170b06] border-3 border-[#ffb693] px-4 py-2 flex items-center gap-3 shadow-[4px_4px_0_#000] focus-within:border-[#ff6b00] transition-colors">
+            <Search className="w-4 h-4 text-[#ff6b00] shrink-0 animate-pulse" />
+            <input
+              type="text"
+              placeholder="BUSCAR LEAD POR NOME OU ÚLTIMOS 4 DÍGITOS DO TELEFONE..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-transparent text-[#f8ddd2] font-black text-xs uppercase w-full focus:outline-none placeholder:text-[#e2bfb0]/40 font-['Space_Mono']"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="text-[#ffb693] hover:text-white shrink-0 p-0.5 cursor-pointer"
+                title="Limpar busca"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Dashboard de Métricas / KPI Bar (Vibe do Dia Stitch) */}
+        <div className="hidden xl:flex items-center gap-4 bg-[#170b06] px-5 py-2.5 border-3 border-[#41312a] shadow-[4px_4px_0_#000]">
           <div className="text-center">
-            <p className="text-[8px] font-black text-[#e2bfb0] uppercase font-['Space_Mono'] tracking-widest">EM ATENDIMENTO</p>
-            <p className="text-lg font-black text-[#ffb693] font-['Space_Grotesk']">
-              {leads.filter(l => l.status === 'em_atendimento' || l.status === 'iniciado' || !l.status).length}
-            </p>
+            <p className="text-[8px] font-black text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono']">NOVOS LEADS</p>
+            <p className="text-lg font-black text-[#ffb693] font-['Space_Grotesk']">{emAtendimentoCount}</p>
           </div>
           <div className="w-px h-8 bg-[#41312a]"></div>
           <div className="text-center">
-            <p className="text-[8px] font-black text-[#e2bfb0] uppercase font-['Space_Mono'] tracking-widest">AULAS MARCADAS</p>
-            <p className="text-lg font-black text-[#25d366] font-['Space_Grotesk']">
-              {leads.filter(l => l.status === 'aula_marcada').length}
-            </p>
+            <p className="text-[8px] font-black text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono']">AULAS MARCADAS</p>
+            <p className="text-lg font-black text-[#25d366] font-['Space_Grotesk']">{aulaMarcadaCount}</p>
           </div>
           <div className="w-px h-8 bg-[#41312a]"></div>
           <div className="text-center">
-            <p className="text-[8px] font-black text-[#e2bfb0] uppercase font-['Space_Mono'] tracking-widest">NÃO RESPONDE</p>
-            <p className="text-lg font-black text-[#ff6b00] font-['Space_Grotesk']">
-              {leads.filter(l => l.status === 'nao_responde').length}
-            </p>
+            <p className="text-[8px] font-black text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono']">CONVERSÃO</p>
+            <p className="text-lg font-black text-[#ff6b00] font-['Space_Grotesk']">{conversaoRate}%</p>
           </div>
           <div className="w-px h-8 bg-[#41312a]"></div>
           <div className="text-center">
-            <p className="text-[8px] font-black text-[#e2bfb0] uppercase font-['Space_Mono'] tracking-widest">TOTAL LEADS</p>
-            <p className="text-lg font-black text-white font-['Space_Grotesk']">{leads.length}</p>
+            <p className="text-[8px] font-black text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono']">TOTAL LEADS</p>
+            <p className="text-lg font-black text-white font-['Space_Grotesk']">{totalLeads}</p>
           </div>
         </div>
 
@@ -567,7 +702,9 @@ export default function Atendimento() {
         </div>
       </header>
 
+      {/* Main Content Workspace */}
       <div className="p-8 space-y-6 flex-1 overflow-auto relative z-10 font-['Space_Mono']">
+        {/* Navigation Tabs */}
         <div className="flex items-center gap-6 border-b-3 border-[#ffb693]/20">
            <button 
              onClick={() => setActiveTab('leads')}
@@ -575,7 +712,7 @@ export default function Atendimento() {
                activeTab === 'leads' ? 'text-[#ff6b00]' : 'text-[#e2bfb0]/60 hover:text-[#ffb693]'
              }`}
            >
-             LEADS_INTERESSADOS
+             LEADS_INTERESSADOS ({processedLeads.length})
              {activeTab === 'leads' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#ff6b00] shadow-[0_2px_0_#000]" />}
            </button>
            <button 
@@ -600,11 +737,11 @@ export default function Atendimento() {
 
         {activeTab === 'leads' && (
           <div className="space-y-6 flex flex-col flex-1 overflow-hidden">
-            {/* Seção de Lembretes */}
+            {/* Lembretes de Confirmação de Aula Experimental */}
             {experimentaisPendentes.length > 0 && (
-              <div className="space-y-3 shrink-0 max-w-md mb-4">
-                <h3 className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2 px-2">
-                  <Clock className="w-3 h-3 text-[#ff6b00]" /> CONFIRMAR_HOJE
+              <div className="space-y-3 shrink-0 max-w-md mb-2">
+                <h3 className="text-[10px] font-black text-[#ffb693] uppercase tracking-widest flex items-center gap-2 px-2">
+                  <Clock className="w-3.5 h-3.5 text-[#ff6b00]" /> CONFIRMAR_HOJE ({experimentaisPendentes.length})
                 </h3>
                 <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
                   {experimentaisPendentes.map((exp) => (
@@ -612,7 +749,7 @@ export default function Atendimento() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       key={exp.id}
-                      className="bg-[#fff8f6] border-4 border-black p-4 flex items-center justify-between gap-4 shadow-[4px_4px_0_#000]"
+                      className="bg-[#f8ddd2] text-black border-3 border-black p-3.5 flex items-center justify-between gap-4 shadow-[4px_4px_0_#000]"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 border-2 border-black bg-white flex items-center justify-center font-black text-[#ff6b00] text-xs shadow-[2px_2px_0_#000]">
@@ -620,12 +757,12 @@ export default function Atendimento() {
                         </div>
                         <div>
                           <p className="text-xs font-black text-black uppercase italic">{exp.leads?.nome || 'Sem Nome'}</p>
-                          <p className="text-[8px] font-black text-[#8e7164] uppercase">{exp.cursos?.nome} • PROF. {exp.professores?.nome?.split(' ')[0]}</p>
+                          <p className="text-[8px] font-black text-[#7a5446] uppercase">{exp.cursos?.nome} • PROF. {exp.professores?.nome?.split(' ')[0]}</p>
                         </div>
                       </div>
                       <button 
                         onClick={() => sendReminder(exp)}
-                        className="bg-[#25d366] text-black p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                        className="bg-[#25d366] text-black p-2 border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer hover:bg-[#20bd5a]"
                       >
                         <MessageCircle className="w-4 h-4" />
                       </button>
@@ -634,238 +771,208 @@ export default function Atendimento() {
                 </div>
               </div>
             )}
- 
-            {/* Barra de Pesquisa por Nome ou Número de Telefone */}
-            {(() => {
-              const term = searchTerm.toLowerCase().trim();
-              const cleanTerm = term.replace(/\D/g, '');
-              const filteredLeads = leads.filter((l) => {
-                if (!term) return true;
-                const nameMatch = (l.nome || '').toLowerCase().includes(term);
-                const phoneClean = (l.telefone || '').replace(/\D/g, '');
-                const phoneMatch = (l.telefone || '').toLowerCase().includes(term) || (cleanTerm.length > 0 && phoneClean.includes(cleanTerm));
-                return nameMatch || phoneMatch;
-              });
 
-              return (
-                <>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-[#261812]/40 border-4 border-black p-3 shadow-[4px_4px_0_#000] shrink-0">
-                    <div className="flex items-center gap-2 flex-1 bg-[#fff8f6] border-2 border-black px-3 py-2 shadow-[2px_2px_0_#000]">
-                      <Search className="w-4 h-4 text-[#ff6b00] shrink-0" />
-                      <input
-                        type="text"
-                        placeholder="PESQUISAR LEAD POR NOME OU NÚMERO DE TELEFONE..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="bg-transparent text-black font-black text-xs uppercase w-full focus:outline-none placeholder:text-[#8e7164] font-['Space_Mono']"
-                      />
-                      {searchTerm && (
-                        <button
-                          onClick={() => setSearchTerm('')}
-                          className="text-[#8e7164] hover:text-black shrink-0 p-0.5"
-                          title="Limpar pesquisa"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+            {/* Resultado da Pesquisa Indicador */}
+            {searchTerm && (
+              <div className="flex items-center justify-between bg-[#170b06] border-3 border-[#ff6b00] p-3 shadow-[4px_4px_0_#000]">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#ff6b00]">search</span>
+                  <p className="text-xs font-black text-white uppercase">
+                    RESULTADO DA BUSCA POR: <span className="text-[#ff6b00]">"{searchTerm}"</span> — {processedLeads.length} LEAD(S) ENCONTRADO(S) (PRIORIDADE AOS ÚLTIMOS DÍGITOS)
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="bg-[#ff6b00] text-white px-3 py-1 border border-black text-[9px] font-black uppercase shadow-[2px_2px_0_#000] hover:bg-[#ff8c33] cursor-pointer"
+                >
+                  LIMPAR BUSCA
+                </button>
+              </div>
+            )}
 
-                    {searchTerm && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[10px] font-black bg-[#ff6b00] text-white px-3 py-2 border-2 border-black shadow-[2px_2px_0_#000] uppercase tracking-wider">
-                          {filteredLeads.length} ENCONTRADO(S)
-                        </span>
-                        <button
-                          onClick={() => setSearchTerm('')}
-                          className="bg-black text-white px-3 py-2 border-2 border-black text-xs font-black uppercase shadow-[2px_2px_0_#000] hover:bg-red-600 transition-all cursor-pointer"
-                        >
-                          LIMPAR
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Kanban Board com DndContext */}
-                  <DndContext 
-                    sensors={sensors} 
-                    onDragStart={(event) => setActiveId(String(event.active.id))}
-                    onDragEnd={(event) => { handleDragEnd(event); setActiveId(null); }}
-                  >
-                    <div className="flex gap-6 overflow-x-auto pb-6 pt-2 custom-scrollbar min-h-[500px] flex-1 max-w-full items-start">
-                      {[
-                        { id: 'em_atendimento', title: 'Em Atendimento' },
-                        { id: 'nao_responde', title: 'Não Responde' },
-                        { id: 'aula_marcada', title: 'Aula Marcada' },
-                        { id: 'sem_interesse', title: 'Não Tem Interesse' },
-                        { id: 'finalizado', title: 'Atendimento Encerrado' },
-                      ].map((col) => {
-                        const colLeads = filteredLeads.filter((l) => {
-                          if (col.id === 'em_atendimento') {
-                            return l.status === 'em_atendimento' || l.status === 'iniciado' || !l.status;
-                          }
-                          return l.status === col.id;
-                        });
-                        
-                        return (
-                          <DroppableColumn key={col.id} id={col.id} title={col.title} leads={colLeads}>
-                            {colLeads.map((lead) => (
-                              <DraggableCard
-                                key={lead.id}
-                                lead={lead}
-                                cursos={cursos}
-                                onEdit={openEditModal}
-                                onMove={updateLeadStatus}
-                                onAgendarExp={(l: any) => {
-                                  setSelectedLead(l);
-                                  setExpData({ ...expData, lead_id: l.id, curso_id: l.interesse_curso_id });
-                                  setIsExpModalOpen(true);
-                                }}
-                              />
-                            ))}
-                          </DroppableColumn>
-                        );
-                      })}
-                    </div>
-
-                    {/* Overlay que flutua junto com o cursor e tem z-index alto */}
-                    <DragOverlay>
-                      {activeId ? (
-                        <CardVisual
-                          lead={leads.find(l => String(l.id) === activeId)}
+            {/* Kanban Board com DndContext (Estilo Stitch) */}
+            <DndContext 
+              sensors={sensors} 
+              onDragStart={(event) => setActiveId(String(event.active.id))}
+              onDragEnd={(event) => { handleDragEnd(event); setActiveId(null); }}
+            >
+              <div className="flex gap-6 overflow-x-auto pb-6 pt-2 custom-scrollbar min-h-[520px] flex-1 max-w-full items-start">
+                {STITCH_COLUMNS.map((col) => {
+                  const colLeads = processedLeads.filter((l) => {
+                    if (col.id === 'em_atendimento') {
+                      return l.status === 'em_atendimento' || l.status === 'iniciado' || !l.status;
+                    }
+                    return l.status === col.id;
+                  });
+                  
+                  return (
+                    <DroppableColumn 
+                      key={col.id} 
+                      id={col.id} 
+                      title={col.title} 
+                      leads={colLeads}
+                      bgHeader={col.bgHeader}
+                      rotate={col.rotate}
+                      shadow={col.shadow}
+                    >
+                      {colLeads.map((lead) => (
+                        <DraggableCard
+                          key={lead.id}
+                          lead={lead}
                           cursos={cursos}
-                          onEdit={() => {}}
-                          onMove={() => {}}
-                          onAgendarExp={() => {}}
-                          dragProps={{}}
-                          isOverlay={true}
+                          onEdit={openEditModal}
+                          onMove={updateLeadStatus}
+                          onAgendarExp={(l: any) => {
+                            setSelectedLead(l);
+                            setExpData({ ...expData, lead_id: l.id, curso_id: l.interesse_curso_id });
+                            setIsExpModalOpen(true);
+                          }}
                         />
-                      ) : null}
-                    </DragOverlay>
-                  </DndContext>
-                </>
-              );
-            })()}
-          </div>
-        )}
-
-        {activeTab === 'vagas' && (
-          <div className="space-y-4">
-                <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-                   <Music className="w-3 h-3 text-[#ff6b00]" /> 1. Escolha o Instrumento
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                   {cursos
-                     .filter(c => !c.nome.includes('Black') && !c.nome.includes('Laranja') && !c.nome.includes('White'))
-                     .map(c => c.nome)
-                     .filter((v, i, a) => a.indexOf(v) === i)
-                     .map(inst => (
-                     <button
-                       key={inst}
-                       onClick={() => { setSearchInstrumento(inst); if(searchDia) handleSearchVagas(inst, searchDia); }}
-                       className={`p-4 border-4 transition-all flex flex-col items-center gap-2 ${
-                         searchInstrumento === inst 
-                           ? 'bg-[#ff6b00] border-black shadow-[4px_4px_0_#000] translate-x-[-2px] translate-y-[-2px]' 
-                           : 'bg-[#fff8f6] border-black shadow-[4px_4px_0_#000] hover:translate-y-[-2px]'
-                       }`}
-                     >
-                       <div className={`w-10 h-10 border-2 border-black flex items-center justify-center ${searchInstrumento === inst ? 'bg-white/20' : 'bg-white shadow-[2px_2px_0_#000]'}`}>
-                         <Music className={`w-5 h-5 ${searchInstrumento === inst ? 'text-white' : 'text-black'}`} />
-                       </div>
-                       <span className={`text-[10px] font-black text-center line-clamp-1 uppercase italic italic ${searchInstrumento === inst ? 'text-white' : 'text-black'}`} title={inst}>{inst}</span>
-                     </button>
-                   ))}
-                </div>
-                <div className="space-y-4">
-                <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-                   <Calendar className="w-3 h-3 text-[#ff6b00]" /> 2. ESCOLHA_O_DIA_DA_SEMANA
-                </h3>
-                <div className="flex flex-wrap gap-3">
-                   {['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(dia => (
-                     <button
-                       key={dia}
-                       onClick={() => { setSearchDia(dia); if(searchInstrumento) handleSearchVagas(searchInstrumento, dia); }}
-                       className={`px-6 py-3 border-4 font-black text-[10px] uppercase transition-all shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none ${
-                         searchDia === dia 
-                           ? 'bg-[#ff6b00] border-black text-white' 
-                           : 'bg-white border-black text-black'
-                       }`}
-                     >
-                       {dia}
-                     </button>
-                   ))}
-                </div>
+                      ))}
+                    </DroppableColumn>
+                  );
+                })}
               </div>
 
-             {searchInstrumento && searchDia && (
-               <motion.div 
-                 initial={{ opacity: 0, y: 20 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 className="bg-[#fff8f6] border-4 border-black p-8 relative overflow-hidden shadow-[8px_8px_0_#000]"
-               >
-                  <div className="absolute top-0 right-0 p-4">
-                     <div className="bg-[#ff6b00] text-white px-3 py-1 border-2 border-black text-[8px] font-black uppercase tracking-widest animate-pulse">
-                        SINC_EMUSYS
-                     </div>
-                  </div>
-
-                  <h4 className="text-lg font-black text-black uppercase italic italic mb-6 flex items-center gap-2">
-                    <CheckCircle2 className="text-[#ff6b00]" /> VAGAS_ENCONTRADAS
-                  </h4>
-
-                  {searchingVagas ? (
-                    <div className="py-12 text-center text-[#8e7164] font-black uppercase text-xs">BUSCANDO_HORÁRIOS...</div>
-                  ) : vagasResult.length === 0 ? (
-                    <div className="py-12 text-center text-[#8e7164] font-black uppercase text-xs">NENHUMA_VAGA_DISPONÍVEL</div>
-                  ) : (
-                    <div className="space-y-6">
-                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {vagasResult.map((item, idx) => (
-                            <div key={idx} className="bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
-                               <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest mb-2 border-b-2 border-black/5 pb-1">PROF. {item.professor?.split(' ')[0]}</p>
-                               <div className="flex flex-wrap gap-2">
-                                  {item.vagas.map((h: string) => (
-                                    <span key={h} className="bg-[#feccba] text-black px-2 py-1 border-2 border-black text-[9px] font-black flex items-center gap-1 shadow-[2px_2px_0_#000]">
-                                      <Clock className="w-3 h-3" /> {h}
-                                    </span>
-                                  ))}
-                               </div>
-                            </div>
-                          ))}
-                       </div>
-
-                       <div className="mt-8 bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
-                          <p className="text-[9px] font-black text-[#8e7164] uppercase tracking-widest mb-2">PREVIEW_WHATSAPP</p>
-                          <textarea 
-                            readOnly 
-                            className="w-full h-32 text-xs text-black font-black bg-[#fff8f6] p-4 border-2 border-black resize-none focus:outline-none uppercase"
-                            value={generateText()}
-                          />
-                       </div>
-
-                       <div className="mt-4 p-6 bg-black flex flex-col md:flex-row items-center justify-between gap-4 shadow-[4px_4px_0_rgba(255,107,0,0.3)]">
-                          <div className="flex items-center gap-4 text-white">
-                             <div className="bg-[#ff6b00] p-3 border-2 border-white shadow-[4px_4px_0_#ff6b00]/20">
-                                <MessageCircle className="w-6 h-6" />
-                             </div>
-                             <div>
-                                <p className="text-[10px] font-black text-[#8e7164] uppercase">PRONTO PARA ENVIAR!</p>
-                                <p className="text-sm font-black uppercase italic italic">COPIE O TEXTO FORMATADO</p>
-                             </div>
-                          </div>
-                          <button 
-                            onClick={copyToWhatsApp}
-                            className="bg-[#ff6b00] text-white px-8 py-3 border-2 border-white font-black uppercase text-xs hover:bg-[#ff8c33] active:translate-y-1 transition-all flex items-center gap-2"
-                          >
-                            <Plus className="w-4 h-4" /> COPIAR_TEXTO
-                          </button>
-                       </div>
-                    </div>
-                  )}
-               </motion.div>
-              )}
+              {/* Overlay que flutua durante o arrasto */}
+              <DragOverlay>
+                {activeId ? (
+                  <CardVisual
+                    lead={leads.find(l => String(l.id) === activeId)}
+                    cursos={cursos}
+                    onEdit={() => {}}
+                    onMove={() => {}}
+                    onAgendarExp={() => {}}
+                    dragProps={{}}
+                    isOverlay={true}
+                  />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           </div>
         )}
 
+        {/* Tab Busca de Vagas */}
+        {activeTab === 'vagas' && (
+          <div className="space-y-4">
+            <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+               <Music className="w-3.5 h-3.5 text-[#ff6b00]" /> 1. Escolha o Instrumento
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+               {cursos
+                 .filter(c => !c.nome.includes('Black') && !c.nome.includes('Laranja') && !c.nome.includes('White'))
+                 .map(c => c.nome)
+                 .filter((v, i, a) => a.indexOf(v) === i)
+                 .map(inst => (
+                 <button
+                   key={inst}
+                   onClick={() => { setSearchInstrumento(inst); if(searchDia) handleSearchVagas(inst, searchDia); }}
+                   className={`p-4 border-3 transition-all flex flex-col items-center gap-2 cursor-pointer ${
+                     searchInstrumento === inst 
+                       ? 'bg-[#ff6b00] border-black text-white shadow-[4px_4px_0_#000] -translate-y-1' 
+                       : 'bg-[#f8ddd2] border-black text-black shadow-[4px_4px_0_#000] hover:-translate-y-1'
+                   }`}
+                 >
+                   <div className={`w-10 h-10 border-2 border-black flex items-center justify-center ${searchInstrumento === inst ? 'bg-white/20' : 'bg-white shadow-[2px_2px_0_#000]'}`}>
+                     <Music className={`w-5 h-5 ${searchInstrumento === inst ? 'text-white' : 'text-black'}`} />
+                   </div>
+                   <span className="text-[10px] font-black text-center uppercase italic font-['Space_Grotesk']" title={inst}>{inst}</span>
+                 </button>
+               ))}
+            </div>
+
+            <div className="space-y-4 pt-4">
+              <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                 <Calendar className="w-3.5 h-3.5 text-[#ff6b00]" /> 2. ESCOLHA O DIA DA SEMANA
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                 {['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'].map(dia => (
+                   <button
+                     key={dia}
+                     onClick={() => { setSearchDia(dia); if(searchInstrumento) handleSearchVagas(searchInstrumento, dia); }}
+                     className={`px-6 py-3 border-3 font-black text-[10px] uppercase transition-all shadow-[4px_4px_0_#000] cursor-pointer ${
+                       searchDia === dia 
+                         ? 'bg-[#ff6b00] border-black text-white' 
+                         : 'bg-white border-black text-black hover:bg-[#ffeae1]'
+                     }`}
+                   >
+                     {dia}
+                   </button>
+                 ))}
+              </div>
+            </div>
+
+            {searchInstrumento && searchDia && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-[#f8ddd2] border-4 border-black p-8 relative overflow-hidden shadow-[8px_8px_0_#000] text-black"
+              >
+                 <div className="absolute top-0 right-0 p-4">
+                    <div className="bg-[#ff6b00] text-white px-3 py-1 border-2 border-black text-[8px] font-black uppercase tracking-widest animate-pulse">
+                       SINC_EMUSYS
+                    </div>
+                 </div>
+
+                 <h4 className="text-lg font-black text-black uppercase italic mb-6 flex items-center gap-2 font-['Space_Grotesk']">
+                   <CheckCircle2 className="text-[#ff6b00]" /> VAGAS_ENCONTRADAS
+                 </h4>
+
+                 {searchingVagas ? (
+                   <div className="py-12 text-center text-[#7a5446] font-black uppercase text-xs">BUSCANDO_HORÁRIOS...</div>
+                 ) : vagasResult.length === 0 ? (
+                   <div className="py-12 text-center text-[#7a5446] font-black uppercase text-xs">NENHUMA_VAGA_DISPONÍVEL</div>
+                 ) : (
+                   <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         {vagasResult.map((item, idx) => (
+                           <div key={idx} className="bg-white border-3 border-black p-4 shadow-[4px_4px_0_#000]">
+                              <p className="text-[9px] font-black text-[#7a5446] uppercase tracking-widest mb-2 border-b-2 border-black/10 pb-1 font-['Space_Mono']">PROF. {item.professor?.split(' ')[0]}</p>
+                              <div className="flex flex-wrap gap-2">
+                                 {item.vagas.map((h: string) => (
+                                   <span key={h} className="bg-[#ffdbcc] text-black px-2 py-1 border-2 border-black text-[9px] font-black flex items-center gap-1 shadow-[2px_2px_0_#000]">
+                                     <Clock className="w-3 h-3 text-[#ff6b00]" /> {h}
+                                   </span>
+                                 ))}
+                              </div>
+                           </div>
+                         ))}
+                      </div>
+
+                      <div className="mt-8 bg-white border-3 border-black p-4 shadow-[4px_4px_0_#000]">
+                         <p className="text-[9px] font-black text-[#7a5446] uppercase tracking-widest mb-2">PREVIEW_WHATSAPP</p>
+                         <textarea 
+                           readOnly 
+                           className="w-full h-32 text-xs text-black font-black bg-[#fff8f6] p-4 border-2 border-black resize-none focus:outline-none uppercase font-['Space_Mono']"
+                           value={generateText()}
+                         />
+                      </div>
+
+                      <div className="mt-4 p-6 bg-black flex flex-col md:flex-row items-center justify-between gap-4 shadow-[4px_4px_0_rgba(255,107,0,0.3)]">
+                         <div className="flex items-center gap-4 text-white">
+                            <div className="bg-[#ff6b00] p-3 border-2 border-white shadow-[4px_4px_0_#ff6b00]/20">
+                               <MessageCircle className="w-6 h-6" />
+                            </div>
+                            <div>
+                               <p className="text-[10px] font-black text-[#e2bfb0] uppercase font-['Space_Mono']">PRONTO PARA ENVIAR!</p>
+                               <p className="text-sm font-black uppercase italic font-['Space_Grotesk']">COPIE O TEXTO FORMATADO</p>
+                            </div>
+                         </div>
+                         <button 
+                           onClick={copyToWhatsApp}
+                           className="bg-[#ff6b00] text-white px-8 py-3 border-2 border-white font-black uppercase text-xs hover:bg-[#ff8c33] active:translate-y-1 transition-all flex items-center gap-2 cursor-pointer font-['Space_Mono']"
+                         >
+                           <Plus className="w-4 h-4" /> COPIAR_TEXTO
+                         </button>
+                      </div>
+                   </div>
+                 )}
+              </motion.div>
+            )}
+          </div>
+        )}
+
+        {/* Tab Calendário */}
         {activeTab === 'experimentais' && (
           <div className="h-[600px]">
             <WeeklyCalendar />
@@ -873,15 +980,15 @@ export default function Atendimento() {
         )}
       </div>
 
-      {/* Modal de Novo Lead */}
+      {/* Modal de Novo Lead (com Trava de Duplicidade por Telefone) */}
       <AnimatePresence>
          {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-3xl"
+              className="bg-[#f8ddd2] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-3xl text-black font-['Space_Mono']"
             >
               <div className="absolute top-0 right-0 p-4">
                  <button onClick={() => setIsModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
@@ -890,7 +997,7 @@ export default function Atendimento() {
               </div>
 
               <div className="mb-6">
-                <h2 className="text-xl font-black text-black uppercase italic flex items-center gap-2">
+                <h2 className="text-xl font-black text-black uppercase italic flex items-center gap-2 font-['Space_Grotesk']">
                    <Plus className="w-6 h-6 text-[#ff6b00]" /> NOVO_INTERESSADO
                 </h2>
                 <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
@@ -907,15 +1014,32 @@ export default function Atendimento() {
                        onChange={(e) => setFormData({...formData, nome: e.target.value})} 
                      />
                    </div>
+
                    <div>
-                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 flex items-center justify-between">
+                       <span>WHATSAPP_CONTATO *</span>
+                       {isDuplicatePhone(formData.telefone) && (
+                         <span className="text-red-600 font-bold text-[9px] flex items-center gap-1 animate-pulse">
+                           <AlertTriangle className="w-3 h-3" /> DUPLICADO!
+                         </span>
+                       )}
+                     </label>
                      <input 
                        required 
-                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                       placeholder="(00) 00000-0000"
+                       className={`w-full px-4 py-3 bg-white text-black border-4 text-sm font-black uppercase italic focus:ring-0 focus:outline-none ${
+                         isDuplicatePhone(formData.telefone) ? 'border-red-600 bg-red-50 text-red-900' : 'border-black'
+                       }`}
                        value={formData.telefone} 
                        onChange={(e) => setFormData({...formData, telefone: e.target.value})} 
                      />
+                     {isDuplicatePhone(formData.telefone) && (
+                       <p className="text-[9px] font-black text-red-600 uppercase mt-1">
+                         ⛔ Já existe um lead cadastrado com este telefone. Duplicidade bloqueada.
+                       </p>
+                     )}
                    </div>
+
                    <div>
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">ORIGEM_DO_LEAD / CANAL</label>
                      <div className="grid grid-cols-3 gap-2">
@@ -970,6 +1094,7 @@ export default function Atendimento() {
                          })}
                      </div>
                    </div>
+
                    <div className="flex-1 flex flex-col mt-2">
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÃO_INICIAL</label>
                      <textarea 
@@ -981,13 +1106,14 @@ export default function Atendimento() {
                    </div>
                  </div>
 
-                 {/* Botão de Envio (Ocupa ambas colunas) */}
+                 {/* Botão de Envio (Bloqueado se duplicado) */}
                  <div className="md:col-span-2 pt-4">
                    <button 
                      type="submit" 
-                     className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+                     disabled={isDuplicatePhone(formData.telefone)}
+                     className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                    >
-                     SALVAR_LEAD
+                     {isDuplicatePhone(formData.telefone) ? '⛔ TELEFONE DUPLICADO (BLOQUEADO)' : 'SALVAR_LEAD'}
                    </button>
                  </div>
               </form>
@@ -996,15 +1122,15 @@ export default function Atendimento() {
         )}
       </AnimatePresence>
 
-      {/* Modal de Edição de Lead (Anotações e Dados) */}
+      {/* Modal de Edição de Lead (com Trava de Duplicidade) */}
       <AnimatePresence>
          {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#fff8f6] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-3xl"
+              className="bg-[#f8ddd2] border-8 border-black p-8 relative overflow-hidden shadow-[12px_12px_0_#000] w-full max-w-3xl text-black font-['Space_Mono']"
             >
               <div className="absolute top-0 right-0 p-4">
                  <button onClick={() => setIsEditModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer">
@@ -1013,7 +1139,7 @@ export default function Atendimento() {
               </div>
 
               <div className="mb-6">
-                <h2 className="text-xl font-black text-black uppercase italic flex items-center gap-2">
+                <h2 className="text-xl font-black text-black uppercase italic flex items-center gap-2 font-['Space_Grotesk']">
                    <Plus className="w-6 h-6 text-[#ff6b00]" /> ANOTAÇÕES_&_DADOS
                 </h2>
                 <div className="h-2 w-20 bg-[#ff6b00] mt-2 border-2 border-black"></div>
@@ -1030,30 +1156,42 @@ export default function Atendimento() {
                        onChange={(e) => setEditFormData({...editFormData, nome: e.target.value})} 
                      />
                    </div>
+
                    <div>
-                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">WHATSAPP_CONTATO</label>
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 flex items-center justify-between">
+                       <span>WHATSAPP_CONTATO *</span>
+                       {isDuplicatePhone(editFormData.telefone, editingLead?.id) && (
+                         <span className="text-red-600 font-bold text-[9px] flex items-center gap-1 animate-pulse">
+                           <AlertTriangle className="w-3 h-3" /> DUPLICADO!
+                         </span>
+                       )}
+                     </label>
                      <input 
                        required 
-                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                       className={`w-full px-4 py-3 bg-white text-black border-4 text-sm font-black uppercase italic focus:ring-0 focus:outline-none ${
+                         isDuplicatePhone(editFormData.telefone, editingLead?.id) ? 'border-red-600 bg-red-50 text-red-900' : 'border-black'
+                       }`}
                        value={editFormData.telefone} 
                        onChange={(e) => setEditFormData({...editFormData, telefone: e.target.value})} 
                      />
                    </div>
+
                    <div>
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">STATUS_CRM</label>
                      <select 
                        required
-                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none" 
+                       className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 focus:outline-none cursor-pointer" 
                        value={editFormData.status} 
                        onChange={(e) => setEditFormData({...editFormData, status: e.target.value})}
                      >
                        <option value="em_atendimento">Em Atendimento</option>
                        <option value="nao_responde">Não Responde</option>
-                       <option value="sem_interesse">Não Tem Interesse</option>
+                       <option value="sem_interesse">Sem Interesse</option>
                        <option value="aula_marcada">Aula Marcada</option>
-                       <option value="finalizado">Atendimento Encerrado</option>
+                       <option value="finalizado">Matriculado/Encerrado</option>
                      </select>
                    </div>
+
                    <div>
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5 block">ORIGEM_DO_LEAD / CANAL</label>
                      <div className="grid grid-cols-3 gap-2">
@@ -1108,6 +1246,7 @@ export default function Atendimento() {
                          })}
                      </div>
                    </div>
+
                    <div className="flex-1 flex flex-col mt-2">
                      <label className="text-[10px] font-black text-black uppercase tracking-widest mb-1 block">ANOTAÇÕES_GERAIS</label>
                      <textarea 
@@ -1119,13 +1258,14 @@ export default function Atendimento() {
                    </div>
                  </div>
 
-                 {/* Botão de Envio (Ocupa ambas colunas) */}
+                 {/* Botão de Envio (Bloqueado se duplicado) */}
                  <div className="md:col-span-2 pt-4">
                    <button 
                      type="submit" 
-                     className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+                     disabled={isDuplicatePhone(editFormData.telefone, editingLead?.id)}
+                     className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                    >
-                     SALVAR_ALTERAÇÕES
+                     {isDuplicatePhone(editFormData.telefone, editingLead?.id) ? '⛔ TELEFONE DUPLICADO (BLOQUEADO)' : 'SALVAR_ALTERAÇÕES'}
                    </button>
                  </div>
               </form>
@@ -1142,27 +1282,27 @@ export default function Atendimento() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-[#fff8f6] border-8 border-black w-full max-w-[95vw] h-[95vh] relative overflow-hidden flex flex-col shadow-[12px_12px_0_#000]"
+              className="bg-[#f8ddd2] border-8 border-black w-full max-w-[95vw] h-[95vh] relative overflow-hidden flex flex-col shadow-[12px_12px_0_#000] font-['Space_Mono']"
             >
               <header className="p-6 border-b-8 border-black flex items-center justify-between bg-[#feccba] shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="bg-[#ff6b00] p-3 border-4 border-black text-white shadow-[4px_4px_0_#000]"><Calendar className="w-6 h-6" /></div>
                   <div>
-                    <h2 className="text-xl font-black text-black uppercase italic italic tracking-tighter">Agendamento_de_Experimental</h2>
-                    <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">LEAD: {selectedLead?.nome}</p>
+                    <h2 className="text-xl font-black text-black uppercase italic tracking-tighter font-['Space_Grotesk']">Agendamento_de_Experimental</h2>
+                    <p className="text-[10px] font-black text-[#7a5446] uppercase tracking-widest">LEAD: {selectedLead?.nome}</p>
                   </div>
                 </div>
-                <button onClick={() => setIsExpModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none"><X className="w-6 h-6" /></button>
+                <button onClick={() => setIsExpModalOpen(false)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none cursor-pointer"><X className="w-6 h-6" /></button>
               </header>
 
               <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
-                <div className="w-full lg:w-[380px] border-r-8 border-black p-8 overflow-y-auto space-y-8 bg-[#fff8f6]">
+                <div className="w-full lg:w-[380px] border-r-8 border-black p-8 overflow-y-auto space-y-8 bg-[#f8ddd2]">
                    <div className="space-y-6">
                      <div>
                        <label className="text-[10px] font-black text-black uppercase tracking-widest mb-2 block">SELECIONE_O_PROFESSOR</label>
                        <select 
                          required 
-                         className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic italic focus:ring-0 outline-none" 
+                         className="w-full px-4 py-3 bg-white text-black border-4 border-black text-sm font-black uppercase italic focus:ring-0 outline-none cursor-pointer font-['Space_Mono']" 
                          value={expData.professor_id} 
                          onChange={(e) => setExpData({...expData, professor_id: e.target.value})}
                        >
@@ -1179,13 +1319,13 @@ export default function Atendimento() {
                            className="bg-[#ff6b00] border-4 border-black p-6 shadow-[6px_6px_0_#000] text-white"
                          >
                            <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">HORÁRIO_SELECIONADO</p>
-                           <p className="text-lg font-black uppercase italic italic">{expData.data} @ {expData.horario.substring(0, 5)}</p>
+                           <p className="text-lg font-black uppercase italic font-['Space_Grotesk']">{expData.data} @ {expData.horario.substring(0, 5)}</p>
                          </motion.div>
                        )}
                      </AnimatePresence>
 
                      <div className="p-4 bg-black/5 border-4 border-dashed border-black/20 rounded-none">
-                        <p className="text-[9px] font-black text-[#8e7164] uppercase leading-relaxed">
+                        <p className="text-[9px] font-black text-[#7a5446] uppercase leading-relaxed">
                           DICA: CLIQUE EM UM ESPAÇO VAZIO NO CALENDÁRIO À DIREITA PARA DEFINIR O HORÁRIO DA AULA.
                         </p>
                      </div>
@@ -1203,11 +1343,11 @@ export default function Atendimento() {
               </div>
               
               <footer className="p-6 border-t-8 border-black bg-[#feccba] flex items-center justify-end gap-6 shrink-0">
-                <button onClick={() => setIsExpModalOpen(false)} className="text-xs font-black uppercase text-black hover:underline tracking-widest">CANCELAR_OPERAÇÃO</button>
+                <button onClick={() => setIsExpModalOpen(false)} className="text-xs font-black uppercase text-black hover:underline tracking-widest cursor-pointer">CANCELAR_OPERAÇÃO</button>
                 <button 
                   disabled={!expData.horario || !expData.professor_id}
                   onClick={handleScheduleExp}
-                  className="bg-[#ff6b00] text-white px-10 py-4 border-4 border-black font-black uppercase text-xs shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="bg-[#ff6b00] text-white px-10 py-4 border-4 border-black font-black uppercase text-xs shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   <Save className="w-5 h-5" /> CONFIRMAR_AGENDAMENTO
                 </button>
