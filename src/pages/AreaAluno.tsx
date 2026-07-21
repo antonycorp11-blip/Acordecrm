@@ -344,6 +344,7 @@ export default function AreaAluno() {
   const [todasConquistas, setTodasConquistas] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
   const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 1' });
+  const [selectedTemporada, setSelectedTemporada] = useState<number>(1);
   const [feed, setFeed] = useState<any[]>([]);
   const [showTools, setShowTools] = useState(false);
   const [selectedFicha, setSelectedFicha] = useState<any | null>(null);
