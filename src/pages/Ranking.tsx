@@ -7,6 +7,8 @@ import PerfilEstudanteModal, { getClasse, getInstrumento, resolveTrophyImage } f
 import { AvatarPixel } from '../components/AvatarPixel';
 import { FONTS, TILES } from '../utils/avatarAssets';
 
+import { SeasonCountdown } from '../components/SeasonCountdown';
+
 type ViewMode = 'cards' | 'lista';
 
 export default function Ranking() {
@@ -172,6 +174,9 @@ export default function Ranking() {
 
       {/* CONTENT */}
       <div className="relative z-10 flex-1 overflow-auto px-8 py-6">
+
+        {/* Season Countdown Banner */}
+        <SeasonCountdown targetDate="2026-08-21T23:59:59-04:00" seasonName="TEMPORADA 2" className="mb-6" />
 
         {/* Controls Section */}
         <div className="flex items-center justify-end mb-10">

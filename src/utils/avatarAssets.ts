@@ -46,66 +46,94 @@ export interface AvatarBackground {
 const placeholderSvg = (color: string, text: string) => 
   `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="100%" height="100%" fill="${color}"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="24" fill="white">${text}</text></svg>`;
 
+export const SKINS_T2: AvatarSkin[] = [
+  {
+    id: 'skin_t2_1', name: 'Guardião Sonoro (T2)', rarity: 'Raro', price: 1000, gender: 'M',
+    url: '/assets/avatars/t2/raro.png', season: 2
+  },
+  {
+    id: 'skin_t2_2', name: 'Solista Neon (T2)', rarity: 'Raro', price: 1000, gender: 'M',
+    url: '/assets/avatars/t2/raro1.png', season: 2
+  },
+  {
+    id: 'skin_t2_3', name: 'Virtuoso Místico (T2)', rarity: 'Raro', price: 1200, gender: 'F',
+    url: '/assets/avatars/t2/raro3.png', season: 2
+  },
+  {
+    id: 'skin_t2_4', name: 'Caçador de Ritmos (T2)', rarity: 'Raro', price: 1200, gender: 'M',
+    url: '/assets/avatars/t2/raro5.png', season: 2
+  },
+  {
+    id: 'skin_t2_5', name: 'Soberano do Palco (T2)', rarity: 'Épico', price: 2000, gender: 'M',
+    url: '/assets/avatars/t2/epic.png', season: 2
+  },
+  {
+    id: 'skin_t2_6', name: 'Orquestrador Cósmico (T2)', rarity: 'Épico', price: 2000, gender: 'F',
+    url: '/assets/avatars/t2/epic1.png', season: 2
+  },
+  {
+    id: 'skin_t2_7', name: 'Fênix Musical (T2)', rarity: 'Épico', price: 2500, gender: 'F',
+    url: '/assets/avatars/t2/epic6.png', season: 2
+  },
+  {
+    id: 'skin_t2_8', name: 'Mestre das Sombras (T2)', rarity: 'Épico', price: 2500, gender: 'M',
+    url: '/assets/avatars/t2/epic7.png', season: 2
+  },
+  {
+    id: 'skin_t2_9', name: 'Lenda Astral (T2)', rarity: 'Lendário', price: 3500, gender: 'M',
+    url: '/assets/avatars/t2/legendary.png', season: 2
+  },
+  {
+    id: 'skin_t2_10', name: 'Deus do Som (T2)', rarity: 'Lendário', price: 4000, gender: 'M',
+    url: '/assets/avatars/t2/legendary1.png', season: 2
+  }
+];
+
 export const SKINS: AvatarSkin[] = [
-  // Masculinas
+  // Temporada 1 - Masculinas
   {
     id: 'skin_m_1', name: 'Liam - Básico', rarity: 'Comum', price: 0, gender: 'M',
-    url: '/assets/avatars/skin_m_1/idle.png'
+    url: '/assets/avatars/skin_m_1/idle.png', season: 1
   },
   {
     id: 'skin_m_2', name: 'Zane - Rua', rarity: 'Raro', price: 1000, gender: 'M',
-    url: '/assets/avatars/skin_m_2/idle.png'
+    url: '/assets/avatars/skin_m_2/idle.png', season: 1
   },
   {
     id: 'skin_m_3', name: 'Kael - Ídolo', rarity: 'Épico', price: 2000, gender: 'M',
-    url: '/assets/avatars/skin_m_3/idle.png'
+    url: '/assets/avatars/skin_m_3/idle.png', season: 1
   },
   {
     id: 'skin_m_4', name: 'Kuro - Sombrio', rarity: 'Épico', price: 2000, gender: 'M',
-    url: '/assets/avatars/skin_m_4/idle.png'
+    url: '/assets/avatars/skin_m_4/idle.png', season: 1
   },
   {
     id: 'skin_m_5', name: 'Axel - Lenda', rarity: 'Lendário', price: 3500, gender: 'M',
-    url: '/assets/avatars/skin_m_5/idle.png'
+    url: '/assets/avatars/skin_m_5/idle.png', season: 1
   },
-  // Femininas
+  // Temporada 1 - Femininas
   {
     id: 'skin_f_1', name: 'Yui - Colegial', rarity: 'Comum', price: 0, gender: 'F',
-    url: '/assets/avatars/skin_f_1/idle.png'
+    url: '/assets/avatars/skin_f_1/idle.png', season: 1
   },
   {
     id: 'skin_f_2', name: 'Chloe - Verão', rarity: 'Raro', price: 1000, gender: 'F',
-    url: '/assets/avatars/skin_f_2/idle.png'
+    url: '/assets/avatars/skin_f_2/idle.png', season: 1
   },
   {
     id: 'skin_f_3', name: 'Lilith - Gótica', rarity: 'Épico', price: 2000, gender: 'F',
-    url: '/assets/avatars/skin_f_3/idle.png'
+    url: '/assets/avatars/skin_f_3/idle.png', season: 1
   },
   {
     id: 'skin_f_4', name: 'Hatsune - Pop', rarity: 'Épico', price: 2000, gender: 'F',
-    url: '/assets/avatars/skin_f_4/idle.png'
+    url: '/assets/avatars/skin_f_4/idle.png', season: 1
   },
   {
     id: 'skin_f_5', name: 'Stella - Lenda', rarity: 'Lendário', price: 3500, gender: 'F',
-    url: '/assets/avatars/skin_f_5/idle.png'
+    url: '/assets/avatars/skin_f_5/idle.png', season: 1
   },
-  // Especial Copa do Mundo (Lendas - Limitado até 20/07/2026)
-  {
-    id: 'skin_copa_neymar', name: 'Neymar - Copa', rarity: 'Lendário', price: 25000, gender: 'M',
-    url: '/assets/avatars/copa/neymar.jpeg', expiresAt: '2026-07-20'
-  },
-  {
-    id: 'skin_copa_ronaldo', name: 'C. Ronaldo - Copa', rarity: 'Lendário', price: 25000, gender: 'M',
-    url: '/assets/avatars/copa/ronaldo.jpeg', expiresAt: '2026-07-20'
-  },
-  {
-    id: 'skin_copa_messi', name: 'Messi - Copa', rarity: 'Lendário', price: 25000, gender: 'M',
-    url: '/assets/avatars/copa/messi.jpeg', expiresAt: '2026-07-20'
-  },
-  {
-    id: 'skin_copa_vinicius', name: 'Vini Jr - Copa', rarity: 'Lendário', price: 25000, gender: 'M',
-    url: '/assets/avatars/copa/vinicius.jpeg', expiresAt: '2026-07-20'
-  }
+  // Novas Skins da Temporada 2
+  ...SKINS_T2
 ];
 
 export const INSTRUMENTS: AvatarInstrument[] = [

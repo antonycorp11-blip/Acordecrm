@@ -3290,8 +3290,46 @@ async function startServer() {
 
     // --- GAMIFICACAO ---
     app.get('/api/gamificacao/conquistas', async (req, res) => {
-        const { data } = await supabase.from('gamificacao_conquistas').select('*').order('id', { ascending: false });
-        res.json(data || []);
+        try {
+            const { temporada_id } = req.query;
+            let query = supabase.from('gamificacao_conquistas').select('*').order('id', { ascending: false });
+            
+            if (temporada_id) {
+                const tempIdNum = Number(temporada_id);
+                if (!isNaN(tempIdNum)) {
+                    query = query.or(`temporada_id.eq.${tempIdNum},temporada_id.is.null`);
+                }
+            }
+
+            const { data, error } = await query;
+            if (error) console.error('Erro ao buscar conquistas:', error);
+            res.json(data || []);
+        } catch (err: any) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Endpoint de Reset de Ranking (zerar XP e Coins ao virar a temporada)
+    app.post('/api/gamificacao/reset-ranking', async (req, res) => {
+        try {
+            // Zera o xp e os acorde_coins dos alunos ativos para iniciar a nova temporada
+            const { data, error } = await supabase
+                .from('alunos')
+                .update({ xp: 0, acorde_coins: 0 })
+                .neq('status', 'arquivado')
+                .select('id, nome');
+
+            if (error) throw error;
+
+            res.json({
+                success: true,
+                message: `Reset de Temporada executado com sucesso! Alunos resetados: ${data?.length || 0}`,
+                alunosResetados: data
+            });
+        } catch (error: any) {
+            console.error('Erro no reset de ranking:', error);
+            res.status(500).json({ error: error.message || 'Erro ao zerar ranking' });
+        }
     });
 
     app.post('/api/gamificacao/conquistas', async (req, res) => {
@@ -4759,12 +4797,25 @@ ${textoBruto}
             const { data, error } = await supabase
                 .from('temporadas')
                 .select('*')
-                .eq('ativa', true)
-                .single();
-            if (error && error.code !== 'PGRST116' && error.code !== '42P01') throw error;
-            res.json(data || { nome: 'Temporada 1' });
+                .eq('status', 'ativa')
+                .maybeSingle();
+            if (error && error.code !== 'PGRST116' && error.code !== '42P01') console.error(error);
+            
+            res.json(data || {
+                id: 2,
+                nome: 'TEMPORADA 2',
+                data_inicio: '2026-07-22T00:00:00-04:00',
+                data_fim: '2026-08-21T23:59:59-04:00',
+                status: 'ativa'
+            });
         } catch(error) {
-            res.json({ nome: 'Temporada 1' });
+            res.json({
+                id: 2,
+                nome: 'TEMPORADA 2',
+                data_inicio: '2026-07-22T00:00:00-04:00',
+                data_fim: '2026-08-21T23:59:59-04:00',
+                status: 'ativa'
+            });
         }
     });
 

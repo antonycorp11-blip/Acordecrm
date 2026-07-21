@@ -22,6 +22,7 @@ export const resolveTrophyImage = (instrumento: string, classe: string) => {
 
 export default function Conquistas() {
   const [conquistas, setConquistas] = useState<any[]>([]);
+  const [selectedTemporada, setSelectedTemporada] = useState<number>(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     id: undefined as number | undefined,
@@ -36,6 +37,7 @@ export default function Conquistas() {
   const [uploading, setUploading] = useState(false);
 
   const classesXP: Record<string, number> = {
+    'Comum': 250,
     'Especial': 250,
     'Raro': 500,
     'Epico': 750,
@@ -43,10 +45,12 @@ export default function Conquistas() {
     'Supremo': 2000
   };
 
-  const fetchConquistas = async () => {
+  const fetchConquistas = async (tempId?: number) => {
     const token = localStorage.getItem('acorde_token');
+    const targetTemp = tempId !== undefined ? tempId : selectedTemporada;
+    const url = targetTemp ? `/api/gamificacao/conquistas?temporada_id=${targetTemp}` : '/api/gamificacao/conquistas';
     try {
-      const res = await fetch('/api/gamificacao/conquistas', {
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -58,7 +62,7 @@ export default function Conquistas() {
     }
   };
 
-  useEffect(() => { fetchConquistas(); }, []);
+  useEffect(() => { fetchConquistas(selectedTemporada); }, [selectedTemporada]);
 
   const resetForm = () => {
     setFormData({
@@ -190,12 +194,28 @@ export default function Conquistas() {
           </h1>
           <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">&gt;&gt; GESTÃO_DE_GAMIFICAÇÃO</p>
         </div>
-        <button 
-          onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="bg-[#ff6b00] text-white px-8 py-4 border-4 border-black font-black uppercase text-xs shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-3 transition-all italic italic"
-        >
-          <Plus className="w-5 h-5" /> NOVA_CONQUISTA
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-black p-1 border-4 border-black">
+            <button 
+              onClick={() => setSelectedTemporada(1)}
+              className={`px-4 py-2 font-black text-xs uppercase ${selectedTemporada === 1 ? 'bg-[#ff6b00] text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Temporada 1
+            </button>
+            <button 
+              onClick={() => setSelectedTemporada(2)}
+              className={`px-4 py-2 font-black text-xs uppercase ${selectedTemporada === 2 ? 'bg-[#ff6b00] text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Temporada 2 (Preview)
+            </button>
+          </div>
+          <button 
+            onClick={() => { resetForm(); setIsModalOpen(true); }}
+            className="bg-[#ff6b00] text-white px-8 py-4 border-4 border-black font-black uppercase text-xs shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-3 transition-all italic italic"
+          >
+            <Plus className="w-5 h-5" /> NOVA_CONQUISTA
+          </button>
+        </div>
       </header>
 
       <div className="p-8 flex-1 overflow-auto">

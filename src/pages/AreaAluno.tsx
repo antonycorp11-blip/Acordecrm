@@ -26,6 +26,7 @@ import { AvatarEditor } from '../components/AvatarEditor';
 import { AvatarStore } from '../components/AvatarStore';
 import { FONTS, TILES } from '../utils/avatarAssets';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
+import { SeasonCountdown } from '../components/SeasonCountdown';
 import html2canvas from 'html2canvas';
 import html2pdf from 'html2pdf.js';
 import { jsPDF } from 'jspdf';
@@ -744,8 +745,10 @@ export default function AreaAluno() {
       .finally(() => setLoading(false));
     };
 
-    const fetchTodasConquistas = () => {
-      fetch('/api/gamificacao/conquistas', { headers })
+    const fetchTodasConquistas = (tempId?: number) => {
+      const targetTemp = tempId !== undefined ? tempId : selectedTemporada;
+      const url = targetTemp ? `/api/gamificacao/conquistas?temporada_id=${targetTemp}` : '/api/gamificacao/conquistas';
+      fetch(url, { headers })
         .then(r => r.ok ? r.json() : [])
         .then(data => setTodasConquistas(Array.isArray(data) ? data : []))
         .catch(console.error);
@@ -1580,7 +1583,7 @@ export default function AreaAluno() {
           {/* ===== ABA: RANKING ===== */}
           {activeTab === 'ranking' && (
             <div className="px-4 py-5 space-y-3">
-
+              <SeasonCountdown targetDate="2026-08-21T23:59:59-04:00" seasonName="TEMPORADA 2" className="mb-4" />
 
               <div className="flex items-center gap-3 mb-4">
                 <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000] flex flex-col items-center">
@@ -2732,6 +2735,30 @@ export default function AreaAluno() {
 
               {/* Zepp Gallery - Galeria de Troféus (Integrada à Home) */}
               <div className="space-y-4">
+                {/* Preview de Temporada para Usuário de Teste / Admin */}
+                {((alunoData?.email || user?.email || '').toLowerCase().includes('ta@ta.com') || (alunoData?.email || user?.email || '').toLowerCase().includes('teste')) && (
+                  <div className="bg-[#ff6b00]/20 border-2 border-[#ff6b00] p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-2 mb-4 shadow-[4px_4px_0_#000]">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#ff6b00] animate-spin" />
+                      <span className="text-xs font-black text-white uppercase tracking-widest">CHAVE DE TESTE (PREVIEW DE TEMPORADA)</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => { setSelectedTemporada(1); fetchTodasConquistas(1); }}
+                        className={`px-3 py-1 text-xs font-black uppercase rounded border-2 border-black ${selectedTemporada === 1 ? 'bg-[#ff6b00] text-white' : 'bg-black text-gray-300'}`}
+                      >
+                        T1 (ATUAL)
+                      </button>
+                      <button 
+                        onClick={() => { setSelectedTemporada(2); fetchTodasConquistas(2); }}
+                        className={`px-3 py-1 text-xs font-black uppercase rounded border-2 border-black ${selectedTemporada === 2 ? 'bg-[#ff6b00] text-white' : 'bg-black text-gray-300'}`}
+                      >
+                        T2 (PREVIEW)
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 MEUS TROFÉUS — ZEPP GALLERY</h3>
                   <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
