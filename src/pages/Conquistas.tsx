@@ -16,7 +16,11 @@ export const resolveTrophyImage = (instrumento: string, classe: string) => {
   if (slugInst === 'teclado-piano') slugInst = 'teclado';
   if (slugInst === 'tecnica-vocal') slugInst = 'vocal';
 
-  const slugClasse = normalize(classe || 'raro').replace(/\s+/g, '-');
+  let slugClasse = normalize(classe || 'raro').replace(/\s+/g, '-');
+  if (slugClasse === 'comum' || slugClasse === 'especial') {
+    slugClasse = 'raro';
+  }
+
   return `/trofeus/${slugInst}-${slugClasse}.jpg`;
 };
 
