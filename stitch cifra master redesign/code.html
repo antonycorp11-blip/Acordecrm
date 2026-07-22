@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CIFRA_MASTER - Gamified Music Theory</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&amp;family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-surface": "#f8ddd2",
+                    "on-error": "#690005",
+                    "tertiary-fixed-dim": "#c6c6c7",
+                    "surface-tint": "#ffb693",
+                    "surface-container-lowest": "#170b06",
+                    "tertiary-fixed": "#e2e2e2",
+                    "on-primary": "#561f00",
+                    "error-container": "#93000a",
+                    "error": "#ffb4ab",
+                    "primary-fixed": "#ffdbcc",
+                    "on-primary-container": "#572000",
+                    "outline": "#a98a7d",
+                    "surface-container-low": "#261812",
+                    "surface-container-high": "#362720",
+                    "on-secondary-container": "#d1b2a7",
+                    "secondary-fixed": "#fddbd0",
+                    "on-secondary": "#402c24",
+                    "on-primary-fixed-variant": "#7a3000",
+                    "on-tertiary-fixed-variant": "#454747",
+                    "on-secondary-fixed": "#291710",
+                    "secondary-fixed-dim": "#e0c0b4",
+                    "on-tertiary-fixed": "#1a1c1c",
+                    "inverse-surface": "#f8ddd2",
+                    "surface-variant": "#41312a",
+                    "on-tertiary-container": "#2f3132",
+                    "on-secondary-fixed-variant": "#584239",
+                    "secondary": "#e0c0b4",
+                    "surface-dim": "#1d100a",
+                    "surface-bright": "#46362e",
+                    "tertiary": "#c6c6c7",
+                    "on-tertiary": "#2f3131",
+                    "on-surface-variant": "#e2bfb0",
+                    "tertiary-container": "#989999",
+                    "on-error-container": "#ffdad6",
+                    "surface": "#1d100a",
+                    "surface-container": "#2b1c16",
+                    "primary": "#ffb693",
+                    "on-primary-fixed": "#351000",
+                    "surface-container-highest": "#41312a",
+                    "primary-fixed-dim": "#ffb693",
+                    "background": "#1d100a",
+                    "inverse-on-surface": "#3d2d26",
+                    "secondary-container": "#5b443b",
+                    "primary-container": "#ff6b00",
+                    "outline-variant": "#5a4136",
+                    "on-background": "#f8ddd2",
+                    "inverse-primary": "#a04100"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "24px",
+                    "border-width-thick": "3px",
+                    "shadow-offset": "6px",
+                    "margin": "32px",
+                    "container-max-width": "1440px",
+                    "unit": "4px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Space Grotesk"],
+                    "headline-lg": ["Space Grotesk"],
+                    "label-sm": ["Space Mono"],
+                    "display-lg": ["Space Grotesk"],
+                    "body-lg": ["Space Mono"],
+                    "label-lg": ["Space Mono"],
+                    "body-md": ["Space Mono"]
+            },
+            "fontSize": {
+                    "headline-md": ["24px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                    "label-sm": ["10px", {"lineHeight": "1", "fontWeight": "700"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "label-lg": ["12px", {"lineHeight": "1", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        @keyframes float {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(2deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .pixel-border { border: 4px solid #000; box-shadow: 6px 6px 0px 0px #000; }
+        .pixel-border-primary { border: 4px solid #000; box-shadow: 6px 6px 0px 0px #ffb693; }
+        .pixel-border-white { border: 3px solid #000; box-shadow: 4px 4px 0px 0px #fff; }
+        
+        .sticker-rotate { transform: rotate(-2deg); }
+        
+        body {
+            background-color: #000;
+            overflow-x: hidden;
+        }
+
+        .crt-overlay::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-on-background min-h-screen flex flex-col items-center crt-overlay">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky border-b-3 border-on-secondary z-40 bg-background shadow-[6px_6px_0px_0px_rgba(255,182,147,1)] flex justify-between items-center px-gutter py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary-container pixel-border overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="An 8-bit pixel art student avatar with a blue cap and headphones, wearing a bright orange hoodie. The character is stylized in a retro arcade aesthetic with vibrant, high-contrast colors against a dark background, evoking a nostalgic gaming feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDx9O9DfgdH5UmUhpZhP1FEckwB1ZfOg-bZlsIICsaNRbWAmzx9eJRw82E5MwVyeAaLkDklcdvV0eN1QJPirV1YhYuhClHgS7LCp3iO1NIl_YmeSB7OH-ZP4wsy0JDDmSCZVFakRu_WCJDwMJpgH40luRmullgOZVMLbe-fwN5yDRm-pNqRKU_Qz5FrH2uLptN4QSa6n_zLvBioGZfVUAit4QGz3sIP-mG9I2Xl7GYIaTzG-6l11zSFcTWfpQaXPS9Xmzi7ZZK_pzOO"/>
+</div>
+<h1 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg uppercase tracking-tighter text-primary">CIFRA_MASTER</h1>
+</div>
+<div class="text-primary font-headline-md text-headline-md flex flex-col items-end">
+<span class="text-label-lg font-label-lg text-white opacity-70">1,250 XP</span>
+<span class="text-primary font-bold">50 COINS</span>
+</div>
+</header>
+<!-- Main Game Canvas -->
+<main class="flex-grow flex flex-col items-center justify-center w-full max-w-[1440px] px-4 py-8 relative overflow-hidden">
+<!-- Background Elements -->
+<div class="absolute top-10 left-10 opacity-20 animate-float">
+<span class="material-symbols-outlined text-[80px] text-primary" data-icon="music_note">music_note</span>
+</div>
+<div class="absolute bottom-20 right-10 opacity-20 animate-float" style="animation-delay: 1.5s">
+<span class="material-symbols-outlined text-[100px] text-on-surface" data-icon="piano">piano</span>
+</div>
+<div class="absolute top-1/2 left-5 opacity-10 animate-float" style="animation-delay: 2.2s">
+<span class="material-symbols-outlined text-[60px] text-secondary" data-icon="theater_comedy">theater_comedy</span>
+</div>
+<!-- Level & Progress Header -->
+<div class="w-full max-w-md mb-8">
+<div class="flex justify-between items-end mb-2">
+<div class="bg-white text-black px-3 py-1 font-label-lg sticker-rotate pixel-border inline-block">
+                    LEVEL 01: BÁSICO
+                </div>
+<div class="font-headline-md text-primary-container italic">
+                    COMBO x5
+                </div>
+</div>
+<!-- Health/Progress Bar -->
+<div class="w-full h-8 bg-surface-container-high border-4 border-black relative">
+<div class="h-full bg-primary-container w-[65%] shadow-[inset_-4px_0px_0px_0px_rgba(0,0,0,0.3)]"></div>
+<div class="absolute inset-0 flex items-center justify-center text-white font-label-sm tracking-widest mix-blend-difference">
+                    PROGRESS 65%
+                </div>
+</div>
+</div>
+<!-- Gameplay Card -->
+<div class="relative group cursor-default mb-12">
+<div class="bg-white w-72 h-72 md:w-96 md:h-96 flex flex-col items-center justify-center pixel-border-primary relative z-10 sticker-rotate">
+<span class="text-[120px] md:text-[160px] font-display-lg text-black select-none">DÓ</span>
+<div class="absolute top-2 right-2 flex gap-1">
+<span class="material-symbols-outlined text-black text-2xl" data-icon="music_video">music_video</span>
+</div>
+<div class="absolute -bottom-4 -left-4 bg-primary text-on-primary px-4 py-2 pixel-border font-label-lg rotate-3">
+                    IDENTIFIQUE A CIFRA
+                </div>
+</div>
+<!-- Decoration stickers behind -->
+<div class="absolute -top-6 -right-6 w-32 h-32 bg-secondary opacity-50 pixel-border -rotate-12 -z-0"></div>
+</div>
+<!-- Input Buttons Grid -->
+<div class="grid grid-cols-2 gap-6 w-full max-w-md">
+<!-- Button C -->
+<button class="bg-surface-container-high text-on-surface font-headline-lg py-6 pixel-border hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all active:scale-95 active:bg-primary active:text-on-primary group relative overflow-hidden">
+<span class="relative z-10">C</span>
+<div class="absolute bottom-0 right-0 p-1 opacity-20">
+<span class="material-symbols-outlined text-xl" data-icon="star">star</span>
+</div>
+</button>
+<!-- Button D (Target) -->
+<button class="bg-primary-container text-on-primary font-headline-lg py-6 pixel-border-white hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all active:scale-95 group relative">
+<span class="relative z-10">D</span>
+<div class="absolute -top-2 -right-2 bg-white text-black text-[10px] px-1 font-bold">HOTKEY: 2</div>
+</button>
+<!-- Button E -->
+<button class="bg-surface-container-high text-on-surface font-headline-lg py-6 pixel-border hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all active:scale-95 group">
+                E
+            </button>
+<!-- Button F -->
+<button class="bg-surface-container-high text-on-surface font-headline-lg py-6 pixel-border hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-none transition-all active:scale-95 group">
+                F
+            </button>
+</div>
+<!-- Tip/Instructions -->
+<div class="mt-10 max-w-md text-center opacity-70">
+<p class="font-body-md text-on-surface italic">"O sistema de cifras usa letras do alfabeto para representar as notas musicais. Mantenha o ritmo para aumentar o multiplicador!"</p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-4 bg-surface-container border-t-3 border-black">
+<!-- Quests (Active) -->
+<a class="flex flex-col items-center justify-center bg-primary text-on-primary border-2 border-black -rotate-2 scale-110 px-4 py-1" href="#">
+<span class="material-symbols-outlined" data-icon="adventure_mountains">swap_driving_apps_wheel</span>
+<span class="font-label-lg text-label-lg uppercase">Quests</span>
+</a>
+<!-- Gear -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2 hover:bg-primary-container hover:text-on-primary-container transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="piano">piano</span>
+<span class="font-label-lg text-label-lg uppercase">Gear</span>
+</a>
+<!-- Stage -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2 hover:bg-primary-container hover:text-on-primary-container transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="theater_comedy">theater_comedy</span>
+<span class="font-label-lg text-label-lg uppercase">Stage</span>
+</a>
+<!-- Shop -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-2 hover:bg-primary-container hover:text-on-primary-container transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-label-lg text-label-lg uppercase">Shop</span>
+</a>
+</nav>
+<!-- Floating UI Decoration -->
+<div class="fixed top-1/2 right-4 translate-y-[-50%] flex flex-col gap-4 hidden md:flex">
+<div class="w-12 h-12 bg-white pixel-border flex items-center justify-center rotate-6 hover:rotate-0 transition-transform">
+<span class="material-symbols-outlined text-black" data-icon="podium">podium</span>
+</div>
+<div class="w-12 h-12 bg-primary pixel-border flex items-center justify-center -rotate-12 hover:rotate-0 transition-transform">
+<span class="material-symbols-outlined text-black" data-icon="settings">settings</span>
+</div>
+</div>
+<script>
+        // Simple Interaction logic
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => {
+            btn.addEventListener('mousedown', () => {
+                btn.style.transform = 'translate(4px, 4px)';
+                btn.style.boxShadow = 'none';
+            });
+            btn.addEventListener('mouseup', () => {
+                btn.style.transform = '';
+                btn.style.boxShadow = '';
+            });
+        });
+
+        // Simulating Note Change Effect
+        setInterval(() => {
+            const card = document.querySelector('.pixel-border-primary');
+            card.classList.add('scale-105');
+            setTimeout(() => card.classList.remove('scale-105'), 100);
+        }, 5000);
+    </script>
+</body></html>

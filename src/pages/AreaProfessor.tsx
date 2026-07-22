@@ -43,6 +43,7 @@ import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordV
 import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { ChordRush } from '../components/jogos/ChordRush';
 import { TriadeNinja } from '../components/jogos/TriadeNinja';
+import MetronomeBird from '../components/jogos/metronome-flappy-bird/App';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 import { AvatarPixel } from '../components/AvatarPixel';
@@ -315,6 +316,7 @@ export default function AreaProfessor() {
   const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
   const [isPlayingChordRush, setIsPlayingChordRush] = useState(false);
   const [isPlayingTriadeNinja, setIsPlayingTriadeNinja] = useState(false);
+  const [isPlayingMetronomeBird, setIsPlayingMetronomeBird] = useState(false);
   const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
   const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
   const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
@@ -3428,7 +3430,7 @@ export default function AreaProfessor() {
                   <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                 </div>
 
-                {!isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja ? (
+                {!isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingMetronomeBird ? (
                   <>
                     <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
                       <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest">
@@ -3450,7 +3452,7 @@ export default function AreaProfessor() {
                         >
                           DESATIVAR
                         </button>
-                        {['Acorde Genius', 'Chord Rush', 'Tríade Ninja', 'Ritmo Pro', 'Voice Rush'].map(jogo => (
+                        {['Acorde Genius', 'Chord Rush', 'Tríade Ninja', 'Ritmo Pro', 'Voice Rush', 'Metrônomo Bird'].map(jogo => (
                           <button
                             key={jogo}
                             onClick={() => handleSetDoublePoints(jogo)}
@@ -3546,6 +3548,35 @@ export default function AreaProfessor() {
                           </button>
                         </div>
 
+                        {/* Jogo 4: Metrônomo Bird */}
+                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="bg-[#ff5f00] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
+                                NOVO! 🐦 (TESTES)
+                              </span>
+                              <h4 className="text-black font-black text-sm uppercase italic leading-none mt-1">
+                                METRÔNOMO BIRD
+                              </h4>
+                            </div>
+                            <div className="w-8 h-8 bg-[#ff5f00] border-4 border-black flex items-center justify-center shrink-0">
+                              <span className="text-white text-xs">🐦</span>
+                            </div>
+                          </div>
+                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
+                            Flappy Bird com sincronia e precisão rítmica de metrônomo 8-bit.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setIsPlayingMetronomeBird(true);
+                              playRetroSound(880, 'square', 0.1);
+                            }}
+                            className="w-full bg-[#ff5f00] text-white hover:bg-black font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
+                          >
+                            🕹️ INICIAR PARTIDA
+                          </button>
+                        </div>
+
                       </div>
                     </div>
                   </>
@@ -3565,6 +3596,15 @@ export default function AreaProfessor() {
                     }}
                     playRetroSound={playRetroSound}
                   />
+                ) : isPlayingMetronomeBird ? (
+                  <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
+                    <MetronomeBird 
+                      onClose={() => setIsPlayingMetronomeBird(false)}
+                      onGameOver={(score) => {
+                        toast.info(`Fim de jogo! Pontuação: ${score}. (Modo Professor)`);
+                      }}
+                    />
+                  </div>
                 ) : (
                   <div className="bg-black border-8 border-[#3d2d26] p-4 shadow-[8px_8px_0_#000] flex flex-col gap-4 relative">
                     <div className="flex justify-between items-center">

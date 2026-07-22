@@ -15,6 +15,7 @@ import { TriadeNinja } from '../components/jogos/TriadeNinja';
 import { DailyMissions } from '../components/alunos/DailyMissions';
 import { RitmoPro } from '../components/jogos/ritmo-pro/App';
 import { VoiceRush } from '../components/jogos/voice-rush/App';
+import MetronomeBird from '../components/jogos/metronome-flappy-bird/App';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
@@ -413,6 +414,7 @@ export default function AreaAluno() {
   const [isPlayingTriadeNinja, setIsPlayingTriadeNinja] = useState(false);
   const [isPlayingRitmoPro, setIsPlayingRitmoPro] = useState(false);
   const [isPlayingVoiceRush, setIsPlayingVoiceRush] = useState(false);
+  const [isPlayingMetronomeBird, setIsPlayingMetronomeBird] = useState(false);
   const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
   const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
   const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
@@ -2029,7 +2031,7 @@ export default function AreaAluno() {
                     toast.error('A conversão de XP não é mais necessária!');
                   }}
                 />
-              ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingRitmoPro && !isPlayingVoiceRush ? (
+              ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingRitmoPro && !isPlayingVoiceRush && !isPlayingMetronomeBird ? (
                 <>
                   {/* Botão de Acesso à Loja */}
                   <div 
@@ -2110,7 +2112,40 @@ export default function AreaAluno() {
                         <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Triade Ninja</span>
                       </button>
 
-                      {/* App 4: Rhythm Hero (Locked) */}
+                      {/* App 4: Metrônomo Bird (Desbloqueado para ta@ta.com, Em breve para os demais) */}
+                      {(user?.email === 'ta@ta.com' || alunoData?.email === 'ta@ta.com') ? (
+                        <button 
+                          onClick={() => {
+                            setIsPlayingMetronomeBird(true);
+                            playRetroSound(880, 'square', 0.1);
+                          }}
+                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all relative"
+                        >
+                          <div className="w-full aspect-square bg-[#ff5f00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl relative">
+                            🐦
+                            <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase">
+                              TESTE
+                            </span>
+                          </div>
+                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
+                        </button>
+                      ) : (
+                        <div 
+                          onClick={() => toast.info('🚀 Jogo em breve! Disponível no momento apenas para testes.')}
+                          className="flex flex-col items-center gap-2 cursor-pointer hover:-translate-y-0.5 transition-all relative group"
+                        >
+                          <div className="w-full aspect-square bg-[#ff5f00]/40 border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex flex-col items-center justify-center text-2xl relative overflow-hidden">
+                            <span className="opacity-40">🐦</span>
+                            <span className="absolute top-1 right-1 text-xs">🔒</span>
+                            <span className="absolute bottom-1 bg-red-600 text-white font-black text-[6px] px-1 py-0.5 border border-black rounded uppercase tracking-tighter shadow-sm animate-pulse">
+                              EM BREVE
+                            </span>
+                          </div>
+                          <span className="text-gray-400 font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
+                        </div>
+                      )}
+
+                      {/* App 5: Rhythm Hero (Locked) */}
                       <div className="flex flex-col items-center gap-2 opacity-50 grayscale cursor-not-allowed">
                         <div className="w-full aspect-square bg-[#8e7164] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl">
                           🔒
@@ -2158,6 +2193,17 @@ export default function AreaAluno() {
                     onGameOver={(score) => {
                       updateDailyMissionProgress('Voice Rush');
                       if (score > 0) handleAddXp(score, 'Voice Rush');
+                    }} 
+                  />
+                </div>
+              ) : isPlayingMetronomeBird ? (
+                <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
+                  <MetronomeBird 
+                    onClose={() => setIsPlayingMetronomeBird(false)} 
+                    onGameOver={(score) => {
+                      updateDailyMissionProgress('Metrônomo Bird');
+                      window.dispatchEvent(new CustomEvent('acorde_game_played', { detail: 'Metrônomo Bird' }));
+                      if (score > 0) handleAddXp(score, 'Metrônomo Bird');
                     }} 
                   />
                 </div>

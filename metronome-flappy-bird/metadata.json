@@ -1,0 +1,6 @@
+{
+  "name": "Metronome Flappy Bird",
+  "description": "Um jogo rítmico estilo retro 8-bit guiado por metrônomo para treinar precisão e ritmo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
