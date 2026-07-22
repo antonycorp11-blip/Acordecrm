@@ -71,7 +71,7 @@ export const AvatarStore: React.FC<AvatarStoreProps> = ({ xp, pontos, unlockedIt
             <span>🛒</span> LOJA PREMIUM
           </h3>
           <div className="flex flex-col ml-8">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Temporada 1 - Fundação</span>
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Temporada 2 - Harmonia</span>
             <span className="text-[9px] text-[#ffeb3b] font-black uppercase tracking-widest animate-pulse mt-0.5">⚠️ TODOS OS ITENS SERÃO TROCADOS NO DIA 20 DE JULHO!</span>
           </div>
         </div>

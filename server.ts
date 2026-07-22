@@ -1637,7 +1637,15 @@ async function startServer() {
             }]).select().single();
             if (errA) throw errA;
 
-            // 2. Criar Matrícula
+            // 2. Buscar Pacote e Calcular Valor com Desconto
+            const { data: pacote } = await supabase.from('pacotes').select('*').eq('id', pacote_id).single();
+            let effectiveValorDesconto = (req.body.valor_com_desconto != null && req.body.valor_com_desconto !== '') ? Number(req.body.valor_com_desconto) : null;
+            if (effectiveValorDesconto === null) {
+                const descAuto = Number(pacote?.desconto_automatico || 0);
+                effectiveValorDesconto = descAuto > 0 ? Math.max(0, Number(valor_parcela) - descAuto) : Number(valor_parcela);
+            }
+
+            // 3. Criar Matrícula
             const parsedDiaSemana = dia_semana ? new Date(dia_semana) : new Date();
             const { data: matricula, error: errM } = await supabase.from('matriculas').insert([{
                 aluno_id: aluno.id, 
@@ -1650,6 +1658,7 @@ async function startServer() {
                 data_primeira_parcela: data_primeira_parcela || null,
                 dia_vencimento,
                 valor_parcela,
+                valor_com_desconto: effectiveValorDesconto,
                 total_parcelas,
                 data_inicio: dia_semana || null
             }]).select().single();
@@ -1658,8 +1667,7 @@ async function startServer() {
                 throw new Error(`Erro ao criar matrícula: ${errM.message || JSON.stringify(errM)}`);
             }
 
-            // 3. Automação de Aulas (Reserva na Agenda)
-            const { data: pacote } = await supabase.from('pacotes').select('*').eq('id', pacote_id).single();
+            // 4. Automação de Aulas (Reserva na Agenda)
             const totalAulas = pacote?.total_aulas || 1;
             
             const aulasToInsert = [];
@@ -1695,7 +1703,7 @@ async function startServer() {
                 }
             }
 
-            // 4. Geração de Pagamentos (Parcelas)
+            // 5. Geração de Pagamentos (Parcelas)
             const pagamentosToInsert = [];
             let currentVencimento = new Date(data_primeira_parcela || new Date());
             if (isNaN(currentVencimento.getTime())) currentVencimento = new Date();
@@ -1705,6 +1713,7 @@ async function startServer() {
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
                     valor: valor_parcela,
+                    valor_com_desconto: effectiveValorDesconto,
                     data_vencimento: currentVencimento.toISOString().split('T')[0],
                     status: 'pendente',
                     tipo_receita: 'mensalidade',
@@ -3295,10 +3304,17 @@ async function startServer() {
             let query = supabase.from('gamificacao_conquistas').select('*').order('id', { ascending: false });
             
             if (temporada_id) {
-                const tempIdNum = Number(temporada_id);
-                if (!isNaN(tempIdNum)) {
-                    query = query.or(`temporada_id.eq.${tempIdNum},temporada_id.is.null`);
+                if (temporada_id !== 'all' && temporada_id !== 'todas') {
+                    const tempIdNum = Number(temporada_id);
+                    if (!isNaN(tempIdNum)) {
+                        query = query.or(`temporada_id.eq.${tempIdNum},temporada_id.is.null`);
+                    }
                 }
+            } else {
+                // Se nao informado, busca a temporada ativa ou padrao 2
+                const { data: tempAtiva } = await supabase.from('temporadas').select('id').eq('status', 'ativa').maybeSingle();
+                const activeId = tempAtiva?.id || 2;
+                query = query.or(`temporada_id.eq.${activeId},temporada_id.is.null`);
             }
 
             const { data, error } = await query;
@@ -3320,6 +3336,37 @@ async function startServer() {
                 .select('id, nome');
 
             if (error) throw error;
+
+            // Remove skins T2 compradas prematuramente se existirem em inventarios
+            const { data: alunosSkins } = await supabase
+                .from('alunos')
+                .select('id, avatar_config, avatar_inventory')
+                .neq('status', 'arquivado');
+
+            if (alunosSkins) {
+                for (const al of alunosSkins) {
+                    let updated = false;
+                    let newInv = al.avatar_inventory;
+                    let newCfg = al.avatar_config;
+
+                    if (Array.isArray(newInv)) {
+                        const filtered = newInv.filter((item: string) => !item.startsWith('skin_t2_'));
+                        if (filtered.length !== newInv.length) {
+                            newInv = filtered;
+                            updated = true;
+                        }
+                    }
+
+                    if (newCfg && newCfg.skinId && newCfg.skinId.startsWith('skin_t2_')) {
+                        newCfg = { ...newCfg, skinId: 'skin_m_1' };
+                        updated = true;
+                    }
+
+                    if (updated) {
+                        await supabase.from('alunos').update({ avatar_inventory: newInv, avatar_config: newCfg }).eq('id', al.id);
+                    }
+                }
+            }
 
             res.json({
                 success: true,

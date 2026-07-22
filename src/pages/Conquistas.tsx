@@ -26,7 +26,7 @@ export const resolveTrophyImage = (instrumento: string, classe: string) => {
 
 export default function Conquistas() {
   const [conquistas, setConquistas] = useState<any[]>([]);
-  const [selectedTemporada, setSelectedTemporada] = useState<number>(1);
+  const [selectedTemporada, setSelectedTemporada] = useState<number>(2);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     id: undefined as number | undefined,
@@ -65,6 +65,18 @@ export default function Conquistas() {
       console.error(err);
     }
   };
+
+  useEffect(() => {
+    const token = localStorage.getItem('acorde_token');
+    fetch('/api/temporada-atual', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.id) {
+          setSelectedTemporada(data.id);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => { fetchConquistas(selectedTemporada); }, [selectedTemporada]);
 
@@ -210,7 +222,7 @@ export default function Conquistas() {
               onClick={() => setSelectedTemporada(2)}
               className={`px-4 py-2 font-black text-xs uppercase ${selectedTemporada === 2 ? 'bg-[#ff6b00] text-white' : 'text-gray-400 hover:text-white'}`}
             >
-              Temporada 2 (Preview)
+              Temporada 2 (Ativa)
             </button>
           </div>
           <button 

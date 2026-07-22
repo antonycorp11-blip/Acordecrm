@@ -13,7 +13,7 @@ export default function Dashboard() {
   const [aulasSemStatus, setAulasSemStatus] = useState<any[]>([]);
   const [leadsDoMes, setLeadsDoMes] = useState<any[]>([]);
   const [faturasPendentes, setFaturasPendentes] = useState<any[]>([]);
-  const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 1' });
+  const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 2' });
   const [feed, setFeed] = useState<any[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [showModalAulas, setShowModalAulas] = useState(false);
@@ -44,13 +44,13 @@ export default function Dashboard() {
       fetch('/api/agenda/pendentes-passado', { headers }).then(r => r.ok ? r.json() : []),
       fetch('/api/dashboard/faturas-pendentes', { headers }).then(r => r.ok ? r.json() : []),
       fetch('/api/feed', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/temporada-atual', { headers }).then(r => r.ok ? r.json() : {nome: 'Temporada 1'}),
+      fetch('/api/temporada-atual', { headers }).then(r => r.ok ? r.json() : {nome: 'Temporada 2'}),
       fetch('/api/leads', { headers }).then(r => r.ok ? r.json() : [])
     ]).then(([aulas, faturas, feedData, temp, leadsList]) => {
       setAulasSemStatus(aulas);
       setFaturasPendentes(faturas);
       setFeed(Array.isArray(feedData) ? feedData : []);
-      setTemporada(temp || {nome: 'Temporada 1'});
+      setTemporada(temp || {nome: 'Temporada 2'});
 
       if (Array.isArray(leadsList)) {
         const now = new Date();

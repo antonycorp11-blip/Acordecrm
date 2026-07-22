@@ -343,8 +343,8 @@ export default function AreaAluno() {
   const [selectedTrophy, setSelectedTrophy] = useState<any | null>(null);
   const [todasConquistas, setTodasConquistas] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
-  const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 1' });
-  const [selectedTemporada, setSelectedTemporada] = useState<number>(1);
+  const [temporada, setTemporada] = useState<{id?: number, nome: string}>({ id: 2, nome: 'TEMPORADA 2' });
+  const [selectedTemporada, setSelectedTemporada] = useState<number>(2);
   const [feed, setFeed] = useState<any[]>([]);
   const [showTools, setShowTools] = useState(false);
   const [selectedFicha, setSelectedFicha] = useState<any | null>(null);
@@ -1258,7 +1258,14 @@ export default function AreaAluno() {
     const res = await fetch('/api/gamificacao/ranking', { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) { const data = await res.json(); setRankingData(data); }
     const resTemp = await fetch('/api/temporada-atual', { headers: { Authorization: `Bearer ${token}` } });
-    if (resTemp.ok) { const data = await resTemp.json(); setTemporada(data); }
+    if (resTemp.ok) {
+      const data = await resTemp.json();
+      setTemporada(data);
+      if (data?.id) {
+        setSelectedTemporada(data.id);
+        fetchTodasConquistas(data.id);
+      }
+    }
     const resFeed = await fetch('/api/feed', { headers: { Authorization: `Bearer ${token}` } });
     if (resFeed.ok) { const data = await resFeed.json(); setFeed(Array.isArray(data) ? data : []); }
   };
@@ -2984,7 +2991,11 @@ export default function AreaAluno() {
                       <tbody>
                         {alunoFinanceiro.map((pag, idx) => {
                           const valorOriginal = pag.valor || 0;
-                          const valorDesconto = pag.valor_com_desconto || (alunoData?.matriculas?.[0]?.valor_com_desconto) || (valorOriginal * 0.8);
+                          const valorDesconto = (pag.valor_com_desconto != null && pag.valor_com_desconto !== '') 
+                            ? Number(pag.valor_com_desconto) 
+                            : ((alunoData?.matriculas?.[0]?.valor_com_desconto != null && alunoData?.matriculas?.[0]?.valor_com_desconto !== '') 
+                              ? Number(alunoData.matriculas[0].valor_com_desconto) 
+                              : Number(valorOriginal));
                           const isVencido = pag.status === 'pendente' && new Date(pag.data_vencimento) < new Date();
                           
                           return (
@@ -3311,7 +3322,7 @@ export default function AreaAluno() {
               ACORDE CRM
             </h1>
             <div className="absolute bottom-[-16px] bg-black text-[#ffeb3b] px-4 py-1 text-[10px] font-black uppercase tracking-widest border-2 border-[#ffeb3b] shadow-[4px_4px_0_rgba(0,0,0,0.5)] z-30">
-              Temporada 1 - Fundação
+              {temporada.nome || 'Temporada 2'}
             </div>
           </div>
 
