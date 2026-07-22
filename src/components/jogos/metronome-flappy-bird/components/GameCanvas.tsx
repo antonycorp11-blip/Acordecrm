@@ -171,6 +171,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   };
 
   // Trigger flap action
+  // Trigger flap action
   const handleJump = () => {
     if (!isPlayingRef.current) return;
 
@@ -178,49 +179,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const currentSecs = gameTimeRef.current;
     
-    // Enforce a minimum click/tap cooldown (e.g., 180ms) to prevent button-mashing
-    // and double-triggering which shoots the bird straight to the ceiling.
-    if (currentSecs - lastTapTimeRef.current < 0.18) {
+    // Minimal tap cooldown (30ms) to allow responsive rapid tapping
+    if (currentSecs - lastTapTimeRef.current < 0.03) {
       return;
     }
     
     const interval = beatIntervalRef.current;
     const T = interval;
     const H = 68; // Ideal jump height in pixels
-    const PERFECT_JUMP_VY = -H / (15 * T);
+    const PERFECT_JUMP_VY = -Math.abs(H / (15 * T)); // Always negative = UPWARD in Canvas
     
-    // Anti-Spam Check: Calculate closest beat index
-    const closestBeatIndex = Math.round(currentSecs / interval);
-    let isSpamming = false;
-    if (isSyncedRef.current && closestBeatIndex === lastTapBeatIndexRef.current) {
-      isSpamming = true;
-    } else {
-      lastTapBeatIndexRef.current = closestBeatIndex;
-    }
-
-    if (isSpamming) {
-      // Direct Spam/Mash Penalty: Immediately push the character down proportional to tempo!
-      birdRef.current.vy = -PERFECT_JUMP_VY * 1.1; 
-      birdRef.current.flapTime = 2;
-      comboRef.current = 0;
-      setCombo(0);
-      soundEngine.playMiss();
-      
-      floatingTextsRef.current.push({
-        id: Math.random().toString(),
-        text: 'SPAM! ❌',
-        x: 60,
-        y: birdRef.current.y - 25,
-        color: '#EF4444',
-        accuracy: 'MISS',
-        life: 1.0,
-      });
-
-      rhythmAccuracyRatingRef.current = Math.max(0.70, rhythmAccuracyRatingRef.current - 0.20);
-      setRhythmPrecision(rhythmAccuracyRatingRef.current);
-      return;
-    }
-
     lastTapTimeRef.current = currentSecs;
     tapsCountRef.current += 1;
 
@@ -238,45 +206,42 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const absDev = Math.abs(deviation);
     let accuracy: AccuracyType = 'MISS';
 
-    // Snappy, highly responsive, musician-approved rhythm thresholds
-    if (absDev <= 0.13) {
+    // Rhythm thresholds
+    if (absDev <= 0.15) {
       accuracy = 'PERFECT';
       perfectsRef.current += 1;
       comboRef.current += 1;
-      // Snappy, perfectly balanced upward velocity
-      birdRef.current.vy = PERFECT_JUMP_VY;
+      birdRef.current.vy = PERFECT_JUMP_VY * 1.05;
       birdRef.current.flapTime = 12;
       birdRef.current.pulseScale = 1.35;
       soundEngine.playPerfect();
       spawnParticles(birdRef.current.size * 2, '#FF5F00');
-    } else if (absDev <= 0.25) {
+    } else if (absDev <= 0.28) {
       accuracy = 'GOOD';
       goodsRef.current += 1;
       comboRef.current += 1;
-      // Moderate lift to adjust height gently
-      birdRef.current.vy = PERFECT_JUMP_VY * 0.82;
+      birdRef.current.vy = PERFECT_JUMP_VY;
       birdRef.current.flapTime = 10;
       birdRef.current.pulseScale = 1.2;
       soundEngine.playGood();
       spawnParticles(birdRef.current.size, '#FFFDF9');
-    } else if (absDev <= 0.38) {
+    } else if (absDev <= 0.42) {
       accuracy = deviation < 0 ? 'EARLY' : 'LATE';
-      // Gentle lift to maintain height
-      birdRef.current.vy = PERFECT_JUMP_VY * 0.50;
-      birdRef.current.flapTime = 6;
+      birdRef.current.vy = PERFECT_JUMP_VY * 0.95;
+      birdRef.current.flapTime = 8;
       comboRef.current = 0;
       soundEngine.playEarlyLate();
     } else {
       accuracy = 'MISS';
       missesRef.current += 1;
-      // Rigorous miss penalty: pushes the character down instead of up!
-      birdRef.current.vy = -PERFECT_JUMP_VY * 0.90;
-      birdRef.current.flapTime = 4;
+      // ALWAYS flap upwards on tap, even if timing is off!
+      birdRef.current.vy = PERFECT_JUMP_VY * 0.88;
+      birdRef.current.flapTime = 6;
       comboRef.current = 0;
       soundEngine.playMiss();
     }
 
-    // Update dynamic rhythm precision rating based on the tap timing accuracy
+    // Update dynamic rhythm precision rating
     if (accuracy === 'PERFECT') {
       rhythmAccuracyRatingRef.current = Math.min(1.45, rhythmAccuracyRatingRef.current + 0.12);
     } else if (accuracy === 'GOOD') {
@@ -288,31 +253,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
     setRhythmPrecision(rhythmAccuracyRatingRef.current);
 
-    // Pre-Sync start logic
+    // Instant sync on first tap!
     if (!isSyncedRef.current) {
-      if (accuracy === 'PERFECT' || accuracy === 'GOOD') {
-        syncCountRef.current += 1;
-        setSyncCount(syncCountRef.current);
-        
-        if (syncCountRef.current >= 4) {
-          isSyncedRef.current = true;
-          setIsSynced(true);
-          soundEngine.playLevelUp(); // play start sound
-          
-          // Setup obstacles now that we are synchronized!
-          const scrollSpeed = (bpmRef.current / 100) * 2.2;
-          const canvas = canvasRef.current;
-          const startX = canvas ? canvas.width + 100 : 460;
-          obstaclesRef.current = [
-            generateObstacle(startX, 0),
-            generateObstacle(startX + (beatIntervalRef.current * 4 * 60 * scrollSpeed), 1),
-          ];
-        }
-      } else {
-        // Reset sync counter on early/late/miss
-        syncCountRef.current = 0;
-        setSyncCount(0);
-      }
+      isSyncedRef.current = true;
+      setIsSynced(true);
+      soundEngine.playLevelUp();
+      
+      const scrollSpeed = (bpmRef.current / 100) * 2.2;
+      const canvas = canvasRef.current;
+      const startX = canvas ? canvas.width + 100 : 460;
+      obstaclesRef.current = [
+        generateObstacle(startX, 0),
+        generateObstacle(startX + (beatIntervalRef.current * 4 * 60 * scrollSpeed), 1),
+      ];
     }
 
     // Sync combo refs
@@ -1602,9 +1555,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       {/* Main interactive Canvas */}
       <div 
-        className="flex-1 w-full bg-[#121212] flex items-center justify-center relative cursor-pointer overflow-hidden touch-none"
-        onMouseDown={handleJump}
-        onTouchStart={(e) => {
+        className="flex-1 w-full bg-[#121212] flex items-center justify-center relative cursor-pointer overflow-hidden touch-none select-none"
+        onPointerDown={(e) => {
           e.preventDefault();
           handleJump();
         }}

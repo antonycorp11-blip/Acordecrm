@@ -40,6 +40,7 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
   const [currentChord, setCurrentChord] = useState(CHORDS[0]);
   const [options, setOptions] = useState<string[]>([]);
   const [isCorrectFeedback, setIsCorrectFeedback] = useState<boolean | null>(null);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [combo, setCombo] = useState(0);
   const [availableChords, setAvailableChords] = useState<typeof CHORDS>([]);
 
@@ -57,6 +58,7 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
       const levelOptions = [randomChord.notes, ...shuffledFakes.slice(0, 3)];
       setOptions(levelOptions.sort(() => 0.5 - Math.random()));
       setIsCorrectFeedback(null);
+      setSelectedOption(null);
       
       return newPool;
     });
@@ -97,6 +99,7 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
 
   const handleOptionClick = (option: string) => {
     if (gameState !== 'playing') return;
+    setSelectedOption(option);
 
     if (option === currentChord.notes) {
       // Correct!
@@ -119,100 +122,179 @@ export const ChordRush: React.FC<ChordRushProps> = ({ onClose, onGameOver, playR
   };
 
   return (
-    <div className="bg-black border-8 border-[#3d2d26] p-4 shadow-[8px_8px_0_#000] flex flex-col gap-4 relative">
-      {/* Decorative Top Line */}
-      <div className="flex justify-between items-center">
-        <button
-          onClick={() => {
-            if (gameState !== 'gameover' && score > 0) {
-              onGameOver(score);
-            }
-            onClose();
-          }}
-          className="bg-[#261812] text-[#feccba] border-2 border-[#feccba] font-black text-[7px] uppercase px-2.5 py-1 hover:bg-black active:translate-y-[1px] transition-all cursor-pointer"
-        >
-          ← SAIR DO JOGO
-        </button>
-        <span className="text-[#ff6b00] font-black text-[8px] uppercase tracking-widest animate-pulse">
-          CHORDRUSH_GABINETE_v1.0
-        </span>
-      </div>
-
-      <div className="bg-[#1a0a05] border-4 border-[#3d2d26] p-3 font-mono text-center space-y-2">
-        <div className="flex justify-between text-[10px] text-[#feccba] font-black uppercase">
-          <span>SCORE: {score}</span>
-          <span className={`text-[#00ff66] ${combo > 1 ? 'animate-pulse' : ''}`}>COMBO x{combo}</span>
-          <span>TIME: {Math.max(0, timeLeft)}%</span>
-        </div>
-        
-        {/* Progress Bar */}
-        <div className="w-full bg-[#3d2d26] h-2 border border-black relative overflow-hidden">
-          <div 
-            className={`h-full transition-all duration-100 ${timeLeft > 30 ? 'bg-[#00ff66]' : 'bg-red-500'}`}
-            style={{ width: `${timeLeft}%` }}
-          />
-        </div>
-      </div>
-
-      {gameState === 'start' && (
-        <div className="py-8 flex flex-col items-center justify-center text-center gap-4">
-          <h2 className="text-[#00ff66] font-black text-2xl uppercase tracking-widest animate-pulse">
-            CHORD RUSH
-          </h2>
-          <p className="text-[#feccba] font-black text-[10px] uppercase max-w-[200px] leading-relaxed">
-            Identifique o acorde correto pelo nome antes que o tempo acabe!
-          </p>
+    <div className="bg-[#1d100a] border-8 border-black p-4 md:p-6 shadow-[8px_8px_0_#000] flex flex-col gap-5 relative text-[#f8ddd2] font-mono select-none w-full max-w-2xl mx-auto overflow-hidden">
+      
+      {/* Top Header Bar - Stitch 8-Bit Style */}
+      <header className="flex justify-between items-center bg-[#2b1c16] border-4 border-black px-4 py-3 shadow-[4px_4px_0_#000]">
+        <div className="flex items-center gap-3">
           <button
-            onClick={startGame}
-            className="mt-2 bg-[#ff6b00] text-white hover:bg-white hover:text-black font-black text-sm py-3 px-6 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+            onClick={() => {
+              if (gameState !== 'gameover' && score > 0) {
+                onGameOver(score);
+              }
+              onClose();
+            }}
+            className="bg-[#ff6b00] text-black border-2 border-black px-3 py-1 font-black text-xs uppercase shadow-[2px_2px_0_#000] hover:bg-white active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
           >
-            🕹️ INSERT COIN
+            ← SAIR
           </button>
+          <h1 className="font-sans font-black text-lg md:text-xl uppercase tracking-tighter text-[#ffb693] drop-shadow-[2px_2px_0_#000]">
+            CIFRA_MASTER
+          </h1>
         </div>
-      )}
 
-      {gameState === 'playing' && (
-        <div className="flex flex-col items-center gap-6 py-2">
-          <div className={`text-6xl font-black transition-all ${isCorrectFeedback === true ? 'text-[#00ff66] scale-110' : 'text-white'}`}>
-            {currentChord.name}
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3 w-full">
-            {options.map((opt, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleOptionClick(opt)}
-                className={`p-4 border-4 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer ${
-                  isCorrectFeedback === false && opt !== currentChord.notes 
-                    ? 'bg-red-600 text-white' 
-                    : 'bg-[#fff8f6] text-black hover:bg-[#feccba]'
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <span className="text-[10px] font-bold text-[#e2bfb0] uppercase block opacity-80">SCORE</span>
+            <span className="font-black text-sm text-[#ff6b00] tracking-wider">{score} PONTOS</span>
           </div>
         </div>
-      )}
+      </header>
 
-      {gameState === 'gameover' && (
-        <div className="py-6 flex flex-col items-center text-center gap-4">
-          <h2 className="text-red-500 font-black text-3xl uppercase tracking-widest animate-bounce">
-            GAME OVER
-          </h2>
-          <div className="bg-[#261812] border-4 border-black p-4 w-full">
-            <p className="text-[#feccba] font-black text-[10px] uppercase">
-              PONTUAÇÃO FINAL: <span className="text-[#00ff66] text-lg">{score}</span>
+      {/* Start State */}
+      {gameState === 'start' && (
+        <div className="py-10 px-4 flex flex-col items-center justify-center text-center gap-6 bg-[#261812] border-4 border-black shadow-[6px_6px_0_#000] my-2">
+          <div className="bg-white text-black px-4 py-1.5 font-bold text-xs uppercase -rotate-2 border-2 border-black shadow-[3px_3px_0_#000] inline-block">
+            MODO DE TREINO RÍTMICO
+          </div>
+          <div>
+            <h2 className="text-[#ff6b00] font-sans font-black text-3xl md:text-4xl uppercase tracking-tighter drop-shadow-[3px_3px_0_#000]">
+              CHORD RUSH
+            </h2>
+            <p className="text-[#e2bfb0] font-bold text-xs uppercase max-w-xs mx-auto mt-2 leading-relaxed">
+              Identifique a cifra correspondente para cada nome de acorde antes que o tempo acabe!
             </p>
           </div>
           <button
             onClick={startGame}
-            className="mt-2 bg-white text-black hover:bg-[#ff6b00] hover:text-white font-black text-xs py-3 px-6 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+            className="mt-2 bg-[#ff6b00] text-black hover:bg-white font-sans font-black text-sm sm:text-base py-4 px-8 border-4 border-black uppercase tracking-widest shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
           >
-            🔄 JOGAR NOVAMENTE
+            🕹️ INSERT COIN / INICIAR
           </button>
         </div>
       )}
+
+      {/* Playing State */}
+      {gameState === 'playing' && (
+        <div className="flex flex-col items-center gap-5 w-full">
+          
+          {/* Level & Combo Header */}
+          <div className="w-full max-w-md">
+            <div className="flex justify-between items-end mb-2">
+              <div className="bg-white text-black px-3 py-1 text-xs font-bold uppercase -rotate-2 border-2 border-black shadow-[3px_3px_0_#000] inline-block">
+                CIFRA MASTER: NIVEL 01
+              </div>
+              <div className="font-sans font-black text-lg text-[#ff6b00] italic drop-shadow-[1px_1px_0_#000]">
+                COMBO x{combo}
+              </div>
+            </div>
+            
+            {/* Time / Progress Bar */}
+            <div className="w-full h-7 bg-[#362720] border-4 border-black relative overflow-hidden shadow-[4px_4px_0_#000]">
+              <div 
+                className={`h-full transition-all duration-100 shadow-[inset_-4px_0px_0px_0px_rgba(0,0,0,0.3)] ${
+                  timeLeft > 35 ? 'bg-[#ff6b00]' : 'bg-red-600'
+                }`}
+                style={{ width: `${timeLeft}%` }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center text-white font-bold text-[10px] tracking-widest drop-shadow-[1px_1px_0_#000]">
+                TEMPO: {Math.max(0, timeLeft)}%
+              </div>
+            </div>
+          </div>
+
+          {/* Gameplay Sticker Card */}
+          <div className="relative my-2">
+            <div className={`bg-white w-64 h-64 sm:w-80 sm:h-80 flex flex-col items-center justify-center border-4 border-black shadow-[6px_6px_0_0_#ffb693] relative z-10 -rotate-2 transition-transform duration-200 hover:rotate-0 ${
+              isCorrectFeedback === true ? 'scale-105 border-[#00ff66]' : ''
+            }`}>
+              <span className="text-3xl sm:text-4xl md:text-5xl font-sans font-black text-black select-none text-center px-4 uppercase tracking-tight">
+                {currentChord.name}
+              </span>
+              <div className="absolute -bottom-4 -left-4 bg-[#ffb693] text-[#351000] border-3 border-black px-4 py-2 text-xs font-bold uppercase rotate-3 shadow-[3px_3px_0_#000]">
+                IDENTIFIQUE A CIFRA
+              </div>
+            </div>
+            {/* Background sticker decoration */}
+            <div className="absolute -top-4 -right-4 w-28 h-28 bg-[#5b443b] opacity-40 border-3 border-black -rotate-12 -z-0"></div>
+          </div>
+
+          {/* Input Buttons 2x2 Grid */}
+          <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+            {options.map((opt, idx) => {
+              const isSelected = selectedOption === opt;
+              const isRight = opt === currentChord.notes;
+              
+              let btnStyle = "bg-[#362720] text-[#f8ddd2] hover:bg-[#41312a] border-4 border-black shadow-[5px_5px_0_0_#000]";
+              if (isSelected) {
+                if (isCorrectFeedback === true) {
+                  btnStyle = "bg-[#ff6b00] text-black border-4 border-black shadow-[5px_5px_0_0_#fff] scale-105";
+                } else if (isCorrectFeedback === false) {
+                  btnStyle = "bg-red-600 text-white border-4 border-black shadow-[5px_5px_0_0_#000]";
+                }
+              }
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleOptionClick(opt)}
+                  className={`py-5 text-2xl sm:text-3xl font-sans font-black uppercase hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:scale-95 transition-all relative group cursor-pointer flex items-center justify-center ${btnStyle}`}
+                >
+                  <span className="relative z-10">{opt}</span>
+                  <div className="absolute top-1 left-2 text-[9px] font-mono text-[#ffb693] opacity-60">
+                    OPÇÃO {idx + 1}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tip / Instruction Banner */}
+          <div className="mt-2 max-w-md text-center opacity-80 px-2">
+            <p className="text-xs text-[#e2bfb0] italic">
+              "O sistema de cifras usa letras para representar notas e acordes. Mantenha o ritmo para acelerar seu combo!"
+            </p>
+          </div>
+
+        </div>
+      )}
+
+      {/* Game Over State */}
+      {gameState === 'gameover' && (
+        <div className="py-8 px-4 flex flex-col items-center justify-center text-center gap-5 bg-[#261812] border-4 border-black shadow-[6px_6px_0_#000] my-2">
+          <h2 className="text-red-500 font-sans font-black text-3xl sm:text-4xl uppercase tracking-widest animate-bounce drop-shadow-[2px_2px_0_#000]">
+            FIM DE JOGO 💀
+          </h2>
+          <div className="bg-[#170b06] border-4 border-[#ffb693] p-5 w-full max-w-xs shadow-[4px_4px_0_#000]">
+            <p className="text-[#e2bfb0] font-bold text-xs uppercase">
+              PONTUAÇÃO FINAL
+            </p>
+            <p className="text-[#ff6b00] font-sans font-black text-4xl mt-1 tracking-tight">
+              {score} XP
+            </p>
+            <p className="text-gray-400 font-bold text-[10px] uppercase mt-2">
+              MAIOR COMBO: <span className="text-white">x{combo}</span>
+            </p>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+            <button
+              onClick={startGame}
+              className="flex-1 bg-[#ff6b00] text-black hover:bg-white font-sans font-black text-xs py-3.5 px-4 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+            >
+              🔄 TENTAR NOVAMENTE
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 bg-white text-black hover:bg-[#ff6b00] hover:text-white font-sans font-black text-xs py-3.5 px-4 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
+            >
+              🏠 VOLTAR
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
+
