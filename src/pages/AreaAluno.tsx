@@ -16,6 +16,7 @@ import { DailyMissions } from '../components/alunos/DailyMissions';
 import { RitmoPro } from '../components/jogos/ritmo-pro/App';
 import { VoiceRush } from '../components/jogos/voice-rush/App';
 import MetronomeBird from '../components/jogos/metronome-flappy-bird/App';
+import CifrasMusicais from '../components/jogos/cifras-musicais/App';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { format } from 'date-fns';
@@ -415,6 +416,7 @@ export default function AreaAluno() {
   const [isPlayingRitmoPro, setIsPlayingRitmoPro] = useState(false);
   const [isPlayingVoiceRush, setIsPlayingVoiceRush] = useState(false);
   const [isPlayingMetronomeBird, setIsPlayingMetronomeBird] = useState(false);
+  const [isPlayingCifrasMusicais, setIsPlayingCifrasMusicais] = useState(false);
   const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
   const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
   const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
@@ -2033,7 +2035,7 @@ export default function AreaAluno() {
                     toast.error('A conversão de XP não é mais necessária!');
                   }}
                 />
-              ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingRitmoPro && !isPlayingVoiceRush && !isPlayingMetronomeBird ? (
+              ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingRitmoPro && !isPlayingVoiceRush && !isPlayingMetronomeBird && !isPlayingCifrasMusicais ? (
                 <>
                   {/* Botão de Acesso à Loja */}
                   <div 
@@ -2131,6 +2133,23 @@ export default function AreaAluno() {
                         <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
                       </button>
 
+                      {/* App 5: Cifras Musicais (Cifra Master Space) */}
+                      <button 
+                        onClick={() => {
+                          setIsPlayingCifrasMusicais(true);
+                          playRetroSound(880, 'square', 0.1);
+                        }}
+                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all relative"
+                      >
+                        <div className="w-full aspect-square bg-[#00d2ff] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl relative">
+                          🚀
+                          <span className="absolute -top-1 -right-1 bg-[#ff0055] text-white text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse">
+                            NOVO! 🔥
+                          </span>
+                        </div>
+                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Cifras Musicais</span>
+                      </button>
+
                       {/* App 5: Rhythm Hero (Locked) */}
                       <div className="flex flex-col items-center gap-2 opacity-50 grayscale cursor-not-allowed">
                         <div className="w-full aspect-square bg-[#8e7164] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl">
@@ -2193,6 +2212,19 @@ export default function AreaAluno() {
                       const safeScore = Math.max(Number(score) || 0, 0);
                       const pontosGanhos = (safeScore * 50) + 100;
                       handleAddXp(pontosGanhos, 'Metrônomo Bird');
+                    }} 
+                  />
+                </div>
+              ) : isPlayingCifrasMusicais ? (
+                <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
+                  <CifrasMusicais 
+                    onClose={() => setIsPlayingCifrasMusicais(false)} 
+                    onGameOverProp={(score) => {
+                      updateDailyMissionProgress('Cifras Musicais');
+                      window.dispatchEvent(new CustomEvent('acorde_game_played', { detail: 'Cifras Musicais' }));
+                      const safeScore = Math.max(Number(score) || 0, 0);
+                      const pontosGanhos = Math.max(safeScore, 100);
+                      handleAddXp(pontosGanhos, 'Cifras Musicais');
                     }} 
                   />
                 </div>

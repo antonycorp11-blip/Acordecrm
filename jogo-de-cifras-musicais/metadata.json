@@ -1,0 +1,6 @@
+{
+  "name": "Jogo de Cifras Musicais",
+  "description": "Um jogo arcade de nave para aprender cifras de notas e acordes musicais.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
