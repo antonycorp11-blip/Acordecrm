@@ -3323,92 +3323,6 @@ export default function AreaAluno() {
                 </div>
               )}
 
-              {/* Trophy Detail & Request Modal */}
-              {selectedTrophy && (
-                <div className="fixed inset-0 bg-black/85 z-[210] flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-                  <div className="w-full max-w-[420px] bg-[#1d100a] border-8 border-black p-5 shadow-[10px_10px_0_#000] relative text-white font-mono flex flex-col items-center gap-4 my-6">
-                    {/* Botão Fechar */}
-                    <button 
-                      onClick={() => setSelectedTrophy(null)} 
-                      className="absolute top-3 right-3 bg-[#261812] text-white hover:bg-[#ff6b00] border-2 border-black p-1 shadow-[2px_2px_0_#000] active:translate-y-0.5 transition-all cursor-pointer z-10"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-
-                    {/* Categoria Badge */}
-                    <div className="bg-white text-black px-3 py-1 text-[10px] font-black uppercase -rotate-1 border-2 border-black shadow-[3px_3px_0_#000] mt-2">
-                      {selectedTrophy.classe ? selectedTrophy.classe.toUpperCase() : 'ESPECIAL'} • {selectedTrophy.instrumento || 'GERAL'}
-                    </div>
-
-                    {/* Trophy Image / Icon */}
-                    <div className={`w-28 h-28 flex items-center justify-center my-1 relative ${selectedTrophy.conquistado ? 'drop-shadow-[0_0_20px_rgba(255,107,0,0.6)]' : 'grayscale opacity-80'}`}>
-                      {selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe) ? (
-                        <img 
-                          src={selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe)} 
-                          alt={selectedTrophy.nome} 
-                          className="w-full h-full object-contain" 
-                        />
-                      ) : (
-                        <Trophy className={`w-20 h-20 ${selectedTrophy.conquistado ? 'text-[#ff6b00]' : 'text-gray-500'}`} />
-                      )}
-                    </div>
-
-                    {/* Trophy Title & Points */}
-                    <div className="text-center">
-                      <h3 className="text-lg font-sans font-black uppercase text-white tracking-tight">
-                        {selectedTrophy.nome}
-                      </h3>
-                      <span className="inline-block mt-1 bg-[#ff6b00] text-black text-[9px] font-black px-2 py-0.5 border border-black shadow-[2px_2px_0_#000]">
-                        +{selectedTrophy.pontos || 500} XP / COINS
-                      </span>
-                    </div>
-
-                    {/* Description */}
-                    <div className="bg-[#261812] border-4 border-black p-3.5 w-full text-center shadow-[4px_4px_0_#000]">
-                      <p className="text-[#e2bfb0] font-bold text-[10px] uppercase leading-relaxed">
-                        {selectedTrophy.descricao || "Conclua os treinos e desafios do seu curso para desbloquear esta conquista!"}
-                      </p>
-                    </div>
-
-                    {/* Status & Request Action */}
-                    <div className="w-full pt-1">
-                      {selectedTrophy.conquistado ? (
-                        <div className="bg-[#00ff66]/20 border-4 border-[#00ff66] p-3 text-center shadow-[4px_4px_0_#000]">
-                          <p className="text-[#00ff66] font-black text-xs uppercase tracking-widest">
-                            ✨ TROFÉU DESBLOQUEADO! {selectedTrophy.conquistadoCount > 1 && `(x${selectedTrophy.conquistadoCount})`}
-                          </p>
-                        </div>
-                      ) : selectedTrophy.solicitacaoPendente ? (
-                        <div className="bg-yellow-500/20 border-4 border-yellow-500 p-3 text-center shadow-[4px_4px_0_#000]">
-                          <p className="text-yellow-400 font-black text-xs uppercase tracking-widest animate-pulse">
-                            ⏳ SOLICITAÇÃO PENDENTE DE APROVAÇÃO
-                          </p>
-                          <p className="text-gray-300 font-bold text-[9px] uppercase mt-1">
-                            Aguardando validação do seu professor no painel.
-                          </p>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleSolicitarTrofeu(selectedTrophy.id)}
-                          className="w-full bg-[#ff6b00] text-black hover:bg-white font-sans font-black text-xs py-3.5 px-4 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center flex items-center justify-center gap-2"
-                        >
-                          📨 SOLICITAR TROFÉU AO PROFESSOR
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Button Close */}
-                    <button
-                      onClick={() => setSelectedTrophy(null)}
-                      className="w-full bg-[#261812] text-white hover:bg-[#362720] font-sans font-black text-[10px] py-2 border-2 border-black uppercase tracking-widest shadow-[2px_2px_0_#000] cursor-pointer mt-1"
-                    >
-                      FECHAR
-                    </button>
-
-                  </div>
-                </div>
-              )}
-
             </div>
           )}
 
@@ -3425,6 +3339,92 @@ export default function AreaAluno() {
             <div className="fixed md:absolute inset-0 bg-black/90 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
               <div className="w-full max-w-[500px] md:max-w-[560px]">
                 <MusiclassTools onClose={() => setShowTools(false)} />
+              </div>
+            </div>
+          )}
+
+          {/* Trophy Detail & Request Modal (Global overlay across all tabs) */}
+          {selectedTrophy && (
+            <div className="fixed inset-0 bg-black/85 z-[300] flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+              <div className="w-full max-w-[420px] bg-[#1d100a] border-8 border-black p-5 shadow-[10px_10px_0_#000] relative text-white font-mono flex flex-col items-center gap-4 my-6">
+                {/* Botão Fechar */}
+                <button 
+                  onClick={() => setSelectedTrophy(null)} 
+                  className="absolute top-3 right-3 bg-[#261812] text-white hover:bg-[#ff6b00] border-2 border-black p-1 shadow-[2px_2px_0_#000] active:translate-y-0.5 transition-all cursor-pointer z-10"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {/* Categoria Badge */}
+                <div className="bg-white text-black px-3 py-1 text-[10px] font-black uppercase -rotate-1 border-2 border-black shadow-[3px_3px_0_#000] mt-2">
+                  {selectedTrophy.classe ? selectedTrophy.classe.toUpperCase() : 'ESPECIAL'} • {selectedTrophy.instrumento || 'GERAL'}
+                </div>
+
+                {/* Trophy Image / Icon */}
+                <div className={`w-28 h-28 flex items-center justify-center my-1 relative ${selectedTrophy.conquistado ? 'drop-shadow-[0_0_20px_rgba(255,107,0,0.6)]' : 'grayscale opacity-80'}`}>
+                  {selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe) ? (
+                    <img 
+                      src={selectedTrophy.icone_url || resolveTrophyImage(selectedTrophy.instrumento, selectedTrophy.classe)} 
+                      alt={selectedTrophy.nome} 
+                      className="w-full h-full object-contain" 
+                    />
+                  ) : (
+                    <Trophy className={`w-20 h-20 ${selectedTrophy.conquistado ? 'text-[#ff6b00]' : 'text-gray-500'}`} />
+                  )}
+                </div>
+
+                {/* Trophy Title & Points */}
+                <div className="text-center">
+                  <h3 className="text-lg font-sans font-black uppercase text-white tracking-tight">
+                    {selectedTrophy.nome}
+                  </h3>
+                  <span className="inline-block mt-1 bg-[#ff6b00] text-black text-[9px] font-black px-2 py-0.5 border border-black shadow-[2px_2px_0_#000]">
+                    +{selectedTrophy.pontos || 500} XP / COINS
+                  </span>
+                </div>
+
+                {/* Description */}
+                <div className="bg-[#261812] border-4 border-black p-3.5 w-full text-center shadow-[4px_4px_0_#000]">
+                  <p className="text-[#e2bfb0] font-bold text-[10px] uppercase leading-relaxed">
+                    {selectedTrophy.descricao || "Conclua os treinos e desafios do seu curso para desbloquear esta conquista!"}
+                  </p>
+                </div>
+
+                {/* Status & Request Action */}
+                <div className="w-full pt-1">
+                  {selectedTrophy.conquistado ? (
+                    <div className="bg-[#00ff66]/20 border-4 border-[#00ff66] p-3 text-center shadow-[4px_4px_0_#000]">
+                      <p className="text-[#00ff66] font-black text-xs uppercase tracking-widest">
+                        ✨ TROFÉU DESBLOQUEADO! {selectedTrophy.conquistadoCount > 1 && `(x${selectedTrophy.conquistadoCount})`}
+                      </p>
+                    </div>
+                  ) : selectedTrophy.solicitacaoPendente ? (
+                    <div className="bg-yellow-500/20 border-4 border-yellow-500 p-3 text-center shadow-[4px_4px_0_#000]">
+                      <p className="text-yellow-400 font-black text-xs uppercase tracking-widest animate-pulse">
+                        ⏳ SOLICITAÇÃO PENDENTE DE APROVAÇÃO
+                      </p>
+                      <p className="text-gray-300 font-bold text-[9px] uppercase mt-1">
+                        Aguardando validação do seu professor no painel.
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleSolicitarTrofeu(selectedTrophy.id)}
+                      className="w-full bg-[#ff6b00] text-black hover:bg-white font-sans font-black text-xs py-3.5 px-4 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center flex items-center justify-center gap-2"
+                    >
+                      📨 SOLICITAR TROFÉU AO PROFESSOR
+                    </button>
+                  )}
+                </div>
+
+                {/* Button Close */}
+                <button
+                  onClick={() => setSelectedTrophy(null)}
+                  className="w-full bg-[#261812] text-white hover:bg-[#362720] font-sans font-black text-[10px] py-2 border-2 border-black uppercase tracking-widest shadow-[2px_2px_0_#000] cursor-pointer mt-1"
+                >
+                  FECHAR
+                </button>
+
               </div>
             </div>
           )}
