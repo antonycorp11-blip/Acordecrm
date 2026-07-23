@@ -2216,7 +2216,7 @@ export default function AreaAluno() {
                   />
                 </div>
               ) : isPlayingCifrasMusicais ? (
-                <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
+                <div className="bg-[#020208] border-4 sm:border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full max-w-[500px] mx-auto overflow-hidden">
                   <CifrasMusicais 
                     onClose={() => setIsPlayingCifrasMusicais(false)} 
                     onGameOverProp={(score) => {
