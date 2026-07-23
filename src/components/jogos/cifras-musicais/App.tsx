@@ -71,7 +71,7 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
   const [scenarioNotice, setScenarioNotice] = useState<{ name: string; description: string } | null>(null);
 
   // Mobile Controls States
-  const [autoFire, setAutoFire] = useState(true);
+  const [autoFire, setAutoFire] = useState(false);
   const isShootButtonPressed = useRef(false);
   const joystickVector = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -1133,7 +1133,7 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
       const shootInterval = activePowerUps.current.speedTimer > 0 ? 120 : 220;
 
       // 4. MANUAL, BUTTON & AUTO SHOOTING
-      const shouldShoot = keysPressed.current[" "] || isDragging.current || isShootButtonPressed.current || autoFire;
+      const shouldShoot = keysPressed.current[" "] || isShootButtonPressed.current || autoFire;
       if (shouldShoot && time - lastShootTime.current > shootInterval) {
         if (activePowerUps.current.spreadTimer > 0) {
           // ⚡ TRIPLO SPREAD LASERS
@@ -2248,69 +2248,91 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
               )}
             </AnimatePresence>
 
-            {/* TOUCH CONTROLS PANEL FOR MOBILE & TABLET */}
+            {/* TOUCH CONTROLS OVERLAY FOR MOBILE & TABLET (MINIMALIST & TRANSPARENT GLASSMORPHISM) */}
             {gameStarted && gameState.isPlaying && !gameState.showingChallenge && (
-              <div className="w-full bg-[#080812]/95 border-t border-cyan-500/40 p-2 flex items-center justify-between z-20 pointer-events-auto select-none gap-2 shrink-0 backdrop-blur-md">
-                {/* D-Pad Buttons */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onTouchStart={(e) => { e.preventDefault(); joystickVector.current.x = -1; }}
-                    onTouchEnd={(e) => { e.preventDefault(); joystickVector.current.x = 0; }}
-                    onMouseDown={() => { joystickVector.current.x = -1; }}
-                    onMouseUp={() => { joystickVector.current.x = 0; }}
-                    className="w-11 h-11 rounded-xl bg-cyan-950/90 border-2 border-cyan-400/60 text-cyan-300 font-black text-xl flex items-center justify-center active:bg-cyan-400 active:text-black transition-all shadow-md touch-none cursor-pointer"
-                    title="Mover para Esquerda"
-                  >
-                    ◀
-                  </button>
-
-                  <button
-                    onTouchStart={(e) => { e.preventDefault(); joystickVector.current.x = 1; }}
-                    onTouchEnd={(e) => { e.preventDefault(); joystickVector.current.x = 0; }}
-                    onMouseDown={() => { joystickVector.current.x = 1; }}
-                    onMouseUp={() => { joystickVector.current.x = 0; }}
-                    className="w-11 h-11 rounded-xl bg-cyan-950/90 border-2 border-cyan-400/60 text-cyan-300 font-black text-xl flex items-center justify-center active:bg-cyan-400 active:text-black transition-all shadow-md touch-none cursor-pointer"
-                    title="Mover para Direita"
-                  >
-                    ▶
-                  </button>
-
-                  <button
-                    onClick={() => setAutoFire(!autoFire)}
-                    className={`h-11 px-2.5 rounded-xl border text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex flex-col items-center justify-center ${
-                      autoFire 
-                        ? "bg-amber-500 border-amber-300 text-black shadow-[0_0_10px_rgba(245,158,11,0.5)]" 
-                        : "bg-black/60 border-cyan-800/60 text-cyan-400"
-                    }`}
-                  >
-                    <span>⚡ AUTO</span>
-                    <span className="text-[7px] font-mono">{autoFire ? "ON" : "OFF"}</span>
-                  </button>
-                </div>
-
-                {/* Fire Button */}
-                <button
+              <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between z-20 pointer-events-auto select-none gap-2">
+                {/* LEFT SIDE: SLEEK MINIMAL TRANSPARENT JOYSTICK */}
+                <div 
+                  className="relative w-16 h-16 rounded-full bg-cyan-950/30 border border-cyan-400/40 flex items-center justify-center touch-none cursor-pointer backdrop-blur-md shadow-lg shadow-cyan-950/50"
                   onTouchStart={(e) => {
-                    e.preventDefault();
-                    isShootButtonPressed.current = true;
-                    initAudioCtx();
+                    const touch = e.touches[0];
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    const dx = (touch.clientX - centerX) / (rect.width / 2);
+                    const dy = (touch.clientY - centerY) / (rect.height / 2);
+                    joystickVector.current = { x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, dy)) };
                   }}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    isShootButtonPressed.current = false;
+                  onTouchMove={(e) => {
+                    const touch = e.touches[0];
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    const dx = (touch.clientX - centerX) / (rect.width / 2);
+                    const dy = (touch.clientY - centerY) / (rect.height / 2);
+                    joystickVector.current = { x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, dy)) };
                   }}
-                  onMouseDown={() => {
-                    isShootButtonPressed.current = true;
-                    initAudioCtx();
+                  onTouchEnd={() => {
+                    joystickVector.current = { x: 0, y: 0 };
+                  }}
+                  onMouseDown={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    const dx = (e.clientX - centerX) / (rect.width / 2);
+                    const dy = (e.clientY - centerY) / (rect.height / 2);
+                    joystickVector.current = { x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, dy)) };
                   }}
                   onMouseUp={() => {
-                    isShootButtonPressed.current = false;
+                    joystickVector.current = { x: 0, y: 0 };
                   }}
-                  className="h-11 px-4 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 border-2 border-red-400 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1 shadow-[0_0_12px_rgba(239,68,68,0.4)] active:scale-95 touch-none cursor-pointer"
                 >
-                  <span className="text-sm">🔥</span>
-                  <span>ATIRAR</span>
-                </button>
+                  <div className="text-[7px] text-cyan-400/50 font-bold pointer-events-none uppercase tracking-tighter">ANÁLOGO</div>
+                  {/* Inner Knob Indicator */}
+                  <div 
+                    className="absolute w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400/80 to-indigo-500/80 border border-white/80 shadow-md pointer-events-none transition-transform duration-75"
+                    style={{
+                      transform: `translate(${joystickVector.current.x * 18}px, ${joystickVector.current.y * 18}px)`
+                    }}
+                  />
+                </div>
+
+                {/* RIGHT SIDE: TRANSPARENT SHOOT BUTTON & AUTO-FIRE TOGGLE */}
+                <div className="flex flex-col items-center gap-1.5">
+                  <button
+                    onClick={() => setAutoFire(!autoFire)}
+                    className={`px-2 py-0.5 rounded-full text-[8px] font-bold tracking-wider uppercase border transition-all cursor-pointer ${
+                      autoFire 
+                        ? "bg-amber-500/90 border-amber-300 text-black shadow-amber-500/30 animate-pulse" 
+                        : "bg-black/40 border-cyan-800/40 text-cyan-300/70 hover:bg-cyan-950/40"
+                    }`}
+                  >
+                    ⚡ AUTO: {autoFire ? "ON" : "OFF"}
+                  </button>
+
+                  <button
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      isShootButtonPressed.current = true;
+                      initAudioCtx();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      isShootButtonPressed.current = false;
+                    }}
+                    onMouseDown={() => {
+                      isShootButtonPressed.current = true;
+                      initAudioCtx();
+                    }}
+                    onMouseUp={() => {
+                      isShootButtonPressed.current = false;
+                    }}
+                    className="w-16 h-16 rounded-full bg-red-600/40 hover:bg-red-600/70 active:bg-red-500/90 border border-red-400/60 shadow-[0_0_20px_rgba(239,68,68,0.5)] flex flex-col items-center justify-center text-white active:scale-95 cursor-pointer touch-none select-none backdrop-blur-md transition-all"
+                  >
+                    <span className="text-base leading-none">🔥</span>
+                    <span className="text-[8px] font-black uppercase tracking-widest mt-0.5 text-white/90">ATIRAR</span>
+                  </button>
+                </div>
               </div>
             )}
 
