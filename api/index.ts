@@ -730,7 +730,7 @@ async function startServer() {
             const { pontos, jogo } = req.body;
             if (!pontos) return res.status(400).json({ error: 'Pontos não informados' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', email).single();
             if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
 
             let finalPontos = Number(pontos);
@@ -745,33 +745,19 @@ async function startServer() {
                 .eq('key_name', 'JOGOS_DAO_XP')
                 .maybeSingle();
 
-            const jogosDaoXp = configXp?.key_value === 'true';
+            const jogosDaoXp = configXp?.key_value !== 'false';
 
-            // Aplicação do Teto Diário de XP no Ranking (100 XP/dia)
-            const todayStr = new Date().toISOString().split('T')[0];
-            const key = `${aluno.id}_${todayStr}`;
-            if (!dailyGameXpTracker[key] || dailyGameXpTracker[key].date !== todayStr) {
-                dailyGameXpTracker[key] = { date: todayStr, xp: 0 };
-            }
-
-            const currentDailyXp = dailyGameXpTracker[key].xp;
-            const maxAllowedDailyXp = 100;
-            const xpAllowed = Math.max(0, Math.min(finalPontos, maxAllowedDailyXp - currentDailyXp));
-            dailyGameXpTracker[key].xp += xpAllowed;
-
-            const novoXp = jogosDaoXp ? ((Number(aluno.xp) || 0) + xpAllowed) : (Number(aluno.xp) || 0);
+            const novoXp = (Number(aluno.xp) || 0) + finalPontos;
             const novasMoedas = (Number(aluno.acorde_coins) || 0) + finalPontos;
             
             await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
 
             // Adiciona no feed
             const jogoNomeFormatado = jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'UM JOGO';
-            const feedMsg = jogosDaoXp 
-                ? `${aluno.nome} acabou de jogar ${jogoNomeFormatado} e ganhou +${xpAllowed} XP (${finalPontos} Coins)! 🎮`
-                : `${aluno.nome} acabou de jogar ${jogoNomeFormatado} e ganhou +${finalPontos} Coins! 🎮`;
+            const feedMsg = `${aluno.nome} ganhou +${finalPontos} XP e Coins em ${jogoNomeFormatado}! 🎮`;
             await addToFeed(aluno.id, 'jogo', feedMsg, '🎮');
 
-            res.json({ success: true, novoXp, novasMoedas, finalPontos, xpAllowed, jogosDaoXp });
+            res.json({ success: true, novoXp, novasMoedas, finalPontos, jogosDaoXp });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
