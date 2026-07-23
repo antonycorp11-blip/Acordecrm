@@ -14,7 +14,8 @@ const DAILY_MISSIONS_TEMPLATES = [
   { id: 'm1', title: 'Jogue Acorde Genius', target: 3, reward: 500, gameId: 'Acorde Genius' },
   { id: 'm2', title: 'Jogue Chord Rush', target: 3, reward: 500, gameId: 'Chord Rush' },
   { id: 'm3', title: 'Jogue Tríade Ninja', target: 2, reward: 800, gameId: 'Tríade Ninja' },
-  { id: 'm4', title: 'Jogue Acorde Genius', target: 5, reward: 1000, gameId: 'Acorde Genius' },
+  { id: 'm4', title: 'Jogue Metrônomo Bird', target: 2, reward: 800, gameId: 'Metrônomo Bird' },
+  { id: 'm5', title: 'Jogue Acorde Genius', target: 5, reward: 1000, gameId: 'Acorde Genius' },
 ];
 
 export const DailyMissions = ({ onClaimReward }: { onClaimReward: (reward: number) => void }) => {

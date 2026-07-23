@@ -2112,38 +2112,22 @@ export default function AreaAluno() {
                         <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Triade Ninja</span>
                       </button>
 
-                      {/* App 4: Metrônomo Bird (Desbloqueado para ta@ta.com, Em breve para os demais) */}
-                      {(user?.email === 'ta@ta.com' || alunoData?.email === 'ta@ta.com') ? (
-                        <button 
-                          onClick={() => {
-                            setIsPlayingMetronomeBird(true);
-                            playRetroSound(880, 'square', 0.1);
-                          }}
-                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all relative"
-                        >
-                          <div className="w-full aspect-square bg-[#ff5f00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl relative">
-                            🐦
-                            <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase">
-                              TESTE
-                            </span>
-                          </div>
-                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
-                        </button>
-                      ) : (
-                        <div 
-                          onClick={() => toast.info('🚀 Jogo em breve! Disponível no momento apenas para testes.')}
-                          className="flex flex-col items-center gap-2 cursor-pointer hover:-translate-y-0.5 transition-all relative group"
-                        >
-                          <div className="w-full aspect-square bg-[#ff5f00]/40 border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex flex-col items-center justify-center text-2xl relative overflow-hidden">
-                            <span className="opacity-40">🐦</span>
-                            <span className="absolute top-1 right-1 text-xs">🔒</span>
-                            <span className="absolute bottom-1 bg-red-600 text-white font-black text-[6px] px-1 py-0.5 border border-black rounded uppercase tracking-tighter shadow-sm animate-pulse">
-                              EM BREVE
-                            </span>
-                          </div>
-                          <span className="text-gray-400 font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
+                      {/* App 4: Metrônomo Bird (Disponível para todos os alunos!) */}
+                      <button 
+                        onClick={() => {
+                          setIsPlayingMetronomeBird(true);
+                          playRetroSound(880, 'square', 0.1);
+                        }}
+                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all relative"
+                      >
+                        <div className="w-full aspect-square bg-[#ff5f00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl relative">
+                          🐦
+                          <span className="absolute -top-1 -right-1 bg-[#00ff66] text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse">
+                            NOVO! 🔥
+                          </span>
                         </div>
-                      )}
+                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
+                      </button>
 
                       {/* App 5: Rhythm Hero (Locked) */}
                       <div className="flex flex-col items-center gap-2 opacity-50 grayscale cursor-not-allowed">
@@ -2203,7 +2187,11 @@ export default function AreaAluno() {
                     onGameOver={(score) => {
                       updateDailyMissionProgress('Metrônomo Bird');
                       window.dispatchEvent(new CustomEvent('acorde_game_played', { detail: 'Metrônomo Bird' }));
-                      if (score > 0) handleAddXp(score, 'Metrônomo Bird');
+                      if (score > 0) {
+                        // Evento de Lançamento: Multiplicador 15x de Coins e XP por obstáculo + bônus de partida
+                        const pontosGanhos = (score * 15) + 20;
+                        handleAddXp(pontosGanhos, 'Metrônomo Bird');
+                      }
                     }} 
                   />
                 </div>
