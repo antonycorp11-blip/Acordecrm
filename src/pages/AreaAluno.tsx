@@ -2188,8 +2188,8 @@ export default function AreaAluno() {
                       updateDailyMissionProgress('Metrônomo Bird');
                       window.dispatchEvent(new CustomEvent('acorde_game_played', { detail: 'Metrônomo Bird' }));
                       if (score > 0) {
-                        // Evento de Lançamento: Multiplicador 15x de Coins e XP por obstáculo + bônus de partida
-                        const pontosGanhos = (score * 15) + 20;
+                        // Recompensa de jogo difícil: 100-200+ XP e Coins por partida (+ 50 por obstáculo superado)
+                        const pontosGanhos = (score * 50) + 100;
                         handleAddXp(pontosGanhos, 'Metrônomo Bird');
                       }
                     }} 
