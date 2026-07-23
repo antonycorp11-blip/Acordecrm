@@ -1191,6 +1191,7 @@ export default function AreaAluno() {
 
       setAlunoData((prev: any) => ({ ...prev, xp: data.novoXp, acorde_coins: data.novasMoedas }));
       toast.success(`✨ +${data.finalPontos} Acorde Coins e XP (${jogo})!`);
+      fetchRanking();
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao salvar pontos!');
@@ -2187,11 +2188,10 @@ export default function AreaAluno() {
                     onGameOver={(score) => {
                       updateDailyMissionProgress('Metrônomo Bird');
                       window.dispatchEvent(new CustomEvent('acorde_game_played', { detail: 'Metrônomo Bird' }));
-                      if (score > 0) {
-                        // Recompensa de jogo difícil: 100-200+ XP e Coins por partida (+ 50 por obstáculo superado)
-                        const pontosGanhos = (score * 50) + 100;
-                        handleAddXp(pontosGanhos, 'Metrônomo Bird');
-                      }
+                      // Recompensa garantida de jogo difícil: 100 XP/Coins base + 50 por obstáculo superado
+                      const safeScore = Math.max(Number(score) || 0, 0);
+                      const pontosGanhos = (safeScore * 50) + 100;
+                      handleAddXp(pontosGanhos, 'Metrônomo Bird');
                     }} 
                   />
                 </div>

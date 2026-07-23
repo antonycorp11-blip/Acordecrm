@@ -203,6 +203,9 @@ export default function App({ onClose, onGameOver: onGameOverProp }: MetronomeFl
     };
 
     saveStats(updatedStats, updatedLessons);
+    if (onGameOverProp) {
+      onGameOverProp(Math.max(lessonScore, 1));
+    }
   };
 
   // Game Over trigger
@@ -230,7 +233,7 @@ export default function App({ onClose, onGameOver: onGameOverProp }: MetronomeFl
     };
 
     saveStats(updatedStats);
-    if (onGameOverProp && finalScore > 0) {
+    if (onGameOverProp) {
       onGameOverProp(finalScore);
     }
   };
