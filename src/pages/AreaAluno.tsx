@@ -2133,22 +2133,24 @@ export default function AreaAluno() {
                         <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
                       </button>
 
-                      {/* App 5: Cifras Musicais (Cifra Master Space) */}
-                      <button 
+                      {/* App 5: Cifras Estelares (Em Manutenção) */}
+                      <div 
                         onClick={() => {
-                          setIsPlayingCifrasMusicais(true);
-                          playRetroSound(880, 'square', 0.1);
+                          toast.info('🛠️ O jogo Cifras Estelares está em manutenção para melhorias! Voltaremos em breve.');
                         }}
-                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all relative"
+                        className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-80 hover:opacity-100 transition-all"
                       >
-                        <div className="w-full aspect-square bg-[#00d2ff] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl relative">
+                        <div className="w-full aspect-square bg-[#334155] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl relative">
                           🚀
-                          <span className="absolute -top-1 -right-1 bg-[#ff0055] text-white text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse">
-                            NOVO! 🔥
+                          <span className="absolute -top-1.5 -right-1 bg-[#eab308] text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse whitespace-nowrap">
+                            EM MANUTENÇÃO 🛠️
                           </span>
+                          <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center text-xl">
+                            🔒
+                          </div>
                         </div>
-                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Cifras Musicais</span>
-                      </button>
+                        <span className="text-amber-400 font-black text-[8px] uppercase tracking-widest text-center">Cifras Estelares</span>
+                      </div>
 
                       {/* App 5: Rhythm Hero (Locked) */}
                       <div className="flex flex-col items-center gap-2 opacity-50 grayscale cursor-not-allowed">
