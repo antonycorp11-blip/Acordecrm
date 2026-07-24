@@ -13,15 +13,32 @@ export function PwaModal({ alunoData, onRewardClaimed }: PwaModalProps) {
   const [isStandalone, setIsStandalone] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
 
+  const handleDismiss = () => {
+    try {
+      localStorage.setItem('acorde_pwa_modal_dismissed', 'true');
+      sessionStorage.setItem('acorde_pwa_modal_dismissed', 'true');
+    } catch (e) {}
+    setIsOpen(false);
+  };
+
   useEffect(() => {
     // Detecta se está instalado (PWA Standalone)
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     setIsStandalone(standalone);
 
-    // Se o aluno ainda não ganhou a recompensa de push, mostra o modal
+    // Se o aluno já fechou ou dispensou este aviso no dispositivo/sessão, NUNCA mais mostra automaticamente
+    if (localStorage.getItem('acorde_pwa_modal_dismissed') || sessionStorage.getItem('acorde_pwa_modal_dismissed')) {
+        setIsOpen(false);
+        return;
+    }
+
+    // Se o aluno ainda não ganhou a recompensa de push, mostra apenas no primeiro acesso
     if (alunoData && !alunoData.push_recompensado) {
-        // Mostra o modal com delay pra não assustar no loading inicial
-        const timer = setTimeout(() => setIsOpen(true), 1500);
+        const timer = setTimeout(() => {
+            if (!localStorage.getItem('acorde_pwa_modal_dismissed') && !sessionStorage.getItem('acorde_pwa_modal_dismissed')) {
+                setIsOpen(true);
+            }
+        }, 3000);
         return () => clearTimeout(timer);
     }
   }, [alunoData]);
@@ -31,6 +48,12 @@ export function PwaModal({ alunoData, onRewardClaimed }: PwaModalProps) {
   const handleClaimPush = async () => {
       setIsClaiming(true);
       try {
+          // Marca como dispensado para nunca mais aparecer
+          try {
+            localStorage.setItem('acorde_pwa_modal_dismissed', 'true');
+            sessionStorage.setItem('acorde_pwa_modal_dismissed', 'true');
+          } catch(e) {}
+
           // Dispara o opt-in do OneSignal (iOS/Android)
           await OneSignalService.forcePrompt();
           
@@ -49,10 +72,10 @@ export function PwaModal({ alunoData, onRewardClaimed }: PwaModalProps) {
           if (data.xpGanho) {
               toast.success(`🎉 SUCESSO! Você ganhou ${data.xpGanho} XP!`);
               onRewardClaimed(data.xpGanho);
-              setIsOpen(false);
+              handleDismiss();
           } else {
               toast.info('Notificações ativadas! (XP já resgatado).');
-              setIsOpen(false);
+              handleDismiss();
           }
       } catch (error) {
           console.error(error);
@@ -67,7 +90,7 @@ export function PwaModal({ alunoData, onRewardClaimed }: PwaModalProps) {
       <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-sm relative shadow-[12px_12px_0_#000] flex flex-col items-center text-center animate-in fade-in zoom-in duration-300">
         
         <button 
-          onClick={() => setIsOpen(false)}
+          onClick={handleDismiss}
           className="absolute top-2 right-2 bg-black text-white font-black px-2 py-1 border-2 border-black hover:bg-red-500 transition-colors"
         >
           X
@@ -113,7 +136,7 @@ export function PwaModal({ alunoData, onRewardClaimed }: PwaModalProps) {
                 </div>
 
                 <button 
-                    onClick={() => setIsOpen(false)}
+                    onClick={handleDismiss}
                     className="w-full bg-black text-white font-black uppercase text-xs py-3 border-4 border-black shadow-[4px_4px_0_#ff6b00] active:translate-y-1 active:shadow-none transition-all"
                 >
                     Entendi, vou instalar!

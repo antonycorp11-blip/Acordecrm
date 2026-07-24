@@ -2687,11 +2687,19 @@ export default function AreaAluno() {
             );
           })()}
 
-          {/* ===== MODAL DE MISSÃO PWA ===== */}
-          <PwaModal 
-             alunoData={alunoData} 
-             onRewardClaimed={(xp) => setAlunoData((prev: any) => ({ ...prev, xp: (prev.xp || 0) + xp, push_recompensado: true }))} 
-          />
+          {/* ===== MODAL DE MISSÃO PWA (SOMENTE NO PRIMEIRA ACESSO E FORA DE JOGOS) ===== */}
+          {!isPlayingAcordeGenius && 
+           !isPlayingChordRush && 
+           !isPlayingTriadeNinja && 
+           !isPlayingRitmoPro && 
+           !isPlayingVoiceRush && 
+           !isPlayingMetronomeBird && 
+           !isPlayingCifrasMusicais && (
+            <PwaModal 
+               alunoData={alunoData} 
+               onRewardClaimed={(xp) => setAlunoData((prev: any) => ({ ...prev, xp: (prev.xp || 0) + xp, push_recompensado: true }))} 
+            />
+          )}
 
           {/* ===== ABA: HOME (HUB INTEGRADO DO JOGADOR) ===== */}
           {activeTab === 'home' && (
