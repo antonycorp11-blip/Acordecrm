@@ -23,7 +23,8 @@ import {
   RefreshCw,
   Globe,
   Layers,
-  Target
+  Target,
+  Maximize
 } from "lucide-react";
 
 import { NoteMapping, GameState, Meteor, Laser, Particle, Star, PowerUp, PowerUpType, Boss, BossLaser } from "./types";
@@ -70,10 +71,18 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
   const [shiftAlert, setShiftAlert] = useState<{ name: string; cipher: string } | null>(null);
   const [scenarioNotice, setScenarioNotice] = useState<{ name: string; description: string } | null>(null);
 
-  // Mobile Controls States
   const [autoFire, setAutoFire] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const isShootButtonPressed = useRef(false);
   const joystickVector = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const triggerVibration = (pattern: number | number[]) => {
+    if (typeof window !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate(pattern);
+      } catch (e) {}
+    }
+  };
 
   // Scenario state (5 unique visual environments)
   const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
@@ -526,6 +535,7 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
 
   // Handle chord correct destruction logic
   const handleCorrectHit = (meteor: Meteor) => {
+    triggerVibration(22);
     audio.playExplosion();
     const targetObj = gameState.activeTarget;
     if (targetObj) {
@@ -713,6 +723,8 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
 
   // Handle wrong cipher hit
   const handleWrongHit = (meteor: Meteor) => {
+    triggerVibration([40, 30, 60]);
+    audio.playFailure();
     // Reset sustained accuracy streak on mistake!
     accuracyStreakRef.current = 0;
 
@@ -733,6 +745,7 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
       const nextLives = prev.lives - 1;
       const isOver = nextLives <= 0;
       if (isOver) {
+        triggerVibration([50, 40, 80]);
         audio.stopBGM();
         audio.setBossMode(false);
         if (onGameOverProp) {
@@ -805,7 +818,18 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
 
       const activeScenario = scenariosData[currentScenarioIndex];
 
-      // 1. CLEAR CANVAS
+      // 1. CLEAR & HIGH-DPI RETINA CANVAS SCALE
+      const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 3) : 1;
+      const targetW = Math.floor(CANVAS_WIDTH * dpr);
+      const targetH = Math.floor(CANVAS_HEIGHT * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
       ctx.fillStyle = "#020208";
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
@@ -1894,6 +1918,8 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
         damageFlash.current--;
       }
 
+      ctx.restore();
+
       gameLoopRef.current = requestAnimationFrame(loop);
     };
 
@@ -1946,7 +1972,7 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
   };
 
   return (
-    <div className="w-full max-w-full bg-[#020208] bg-cyber-grid text-white flex flex-col font-sans relative overflow-hidden select-none">
+    <div className={isFullscreen ? "fixed inset-0 z-[99999] bg-[#020208] w-screen h-screen flex flex-col font-sans overflow-hidden select-none touch-none overscroll-none" : "w-full max-w-full bg-[#020208] bg-cyber-grid text-white flex flex-col font-sans relative overflow-hidden select-none touch-none overscroll-none"}>
       
       {/* Starfield Background Layer */}
       <div className="absolute inset-0 opacity-40 pointer-events-none">
@@ -1968,12 +1994,25 @@ export default function App({ onClose, onGameOverProp }: CifrasMusicaisProps = {
                     audio.stopBGM();
                     onClose();
                   }}
-                  className="p-1.5 px-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1 mr-2"
+                  className="p-1.5 px-2.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1 mr-1"
                   title="Sair do Jogo"
                 >
                   ✕ SAIR
                 </button>
               )}
+              <button
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                id="fullscreen-toggle-btn"
+                className={`p-1.5 px-2.5 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isFullscreen 
+                    ? "bg-amber-500 border-amber-300 text-black shadow-[0_0_10px_rgba(245,158,11,0.6)] animate-pulse" 
+                    : "bg-cyan-950/40 border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/40"
+                }`}
+                title="Alternar Tela Cheia (Evita Rolar a Tela)"
+              >
+                <Maximize className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{isFullscreen ? "SAIR TELA CHEIA" : "TELA CHEIA ⛶"}</span>
+              </button>
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
                 <Music className="w-4 h-4 text-white animate-pulse" />
               </div>
