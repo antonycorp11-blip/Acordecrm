@@ -40,7 +40,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     valor_com_desconto: '' as string | number,
     data_primeira_parcela: new Date().toLocaleDateString('en-CA'),
     dia_vencimento: '10' as string | number,
-    total_parcelas: '12' as string | number,
+    total_parcelas: '6' as string | number,
     is_emusys_legacy: false,
     emusys_original_aulas: 48,
     emusys_aulas_feitas: 0,
@@ -118,7 +118,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
           ...prev, 
           is_emusys_legacy: isLegacy,
           valor_parcela: selectedPacote.valor_mensal || 0,
-          total_parcelas: selectedPacote.total_parcelas || 12
+          total_parcelas: selectedPacote.total_parcelas || prev.total_parcelas || 6
         }));
       }
     }
@@ -349,26 +349,42 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                   ))}
                 </div>
                 {formData.pacote_id && (
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                        <div className="bg-white border border-black p-2">
-                            <label className="block text-[7px] font-bold uppercase">Valor Cheio (R$)</label>
-                            <input 
-                                type="number" 
-                                className="w-full bg-transparent border-none text-[10px] font-black outline-none" 
-                                value={formData.valor_parcela}
-                                onChange={(e) => setFormData({...formData, valor_parcela: e.target.value})}
-                            />
-                        </div>
-                        <div className="bg-white border border-black p-2">
-                            <label className="block text-[7px] font-bold uppercase text-green-700">Valor c/ Desconto (R$)</label>
-                            <input 
-                                type="number" 
-                                className="w-full bg-transparent border-none text-[10px] font-black outline-none" 
-                                value={formData.valor_com_desconto}
-                                onChange={(e) => setFormData({...formData, valor_com_desconto: e.target.value})}
-                                placeholder="---"
-                            />
-                        </div>
+                    <div className="mt-4 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-white border border-black p-2">
+                              <label className="block text-[7px] font-bold uppercase">Valor Cheio (R$)</label>
+                              <input 
+                                  type="number" 
+                                  className="w-full bg-transparent border-none text-[10px] font-black outline-none" 
+                                  value={formData.valor_parcela}
+                                  onChange={(e) => setFormData({...formData, valor_parcela: e.target.value})}
+                              />
+                          </div>
+                          <div className="bg-white border border-black p-2">
+                              <label className="block text-[7px] font-bold uppercase text-green-700">Valor c/ Desconto (R$)</label>
+                              <input 
+                                  type="number" 
+                                  className="w-full bg-transparent border-none text-[10px] font-black outline-none" 
+                                  value={formData.valor_com_desconto}
+                                  onChange={(e) => setFormData({...formData, valor_com_desconto: e.target.value})}
+                                  placeholder="---"
+                              />
+                          </div>
+                      </div>
+                      <div className="bg-white border border-black p-2">
+                          <label className="block text-[7px] font-bold uppercase text-purple-700">Duração do Contrato (Parcelas)</label>
+                          <select 
+                              className="w-full bg-transparent border-none text-[10px] font-black outline-none cursor-pointer"
+                              value={formData.total_parcelas}
+                              onChange={(e) => setFormData({...formData, total_parcelas: e.target.value})}
+                          >
+                              <option value="6">6 Meses (6 Parcelas)</option>
+                              <option value="12">12 Meses (12 Parcelas)</option>
+                              <option value="1">1 Mês (Avulso / Mensal)</option>
+                              <option value="3">3 Meses (Trimestral)</option>
+                              <option value="24">24 Meses (24 Parcelas)</option>
+                          </select>
+                      </div>
                     </div>
                 )}
                 <div className="mt-2 bg-white border border-black p-2">

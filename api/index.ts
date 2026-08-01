@@ -730,8 +730,18 @@ async function startServer() {
             const { pontos, jogo } = req.body;
             if (!pontos) return res.status(400).json({ error: 'Pontos não informados' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', email).single();
-            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+            let { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', email).maybeSingle();
+            let isProf = false;
+
+            if (!aluno) {
+                const { data: prof } = await supabase.from('professores').select('id, nome, xp, acorde_coins').ilike('email', email).maybeSingle();
+                if (prof) {
+                    aluno = prof;
+                    isProf = true;
+                }
+            }
+
+            if (!aluno) return res.status(404).json({ error: 'Usuário não encontrado' });
 
             let finalPontos = Number(pontos);
             if ((global as any).doublePointsGame === jogo) {
@@ -750,12 +760,15 @@ async function startServer() {
             const novoXp = (Number(aluno.xp) || 0) + finalPontos;
             const novasMoedas = (Number(aluno.acorde_coins) || 0) + finalPontos;
             
-            await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
-
-            // Adiciona no feed
-            const jogoNomeFormatado = jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'UM JOGO';
-            const feedMsg = `${aluno.nome} ganhou +${finalPontos} XP e Coins em ${jogoNomeFormatado}! 🎮`;
-            await addToFeed(aluno.id, 'jogo', feedMsg, '🎮');
+            if (isProf) {
+                await supabase.from('professores').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+            } else {
+                await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+                // Adiciona no feed
+                const jogoNomeFormatado = jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'UM JOGO';
+                const feedMsg = `${aluno.nome} ganhou +${finalPontos} XP e Coins em ${jogoNomeFormatado}! 🎮`;
+                await addToFeed(aluno.id, 'jogo', feedMsg, '🎮');
+            }
 
             res.json({ success: true, novoXp, novasMoedas, finalPontos, jogosDaoXp });
         } catch (error: any) {
@@ -772,8 +785,18 @@ async function startServer() {
             const { preco, item_id } = req.body;
             if (!preco) return res.status(400).json({ error: 'Preço não informado' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, acorde_coins, avatar_inventory').eq('email', email).single();
-            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+            let { data: aluno } = await supabase.from('alunos').select('id, acorde_coins, avatar_inventory').ilike('email', email).maybeSingle();
+            let isProf = false;
+
+            if (!aluno) {
+                const { data: prof } = await supabase.from('professores').select('id, acorde_coins, avatar_inventory').ilike('email', email).maybeSingle();
+                if (prof) {
+                    aluno = prof;
+                    isProf = true;
+                }
+            }
+
+            if (!aluno) return res.status(404).json({ error: 'Usuário não encontrado' });
 
             const precoNum = Number(preco);
             if ((Number(aluno.acorde_coins) || 0) < precoNum) {
@@ -784,9 +807,15 @@ async function startServer() {
             const currentInventory = Array.isArray(aluno.avatar_inventory) ? aluno.avatar_inventory : [];
             const newInventory = item_id && !currentInventory.includes(item_id) ? [...currentInventory, item_id] : currentInventory;
 
-            await supabase.from('alunos')
-                .update({ acorde_coins: novasMoedas, avatar_inventory: newInventory })
-                .eq('id', aluno.id);
+            if (isProf) {
+                await supabase.from('professores')
+                    .update({ acorde_coins: novasMoedas, avatar_inventory: newInventory })
+                    .eq('id', aluno.id);
+            } else {
+                await supabase.from('alunos')
+                    .update({ acorde_coins: novasMoedas, avatar_inventory: newInventory })
+                    .eq('id', aluno.id);
+            }
 
             res.json({ success: true, novasMoedas, inventory: newInventory });
         } catch (error: any) {
@@ -1030,7 +1059,7 @@ async function startServer() {
                   "TOLERÂNCIA: Limite de 15 minutos de atraso, sem reposição do tempo perdido, encerrando-se a aula no horário previsto original.",
                   "DADOS E IMAGEM: Dados tratados conforme LGPD. Autoriza-se o uso de imagem do aluno para fins institucionais da escola, salvo oposição formal por escrito.",
                   "EQUIPAMENTOS: O contratante responsabiliza-se pelo ressarcimento de danos aos equipamentos da escola causados por mau uso. Exclui-se o desgaste natural.",
-                  "RESCISÃO PELO ALUNO: Vigência de 12 meses. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
+                  "RESCISÃO PELO ALUNO: Vigência pelo período contratado. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
                   "NORMAS E RESCISÃO PELA ESCOLA: Exige-se respeito às normas. Inadimplência, mau comportamento ou danos ao patrimônio podem gerar advertência ou rescisão imediata do contrato pela escola.",
                   "PROFESSORES: A escola reserva-se o direito de substituir professores, horários ou alterar metodologias, não justificando cancelamento isento de multa.",
                   "FORO: Eleito o foro da Comarca de Cuiabá-MT para dirimir controvérsias judiciais decorrentes deste contrato."
@@ -1043,7 +1072,10 @@ async function startServer() {
             const valorPlano = matricula?.valor_parcela || '370';
             const diaVencimento = matricula?.dia_vencimento || '10';
             const qtdParcelas = matricula?.total_parcelas || '6';
-            const clausulasHtml = clausulas.map((c: string, idx: number) => `<p style="margin-bottom: 10px;"><strong>Cláusula ${idx + 1}ª.</strong> ${c}</p>`).join('');
+            const clausulasHtml = clausulas.map((c: string, idx: number) => {
+                let text = c.replace(/Vigência de 12 \(doze\) meses/gi, `Vigência de ${qtdParcelas} meses`).replace(/Vigência de 12 meses/gi, `Vigência de ${qtdParcelas} meses`);
+                return `<p style="margin-bottom: 10px;"><strong>Cláusula ${idx + 1}ª.</strong> ${text}</p>`;
+            }).join('');
             
             const dataAtual = new Date();
             const mesesStr = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -1161,10 +1193,10 @@ async function startServer() {
                 nome, email, telefone, cpf, endereco, 
                 responsavel_nome, responsavel_telefone, 
                 curso_id, dia_semana, horario,
-                valor_parcela, valor_com_desconto, dia_vencimento
+                valor_parcela, valor_com_desconto, dia_vencimento, total_parcelas
             } = req.body;
             
-            console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id, dia_semana, horario });
+            console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id, dia_semana, horario, total_parcelas });
 
             // 1. Atualizar Aluno (campos básicos)
             const { error: aluError } = await supabase.from('alunos')
@@ -1187,6 +1219,7 @@ async function startServer() {
             if (valor_parcela !== undefined && valor_parcela !== '') matUpdate.valor_parcela = Number(valor_parcela);
             if (valor_com_desconto !== undefined && valor_com_desconto !== '') matUpdate.valor_com_desconto = Number(valor_com_desconto);
             if (dia_vencimento !== undefined && dia_vencimento !== '') matUpdate.dia_vencimento = Number(dia_vencimento);
+            if (total_parcelas !== undefined && total_parcelas !== '' && !isNaN(Number(total_parcelas))) matUpdate.total_parcelas = Number(total_parcelas);
 
             console.log(`[MATRICULA_UPDATE] Aluno ${studentId}, payload:`, matUpdate);
 
@@ -1259,6 +1292,24 @@ async function startServer() {
                                 await supabase.from('pagamentos').update(updatePg).eq('id', pg.id);
                             }
                             console.log('[PAGAMENTOS_UPDATE] Pagamentos pendentes atualizados.');
+                        }
+                    }
+
+                    if (matUpdate.total_parcelas !== undefined) {
+                        const newTotal = matUpdate.total_parcelas;
+                        const { data: todasParc } = await supabase
+                            .from('pagamentos')
+                            .select('*')
+                            .eq('aluno_id', studentId)
+                            .eq('tipo_receita', 'mensalidade')
+                            .order('data_vencimento', { ascending: true });
+
+                        if (todasParc && todasParc.length > newTotal) {
+                            const excedentes = todasParc.slice(newTotal).filter((p: any) => p.status === 'pendente');
+                            for (const exc of excedentes) {
+                                await supabase.from('pagamentos').delete().eq('id', exc.id);
+                            }
+                            console.log(`[PAGAMENTOS_UPDATE] Removidas ${excedentes.length} parcelas excedentes.`);
                         }
                     }
 

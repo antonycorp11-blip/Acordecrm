@@ -25,7 +25,7 @@ const CLAUSULAS_FALLBACK = [
   "TOLERÂNCIA: Limite de 15 minutos de atraso, sem reposição do tempo perdido, encerrando-se a aula no horário previsto original.",
   "DADOS E IMAGEM: Dados tratados conforme LGPD. Autoriza-se o uso de imagem do aluno para fins institucionais da escola, salvo oposição formal por escrito.",
   "EQUIPAMENTOS: O contratante responsabiliza-se pelo ressarcimento de danos aos equipamentos da escola causados por mau uso. Exclui-se o desgaste natural.",
-  "RESCISÃO PELO ALUNO: Vigência de 12 meses. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
+  "RESCISÃO PELO ALUNO: Vigência pelo período contratado. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
   "NORMAS E RESCISÃO PELA ESCOLA: Exige-se respeito às normas. Inadimplência, mau comportamento ou danos ao patrimônio podem gerar advertência ou rescisão imediata do contrato pela escola.",
   "PROFESSORES: A escola reserva-se o direito de substituir professores, horários ou alterar metodologias, não justificando cancelamento isento de multa.",
   "FORO: Eleito o foro da Comarca de Cuiabá-MT para dirimir controvérsias judiciais decorrentes deste contrato."
@@ -354,9 +354,10 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
           </div>
 
           <div style={{ textAlign: 'justify', marginBottom: '20px' }}>
-            {clausulas.map((c, i) => (
-              <p key={i} style={{ marginBottom: '10px' }}><strong>Cláusula {i + 1}ª.</strong> {c}</p>
-            ))}
+            {clausulas.map((c, i) => {
+              const cFormatted = c.replace(/Vigência de 12 \(doze\) meses/gi, `Vigência de ${qtdParcelas} meses`).replace(/Vigência de 12 meses/gi, `Vigência de ${qtdParcelas} meses`);
+              return <p key={i} style={{ marginBottom: '10px' }}><strong>Cláusula {i + 1}ª.</strong> {cFormatted}</p>;
+            })}
             <p style={{ marginBottom: '10px' }}>
               <strong>Cláusula {clausulas.length + 1}ª.</strong> Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor certo e ajustado de <strong>R$ {valorPlano}</strong> por mensalidade, com vencimento todo dia <strong>{diaVencimento}</strong> de cada mês, durante o plano de <strong>{qtdParcelas} meses</strong>.
             </p>

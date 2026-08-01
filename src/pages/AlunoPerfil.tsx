@@ -907,6 +907,7 @@ export default function AlunoPerfil() {
                 valor_parcela: m?.valor_parcela || '',
                 valor_com_desconto: m?.valor_com_desconto || '',
                 dia_vencimento: m?.dia_vencimento || '',
+                total_parcelas: m?.total_parcelas || 6,
                 dia_semana: m?.dia_semana !== undefined && m?.dia_semana !== null ? m.dia_semana : '',
                 horario: m?.horario || ''
               });
@@ -1246,6 +1247,7 @@ export default function AlunoPerfil() {
                      { label: 'VALOR_MENSALIDADE', key: 'valor_parcela' },
                      { label: 'VALOR_PONTUALIDADE', key: 'valor_com_desconto' },
                      { label: 'DIA_VENCIMENTO', key: 'dia_vencimento' },
+                     { label: 'QTD_PARCELAS_CONTRATO', key: 'total_parcelas' },
                    ].map(field => (
                      <div key={field.key} className={field.colSpan ? 'md:col-span-2' : ''}>
                         <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">{field.label}</label>

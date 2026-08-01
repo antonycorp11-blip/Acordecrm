@@ -44,6 +44,10 @@ import { MusiclassTools } from '../components/musiclass/MusiclassTools';
 import { ChordRush } from '../components/jogos/ChordRush';
 import { TriadeNinja } from '../components/jogos/TriadeNinja';
 import MetronomeBird from '../components/jogos/metronome-flappy-bird/App';
+import { RitmoPro } from '../components/jogos/ritmo-pro/App';
+import { VoiceRush } from '../components/jogos/voice-rush/App';
+import CifrasMusicais from '../components/jogos/cifras-musicais/App';
+import { AvatarStore } from '../components/AvatarStore';
 import { getPedagogicalSuggestion } from '../lib/pedagogicalAI';
 import PerfilEstudanteModal, { resolveTrophyImage } from '../components/PerfilEstudanteModal';
 import { AvatarPixel } from '../components/AvatarPixel';
@@ -313,15 +317,68 @@ export default function AreaProfessor() {
   const [doublePointsGame, setDoublePointsGame] = useState<string | null>(null);
 
   // Estados dos Jogos
+  const [showAvatarStore, setShowAvatarStore] = useState(false);
   const [isPlayingAcordeGenius, setIsPlayingAcordeGenius] = useState(false);
   const [isPlayingChordRush, setIsPlayingChordRush] = useState(false);
   const [isPlayingTriadeNinja, setIsPlayingTriadeNinja] = useState(false);
   const [isPlayingMetronomeBird, setIsPlayingMetronomeBird] = useState(false);
+  const [isPlayingRitmoPro, setIsPlayingRitmoPro] = useState(false);
+  const [isPlayingVoiceRush, setIsPlayingVoiceRush] = useState(false);
+  const [isPlayingCifrasMusicais, setIsPlayingCifrasMusicais] = useState(false);
   const [geniusState, setGeniusState] = useState<'idle' | 'playback' | 'playing' | 'gameover'>('idle');
   const [geniusSequence, setGeniusSequence] = useState<number[]>([]);
   const [geniusUserSequence, setGeniusUserSequence] = useState<number[]>([]);
   const [geniusScore, setGeniusScore] = useState(0);
   const [geniusActivePad, setGeniusActivePad] = useState<number | null>(null);
+
+  const acordeCoins = Number(professorData?.acorde_coins) || Number(professorData?.xp) || 0;
+  const avatarInventory = Array.isArray(professorData?.avatar_inventory) ? professorData.avatar_inventory : [];
+
+  const handleAddXp = async (pontosGanhos: number, jogo: string) => {
+    try {
+      const response = await fetch('/api/gamificacao/add-xp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
+        },
+        body: JSON.stringify({ pontos: pontosGanhos, jogo })
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+
+      setProfessorData((prev: any) => ({ ...prev, xp: data.novoXp, acorde_coins: data.novasMoedas }));
+      toast.success(`✨ +${data.finalPontos || pontosGanhos} Acorde Coins (${jogo})!`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao salvar pontos!');
+    }
+  };
+
+  const handleSpendXp = async (preco: number, itemId: string) => {
+    try {
+      const response = await fetch('/api/gamificacao/spend-xp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
+        },
+        body: JSON.stringify({ preco, item_id: itemId })
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+
+      setProfessorData((prev: any) => ({ 
+        ...prev, 
+        acorde_coins: data.novasMoedas, 
+        avatar_inventory: data.inventory || [...(prev?.avatar_inventory || []), itemId] 
+      }));
+      toast.success('Item comprado com sucesso! Ele já está no seu Armário.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao comprar item!');
+    }
+  };
 
   // Histórico Financeiro
   const [isFinanceiroModalOpen, setIsFinanceiroModalOpen] = useState(false);
@@ -3405,45 +3462,59 @@ export default function AreaProfessor() {
                     )}
                   </div>
                 </div>
-
-                {/* Banner Decorativo */}
-                <div className="bg-[#feccba] border-8 border-black p-6 rounded-none text-center transform -rotate-1 shadow-[8px_8px_0_#000]">
-                  <div className="w-12 h-12 bg-black text-[#ff6b00] rounded-none border-4 border-black flex items-center justify-center mx-auto mb-3 shadow-[4px_4px_0_#000]">
-                    <Sparkles className="w-6 h-6 text-[#ff6b00]" />
-                  </div>
-                  <h3 className="font-black text-black text-sm uppercase italic">DIÁRIO MUSICLASS ⚡</h3>
-                  <p className="text-[#8e7164] font-bold text-[9px] uppercase tracking-wider mt-2">
-                    Envie feedbacks das aulas, crie desafios e anexe mídias na hora. Tudo vai direto para a Área do Aluno!
-                  </p>
-                </div>
-              </>
-            )}
-
-            {activeProfessorTab === 'jogos' && (
+{activeProfessorTab === 'jogos' && (
               <div className="px-4 py-5 space-y-6">
+                {/* Cabeçalho da Galeria */}
                 <div className="flex items-center gap-3">
                   <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
                     <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
-                      🕹️ FLIPERAMA ACORDE (MODO PROFESSOR)
+                      🕹️ FLIPERAMA ACORDE
                     </h3>
                   </div>
                   <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
                 </div>
 
-                {!isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingMetronomeBird ? (
+                {showAvatarStore ? (
+                  <AvatarStore 
+                    xp={acordeCoins}
+                    pontos={acordeCoins}
+                    unlockedItems={avatarInventory}
+                    onClose={() => setShowAvatarStore(false)}
+                    onBuy={(itemId, price) => handleSpendXp(price, itemId)}
+                    onConvertXp={(amountXp, points) => {
+                      toast.error('A conversão de XP não é mais necessária!');
+                    }}
+                  />
+                ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingRitmoPro && !isPlayingVoiceRush && !isPlayingMetronomeBird && !isPlayingCifrasMusicais ? (
                   <>
-                    <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
-                      <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest">
-                        ÁREA DE TESTES 
-                      </p>
-                      <p className="text-white/50 font-black text-[7px] uppercase mt-1">
-                        Jogue à vontade! Os pontos não são acumulados no modo professor. Use para testar e recomendar aos alunos!
-                      </p>
+                    {/* Botão de Acesso à Loja */}
+                    <div 
+                      onClick={() => setShowAvatarStore(true)}
+                      className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] transition-all relative group overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-[10px_10px_0_#000]"
+                    >
+                      <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-[#ffeb3b] border-4 border-black flex items-center justify-center text-2xl shadow-[2px_2px_0_#000]">
+                            🛒
+                          </div>
+                          <div>
+                            <h3 className="text-black font-black text-sm uppercase tracking-widest">LOJA DE ITENS</h3>
+                            <p className="text-[#8e7164] font-black text-[9px] uppercase mt-0.5">Compre cabelos, roupas e acessórios!</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="bg-[#feccba] border-4 border-black px-2 py-1 flex items-center justify-center font-black text-xs text-[#3d2d26] shadow-[2px_2px_0_#000]">
+                            💰 {acordeCoins} COINS
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
+                    {/* Painel de Controle de Evento do Professor */}
                     <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
                       <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest mb-3">
-                        🎁 EVENTO DE PONTOS EM DOBRO
+                        🎁 EVENTO DE PONTOS EM DOBRO (PAINEL DO PROFESSOR)
                       </p>
                       <div className="flex flex-wrap gap-2 justify-center">
                         <button 
@@ -3464,117 +3535,99 @@ export default function AreaProfessor() {
                       </div>
                     </div>
 
-                    <div className="space-y-4 pt-2">
-                      <div className="grid grid-cols-1 gap-4">
-                        {/* Jogo 1: Genius */}
-                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="bg-[#ff6b00] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
-                                DISPONÍVEL 🎮
-                              </span>
-                              <h3 className="text-black font-black text-xs uppercase tracking-tight">
-                                ACORDE GENIUS (8-BIT)
-                              </h3>
+                    {/* Grid de Aplicativos (Jogos) */}
+                    <div className="pt-2">
+                      <div className="flex items-center gap-3 mb-4">
+                        <h4 className="text-white font-black text-[10px] uppercase tracking-widest">MINI JOGOS (APPS)</h4>
+                        <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+                      </div>
+
+                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
+                        
+                        {/* App 1: Genius */}
+                        <button 
+                          onClick={() => {
+                            setIsPlayingAcordeGenius(true);
+                            playRetroSound(880, 'square', 0.1);
+                          }}
+                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
+                        >
+                          <div className="w-full aspect-square bg-[#ff6b00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
+                            🕹️
+                          </div>
+                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Acorde Genius</span>
+                        </button>
+
+                        {/* App 2: Chord Rush */}
+                        <button 
+                          onClick={() => {
+                            setIsPlayingChordRush(true);
+                            playRetroSound(880, 'square', 0.1);
+                          }}
+                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
+                        >
+                          <div className="w-full aspect-square bg-[#00ff66] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
+                            🎸
+                          </div>
+                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Chord Rush</span>
+                        </button>
+
+                        {/* App 3: Triade Ninja */}
+                        <button 
+                          onClick={() => {
+                            setIsPlayingTriadeNinja(true);
+                            playRetroSound(880, 'square', 0.1);
+                          }}
+                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
+                        >
+                          <div className="w-full aspect-square bg-[#a855f7] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
+                            ⚔️
+                          </div>
+                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Triade Ninja</span>
+                        </button>
+
+                        {/* App 4: MetroBird */}
+                        <button 
+                          onClick={() => {
+                            setIsPlayingMetronomeBird(true);
+                            playRetroSound(880, 'square', 0.1);
+                          }}
+                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all relative"
+                        >
+                          <div className="w-full aspect-square bg-[#ff5f00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl relative">
+                            🐦
+                            <span className="absolute -top-1 -right-1 bg-[#00ff66] text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse">
+                              NOVO! 🔥
+                            </span>
+                          </div>
+                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
+                        </button>
+
+                        {/* App 5: Cifras Estelares (Em Manutenção) */}
+                        <div 
+                          onClick={() => {
+                            toast.info('🛠️ O jogo Cifras Estelares está em manutenção para melhorias! Voltaremos em breve.');
+                          }}
+                          className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-80 hover:opacity-100 transition-all"
+                        >
+                          <div className="w-full aspect-square bg-[#334155] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl relative">
+                            🚀
+                            <span className="absolute -top-1.5 -right-1 bg-[#eab308] text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse whitespace-nowrap">
+                              EM MANUTENÇÃO 🛠️
+                            </span>
+                            <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center text-xl">
+                              🔒
                             </div>
                           </div>
-                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
-                            Treine seu ouvido musical repetindo as sequências.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setIsPlayingAcordeGenius(true);
-                              playRetroSound(880, 'square', 0.1);
-                              setTimeout(() => playRetroSound(1760, 'square', 0.25), 100);
-                            }}
-                            className="w-full bg-[#ff6b00] text-white hover:bg-black font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
-                          >
-                            🕹️ INICIAR PARTIDA
-                          </button>
+                          <span className="text-amber-400 font-black text-[8px] uppercase tracking-widest text-center">Cifras Estelares</span>
                         </div>
 
-                        {/* Jogo 2: Chord Rush */}
-                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="bg-[#00ff66] text-black text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
-                                NOVO! 🎸
-                              </span>
-                              <h3 className="text-black font-black text-xs uppercase tracking-tight">
-                                CHORD RUSH
-                              </h3>
-                            </div>
+                        {/* App 6: Rhythm Hero (Locked) */}
+                        <div className="flex flex-col items-center gap-2 opacity-50 grayscale cursor-not-allowed">
+                          <div className="w-full aspect-square bg-[#8e7164] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl">
+                            🔒
                           </div>
-                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
-                            Identifique as notas corretas de cada acorde antes que o tempo acabe.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setIsPlayingChordRush(true);
-                              playRetroSound(880, 'square', 0.1);
-                            }}
-                            className="w-full bg-[#00ff66] text-black hover:bg-black hover:text-[#00ff66] font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
-                          >
-                            🕹️ INICIAR PARTIDA
-                          </button>
-                        </div>
-
-                        {/* Jogo 3: Triade Ninja */}
-                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="bg-[#a855f7] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
-                                NOVO 🎮
-                              </span>
-                              <h4 className="text-black font-black text-sm uppercase italic leading-none mt-1">
-                                TRÍADE NINJA
-                              </h4>
-                            </div>
-                            <div className="w-8 h-8 bg-[#a855f7] border-4 border-black flex items-center justify-center shrink-0">
-                              <span className="text-white text-xs">⚔️</span>
-                            </div>
-                          </div>
-                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
-                            Identifique os acordes apenas por suas 3 notas. Treino de percepção teórica.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setIsPlayingTriadeNinja(true);
-                              playRetroSound(880, 'square', 0.1);
-                            }}
-                            className="w-full bg-[#a855f7] text-white hover:bg-black hover:text-[#a855f7] font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
-                          >
-                            🕹️ INICIAR PARTIDA
-                          </button>
-                        </div>
-
-                        {/* Jogo 4: Metrônomo Bird */}
-                        <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] flex flex-col gap-3 hover:translate-y-[-2px] transition-all">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="bg-[#ff5f00] text-white text-[7px] font-black uppercase px-2 py-0.5 border-2 border-black inline-block mb-1">
-                                NOVO! 🐦 (TESTES)
-                              </span>
-                              <h4 className="text-black font-black text-sm uppercase italic leading-none mt-1">
-                                METRÔNOMO BIRD
-                              </h4>
-                            </div>
-                            <div className="w-8 h-8 bg-[#ff5f00] border-4 border-black flex items-center justify-center shrink-0">
-                              <span className="text-white text-xs">🐦</span>
-                            </div>
-                          </div>
-                          <p className="text-[#8e7164] font-black text-[8px] uppercase leading-relaxed">
-                            Flappy Bird com sincronia e precisão rítmica de metrônomo 8-bit.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setIsPlayingMetronomeBird(true);
-                              playRetroSound(880, 'square', 0.1);
-                            }}
-                            className="w-full bg-[#ff5f00] text-white hover:bg-black font-black text-[8px] py-2.5 border-4 border-black uppercase tracking-widest shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer text-center"
-                          >
-                            🕹️ INICIAR PARTIDA
-                          </button>
+                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Rhythm Hero</span>
                         </div>
 
                       </div>
@@ -3584,7 +3637,7 @@ export default function AreaProfessor() {
                   <ChordRush 
                     onClose={() => setIsPlayingChordRush(false)}
                     onGameOver={(score) => {
-                      toast.info(`Fim de jogo! Pontuação: ${score}. (Modo Professor)`);
+                      if (score > 0) handleAddXp(score, 'Chord Rush');
                     }}
                     playRetroSound={playRetroSound}
                   />
@@ -3592,17 +3645,48 @@ export default function AreaProfessor() {
                   <TriadeNinja
                     onClose={() => setIsPlayingTriadeNinja(false)}
                     onGameOver={(score) => {
-                      toast.info(`Fim de jogo! Pontuação: ${score}. (Modo Professor)`);
+                      if (score > 0) handleAddXp(score, 'Tríade Ninja');
                     }}
                     playRetroSound={playRetroSound}
                   />
+                ) : isPlayingRitmoPro ? (
+                  <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
+                    <RitmoPro 
+                      onClose={() => setIsPlayingRitmoPro(false)} 
+                      onGameOver={(score) => {
+                        if (score > 0) handleAddXp(score, 'Ritmo Pro');
+                      }} 
+                    />
+                  </div>
+                ) : isPlayingVoiceRush ? (
+                  <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
+                    <VoiceRush 
+                      onClose={() => setIsPlayingVoiceRush(false)} 
+                      onGameOver={(score) => {
+                        if (score > 0) handleAddXp(score, 'Voice Rush');
+                      }} 
+                    />
+                  </div>
                 ) : isPlayingMetronomeBird ? (
                   <div className="bg-black border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full min-h-[500px]">
                     <MetronomeBird 
-                      onClose={() => setIsPlayingMetronomeBird(false)}
+                      onClose={() => setIsPlayingMetronomeBird(false)} 
                       onGameOver={(score) => {
-                        toast.info(`Fim de jogo! Pontuação: ${score}. (Modo Professor)`);
-                      }}
+                        const safeScore = Math.max(Number(score) || 0, 0);
+                        const pontosGanhos = (safeScore * 50) + 100;
+                        handleAddXp(pontosGanhos, 'Metrônomo Bird');
+                      }} 
+                    />
+                  </div>
+                ) : isPlayingCifrasMusicais ? (
+                  <div className="bg-[#020208] border-4 sm:border-8 border-[#3d2d26] shadow-[8px_8px_0_#000] w-full max-w-[500px] mx-auto overflow-hidden">
+                    <CifrasMusicais 
+                      onClose={() => setIsPlayingCifrasMusicais(false)} 
+                      onGameOverProp={(score) => {
+                        const safeScore = Math.max(Number(score) || 0, 0);
+                        const pontosGanhos = Math.max(safeScore, 100);
+                        handleAddXp(pontosGanhos, 'Cifras Musicais');
+                      }} 
                     />
                   </div>
                 ) : (
@@ -3639,7 +3723,6 @@ export default function AreaProfessor() {
                       </div>
                     </div>
 
-                    {/* Pad area simplificada para o replace não ficar imenso, o professor não precisa do pad gigante no plano de agora se quisermos economizar linhas no patch. Vou colocar os pads. */}
                     <div className="grid grid-cols-2 gap-3 max-w-[200px] mx-auto w-full mt-2">
                       <button onClick={() => handleGeniusPadClick(0)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 0 ? 'bg-[#00ff66]' : 'bg-[#006622]'}`} />
                       <button onClick={() => handleGeniusPadClick(1)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 1 ? 'bg-[#ff9900]' : 'bg-[#995c00]'}`} />
