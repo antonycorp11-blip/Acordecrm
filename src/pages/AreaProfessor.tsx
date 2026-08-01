@@ -547,6 +547,17 @@ export default function AreaProfessor() {
   const todayMonth = format(new Date(), 'MMM', { locale: ptBR }).toUpperCase();
 
   const loadData = () => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) reg.unregister();
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then((names) => {
+        for (const name of names) caches.delete(name);
+      });
+    }
+
     const token = localStorage.getItem('acorde_token');
     const headers = { 
       'Authorization': `Bearer ${token}`,
