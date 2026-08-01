@@ -3473,7 +3473,7 @@ export default function AreaProfessor() {
                     Envie feedbacks das aulas, crie desafios e anexe mídias na hora. Tudo vai direto para a Área do Aluno!
                   </p>
                 </div>
-              </div>
+              </>
             )}
 
             {activeProfessorTab === 'jogos' && (
