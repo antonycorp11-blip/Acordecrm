@@ -3462,7 +3462,21 @@ export default function AreaProfessor() {
                     )}
                   </div>
                 </div>
-{activeProfessorTab === 'jogos' && (
+
+                {/* Banner Decorativo */}
+                <div className="bg-[#feccba] border-8 border-black p-6 rounded-none text-center transform -rotate-1 shadow-[8px_8px_0_#000]">
+                  <div className="w-12 h-12 bg-black text-[#ff6b00] rounded-none border-4 border-black flex items-center justify-center mx-auto mb-3 shadow-[4px_4px_0_#000]">
+                    <Sparkles className="w-6 h-6 text-[#ff6b00]" />
+                  </div>
+                  <h3 className="font-black text-black text-sm uppercase italic">DIÁRIO MUSICLASS ⚡</h3>
+                  <p className="text-[#8e7164] font-bold text-[9px] uppercase tracking-wider mt-2">
+                    Envie feedbacks das aulas, crie desafios e anexe mídias na hora. Tudo vai direto para a Área do Aluno!
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeProfessorTab === 'jogos' && (
               <div className="px-4 py-5 space-y-6">
                 {/* Cabeçalho da Galeria */}
                 <div className="flex items-center gap-3">
