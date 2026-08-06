@@ -544,6 +544,7 @@ export default function AreaAluno() {
         
         if (alunoData?.id) {
           fetchTrilhaProgresso(alunoData.id);
+          fetchFinanceiroEContrato(alunoData.id);
           const headers = { 'Authorization': `Bearer ${token}` };
           const timestamp = Date.now();
           const r = await fetch(`/api/alunos/me?t=${timestamp}`, { headers });
@@ -1747,7 +1748,9 @@ export default function AreaAluno() {
           {activeTab === 'aulas' && (() => {
             // Módulos adicionais simulados (Stitch original)
             const modulosCompletos = [...trilhaModulos];
-            if (!modulosCompletos.some(m => Number(m.ordem) === 2 || m.id === 'mock-2')) {
+            modulosCompletos.sort((a, b) => (Number(a.ordem) || 0) - (Number(b.ordem) || 0));
+
+            if (modulosCompletos.length < 2 && !modulosCompletos.some(m => Number(m.ordem) === 2 || m.id === 'mock-2')) {
               modulosCompletos.push({
                 id: 'mock-2',
                 nome: 'EM PRODUÇÃO...',
@@ -1757,7 +1760,7 @@ export default function AreaAluno() {
                 prova_final: [{ id: 'mock-p2' }]
               });
             }
-            if (!modulosCompletos.some(m => Number(m.ordem) === 3 || m.id === 'mock-3')) {
+            if (modulosCompletos.length < 3 && !modulosCompletos.some(m => Number(m.ordem) === 3 || m.id === 'mock-3')) {
               modulosCompletos.push({
                 id: 'mock-3',
                 nome: 'EM PRODUÇÃO...',
@@ -1845,8 +1848,11 @@ export default function AreaAluno() {
                         const isModuloDesbloqueado = !isEmProducao && (modIdx === 0 || (() => {
                           const modAnterior = modulosCompletos[modIdx - 1];
                           const aulasModAnterior = aulasCompletas.filter(a => String(a.modulo_id) === String(modAnterior.id));
-                          const todasConcluidas = aulasModAnterior.length > 0 && aulasModAnterior.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id)));
-                          const provaConcluida = !modAnterior.prova_final || (Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0) || (alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id)));
+                          const todasConcluidas = aulasModAnterior.length === 0 || aulasModAnterior.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id)));
+                          const provaConcluida = !modAnterior.prova_final || 
+                            (Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0) || 
+                            (alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id))) ||
+                            (alunoEadProgresso?.questionariosAprovados?.some((q: any) => Number(q.moduloTrilhaId || q.modulo_trilha_id || q.modulo_id) === Number(modAnterior.id)));
                           return todasConcluidas && provaConcluida;
                         })());
 

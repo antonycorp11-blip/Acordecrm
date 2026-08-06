@@ -86,6 +86,87 @@ const fetchAllGamificacaoProgresso = async (supabaseClient: any) => {
     return allData;
 };
 
+let hasSyncedProvaTrophies = false;
+const syncProvaTrophiesAndScores = async (supabaseClient: any) => {
+    try {
+        const { data: modulos } = await supabaseClient.from('modulos_trilha').select('id, nome, conquista_id');
+        const { data: aulas } = await supabaseClient.from('aulas_trilha').select('id, titulo, conquista_id');
+        const { data: conquistas } = await supabaseClient.from('gamificacao_conquistas').select('*');
+
+        if (!conquistas || conquistas.length === 0) return;
+
+        const modConqIds = new Set((modulos || []).map((m: any) => Number(m.conquista_id)).filter(Boolean));
+        const aulConqIds = new Set((aulas || []).map((a: any) => Number(a.conquista_id)).filter(Boolean));
+
+        const provaKeywords = ['prova', 'desafio', 'módulo', 'modulo', 'questionario', 'questionário', 'ead', 'exame', 'teste', 'quiz'];
+
+        const provaConqIdsToUpdate: number[] = [];
+
+        conquistas.forEach((c: any) => {
+            const cid = Number(c.id);
+            const isLinkedToModOrAula = modConqIds.has(cid) || aulConqIds.has(cid);
+            const titleOrDesc = `${c.nome || ''} ${c.descricao || ''}`.toLowerCase();
+            const isMatchKeyword = provaKeywords.some(kw => titleOrDesc.includes(kw));
+
+            if (isLinkedToModOrAula || isMatchKeyword) {
+                if (Number(c.pontos) !== 20000) {
+                    provaConqIdsToUpdate.push(cid);
+                }
+            }
+        });
+
+        if (provaConqIdsToUpdate.length > 0) {
+            console.log(`[SYNC PROVA TROPHIES] Updating ${provaConqIdsToUpdate.length} test trophies to 20.000 points...`);
+            await supabaseClient
+                .from('gamificacao_conquistas')
+                .update({ pontos: 20000 })
+                .in('id', provaConqIdsToUpdate);
+        }
+
+        // Garantir retroativamente que todo aluno que passou em uma prova (tentativas_questionario_trilha com aprovado = true) tenha o troféu no seu progresso
+        const { data: tentativas } = await supabaseClient
+            .from('tentativas_questionario_trilha')
+            .select('aluno_id, modulo_trilha_id, aula_trilha_id')
+            .eq('aprovado', true);
+
+        if (tentativas && tentativas.length > 0) {
+            const { data: currentProgresso } = await supabaseClient
+                .from('gamificacao_progresso')
+                .select('aluno_id, conquista_id');
+
+            const existingUserConqSet = new Set(
+                (currentProgresso || []).map((p: any) => `${p.aluno_id}_${p.conquista_id}`)
+            );
+
+            const inserts: { aluno_id: number; conquista_id: number }[] = [];
+
+            for (const tent of tentativas) {
+                let targetConqId: number | null = null;
+                if (tent.modulo_trilha_id) {
+                    const mod = (modulos || []).find((m: any) => Number(m.id) === Number(tent.modulo_trilha_id));
+                    if (mod?.conquista_id) targetConqId = Number(mod.conquista_id);
+                } else if (tent.aula_trilha_id) {
+                    const aul = (aulas || []).find((a: any) => Number(a.id) === Number(tent.aula_trilha_id));
+                    if (aul?.conquista_id) targetConqId = Number(aul.conquista_id);
+                }
+
+                if (targetConqId && !existingUserConqSet.has(`${tent.aluno_id}_${targetConqId}`)) {
+                    inserts.push({ aluno_id: tent.aluno_id, conquista_id: targetConqId });
+                    existingUserConqSet.add(`${tent.aluno_id}_${targetConqId}`);
+                }
+            }
+
+            if (inserts.length > 0) {
+                console.log(`[SYNC PROVA TROPHIES] Granting ${inserts.length} missing retroactive test trophies to students...`);
+                await supabaseClient.from('gamificacao_progresso').insert(inserts);
+            }
+        }
+        hasSyncedProvaTrophies = true;
+    } catch (err) {
+        console.error('[SYNC PROVA TROPHIES ERROR]:', err);
+    }
+};
+
 const addToFeed = async (aluno_id: number, tipo: string, mensagem: string, icone: string) => {
     try {
         await supabase.from('feed_atividades').insert([{
@@ -3509,6 +3590,7 @@ async function startServer() {
 
     app.get('/api/gamificacao/ranking', async (req, res) => {
         try {
+            await syncProvaTrophiesAndScores(supabase);
             // Buscar alunos ativos (exclui arquivados e testes)
             const { data: alunos, error: alunosError } = await supabase
                 .from('alunos')
@@ -4779,7 +4861,50 @@ ${textoBruto}
                             .upsert([{ aluno_id: aluno.id, aula_id: aulaId }], { onConflict: 'aluno_id,aula_id' });
                     }
 
+                    // Se a aula ou módulo não tem conquistaId vinculado, tentar encontrar ou criar um troféu de 20.000 pontos
+                    if (!conquistaId) {
+                        const nomeTrofeu = `Troféu Desafio: ${tituloReferencia}`;
+                        const { data: existingConq } = await supabase
+                            .from('gamificacao_conquistas')
+                            .select('id')
+                            .eq('nome', nomeTrofeu)
+                            .maybeSingle();
+
+                        if (existingConq) {
+                            conquistaId = existingConq.id;
+                        } else {
+                            const { data: newConq } = await supabase
+                                .from('gamificacao_conquistas')
+                                .insert([{
+                                    nome: nomeTrofeu,
+                                    descricao: `Conquistado ao passar na prova/desafio: ${tituloReferencia}`,
+                                    pontos: 20000,
+                                    classe: 'Lendario',
+                                    instrumento: 'EAD'
+                                }])
+                                .select('id')
+                                .single();
+                            if (newConq) {
+                                conquistaId = newConq.id;
+                            }
+                        }
+
+                        if (conquistaId) {
+                            if (aulaId) {
+                                await supabase.from('aulas_trilha').update({ conquista_id: conquistaId }).eq('id', aulaId);
+                            } else if (moduloId) {
+                                await supabase.from('modulos_trilha').update({ conquista_id: conquistaId }).eq('id', moduloId);
+                            }
+                        }
+                    }
+
                     if (conquistaId) {
+                        // Garantir que a conquista de prova valha 20.000 pontos no ranking
+                        await supabase
+                            .from('gamificacao_conquistas')
+                            .update({ pontos: 20000 })
+                            .eq('id', conquistaId);
+
                         const { data: existConq } = await supabase
                             .from('gamificacao_progresso')
                             .select('*')
@@ -4802,7 +4927,7 @@ ${textoBruto}
                             await addToFeed(
                                 aluno.id,
                                 'novo_trofeu',
-                                `Conquistou o troféu "${conqData?.nome || 'Medalha EAD'}"! 🏆`,
+                                `Conquistou o troféu "${conqData?.nome || 'Medalha EAD'}" (+20.000 pts)! 🏆`,
                                 '🏆'
                             );
                         }
