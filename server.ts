@@ -5046,17 +5046,38 @@ ${textoBruto}
                 return res.status(400).json({ error: 'Nenhum questionário cadastrado para esta referência.' });
             }
 
-            // Calcula acertos
+            const { perguntas_sorteadas } = req.body;
+
+            // Determina as perguntas avaliadas (caso haja perguntas sorteadas pelo frontend)
+            let questionsToEvaluate: any[] = [];
+            if (Array.isArray(perguntas_sorteadas) && perguntas_sorteadas.length > 0) {
+                questionsToEvaluate = perguntas_sorteadas
+                    .map((idx: number) => ({ q: gabaQuestions[idx], origIdx: idx }))
+                    .filter((item: any) => item.q !== undefined);
+            }
+
+            if (questionsToEvaluate.length === 0) {
+                questionsToEvaluate = gabaQuestions.map((q: any, idx: number) => ({ q, origIdx: idx }));
+            }
+
             let acertos = 0;
-            gabaQuestions.forEach((q, idx) => {
-                const respAluno = respostas[idx];
+            questionsToEvaluate.forEach((item: any, i: number) => {
+                const q = item.q;
+                const origIdx = item.origIdx;
+                
+                // Tenta encontrar a resposta do aluno por origIdx, string origIdx, ou índice da lista de sorteadas
+                let respAluno = respostas[origIdx];
+                if (respAluno === undefined) respAluno = respostas[String(origIdx)];
+                if (respAluno === undefined) respAluno = respostas[i];
+
                 const respCorreta = q.resposta_correta_idx !== undefined ? q.resposta_correta_idx : q.resposta_correta;
-                if (Number(respAluno) === Number(respCorreta)) {
+                if (respAluno !== undefined && Number(respAluno) === Number(respCorreta)) {
                     acertos++;
                 }
             });
 
-            const nota = Math.round((acertos / gabaQuestions.length) * 100);
+            const totalAvaliado = questionsToEvaluate.length;
+            const nota = totalAvaliado > 0 ? Math.round((acertos / totalAvaliado) * 100) : 0;
             const aprovado = nota >= 80;
 
             let xpGanhos = 0;
@@ -5108,7 +5129,7 @@ ${textoBruto}
                         }
                     }
 
-                    let existConq = null;
+                    let alreadyDone = false;
                     if (conquistaId) {
                         await supabase
                             .from('gamificacao_conquistas')
@@ -5121,10 +5142,20 @@ ${textoBruto}
                             .eq('aluno_id', aluno.id)
                             .eq('conquista_id', conquistaId)
                             .maybeSingle();
-                        existConq = found;
+                        if (found) alreadyDone = true;
                     }
 
-                    const isRetake = Boolean(existConq);
+                    if (aulaId) {
+                        const { data: pTrilha } = await supabase
+                            .from('progresso_trilha')
+                            .select('*')
+                            .eq('aluno_id', aluno.id)
+                            .eq('aula_id', aulaId)
+                            .maybeSingle();
+                        if (pTrilha) alreadyDone = true;
+                    }
+
+                    const isRetake = alreadyDone;
                     // 1ª vez: 20.000 pontos. Refazer (2ª, 3ª... N-ésima vez): 10.000 pontos a cada vez!
                     xpGanhos = isRetake ? 10000 : 20000;
                     moedasGanhas = isRetake ? 10000 : 20000;
