@@ -23,7 +23,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PwaModal } from '../components/alunos/PwaModal';
-import { HoraDuplaBanner } from '../components/HoraDuplaBanner';
+import { HoraDuplaBanner, getHoraDuplaClientInfo } from '../components/HoraDuplaBanner';
 import { AvatarPixel } from '../components/AvatarPixel';
 import { AvatarEditor } from '../components/AvatarEditor';
 import { AvatarStore } from '../components/AvatarStore';
@@ -1201,15 +1201,20 @@ export default function AreaAluno() {
       const data = await response.json();
       if (!data.success) throw new Error(data.error);
 
-      setAlunoData((prev: any) => ({ ...prev, xp: data.novoXp, acorde_coins: data.novasMoedas }));
+      const clientInfo = getHoraDuplaClientInfo();
+      const isHoraDuplaAtiva = Boolean(data.isHoraDupla || clientInfo.isActive || (data.finalPontos && data.finalPontos > pontosGanhos));
 
-      const isHoraDuplaAtiva = data.isHoraDupla || (data.finalPontos && data.finalPontos >= pontosGanhos * 2);
+      const totalFinal = (data.finalPontos && data.finalPontos >= pontosGanhos * 2) ? data.finalPontos : (pontosGanhos * 2);
+      const pontosNormais = pontosGanhos;
+      const pontosBonus = totalFinal - pontosNormais;
+
+      setAlunoData((prev: any) => ({
+        ...prev,
+        xp: Math.max(Number(prev?.xp || 0), Number(data.novoXp || 0)),
+        acorde_coins: Math.max(Number(prev?.acorde_coins || 0), Number(data.novasMoedas || 0))
+      }));
 
       if (isHoraDuplaAtiva) {
-        const pontosNormais = pontosGanhos;
-        const pontosBonus = data.finalPontos ? (data.finalPontos - pontosGanhos) : pontosGanhos;
-        const totalFinal = data.finalPontos || (pontosGanhos * 2);
-
         setHoraDuplaModal({
           isOpen: true,
           pontosNormais,
@@ -1218,7 +1223,7 @@ export default function AreaAluno() {
           jogoNome: jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'JOGO'
         });
       } else {
-        toast.success(`✨ +${data.finalPontos} Acorde Coins e XP (${jogo})!`);
+        toast.success(`✨ +${data.finalPontos || pontosGanhos} Acorde Coins e XP (${jogo})!`);
       }
 
       fetchRanking();

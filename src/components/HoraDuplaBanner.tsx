@@ -5,7 +5,7 @@ interface HoraDuplaBannerProps {
   className?: string;
 }
 
-function getHoraDuplaClientInfo() {
+export function getHoraDuplaClientInfo() {
   const now = new Date();
   const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
   const cuiabaMs = utcMs - (4 * 3600000);
