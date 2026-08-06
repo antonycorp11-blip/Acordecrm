@@ -123,3 +123,4 @@ export const HoraDuplaBanner: React.FC<HoraDuplaBannerProps> = ({ className = ''
       )}
     </div>
   );
+};
