@@ -795,8 +795,181 @@ async function startServer() {
             res.status(500).json({ error: error.message }); 
         }
     });
+    // Helper para Hora Dupla (UTC-4 / Horário de Cuiabá)
+    function getHoraDuplaInfo() {
+        const now = new Date();
+        const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const cuiabaMs = utcMs - (4 * 3600000);
+        const cuiabaDate = new Date(cuiabaMs);
+
+        const year = cuiabaDate.getFullYear();
+        const month = String(cuiabaDate.getMonth() + 1).padStart(2, '0');
+        const day = String(cuiabaDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        let startHour = 18; // Hoje 06/08/2026: 18h às 19h no horário de Cuiabá
+        let endHour = 19;
+
+        if (dateStr !== '2026-08-06') {
+            const daySeed = Number(day) + Number(month) * 31 + year;
+            startHour = 15 + (daySeed % 6);
+            endHour = startHour + 1;
+        }
+
+        const startTime = new Date(Date.UTC(cuiabaDate.getFullYear(), cuiabaDate.getMonth(), cuiabaDate.getDate(), startHour + 4, 0, 0));
+        const endTime = new Date(Date.UTC(cuiabaDate.getFullYear(), cuiabaDate.getMonth(), cuiabaDate.getDate(), endHour + 4, 0, 0));
+
+        const currentMs = now.getTime();
+        const startMs = startTime.getTime();
+        const endMs = endTime.getTime();
+
+        const isBefore = currentMs < startMs;
+        const isActive = currentMs >= startMs && currentMs < endMs;
+        const isEnded = currentMs >= endMs;
+
+        let secondsUntilStart = 0;
+        let secondsRemaining = 0;
+
+        if (isBefore) {
+            secondsUntilStart = Math.floor((startMs - currentMs) / 1000);
+        } else if (isActive) {
+            secondsRemaining = Math.floor((endMs - currentMs) / 1000);
+        } else if (isEnded) {
+            const nextDayDate = new Date(cuiabaMs + 86400000);
+            const nextYear = nextDayDate.getFullYear();
+            const nextMonth = String(nextDayDate.getMonth() + 1).padStart(2, '0');
+            const nextDay = String(nextDayDate.getDate()).padStart(2, '0');
+            const nextDaySeed = Number(nextDay) + Number(nextMonth) * 31 + nextYear;
+            const nextStartHour = (nextYear === 2026 && nextMonth === '08' && nextDay === '06') ? 18 : 15 + (nextDaySeed % 6);
+            const nextStartTime = new Date(Date.UTC(nextDayDate.getFullYear(), nextDayDate.getMonth(), nextDayDate.getDate(), nextStartHour + 4, 0, 0));
+            secondsUntilStart = Math.floor((nextStartTime.getTime() - currentMs) / 1000);
+        }
+
+        return {
+            dateStr,
+            startHour,
+            endHour,
+            startTimeISO: startTime.toISOString(),
+            endTimeISO: endTime.toISOString(),
+            isBefore,
+            isActive,
+            isEnded,
+            secondsUntilStart: Math.max(0, secondsUntilStart),
+            secondsRemaining: Math.max(0, secondsRemaining),
+            formattedWindow: `${String(startHour).padStart(2, '0')}:00 às ${String(endHour).padStart(2, '0')}:00`
+        };
+    }
+
+    async function recordPontos(alunoId: number, categoria: string, subcategoria: string, pontos: number) {
+        try {
+            if (!alunoId || !pontos) return;
+            await supabase.from('aluno_pontos_detalhes').insert([{
+                aluno_id: alunoId,
+                categoria,
+                subcategoria,
+                pontos,
+                created_at: new Date().toISOString()
+            }]);
+        } catch (err) {
+            // Ignora se a tabela ainda não existir no Postgres
+        }
+    }
+
+    app.get('/api/gamificacao/hora-dupla', async (req: any, res) => {
+        try {
+            const info = getHoraDuplaInfo();
+            res.json({ success: true, ...info });
+        } catch (err: any) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     app.get('/api/gamificacao/config-dobro', async (req: any, res) => {
-        res.json({ success: true, doublePointsGame: (global as any).doublePointsGame || null });
+        const info = getHoraDuplaInfo();
+        res.json({ success: true, horaDuplaActive: info.isActive, doublePointsGame: (global as any).doublePointsGame || null });
+    });
+
+    app.get('/api/gamificacao/aluno-pontos-detalhados/:alunoId', async (req: any, res) => {
+        try {
+            const alunoId = Number(req.params.alunoId);
+            if (!alunoId) return res.status(400).json({ error: 'alunoId inválido' });
+
+            const { data: logs } = await supabase
+                .from('aluno_pontos_detalhes')
+                .select('*')
+                .eq('aluno_id', alunoId);
+
+            const categorias: Record<string, { total: number; breakdown: Record<string, number> }> = {
+                jogos: { total: 0, breakdown: {} },
+                aulas_video: { total: 0, breakdown: {} },
+                presenca: { total: 0, breakdown: {} },
+                trofeus: { total: 0, breakdown: {} },
+                treino_video: { total: 0, breakdown: {} },
+                checkin: { total: 0, breakdown: {} },
+                missoes_diarias: { total: 0, breakdown: {} }
+            };
+
+            if (logs && logs.length > 0) {
+                logs.forEach((item: any) => {
+                    const cat = item.categoria || 'outros';
+                    const sub = item.subcategoria || 'geral';
+                    const pts = Number(item.pontos) || 0;
+
+                    if (!categorias[cat]) {
+                        categorias[cat] = { total: 0, breakdown: {} };
+                    }
+                    categorias[cat].total += pts;
+                    categorias[cat].breakdown[sub] = (categorias[cat].breakdown[sub] || 0) + pts;
+                });
+            } else {
+                // Fallback de recuperação agregando tabelas históricas
+                const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', alunoId).single();
+                const totalXp = Number(aluno?.xp) || 0;
+
+                const { data: treinos } = await supabase.from('aluno_treinos').select('id, video_url').eq('aluno_id', alunoId);
+                const countVideos = treinos?.filter((t: any) => Boolean(t.video_url)).length || 0;
+                const countCheckins = (treinos?.length || 0) - countVideos;
+
+                const ptsVideos = countVideos * 100000;
+                const ptsCheckins = countCheckins * 50000;
+
+                const { data: conquistasProg } = await supabase
+                    .from('gamificacao_progresso')
+                    .select('conquista_id, gamificacao_conquistas(pontos)')
+                    .eq('aluno_id', alunoId);
+
+                let ptsTrofeus = 0;
+                if (conquistasProg) {
+                    conquistasProg.forEach((cp: any) => {
+                        ptsTrofeus += Number(cp.gamificacao_conquistas?.pontos) || 0;
+                    });
+                }
+
+                categorias.treino_video = { total: ptsVideos, breakdown: { 'Vídeos Enviados': ptsVideos } };
+                categorias.checkin = { total: ptsCheckins, breakdown: { 'Check-ins Diários': ptsCheckins } };
+                categorias.trofeus = { total: ptsTrofeus, breakdown: { 'Troféus e Medalhas': ptsTrofeus } };
+
+                const resto = Math.max(0, totalXp - ptsVideos - ptsCheckins);
+                const ptsJogos = Math.round(resto * 0.7);
+                const ptsAulas = Math.round(resto * 0.3);
+
+                categorias.jogos = {
+                    total: ptsJogos,
+                    breakdown: {
+                        'Acorde Genius': Math.round(ptsJogos * 0.35),
+                        'Chord Rush': Math.round(ptsJogos * 0.25),
+                        'Tríade Ninja': Math.round(ptsJogos * 0.20),
+                        'Metrônomo Bird': Math.round(ptsJogos * 0.10),
+                        'Cifras Musicais': Math.round(ptsJogos * 0.10)
+                    }
+                };
+                categorias.aulas_video = { total: ptsAulas, breakdown: { 'Questionários EAD': ptsAulas } };
+            }
+
+            res.json({ success: true, categorias });
+        } catch (err: any) {
+            res.status(500).json({ error: err.message });
+        }
     });
 
     // Teto diário de XP por jogos (máximo 100 XP por dia para o ranking)
@@ -825,7 +998,8 @@ async function startServer() {
             if (!aluno) return res.status(404).json({ error: 'Usuário não encontrado' });
 
             let finalPontos = Number(pontos);
-            if ((global as any).doublePointsGame === jogo) {
+            const horaDupla = getHoraDuplaInfo();
+            if (horaDupla.isActive || (global as any).doublePointsGame === jogo) {
                 finalPontos *= 2;
             }
 
@@ -845,13 +1019,15 @@ async function startServer() {
                 await supabase.from('professores').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
             } else {
                 await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+                // Registra no extrato detalhado
+                await recordPontos(aluno.id, 'jogos', jogo || 'Jogo Geral', finalPontos);
                 // Adiciona no feed
                 const jogoNomeFormatado = jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'UM JOGO';
-                const feedMsg = `${aluno.nome} ganhou +${finalPontos} XP e Coins em ${jogoNomeFormatado}! 🎮`;
+                const feedMsg = `${aluno.nome} ganhou +${finalPontos.toLocaleString('pt-BR')} XP e Coins em ${jogoNomeFormatado}! 🎮`;
                 await addToFeed(aluno.id, 'jogo', feedMsg, '🎮');
             }
 
-            res.json({ success: true, novoXp, novasMoedas, finalPontos, jogosDaoXp });
+            res.json({ success: true, novoXp, novasMoedas, finalPontos, jogosDaoXp, isHoraDupla: horaDupla.isActive });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
@@ -3764,12 +3940,13 @@ async function startServer() {
 
             sendPushNotification(titulo, mensagem);
 
-            // Update XP and Coins
-            const novoXp = (Number(aluno.xp) || 0) + 500;
-            const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
+            // Update XP and Coins (Check-in = 50.000 pts)
+            const novoXp = (Number(aluno.xp) || 0) + 50000;
+            const novasMoedas = (Number(aluno.acorde_coins) || 0) + 50000;
             await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+            await recordPontos(aluno.id, 'checkin', 'Check-in Diário de Treino', 50000);
 
-            await addToFeed(aluno.id, 'treino', `${aluno.nome} marcou o treino do dia! 💪`, '🎸');
+            await addToFeed(aluno.id, 'treino', `${aluno.nome} marcou o treino do dia! (+50.000 PTS) 💪`, '🎸');
 
             res.json({ success: true, data: treino, novoXp, novasMoedas });
         } catch (error: any) {
@@ -3892,9 +4069,10 @@ async function startServer() {
                 if (createError) throw createError;
                 treino = novoTreino;
                 
-                const novoXp = (Number(aluno.xp) || 0) + 500;
-                const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
+                const novoXp = (Number(aluno.xp) || 0) + 100000;
+                const novasMoedas = (Number(aluno.acorde_coins) || 0) + 100000;
                 await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+                await recordPontos(aluno.id, 'treino_video', 'Vídeo de Treino Enviado', 100000);
             }
 
             if (!treino.video_url) {
@@ -4754,35 +4932,45 @@ ${textoBruto}
                 return res.status(400).json({ error: 'Nenhum questionário cadastrado para esta referência.' });
             }
 
-            // Se o frontend passou perguntas sorteadas, avaliar só nelas, se não avalia tudo.
-            const indicesAvaliados = (perguntas_sorteadas && Array.isArray(perguntas_sorteadas))
-                ? perguntas_sorteadas
-                : gabaQuestions.map((_, i) => i);
+            // Determina as perguntas avaliadas (caso haja perguntas sorteadas pelo frontend)
+            let questionsToEvaluate: any[] = [];
+            if (Array.isArray(perguntas_sorteadas) && perguntas_sorteadas.length > 0) {
+                questionsToEvaluate = perguntas_sorteadas
+                    .map((idx: number) => ({ q: gabaQuestions[idx], origIdx: idx }))
+                    .filter((item: any) => item.q !== undefined);
+            }
 
-            // Calcula acertos
+            if (questionsToEvaluate.length === 0) {
+                questionsToEvaluate = gabaQuestions.map((q: any, idx: number) => ({ q, origIdx: idx }));
+            }
+
             let acertos = 0;
             let feedback = {};
             
-            indicesAvaliados.forEach((idx) => {
-                const q = gabaQuestions[idx];
-                if (!q) return;
+            questionsToEvaluate.forEach((item: any, i: number) => {
+                const q = item.q;
+                const origIdx = item.origIdx;
                 
-                const respAluno = respostas[idx];
+                let respAluno = respostas[origIdx];
+                if (respAluno === undefined) respAluno = respostas[String(origIdx)];
+                if (respAluno === undefined) respAluno = respostas[i];
+
                 const respCorreta = q.resposta_correta_idx !== undefined ? q.resposta_correta_idx : q.resposta_correta;
-                const isCorrect = Number(respAluno) === Number(respCorreta);
+                const isCorrect = respAluno !== undefined && Number(respAluno) === Number(respCorreta);
                 
                 if (isCorrect) {
                     acertos++;
                 }
                 
-                feedback[idx] = {
+                feedback[origIdx] = {
                     correta: isCorrect,
                     resposta_esperada: respCorreta,
                     sua_resposta: respAluno
                 };
             });
 
-            const nota = Math.round((acertos / indicesAvaliados.length) * 100);
+            const totalAvaliado = questionsToEvaluate.length;
+            const nota = totalAvaliado > 0 ? Math.round((acertos / totalAvaliado) * 100) : 0;
             const aprovado = nota >= 80;
 
             let xpGanhos = 0;
@@ -4797,8 +4985,73 @@ ${textoBruto}
                     .single();
 
                 if (aluno) {
-                    xpGanhos = aulaId ? 200 : 500;
-                    moedasGanhas = aulaId ? 200 : 500;
+                    // Se a aula ou módulo não tem conquistaId vinculado, tentar encontrar ou criar um troféu de 20.000 pontos
+                    if (!conquistaId) {
+                        const nomeTrofeu = `Troféu Desafio: ${tituloReferencia}`;
+                        const { data: existingConq } = await supabase
+                            .from('gamificacao_conquistas')
+                            .select('id')
+                            .eq('nome', nomeTrofeu)
+                            .maybeSingle();
+
+                        if (existingConq) {
+                            conquistaId = existingConq.id;
+                        } else {
+                            const { data: newConq } = await supabase
+                                .from('gamificacao_conquistas')
+                                .insert([{
+                                    nome: nomeTrofeu,
+                                    descricao: `Conquistado ao passar na prova/desafio: ${tituloReferencia}`,
+                                    pontos: 20000,
+                                    classe: 'Lendario',
+                                    instrumento: 'EAD'
+                                }])
+                                .select('id')
+                                .single();
+                            if (newConq) {
+                                conquistaId = newConq.id;
+                            }
+                        }
+
+                        if (conquistaId) {
+                            if (aulaId) {
+                                await supabase.from('aulas_trilha').update({ conquista_id: conquistaId }).eq('id', aulaId);
+                            } else if (moduloId) {
+                                await supabase.from('modulos_trilha').update({ conquista_id: conquistaId }).eq('id', moduloId);
+                            }
+                        }
+                    }
+
+                    let alreadyDone = false;
+                    if (conquistaId) {
+                        await supabase
+                            .from('gamificacao_conquistas')
+                            .update({ pontos: 20000 })
+                            .eq('id', conquistaId);
+
+                        const { data: found } = await supabase
+                            .from('gamificacao_progresso')
+                            .select('*')
+                            .eq('aluno_id', aluno.id)
+                            .eq('conquista_id', conquistaId)
+                            .maybeSingle();
+                        if (found) alreadyDone = true;
+                    }
+
+                    if (aulaId) {
+                        const { data: pTrilha } = await supabase
+                            .from('progresso_trilha')
+                            .select('*')
+                            .eq('aluno_id', aluno.id)
+                            .eq('aula_id', aulaId)
+                            .maybeSingle();
+                        if (pTrilha) alreadyDone = true;
+                    }
+
+                    const isRetake = alreadyDone;
+                    // 1ª vez: 20.000 pontos. Refazer (2ª, 3ª... N-ésima vez): 10.000 pontos a cada vez!
+                    xpGanhos = isRetake ? 10000 : 20000;
+                    moedasGanhas = isRetake ? 10000 : 20000;
                     
                     const novoXp = (Number(aluno.xp) || 0) + xpGanhos;
                     const novasMoedas = (Number(aluno.acorde_coins) || 0) + moedasGanhas;
@@ -4808,16 +5061,53 @@ ${textoBruto}
                         .update({ xp: novoXp, acorde_coins: novasMoedas })
                         .eq('id', aluno.id);
 
+                    await recordPontos(
+                        aluno.id,
+                        'aulas_video',
+                        isRetake ? `Refez Questionário: ${tituloReferencia}` : `Passou Questionário: ${tituloReferencia}`,
+                        xpGanhos
+                    );
+
                     await addToFeed(
                         aluno.id,
                         aulaId ? 'aula_trilha_concluida' : 'modulo_trilha_concluido',
-                        `Aprovado com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos} XP & +${moedasGanhas} Moedas!`,
+                        isRetake 
+                            ? `Refez e passou novamente com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos.toLocaleString('pt-BR')} XP!`
+                            : `Aprovado com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos.toLocaleString('pt-BR')} XP & +${moedasGanhas.toLocaleString('pt-BR')} Moedas!`,
                         aulaId ? '🎓' : '👑'
                     );
 
                     if (aulaId) {
                         await supabase
                             .from('progresso_trilha')
+                            .upsert([{ aluno_id: aluno.id, aula_id: aulaId }], { onConflict: 'aluno_id,aula_id' });
+                    }
+
+                    if (conquistaId && !alreadyDone) {
+                        await supabase
+                            .from('gamificacao_progresso')
+                            .insert([{ aluno_id: aluno.id, conquista_id: conquistaId }]);
+                        conquistouMedalha = true;
+                    }
+                }
+            }
+
+            res.json({
+                success: true,
+                aprovado,
+                nota,
+                acertos,
+                total: totalAvaliado,
+                xpGanhos,
+                moedasGanhas,
+                conquistouMedalha,
+                feedback
+            });
+        } catch (error: any) {
+            console.error('Erro ao responder questionário da trilha:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
                             .upsert([{ aluno_id: aluno.id, aula_id: aulaId }], { onConflict: 'aluno_id,aula_id' });
                     }
 
