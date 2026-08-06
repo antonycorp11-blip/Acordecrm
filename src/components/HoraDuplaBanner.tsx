@@ -5,37 +5,98 @@ interface HoraDuplaBannerProps {
   className?: string;
 }
 
-export const HoraDuplaBanner: React.FC<HoraDuplaBannerProps> = ({ className = '' }) => {
-  const [data, setData] = useState<{
-    isActive: boolean;
-    isBefore: boolean;
-    secondsUntilStart: number;
-    secondsRemaining: number;
-    formattedWindow: string;
-  } | null>(null);
+function getHoraDuplaClientInfo() {
+  const now = new Date();
+  const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const cuiabaMs = utcMs - (4 * 3600000);
+  const cuiabaDate = new Date(cuiabaMs);
 
-  const [timerSeconds, setTimerSeconds] = useState<number>(0);
+  const year = cuiabaDate.getFullYear();
+  const month = String(cuiabaDate.getMonth() + 1).padStart(2, '0');
+  const day = String(cuiabaDate.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+
+  let startHour = 18; // Hoje (06/08/2026): 18h às 19h no horário de Cuiabá
+  let endHour = 19;
+
+  if (dateStr !== '2026-08-06') {
+    const daySeed = Number(day) + Number(month) * 31 + year;
+    startHour = 15 + (daySeed % 6);
+    endHour = startHour + 1;
+  }
+
+  const startTime = new Date(Date.UTC(cuiabaDate.getFullYear(), cuiabaDate.getMonth(), cuiabaDate.getDate(), startHour + 4, 0, 0));
+  const endTime = new Date(Date.UTC(cuiabaDate.getFullYear(), cuiabaDate.getMonth(), cuiabaDate.getDate(), endHour + 4, 0, 0));
+
+  const currentMs = now.getTime();
+  const startMs = startTime.getTime();
+  const endMs = endTime.getTime();
+
+  const isBefore = currentMs < startMs;
+  const isActive = currentMs >= startMs && currentMs < endMs;
+  const isEnded = currentMs >= endMs;
+
+  let secondsUntilStart = 0;
+  let secondsRemaining = 0;
+
+  if (isBefore) {
+    secondsUntilStart = Math.floor((startMs - currentMs) / 1000);
+  } else if (isActive) {
+    secondsRemaining = Math.floor((endMs - currentMs) / 1000);
+  } else if (isEnded) {
+    const nextDayDate = new Date(cuiabaMs + 86400000);
+    const nextYear = nextDayDate.getFullYear();
+    const nextMonth = String(nextDayDate.getMonth() + 1).padStart(2, '0');
+    const nextDay = String(nextDayDate.getDate()).padStart(2, '0');
+    const nextDaySeed = Number(nextDay) + Number(nextMonth) * 31 + nextYear;
+    const nextStartHour = (nextYear === 2026 && nextMonth === '08' && nextDay === '06') ? 18 : 15 + (nextDaySeed % 6);
+    const nextStartTime = new Date(Date.UTC(nextDayDate.getFullYear(), nextDayDate.getMonth(), nextDayDate.getDate(), nextStartHour + 4, 0, 0));
+    secondsUntilStart = Math.floor((nextStartTime.getTime() - currentMs) / 1000);
+  }
+
+  return {
+    isBefore,
+    isActive,
+    isEnded,
+    secondsUntilStart: Math.max(0, secondsUntilStart),
+    secondsRemaining: Math.max(0, secondsRemaining),
+    formattedWindow: `${String(startHour).padStart(2, '0')}:00 às ${String(endHour).padStart(2, '0')}:00`
+  };
+}
+
+export const HoraDuplaBanner: React.FC<HoraDuplaBannerProps> = ({ className = '' }) => {
+  const [data, setData] = useState(() => getHoraDuplaClientInfo());
+  const [timerSeconds, setTimerSeconds] = useState<number>(() => {
+    const info = getHoraDuplaClientInfo();
+    return info.isActive ? info.secondsRemaining : info.secondsUntilStart;
+  });
 
   const fetchHoraDupla = async () => {
     try {
       const res = await fetch('/api/gamificacao/hora-dupla');
       if (res.ok) {
         const json = await res.json();
-        setData(json);
-        if (json.isActive) {
-          setTimerSeconds(json.secondsRemaining || 0);
-        } else {
-          setTimerSeconds(json.secondsUntilStart || 0);
+        if (json && json.formattedWindow) {
+          setData(json);
+          if (json.isActive) {
+            setTimerSeconds(json.secondsRemaining || 0);
+          } else {
+            setTimerSeconds(json.secondsUntilStart || 0);
+          }
+          return;
         }
       }
     } catch (e) {
-      console.error('Erro ao buscar Hora Dupla:', e);
+      // usa calculo client-side
     }
+    const local = getHoraDuplaClientInfo();
+    setData(local);
+    setTimerSeconds(local.isActive ? local.secondsRemaining : local.secondsUntilStart);
   };
 
   useEffect(() => {
     fetchHoraDupla();
-    const interval = setInterval(fetchHoraDupla, 30000); // recalibra com backend a cada 30s
+    const interval = setInterval(fetchHoraDupla, 30000);
     return () => clearInterval(interval);
   }, []);
 
