@@ -807,8 +807,8 @@ async function startServer() {
         const day = String(cuiabaDate.getDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
 
-        let startHour = 18; // Hoje 06/08/2026: 18h às 19h no horário de Cuiabá
-        let endHour = 19;
+        let startHour = 18; // Hoje 06/08/2026: 18h às 21h no horário de Cuiabá
+        let endHour = 21;
 
         if (dateStr !== '2026-08-06') {
             const daySeed = Number(day) + Number(month) * 31 + year;

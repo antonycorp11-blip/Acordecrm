@@ -371,9 +371,17 @@ export default function AreaAluno() {
   const [questoesAtuais, setQuestoesAtuais] = useState<any[]>([]);
   const [tempoRestante, setTempoRestante] = useState<number>(600);
 
-  // Estados Contratos
   const [showContratoModal, setShowContratoModal] = useState(false);
   const [contratoAtivo, setContratoAtivo] = useState<any>(null);
+
+  // Modal de Demonstração da Hora Dupla (2x Pontos)
+  const [horaDuplaModal, setHoraDuplaModal] = useState<{
+    isOpen: boolean;
+    pontosNormais: number;
+    pontosBonus: number;
+    totalFinal: number;
+    jogoNome: string;
+  } | null>(null);
   const sigPad = useRef<any>(null);
   const sigCanvasContainer = useRef<HTMLDivElement>(null);
   const [sigCanvasDims, setSigCanvasDims] = useState({ width: 600, height: 250 });
@@ -1194,7 +1202,25 @@ export default function AreaAluno() {
       if (!data.success) throw new Error(data.error);
 
       setAlunoData((prev: any) => ({ ...prev, xp: data.novoXp, acorde_coins: data.novasMoedas }));
-      toast.success(`✨ +${data.finalPontos} Acorde Coins e XP (${jogo})!`);
+
+      const isHoraDuplaAtiva = data.isHoraDupla || (data.finalPontos && data.finalPontos >= pontosGanhos * 2);
+
+      if (isHoraDuplaAtiva) {
+        const pontosNormais = pontosGanhos;
+        const pontosBonus = data.finalPontos ? (data.finalPontos - pontosGanhos) : pontosGanhos;
+        const totalFinal = data.finalPontos || (pontosGanhos * 2);
+
+        setHoraDuplaModal({
+          isOpen: true,
+          pontosNormais,
+          pontosBonus,
+          totalFinal,
+          jogoNome: jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'JOGO'
+        });
+      } else {
+        toast.success(`✨ +${data.finalPontos} Acorde Coins e XP (${jogo})!`);
+      }
+
       fetchRanking();
     } catch (err: any) {
       console.error(err);
@@ -4002,6 +4028,70 @@ export default function AreaAluno() {
           </div>
         );
       })()}
+      {/* MODAL DE CONFERÊNCIA DE PONTOS DA HORA DUPLA */}
+      <AnimatePresence>
+        {horaDuplaModal?.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-[#1a0a05] border-8 border-[#ff6b00] shadow-[12px_12px_0_#ff0055] max-w-md w-full p-6 text-center font-mono relative overflow-hidden text-white rounded-lg"
+            >
+              {/* Efeito Retro / Animação de Fogo/Bônus */}
+              <div className="bg-gradient-to-r from-[#ff0055] via-[#ff6b00] to-[#ffeb3b] text-black font-black py-1.5 px-3 text-xs uppercase tracking-widest mb-4 inline-block border-2 border-black shadow-[2px_2px_0_#000] animate-bounce">
+                🔥 HORA DUPLA ATIVA!
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black italic uppercase text-[#ffeb3b] drop-shadow-[2px_2px_0_#000] mb-2">
+                PONTOS DOBRADOS!
+              </h2>
+              <p className="text-xs text-stone-300 uppercase font-bold mb-6">
+                Parabéns! Sua pontuação em <span className="text-[#00ffcc] font-black">{horaDuplaModal.jogoNome}</span> foi multiplicada por 2!
+              </p>
+
+              {/* Tabela de Demonstração de Cálculo */}
+              <div className="bg-black/80 border-4 border-white p-4 space-y-3 mb-6 shadow-[4px_4px_0_#000] rounded">
+                <div className="flex justify-between items-center text-xs font-bold border-b border-white/20 pb-2">
+                  <span className="text-stone-400 uppercase">Pontuação Normal do Jogo:</span>
+                  <span className="text-white font-black text-sm">+{horaDuplaModal.pontosNormais.toLocaleString('pt-BR')} PTS</span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs font-bold border-b border-white/20 pb-2 text-[#00ffcc]">
+                  <span className="uppercase flex items-center gap-1">⚡ Bônus Hora Dupla (2x):</span>
+                  <span className="font-black text-sm">+{horaDuplaModal.pontosBonus.toLocaleString('pt-BR')} PTS</span>
+                </div>
+
+                <div className="flex justify-between items-center text-sm font-black pt-1 text-[#ffeb3b]">
+                  <span className="uppercase">TOTAL ADICIONADO:</span>
+                  <span className="text-lg bg-[#ff6b00] text-black px-3 py-0.5 border border-black shadow-[2px_2px_0_#000] font-mono">
+                    {horaDuplaModal.totalFinal.toLocaleString('pt-BR')} PTS
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    setHoraDuplaModal(null);
+                    setActiveTab('ranking');
+                  }}
+                  className="w-full py-3.5 bg-[#ff6b00] text-black font-black text-xs uppercase tracking-widest border-4 border-black shadow-[4px_4px_0_#000] hover:bg-[#ff8533] active:translate-y-1 transition-all flex items-center justify-center gap-2"
+                >
+                  <Trophy className="w-4 h-4" /> IR PARA O RANKING E CONFERIR
+                </button>
+                
+                <button
+                  onClick={() => setHoraDuplaModal(null)}
+                  className="w-full py-2 bg-stone-800 text-stone-300 font-bold text-[10px] uppercase tracking-widest border-2 border-stone-600 hover:bg-stone-700 transition-all"
+                >
+                  FECHAR E CONTINUAR JOGANDO
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       </div>
     </div>
   );
