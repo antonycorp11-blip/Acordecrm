@@ -6,8 +6,8 @@ import { toast } from 'sonner';
 import PerfilEstudanteModal, { getClasse, getInstrumento, resolveTrophyImage } from '../components/PerfilEstudanteModal';
 import { AvatarPixel } from '../components/AvatarPixel';
 import { FONTS, TILES } from '../utils/avatarAssets';
-
 import { SeasonCountdown } from '../components/SeasonCountdown';
+import { HoraDuplaBanner } from '../components/HoraDuplaBanner';
 
 type ViewMode = 'cards' | 'lista';
 
@@ -176,7 +176,10 @@ export default function Ranking() {
       <div className="relative z-10 flex-1 overflow-auto px-8 py-6">
 
         {/* Season Countdown Banner */}
-        <SeasonCountdown targetDate="2026-08-21T23:59:59-04:00" seasonName="TEMPORADA 2" className="mb-6" />
+        <SeasonCountdown targetDate="2026-08-21T23:59:59-04:00" seasonName="TEMPORADA 2" className="mb-4" />
+
+        {/* Hora Dupla Banner */}
+        <HoraDuplaBanner className="mb-6" />
 
         {/* Controls Section */}
         <div className="flex items-center justify-end mb-10">
@@ -200,22 +203,22 @@ export default function Ranking() {
           <div className="text-center py-20 text-[#8e7164] font-black uppercase animate-pulse">Carregando ranking...</div>
         ) : viewMode === 'cards' ? (
           /* ── CARDS VIEW (PODIUM) ── */
-          <div className="flex items-end justify-center gap-6 mb-12 mt-20 h-[500px]">
+          <div className="flex items-end justify-center gap-6 mb-12 mt-20 h-[520px]">
             {mockRanking.length > 0 ? (
               <>
                 {/* 2nd Place */}
                 {mockRanking[1] && (
                   <div 
                     onClick={() => handleOpenAlunoModal(mockRanking[1])}
-                    className="w-64 h-[80%] flex flex-col items-center justify-end relative cursor-pointer group hover:-translate-y-2 transition-transform"
+                    className="w-64 h-[82%] flex flex-col items-center justify-end relative cursor-pointer group hover:-translate-y-2 transition-transform"
                   >
                      <div className="w-full h-[350px] relative z-10 flex items-end pb-2 border-x-4 border-t-4 border-[#261812] bg-[#1a0a05]">
                         <AvatarPixel config={getAvatarConfig(mockRanking[1]).config} isSilhouette={getAvatarConfig(mockRanking[1]).isSilhouette} />
                      </div>
-                     <div className={`w-full h-32 bg-[#3d2d26] border-4 border-[#261812] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[1], '')}`}>
-                        <div className="absolute -top-5 bg-gray-300 border-2 border-black px-4 py-1 font-black text-sm shadow-[2px_2px_0_#000] z-30">2ND</div>
-                        <div className="font-black text-white text-xl uppercase truncate w-full text-center mt-2" style={{ fontFamily: getFont(mockRanking[1]) }}>{mockRanking[1].nome}</div>
-                        <div className="text-[#ffeb3b] text-xs font-black uppercase mt-1 tracking-widest">{mockRanking[1].xp?.toLocaleString()} PTS</div>
+                     <div className={`w-full h-36 bg-[#3d2d26] border-4 border-[#261812] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[1], '')}`}>
+                        <div className="absolute -top-5 bg-gray-300 border-2 border-black px-4 py-1 font-black text-sm shadow-[2px_2px_0_#000] z-30">2ND PLACE</div>
+                        <div className="font-black text-white text-xl sm:text-2xl uppercase truncate w-full text-center mt-1" style={{ fontFamily: getFont(mockRanking[1]) }}>{mockRanking[1].nome}</div>
+                        <div className="text-[#ffeb3b] text-sm sm:text-base font-black uppercase mt-1 tracking-wider bg-black/60 border border-[#ffeb3b] px-3 py-0.5 rounded">{(mockRanking[1].xp || 0).toLocaleString('pt-BR')} PTS</div>
                      </div>
                   </div>
                 )}
@@ -229,10 +232,10 @@ export default function Ranking() {
                      <div className="w-full h-[400px] relative z-10 flex items-end pb-2 border-x-4 border-t-4 border-[#261812] bg-[#1a0a05]">
                         <AvatarPixel config={getAvatarConfig(mockRanking[0]).config} isSilhouette={getAvatarConfig(mockRanking[0]).isSilhouette} />
                      </div>
-                     <div className={`w-full h-40 bg-[#ff6b00] border-4 border-[#261812] shadow-[6px_6px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[0], '')}`}>
-                        <div className="absolute -top-5 bg-[#ffeb3b] border-2 border-black px-6 py-1 font-black text-lg shadow-[2px_2px_0_#000] z-30">1ST</div>
-                        <div className="font-black text-black text-3xl uppercase truncate w-full text-center mt-2" style={{ fontFamily: getFont(mockRanking[0]) }}>{mockRanking[0].nome}</div>
-                        <div className="text-white text-sm font-black uppercase mt-1 tracking-widest">{mockRanking[0].xp?.toLocaleString()} PTS</div>
+                     <div className={`w-full h-44 bg-[#ff6b00] border-4 border-[#261812] shadow-[6px_6px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[0], '')}`}>
+                        <div className="absolute -top-5 bg-[#ffeb3b] border-2 border-black px-6 py-1 font-black text-lg shadow-[2px_2px_0_#000] z-30 animate-pulse">👑 1ST PLACE</div>
+                        <div className="font-black text-black text-2xl sm:text-3xl uppercase truncate w-full text-center mt-1" style={{ fontFamily: getFont(mockRanking[0]) }}>{mockRanking[0].nome}</div>
+                        <div className="text-black text-base sm:text-xl font-black uppercase mt-1.5 tracking-wider bg-white border-2 border-black px-4 py-1 rounded shadow-[2px_2px_0_#000]">{(mockRanking[0].xp || 0).toLocaleString('pt-BR')} PTS</div>
                      </div>
                   </div>
                 )}
@@ -241,18 +244,19 @@ export default function Ranking() {
                 {mockRanking[2] && (
                   <div 
                     onClick={() => handleOpenAlunoModal(mockRanking[2])}
-                    className="w-64 h-[70%] flex flex-col items-center justify-end relative cursor-pointer group hover:-translate-y-2 transition-transform"
+                    className="w-64 h-[75%] flex flex-col items-center justify-end relative cursor-pointer group hover:-translate-y-2 transition-transform"
                   >
                      <div className="w-full h-[300px] relative z-10 flex items-end pb-2 border-x-4 border-t-4 border-[#261812] bg-[#1a0a05]">
                         <AvatarPixel config={getAvatarConfig(mockRanking[2]).config} isSilhouette={getAvatarConfig(mockRanking[2]).isSilhouette} />
                      </div>
-                     <div className={`w-full h-28 bg-[#5a4136] border-4 border-[#261812] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[2], '')}`}>
-                        <div className="absolute -top-4 bg-orange-800 border-2 border-black px-4 py-1 font-black text-xs text-white shadow-[2px_2px_0_#000] z-30">3RD</div>
-                        <div className="font-black text-[#feccba] text-lg uppercase truncate w-full text-center mt-2" style={{ fontFamily: getFont(mockRanking[2]) }}>{mockRanking[2].nome}</div>
-                        <div className="text-[#feccba] opacity-80 text-[10px] font-black uppercase mt-1 tracking-widest">{mockRanking[2].xp?.toLocaleString()} PTS</div>
+                     <div className={`w-full h-32 bg-[#5a4136] border-4 border-[#261812] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative ${getTileClass(mockRanking[2], '')}`}>
+                        <div className="absolute -top-4 bg-orange-800 border-2 border-black px-4 py-1 font-black text-xs text-white shadow-[2px_2px_0_#000] z-30">3RD PLACE</div>
+                        <div className="font-black text-[#feccba] text-lg sm:text-xl uppercase truncate w-full text-center mt-1" style={{ fontFamily: getFont(mockRanking[2]) }}>{mockRanking[2].nome}</div>
+                        <div className="text-white text-xs sm:text-sm font-black uppercase mt-1 tracking-wider bg-black/60 border border-[#feccba] px-3 py-0.5 rounded">{(mockRanking[2].xp || 0).toLocaleString('pt-BR')} PTS</div>
                      </div>
                   </div>
                 )}
+              </>        )}
               </>
             ) : (
               <div className="col-span-3 py-20 flex flex-col items-center justify-center rounded-lg border-4 border-dashed border-[#5a4136] bg-[#1a0a05]/50 w-full">
@@ -312,7 +316,7 @@ export default function Ranking() {
                       <span className="text-[#261812] font-bold text-xs uppercase">{getInstrumento(aluno)}</span>
                     </td>
                     <td className="px-3 py-3 text-right">
-                      <span className="font-black text-[#261812] text-sm">{aluno.xp?.toLocaleString() || '0'}</span>
+                      <span className="font-black text-[#261812] text-sm font-mono">{(aluno.xp || 0).toLocaleString('pt-BR')} PTS</span>
                     </td>
                   </tr>
                 ))}

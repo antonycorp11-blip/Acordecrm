@@ -78,6 +78,23 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
     }
   };
 
+  const [detalhesPontos, setDetalhesPontos] = useState<any>(null);
+  const [loadingDetalhes, setLoadingDetalhes] = useState(false);
+
+  React.useEffect(() => {
+    if (!selectedAluno?.id) return;
+    setLoadingDetalhes(true);
+    fetch(`/api/gamificacao/aluno-pontos-detalhados/${selectedAluno.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.success) {
+          setDetalhesPontos(data);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoadingDetalhes(false));
+  }, [selectedAluno?.id]);
+
   if (!selectedAluno) return null;
 
   return (
@@ -89,7 +106,7 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
       >
         <header className="p-4 border-b-4 border-[#ff6b00] flex items-center justify-between bg-black shrink-0 relative">
           <h2 className="text-xl font-black text-white uppercase italic tracking-tighter flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-[#ff6b00]" /> MEDALHAS
+            <Trophy className="w-5 h-5 text-[#ff6b00]" /> PERFIL & MEDALHAS
           </h2>
           <button onClick={onClose} className="bg-[#ff6b00] text-black p-1 border-2 border-transparent hover:border-white transition-all active:translate-y-1"><X className="w-6 h-6" /></button>
         </header>
@@ -113,13 +130,113 @@ export default function PerfilEstudanteModal({ selectedAluno, user, onClose, onC
               
               <div className="flex items-center gap-2 mt-2">
                 <div className="bg-[#feccba] border-2 border-black px-3 py-1 flex items-center justify-center font-black text-sm text-[#3d2d26] shadow-[2px_2px_0_#000]">
-                  💰 {selectedAluno.acorde_coins || 0} COINS
+                  💰 {(selectedAluno.acorde_coins || 0).toLocaleString('pt-BR')} COINS
                 </div>
-                {selectedAluno.foto_url && selectedAluno.foto_url.trim() !== '' && !selectedAluno.foto_url.includes('ui-avatars.com') && (
-                  <img src={selectedAluno.foto_url} alt="Foto" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
-                )}
+                <div className="bg-[#ff6b00] border-2 border-black px-3 py-1 flex items-center justify-center font-black text-sm text-white shadow-[2px_2px_0_#000]">
+                  ⭐ {(selectedAluno.xp || 0).toLocaleString('pt-BR')} PTS
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* EXTRATO DE PONTOS DA TEMPORADA */}
+          <div className="bg-[#1a0a05] border-2 border-[#ff6b00] p-4 font-mono shadow-[4px_4px_0_#000]">
+            <div className="flex items-center justify-between border-b-2 border-[#ff6b00] pb-2 mb-3">
+              <h4 className="font-black text-[#ff6b00] text-sm uppercase tracking-wider flex items-center gap-2">
+                📊 DETALHAMENTO DE PONTOS (TEMPORADA)
+              </h4>
+              <span className="text-[#ffeb3b] font-black text-xs bg-black px-2 py-0.5 border border-[#ff6b00]">
+                TOTAL: {(selectedAluno.xp || 0).toLocaleString('pt-BR')} PTS
+              </span>
+            </div>
+
+            {loadingDetalhes ? (
+              <div className="text-[#8e7164] text-xs uppercase animate-pulse text-center py-4">Carregando extrato de pontos...</div>
+            ) : detalhesPontos?.categorias ? (
+              <div className="space-y-3">
+                {/* Jogos & Jogos Individuais */}
+                <div className="bg-black/60 p-3 border border-orange-900/50 rounded">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-black text-xs text-[#00ffcc] uppercase flex items-center gap-1.5">
+                      🎮 JOGOS (TOTAL)
+                    </span>
+                    <span className="font-black text-xs text-white">
+                      {(detalhesPontos.categorias.jogos?.total || 0).toLocaleString('pt-BR')} PTS
+                    </span>
+                  </div>
+
+                  {/* Sub-breakdown por jogo */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 pt-2 border-t border-white/10">
+                    {Object.entries(detalhesPontos.categorias.jogos?.breakdown || {}).map(([gName, gPts]: any) => (
+                      <div key={gName} className="bg-[#261812] p-1.5 rounded border border-[#3d2d26] text-[10px]">
+                        <div className="text-stone-300 font-bold uppercase truncate">{gName}</div>
+                        <div className="text-[#ffeb3b] font-black">{Number(gPts).toLocaleString('pt-BR')} PTS</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Aulas em Vídeo & Questionários */}
+                <div className="flex items-center justify-between bg-black/60 p-2.5 border border-orange-900/50 rounded text-xs">
+                  <span className="font-black text-[#feccba] uppercase flex items-center gap-1.5">
+                    🎓 AULAS EM VÍDEO & QUESTIONÁRIOS
+                  </span>
+                  <span className="font-black text-white">
+                    {(detalhesPontos.categorias.aulas_video?.total || 0).toLocaleString('pt-BR')} PTS
+                  </span>
+                </div>
+
+                {/* Presença nas Aulas */}
+                <div className="flex items-center justify-between bg-black/60 p-2.5 border border-orange-900/50 rounded text-xs">
+                  <span className="font-black text-[#feccba] uppercase flex items-center gap-1.5">
+                    📅 PRESENÇA EM AULA (MÍN. 10K/AULA)
+                  </span>
+                  <span className="font-black text-white">
+                    {(detalhesPontos.categorias.presenca?.total || 0).toLocaleString('pt-BR')} PTS
+                  </span>
+                </div>
+
+                {/* Troféus e Medalhas */}
+                <div className="flex items-center justify-between bg-black/60 p-2.5 border border-orange-900/50 rounded text-xs">
+                  <span className="font-black text-[#feccba] uppercase flex items-center gap-1.5">
+                    🏆 TROFÉUS E CONQUISTAS
+                  </span>
+                  <span className="font-black text-white">
+                    {(detalhesPontos.categorias.trofeus?.total || 0).toLocaleString('pt-BR')} PTS
+                  </span>
+                </div>
+
+                {/* Vídeos de Treino (100k cada) */}
+                <div className="flex items-center justify-between bg-black/60 p-2.5 border border-orange-900/50 rounded text-xs">
+                  <span className="font-black text-[#feccba] uppercase flex items-center gap-1.5">
+                    📹 VÍDEOS DE TREINO (100K CADA)
+                  </span>
+                  <span className="font-black text-white">
+                    {(detalhesPontos.categorias.treino_video?.total || 0).toLocaleString('pt-BR')} PTS
+                  </span>
+                </div>
+
+                {/* Check-in Diário Sem Vídeo (50k) */}
+                <div className="flex items-center justify-between bg-black/60 p-2.5 border border-orange-900/50 rounded text-xs">
+                  <span className="font-black text-[#feccba] uppercase flex items-center gap-1.5">
+                    💪 CHECK-IN SEM VÍDEO (50K CADA)
+                  </span>
+                  <span className="font-black text-white">
+                    {(detalhesPontos.categorias.checkin?.total || 0).toLocaleString('pt-BR')} PTS
+                  </span>
+                </div>
+
+                {/* Missões Diárias (50k cada) */}
+                <div className="flex items-center justify-between bg-black/60 p-2.5 border border-orange-900/50 rounded text-xs">
+                  <span className="font-black text-[#feccba] uppercase flex items-center gap-1.5">
+                    🎯 MISSÕES DIÁRIAS (50K CADA)
+                  </span>
+                  <span className="font-black text-white">
+                    {(detalhesPontos.categorias.missoes_diarias?.total || 0).toLocaleString('pt-BR')} PTS
+                  </span>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {/* WARNING CONTRATOS */}

@@ -23,6 +23,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PwaModal } from '../components/alunos/PwaModal';
+import { HoraDuplaBanner } from '../components/HoraDuplaBanner';
 import { AvatarPixel } from '../components/AvatarPixel';
 import { AvatarEditor } from '../components/AvatarEditor';
 import { AvatarStore } from '../components/AvatarStore';
@@ -1598,27 +1599,23 @@ export default function AreaAluno() {
           {/* ===== ABA: RANKING ===== */}
           {activeTab === 'ranking' && (
             <div className="px-4 py-5 space-y-3">
-              <SeasonCountdown targetDate="2026-08-21T23:59:59-04:00" seasonName="TEMPORADA 2" className="mb-4" />
+              <SeasonCountdown targetDate="2026-08-21T23:59:59-04:00" seasonName="TEMPORADA 2" className="mb-3" />
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000] flex flex-col items-center">
-                  <h3 className="text-white font-black text-xs uppercase tracking-widest">🏆 HALL DA FAMA</h3>
-                  <span className="text-[8px] font-black uppercase tracking-tighter text-black bg-white px-1 leading-none">{temporada.nome || 'TEMPORADA ATUAL'}</span>
-                </div>
-                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-              </div>
+              {/* Hora Dupla Banner */}
+              <HoraDuplaBanner className="mb-4" />
+
               {rankingData.length === 0 && (
                 <div className="text-center py-8 text-[#8e7164] font-black text-[9px] uppercase">Carregando ranking...</div>
               )}
               {/* ===== TOP 3 PODIUM ===== */}
               {rankingData.length > 0 && (
-                <div className="flex items-end justify-center gap-2 mb-10 mt-16 h-64 px-2">
+                <div className="flex items-end justify-center gap-2 mb-10 mt-16 h-72 px-2">
                   
                   {/* 2nd Place */}
                   {rankingData[1] && (
                     <div 
                       onClick={() => { setSelectedAluno(rankingData[1]); setIsAlunoModalOpen(true); }}
-                      className="w-[30%] h-[80%] flex flex-col items-center justify-end relative cursor-pointer hover:-translate-y-1 transition-transform"
+                      className="w-[30%] h-[82%] flex flex-col items-center justify-end relative cursor-pointer hover:-translate-y-1 transition-transform"
                     >
                       <div className="w-full h-32 relative z-10 flex items-end justify-center pb-0">
                         <AvatarPixel 
@@ -1630,10 +1627,10 @@ export default function AreaAluno() {
                       <div className="w-full bg-[#5a6b7d] border-2 border-[#3d4b5c] shadow-[2px_2px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative rounded-t-sm">
                         <div className="font-black text-white text-xl uppercase drop-shadow-[1px_1px_0_#000]">2ND</div>
                         <div 
-                          className="font-black text-[9px] uppercase text-white truncate w-full text-center mt-1 drop-shadow-[1px_1px_0_#000]"
+                          className="font-black text-xs sm:text-sm uppercase text-white truncate w-full text-center mt-1 drop-shadow-[1px_1px_0_#000]"
                           style={FONTS.find(f => f.id === rankingData[1]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[1]?.avatar_config?.fontId)?.fontFamily } : {}}
                         >{rankingData[1].nome}</div>
-                        <div className="text-white/80 text-[7px] font-black uppercase mt-0.5">{rankingData[1].xp} PTS</div>
+                        <div className="text-[#ffeb3b] text-[10px] sm:text-xs font-black uppercase mt-1 bg-black/60 border border-[#ffeb3b] px-2 py-0.5 rounded">{(rankingData[1].xp || 0).toLocaleString('pt-BR')} PTS</div>
                       </div>
                     </div>
                   )}
@@ -1654,12 +1651,12 @@ export default function AreaAluno() {
                         />
                       </div>
                       <div className="w-full bg-[#ffb300] border-2 border-[#ff8f00] shadow-[4px_4px_0_#000] z-20 flex flex-col items-center justify-center p-3 relative rounded-t-sm">
-                        <div className="font-black text-black text-3xl uppercase">1ST</div>
+                        <div className="font-black text-black text-3xl uppercase animate-pulse">👑 1ST</div>
                         <div 
-                          className="font-black text-[11px] uppercase text-black truncate w-full text-center mt-1"
+                          className="font-black text-sm sm:text-base uppercase text-black truncate w-full text-center mt-1"
                           style={FONTS.find(f => f.id === rankingData[0]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[0]?.avatar_config?.fontId)?.fontFamily } : {}}
                         >{rankingData[0].nome}</div>
-                        <div className="text-black/80 text-[8px] font-black uppercase mt-1">{rankingData[0].xp} PTS</div>
+                        <div className="text-black text-xs sm:text-sm font-black uppercase mt-1 bg-white border border-black px-2 py-0.5 rounded shadow-[1px_1px_0_#000]">{(rankingData[0].xp || 0).toLocaleString('pt-BR')} PTS</div>
                       </div>
                     </div>
                   )}
@@ -1668,7 +1665,7 @@ export default function AreaAluno() {
                   {rankingData[2] && (
                     <div 
                       onClick={() => { setSelectedAluno(rankingData[2]); setIsAlunoModalOpen(true); }}
-                      className="w-[30%] h-[70%] flex flex-col items-center justify-end relative cursor-pointer hover:-translate-y-1 transition-transform"
+                      className="w-[30%] h-[75%] flex flex-col items-center justify-end relative cursor-pointer hover:-translate-y-1 transition-transform"
                     >
                       <div className="w-full h-28 relative z-10 flex items-end justify-center pb-0">
                         <AvatarPixel 
@@ -1680,10 +1677,10 @@ export default function AreaAluno() {
                       <div className="w-full bg-[#8d6e63] border-2 border-[#5d4037] shadow-[2px_2px_0_#000] z-20 flex flex-col items-center justify-center p-2 relative rounded-t-sm">
                         <div className="font-black text-white text-lg uppercase drop-shadow-[1px_1px_0_#000]">3RD</div>
                         <div 
-                          className="font-black text-[9px] uppercase text-white truncate w-full text-center mt-1 drop-shadow-[1px_1px_0_#000]"
+                          className="font-black text-xs sm:text-sm uppercase text-[#feccba] truncate w-full text-center mt-1 drop-shadow-[1px_1px_0_#000]"
                           style={FONTS.find(f => f.id === rankingData[2]?.avatar_config?.fontId) ? { fontFamily: FONTS.find(f => f.id === rankingData[2]?.avatar_config?.fontId)?.fontFamily } : {}}
                         >{rankingData[2].nome}</div>
-                        <div className="text-white/80 text-[7px] font-black uppercase mt-0.5">{rankingData[2].xp} PTS</div>
+                        <div className="text-white text-[10px] sm:text-xs font-black uppercase mt-0.5 bg-black/60 border border-[#feccba] px-2 py-0.5 rounded">{(rankingData[2].xp || 0).toLocaleString('pt-BR')} PTS</div>
                       </div>
                     </div>
                   )}
@@ -1733,7 +1730,7 @@ export default function AreaAluno() {
  
                            {/* XP */}
                            <div className="text-right shrink-0">
-                             <p className={`font-black text-sm uppercase ${isMe ? 'text-[#ff6b00]' : 'text-[#ffb300]'}`}>{player.xp} PTS</p>
+                             <p className={`font-black text-sm uppercase ${isMe ? 'text-[#ff6b00]' : 'text-[#ffb300]'}`}>{(player.xp || 0).toLocaleString('pt-BR')} PTS</p>
                            </div>
                          </div>
                        );

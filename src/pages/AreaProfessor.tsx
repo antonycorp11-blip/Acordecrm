@@ -291,7 +291,7 @@ export default function AreaProfessor() {
   const [statusAula, setStatusAula] = useState('realizada');
   const [conteudo, setConteudo] = useState('');
   const [tarefaCasa, setTarefaCasa] = useState('');
-  const [xpGanho, setXpGanho] = useState(50);
+  const [xpGanho, setXpGanho] = useState(10000);
   const [midias, setMidias] = useState<{ titulo: string; url: string }[]>([]);
   const [linkTitulo, setLinkTitulo] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -305,7 +305,7 @@ export default function AreaProfessor() {
   const [newAulaStatus, setNewAulaStatus] = useState('realizada');
   const [newAulaConteudo, setNewAulaConteudo] = useState('');
   const [newAulaTarefa, setNewAulaTarefa] = useState('');
-  const [newAulaXp, setNewAulaXp] = useState(50);
+  const [newAulaXp, setNewAulaXp] = useState(10000);
   const [newAulaMidias, setNewAulaMidias] = useState<{ titulo: string; url: string }[]>([]);
   const [newLinkTitulo, setNewLinkTitulo] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
@@ -1046,7 +1046,7 @@ export default function AreaProfessor() {
   const openRegistroModal = (aula: any) => {
     setSelectedAula(aula);
     setStatusAula(aula.status === 'realizada' || aula.status === 'pendente' ? 'realizada' : aula.status);
-    setXpGanho(Number(aula.xp_ganho) || 50);
+    setXpGanho(Number(aula.xp_ganho) || 10000);
     
     // Tenta decodificar dados ricos do Musiclass de dentro de conteudo
     let conteudoText = aula.conteudo || '';
@@ -1747,20 +1747,20 @@ export default function AreaProfessor() {
 
             {/* Concessão de XP */}
             <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">CONCEDER XP AO ALUNO</label>
-              <div className="flex justify-between gap-2">
-                {[50, 100, 150, 200].map((val) => (
+              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">PONTOS DA AULA PARA O ALUNO (DESEMPENHO EM SALA DE AULA)</label>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {[5000, 10000, 20000, 30000, 40000, 50000].map((val) => (
                   <button
                     key={val}
                     type="button"
                     onClick={() => setValXp(val)}
-                    className={`flex-1 py-2 border-2 border-black font-black text-xs transition-all ${
+                    className={`py-2 px-1 border-2 border-black font-black text-[10px] sm:text-xs transition-all ${
                       valXp === val
                         ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
-                        : 'bg-white text-black/40 hover:border-black'
+                        : 'bg-white text-black/60 hover:border-black'
                     }`}
                   >
-                    +{val} XP
+                    +{val.toLocaleString('pt-BR')} PTS
                   </button>
                 ))}
               </div>

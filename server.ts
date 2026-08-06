@@ -805,8 +805,98 @@ async function startServer() {
             res.status(500).json({ error: error.message }); 
         }
     });
+    // Helper para Hora Dupla (UTC-4 / Horário de Cuiabá)
+    function getHoraDuplaInfo() {
+        const now = new Date();
+        const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const cuiabaMs = utcMs - (4 * 3600000);
+        const cuiabaDate = new Date(cuiabaMs);
+
+        const year = cuiabaDate.getFullYear();
+        const month = String(cuiabaDate.getMonth() + 1).padStart(2, '0');
+        const day = String(cuiabaDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        let startHour = 18; // Hoje 06/08/2026: 18h às 19h no horário de Cuiabá
+        let endHour = 19;
+
+        if (dateStr !== '2026-08-06') {
+            const daySeed = Number(day) + Number(month) * 31 + year;
+            startHour = 15 + (daySeed % 6); // Escolhe entre 15h e 20h
+            endHour = startHour + 1;
+        }
+
+        const startTime = new Date(Date.UTC(cuiabaDate.getFullYear(), cuiabaDate.getMonth(), cuiabaDate.getDate(), startHour + 4, 0, 0));
+        const endTime = new Date(Date.UTC(cuiabaDate.getFullYear(), cuiabaDate.getMonth(), cuiabaDate.getDate(), endHour + 4, 0, 0));
+
+        const currentMs = now.getTime();
+        const startMs = startTime.getTime();
+        const endMs = endTime.getTime();
+
+        const isBefore = currentMs < startMs;
+        const isActive = currentMs >= startMs && currentMs < endMs;
+        const isEnded = currentMs >= endMs;
+
+        let secondsUntilStart = 0;
+        let secondsRemaining = 0;
+
+        if (isBefore) {
+            secondsUntilStart = Math.floor((startMs - currentMs) / 1000);
+        } else if (isActive) {
+            secondsRemaining = Math.floor((endMs - currentMs) / 1000);
+        } else if (isEnded) {
+            const nextDayDate = new Date(cuiabaMs + 86400000);
+            const nextYear = nextDayDate.getFullYear();
+            const nextMonth = String(nextDayDate.getMonth() + 1).padStart(2, '0');
+            const nextDay = String(nextDayDate.getDate()).padStart(2, '0');
+            const nextDaySeed = Number(nextDay) + Number(nextMonth) * 31 + nextYear;
+            const nextStartHour = (nextYear === 2026 && nextMonth === '08' && nextDay === '06') ? 18 : 15 + (nextDaySeed % 6);
+            const nextStartTime = new Date(Date.UTC(nextDayDate.getFullYear(), nextDayDate.getMonth(), nextDayDate.getDate(), nextStartHour + 4, 0, 0));
+            secondsUntilStart = Math.floor((nextStartTime.getTime() - currentMs) / 1000);
+        }
+
+        return {
+            dateStr,
+            startHour,
+            endHour,
+            startTimeISO: startTime.toISOString(),
+            endTimeISO: endTime.toISOString(),
+            isBefore,
+            isActive,
+            isEnded,
+            secondsUntilStart: Math.max(0, secondsUntilStart),
+            secondsRemaining: Math.max(0, secondsRemaining),
+            formattedWindow: `${String(startHour).padStart(2, '0')}:00 às ${String(endHour).padStart(2, '0')}:00`
+        };
+    }
+
+    async function recordPontos(alunoId: number, categoria: string, subcategoria: string, pontos: number) {
+        try {
+            if (!alunoId || !pontos) return;
+            await supabase.from('aluno_pontos_detalhes').insert([{
+                aluno_id: alunoId,
+                categoria,
+                subcategoria,
+                pontos,
+                created_at: new Date().toISOString()
+            }]);
+        } catch (err) {
+            // Ignora se a tabela ainda não existir no Postgres
+        }
+    }
+
+    app.get('/api/gamificacao/hora-dupla', async (req: any, res) => {
+        try {
+            const info = getHoraDuplaInfo();
+            res.json({ success: true, ...info });
+        } catch (err: any) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     app.get('/api/gamificacao/config-dobro', async (req: any, res) => {
-        res.json({ success: true, doublePointsGame: (global as any).doublePointsGame || null });
+        const info = getHoraDuplaInfo();
+        res.json({ success: true, horaDuplaActive: info.isActive, doublePointsGame: (global as any).doublePointsGame || null });
     });
 
     // Endpoint unificado para Adicionar Acorde Coins (XP) após jogar um jogo
@@ -831,8 +921,11 @@ async function startServer() {
 
             if (!aluno) return res.status(404).json({ error: 'Usuário não encontrado' });
 
+            const horaDupla = getHoraDuplaInfo();
             let finalPontos = Number(pontos);
-            if ((global as any).doublePointsGame === jogo) {
+
+            // Se for Hora Dupla ou se o jogo estiver em destaque bônus, multiplica por 2!
+            if (horaDupla.isActive || (global as any).doublePointsGame === jogo) {
                 finalPontos *= 2;
             }
 
@@ -852,14 +945,143 @@ async function startServer() {
                 await supabase.from('professores').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
             } else {
                 await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
-                // Adiciona no feed
                 const jogoNomeFormatado = jogo ? jogo.replace(/-/g, ' ').toUpperCase() : 'UM JOGO';
-                const feedMsg = `${aluno.nome} ganhou +${finalPontos} XP e Coins em ${jogoNomeFormatado}! 🎮`;
+                const feedMsg = `${aluno.nome} ganhou +${finalPontos} XP e Coins em ${jogoNomeFormatado}! ${horaDupla.isActive ? '🔥 (HORA DUPLA 2X!)' : '🎮'}`;
                 await addToFeed(aluno.id, 'jogo', feedMsg, '🎮');
+                await recordPontos(aluno.id, 'jogo', jogo || 'Jogo', finalPontos);
             }
 
-            res.json({ success: true, novoXp, novasMoedas, finalPontos, jogosDaoXp });
+            res.json({ success: true, novoXp, novasMoedas, finalPontos, isHoraDupla: horaDupla.isActive, jogosDaoXp });
         } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.get('/api/gamificacao/aluno-pontos-detalhados/:alunoId', async (req, res) => {
+        try {
+            const alunoId = Number(req.params.alunoId);
+            if (!alunoId) return res.status(400).json({ error: 'ID do aluno inválido' });
+
+            const { data: aluno } = await supabase
+                .from('alunos')
+                .select('id, nome, xp, acorde_coins')
+                .eq('id', alunoId)
+                .single();
+
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            const { data: detalhes } = await supabase
+                .from('aluno_pontos_detalhes')
+                .select('*')
+                .eq('aluno_id', alunoId);
+
+            const { data: conquistasProgresso } = await supabase
+                .from('gamificacao_progresso')
+                .select('*, conquista:conquista_id(*)')
+                .eq('aluno_id', alunoId);
+
+            const { data: aulasRealizadas } = await supabase
+                .from('aulas')
+                .select('id, xp_ganho')
+                .eq('aluno_id', alunoId)
+                .eq('status', 'realizada');
+
+            const { data: treinos } = await supabase
+                .from('aluno_treinos')
+                .select('*')
+                .eq('aluno_id', alunoId);
+
+            const breakdownJogos: Record<string, number> = {
+                'Acorde Genius': 0,
+                'Chord Rush': 0,
+                'Tríade Ninja': 0,
+                'Metrônomo Bird': 0,
+                'Cifras Musicais': 0
+            };
+
+            let totalJogos = 0;
+            let totalAulasVideo = 0;
+            let totalPresenca = 0;
+            let totalTrofeus = 0;
+            let totalTreinoVideo = 0;
+            let totalCheckin = 0;
+            let totalMissoes = 0;
+
+            if (detalhes && detalhes.length > 0) {
+                detalhes.forEach((item: any) => {
+                    const pts = Number(item.pontos) || 0;
+                    if (item.categoria === 'jogo') {
+                        totalJogos += pts;
+                        const gameName = item.subcategoria || 'Jogo';
+                        breakdownJogos[gameName] = (breakdownJogos[gameName] || 0) + pts;
+                    } else if (item.categoria === 'aulas_video') {
+                        totalAulasVideo += pts;
+                    } else if (item.categoria === 'presenca') {
+                        totalPresenca += pts;
+                    } else if (item.categoria === 'trofeus') {
+                        totalTrofeus += pts;
+                    } else if (item.categoria === 'treino_video') {
+                        totalTreinoVideo += pts;
+                    } else if (item.categoria === 'checkin') {
+                        totalCheckin += pts;
+                    } else if (item.categoria === 'missoes_diarias') {
+                        totalMissoes += pts;
+                    }
+                });
+            }
+
+            if (conquistasProgresso && conquistasProgresso.length > 0) {
+                const trofeusPts = conquistasProgresso.reduce((acc: number, p: any) => acc + (Number(p.conquista?.pontos) || 0), 0);
+                if (trofeusPts > totalTrofeus) totalTrofeus = trofeusPts;
+            }
+
+            if (aulasRealizadas && aulasRealizadas.length > 0) {
+                const presencaPts = aulasRealizadas.reduce((acc: number, a: any) => acc + (Number(a.xp_ganho) || 10000), 0);
+                if (presencaPts > totalPresenca) totalPresenca = presencaPts;
+            }
+
+            if (treinos && treinos.length > 0) {
+                let videoPts = 0;
+                let checkinPts = 0;
+                treinos.forEach((t: any) => {
+                    if (t.video_url) videoPts += 100000;
+                    else checkinPts += 50000;
+                });
+                if (videoPts > totalTreinoVideo) totalTreinoVideo = videoPts;
+                if (checkinPts > totalCheckin) totalCheckin = checkinPts;
+            }
+
+            const xpBase = Number(aluno.xp) || 0;
+            const subtotalOutros = totalAulasVideo + totalPresenca + totalTreinoVideo + totalCheckin + totalMissoes;
+            if (xpBase > subtotalOutros && totalJogos === 0) {
+                totalJogos = xpBase - subtotalOutros;
+                const perGame = Math.floor(totalJogos / 5);
+                breakdownJogos['Acorde Genius'] = perGame;
+                breakdownJogos['Chord Rush'] = perGame;
+                breakdownJogos['Tríade Ninja'] = perGame;
+                breakdownJogos['Metrônomo Bird'] = perGame;
+                breakdownJogos['Cifras Musicais'] = totalJogos - (perGame * 4);
+            }
+
+            const xpCalculadoTotal = (Number(aluno.xp) || 0) + totalTrofeus;
+
+            res.json({
+                success: true,
+                aluno_id: alunoId,
+                nome: aluno.nome,
+                xp_total: xpCalculadoTotal,
+                categorias: {
+                    jogos: { total: totalJogos, breakdown: breakdownJogos },
+                    aulas_video: { total: totalAulasVideo },
+                    presenca: { total: totalPresenca },
+                    trofeus: { total: totalTrofeus },
+                    treino_video: { total: totalTreinoVideo },
+                    checkin: { total: totalCheckin },
+                    missoes_diarias: { total: totalMissoes }
+                }
+            });
+        } catch (error: any) {
+            console.error('Erro no detalhamento de pontos do aluno:', error);
             res.status(500).json({ error: error.message });
         }
     });
@@ -1593,7 +1815,7 @@ async function startServer() {
                 conteudo: conteudo || '',
                 tarefa_casa: tarefa_casa || '',
                 midias: midias || [],
-                xp_ganho: xp_ganho !== undefined ? xp_ganho : 50
+                xp_ganho: xp_ganho !== undefined ? xp_ganho : 10000
             };
 
             const { data: createdAula, error: createErr } = await supabase.from('aulas').insert([newAula]).select().single();
@@ -1601,11 +1823,14 @@ async function startServer() {
 
             
             if (newAula.status === 'realizada') {
-                if (aluno_id) {
-                    const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', aluno_id).single();
+                if (finalAlunoId) {
+                    const xpDado = Number(newAula.xp_ganho) || 10000;
+                    const { data: aluno } = await supabase.from('alunos').select('xp, acorde_coins').eq('id', finalAlunoId).single();
                     if (aluno) {
-                        const novoXp = (Number(aluno.xp) || 0) + Number(newAula.xp_ganho);
-                        await supabase.from('alunos').update({ xp: novoXp }).eq('id', aluno_id);
+                        const novoXp = (Number(aluno.xp) || 0) + xpDado;
+                        const novasMoedas = (Number(aluno.acorde_coins) || 0) + xpDado;
+                        await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', finalAlunoId);
+                        await recordPontos(finalAlunoId, 'presenca', 'Presença em Aula', xpDado);
                     }
                 }
             }
@@ -1652,11 +1877,13 @@ async function startServer() {
             // Só credita XP se a aula NÃO estava realizada antes (evita duplicação)
             const jaEraRealizada = aulaAntiga?.status === 'realizada';
             if (status === 'realizada' && !jaEraRealizada && table === 'aulas' && data?.aluno_id) {
-                const xpDado = Number(xp_ganho) || Number(data.xp_ganho) || 50;
-                const { data: aluno } = await supabase.from('alunos').select('xp').eq('id', data.aluno_id).single();
+                const xpDado = Number(xp_ganho) || Number(data.xp_ganho) || 10000;
+                const { data: aluno } = await supabase.from('alunos').select('xp, acorde_coins').eq('id', data.aluno_id).single();
                 if (aluno) {
                     const novoXp = (Number(aluno.xp) || 0) + xpDado;
-                    await supabase.from('alunos').update({ xp: novoXp }).eq('id', data.aluno_id);
+                    const novasMoedas = (Number(aluno.acorde_coins) || 0) + xpDado;
+                    await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', data.aluno_id);
+                    await recordPontos(data.aluno_id, 'presenca', 'Presença em Aula', xpDado);
                 }
             }
 
@@ -3822,12 +4049,13 @@ async function startServer() {
 
             sendPushNotification(titulo, mensagem);
 
-            // Update XP and Coins
-            const novoXp = (Number(aluno.xp) || 0) + 500;
-            const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
+            // Update XP and Coins (50.000 pts para check-in sem vídeo)
+            const novoXp = (Number(aluno.xp) || 0) + 50000;
+            const novasMoedas = (Number(aluno.acorde_coins) || 0) + 50000;
             await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+            await recordPontos(aluno.id, 'checkin', 'Check-in Diário', 50000);
 
-            await addToFeed(aluno.id, 'treino', `${aluno.nome} marcou o treino do dia! 💪`, '🎸');
+            await addToFeed(aluno.id, 'treino', `${aluno.nome} marcou o treino do dia (+50.000 pts)! 💪`, '🎸');
 
             res.json({ success: true, data: treino, novoXp, novasMoedas });
         } catch (error: any) {
@@ -3941,6 +4169,9 @@ async function startServer() {
                 .eq('data', todayStr)
                 .maybeSingle();
 
+            const jaTinhaTreino = Boolean(treino);
+            const jaTinhaVideo = Boolean(treino?.video_url);
+
             if (!treino) {
                 const { data: novoTreino, error: createError } = await supabase
                     .from('aluno_treinos')
@@ -3949,14 +4180,17 @@ async function startServer() {
                     .single();
                 if (createError) throw createError;
                 treino = novoTreino;
-                
-                const novoXp = (Number(aluno.xp) || 0) + 500;
-                const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
-                await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
             }
 
-            if (!treino.video_url) {
-                await addToFeed(aluno.id, 'treino', `${aluno.nome} acabou de postar um vídeo de treino! 📹`, '📹');
+            // Se ainda não tinha vídeo hoje, concede os 100.000 pontos do vídeo!
+            if (!jaTinhaVideo) {
+                // Se já tinha feito check-in simples sem vídeo (ganhou 50k), ganha mais 50k para completar os 100k do vídeo
+                const pontosAdicionais = jaTinhaTreino ? 50000 : 100000;
+                const novoXp = (Number(aluno.xp) || 0) + pontosAdicionais;
+                const novasMoedas = (Number(aluno.acorde_coins) || 0) + pontosAdicionais;
+                await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+                await recordPontos(aluno.id, 'treino_video', 'Vídeo de Treino', 100000);
+                await addToFeed(aluno.id, 'treino', `${aluno.nome} enviou um vídeo de treino (+100.000 pts)! 📹`, '📹');
             }
 
             let url = req.body.video_url || '';
@@ -4837,30 +5071,6 @@ ${textoBruto}
                     .single();
 
                 if (aluno) {
-                    xpGanhos = aulaId ? 200 : 500;
-                    moedasGanhas = aulaId ? 200 : 500;
-                    
-                    const novoXp = (Number(aluno.xp) || 0) + xpGanhos;
-                    const novasMoedas = (Number(aluno.acorde_coins) || 0) + moedasGanhas;
-                    
-                    await supabase
-                        .from('alunos')
-                        .update({ xp: novoXp, acorde_coins: novasMoedas })
-                        .eq('id', aluno.id);
-
-                    await addToFeed(
-                        aluno.id,
-                        aulaId ? 'aula_trilha_concluida' : 'modulo_trilha_concluido',
-                        `Aprovado com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos} XP & +${moedasGanhas} Moedas!`,
-                        aulaId ? '🎓' : '👑'
-                    );
-
-                    if (aulaId) {
-                        await supabase
-                            .from('progresso_trilha')
-                            .upsert([{ aluno_id: aluno.id, aula_id: aulaId }], { onConflict: 'aluno_id,aula_id' });
-                    }
-
                     // Se a aula ou módulo não tem conquistaId vinculado, tentar encontrar ou criar um troféu de 20.000 pontos
                     if (!conquistaId) {
                         const nomeTrofeu = `Troféu Desafio: ${tituloReferencia}`;
@@ -4898,39 +5108,75 @@ ${textoBruto}
                         }
                     }
 
+                    let existConq = null;
                     if (conquistaId) {
-                        // Garantir que a conquista de prova valha 20.000 pontos no ranking
                         await supabase
                             .from('gamificacao_conquistas')
                             .update({ pontos: 20000 })
                             .eq('id', conquistaId);
 
-                        const { data: existConq } = await supabase
+                        const { data: found } = await supabase
                             .from('gamificacao_progresso')
                             .select('*')
                             .eq('aluno_id', aluno.id)
                             .eq('conquista_id', conquistaId)
                             .maybeSingle();
+                        existConq = found;
+                    }
 
-                        if (!existConq) {
-                            await supabase
-                                .from('gamificacao_progresso')
-                                .insert([{ aluno_id: aluno.id, conquista_id: conquistaId }]);
-                            conquistouMedalha = true;
+                    const isRetake = Boolean(existConq);
+                    // 1ª vez: 20.000 pontos. Refazer (2ª, 3ª... N-ésima vez): 10.000 pontos a cada vez!
+                    xpGanhos = isRetake ? 10000 : 20000;
+                    moedasGanhas = isRetake ? 10000 : 20000;
+                    
+                    const novoXp = (Number(aluno.xp) || 0) + xpGanhos;
+                    const novasMoedas = (Number(aluno.acorde_coins) || 0) + moedasGanhas;
+                    
+                    await supabase
+                        .from('alunos')
+                        .update({ xp: novoXp, acorde_coins: novasMoedas })
+                        .eq('id', aluno.id);
+
+                    await recordPontos(
+                        aluno.id,
+                        'aulas_video',
+                        isRetake ? `Refez Questionário: ${tituloReferencia}` : `Passou Questionário: ${tituloReferencia}`,
+                        xpGanhos
+                    );
+
+                    await addToFeed(
+                        aluno.id,
+                        aulaId ? 'aula_trilha_concluida' : 'modulo_trilha_concluido',
+                        isRetake 
+                            ? `Refez e passou novamente com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos} XP!`
+                            : `Aprovado com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos} XP & +${moedasGanhas} Moedas!`,
+                        aulaId ? '🎓' : '👑'
+                    );
+
+                    if (aulaId) {
+                        await supabase
+                            .from('progresso_trilha')
+                            .upsert([{ aluno_id: aluno.id, aula_id: aulaId }], { onConflict: 'aluno_id,aula_id' });
+                    }
+
+                    if (conquistaId && !existConq) {
+                        await supabase
+                            .from('gamificacao_progresso')
+                            .insert([{ aluno_id: aluno.id, conquista_id: conquistaId }]);
+                        conquistouMedalha = true;
+                        
+                        const { data: conqData } = await supabase
+                            .from('gamificacao_conquistas')
+                            .select('nome')
+                            .eq('id', conquistaId)
+                            .single();
                             
-                            const { data: conqData } = await supabase
-                                .from('gamificacao_conquistas')
-                                .select('nome')
-                                .eq('id', conquistaId)
-                                .single();
-                                
-                            await addToFeed(
-                                aluno.id,
-                                'novo_trofeu',
-                                `Conquistou o troféu "${conqData?.nome || 'Medalha EAD'}" (+20.000 pts)! 🏆`,
-                                '🏆'
-                            );
-                        }
+                        await addToFeed(
+                            aluno.id,
+                            'novo_trofeu',
+                            `Conquistou o troféu "${conqData?.nome || 'Medalha EAD'}" (+20.000 pts)! 🏆`,
+                            '🏆'
+                        );
                     }
                 }
             }
