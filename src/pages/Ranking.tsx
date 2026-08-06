@@ -256,7 +256,6 @@ export default function Ranking() {
                      </div>
                   </div>
                 )}
-              </>        )}
               </>
             ) : (
               <div className="col-span-3 py-20 flex flex-col items-center justify-center rounded-lg border-4 border-dashed border-[#5a4136] bg-[#1a0a05]/50 w-full">
