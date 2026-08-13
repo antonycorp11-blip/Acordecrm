@@ -1729,6 +1729,36 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
                 </div>
               )}
 
+              {/* Tablatura */}
+              {richData.tablatures?.length > 0 && (
+                <div className="p-4 bg-white border-2 border-black shadow-[2px_2px_0_#000] space-y-3">
+                   <h4 className="font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
+                     <span className="text-lg">📝</span> Tablaturas
+                   </h4>
+                   <div className="flex flex-col gap-4">
+                     {richData.tablatures.map((tab: any, idx: number) => (
+                       <div key={idx} className="border-2 border-black p-3 bg-[#fff8f6]">
+                         <p className="text-[10px] font-black uppercase text-[#ff6b00] mb-2">{tab.name}</p>
+                         <div className="overflow-x-auto">
+                           <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
+                             {['e','B','G','D','A','E'].map((str, strIdx) => (
+                               <React.Fragment key={strIdx}>
+                                 <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-1 min-w-[16px]">{str}</div>
+                                 {Array.from({ length: 16 }).map((_, beat) => (
+                                   <div key={beat} className="h-6 flex items-center justify-center bg-white border border-black/20 text-[10px] font-black">
+                                     {tab.matrix?.[strIdx]?.[beat] || '-'}
+                                   </div>
+                                 ))}
+                               </React.Fragment>
+                             ))}
+                           </div>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                </div>
+              )}
+
               {/* Bateria/Ritmo */}
               {richData.drums?.length > 0 && (
                 <div className="p-4 bg-stone-100 border-2 border-black shadow-[2px_2px_0_#000]">

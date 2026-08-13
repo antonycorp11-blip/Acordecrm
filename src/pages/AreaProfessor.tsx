@@ -2002,11 +2002,11 @@ export default function AreaProfessor() {
                     <div className="flex gap-3.5 overflow-x-auto py-2.5 scrollbar-thin">
                       {(chords as any[]).map((ch, idx) => {
                         const globalIdx = mcChords.findIndex(c => c === ch);
-                        const isTeclado = (ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument)?.toLowerCase().includes('teclado') || (ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument)?.toLowerCase().includes('piano');
+                        const isTeclado = (ch.instrument || mcPlaygroundInstrument)?.toLowerCase().includes('teclado') || (ch.instrument || mcPlaygroundInstrument)?.toLowerCase().includes('piano');
                         return (
                           <div key={idx} className={`relative group shrink-0 mt-2.5 origin-top-left ${isTeclado ? 'w-[320px]' : 'w-[160px]'}`}>
                             <ChordVisualizer
-                              instrument={ch.isCustom ? (ch.instrument || mcPlaygroundInstrument) : mcPlaygroundInstrument}
+                              instrument={ch.instrument || mcPlaygroundInstrument}
                               chordNotes={ch.notes || []}
                               root={ch.root}
                               type={ch.typeId}
@@ -3628,23 +3628,18 @@ export default function AreaProfessor() {
                           <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
                         </button>
 
-                        {/* App 5: Cifras Estelares (Em Manutenção) */}
+                        {/* App 5: Cifras Estelares */}
                         <div 
                           onClick={() => {
-                            toast.info('🛠️ O jogo Cifras Estelares está em manutenção para melhorias! Voltaremos em breve.');
+                            setSubGameType('cifras-musicais');
+                            setIsSubGameOpen(true);
                           }}
-                          className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-80 hover:opacity-100 transition-all"
+                          className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-100 hover:scale-105 transition-all"
                         >
-                          <div className="w-full aspect-square bg-[#334155] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl relative">
+                          <div className="w-full aspect-square bg-[#0f172a] border-4 border-cyan-500 shadow-[4px_4px_0_#0ea5e9] rounded-xl flex items-center justify-center text-3xl relative">
                             🚀
-                            <span className="absolute -top-1.5 -right-1 bg-[#eab308] text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse whitespace-nowrap">
-                              EM MANUTENÇÃO 🛠️
-                            </span>
-                            <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center text-xl">
-                              🔒
-                            </div>
                           </div>
-                          <span className="text-amber-400 font-black text-[8px] uppercase tracking-widest text-center">Cifras Estelares</span>
+                          <span className="text-cyan-400 font-black text-[8px] uppercase tracking-widest text-center">Cifras Estelares</span>
                         </div>
 
                         {/* App 6: Rhythm Hero (Locked) */}

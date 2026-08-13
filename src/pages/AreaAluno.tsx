@@ -171,7 +171,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
 
   // Instrumento sugerido
   const isTeclado = /teclado|piano|keyboard/i.test(aula.curso_nome || '');
-  const currentInstrument = isTeclado ? 'Teclado' : 'Piano';
+  const currentInstrument = isTeclado ? 'Teclado' : (aula.curso_nome || 'Violão');
 
   return (
     <div className="fixed inset-0 bg-[#261812]/95 md:bg-black/80 z-[160] flex items-stretch md:items-center justify-center p-0 md:p-4 overflow-y-auto font-['Space_Mono']">
@@ -246,6 +246,34 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
               <div className="grid grid-cols-2 gap-2 pl-3">
                 {richData.images.map((img: string, idx: number) => (
                   <img key={idx} src={img} alt="Anexo" className="w-full h-auto border-2 border-black shadow-[2px_2px_0_#000]" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tablaturas */}
+          {richData?.isRich && Array.isArray(richData.tablatures) && richData.tablatures.length > 0 && (
+            <div className="space-y-3 pt-2 break-inside-avoid">
+              <h4 className="font-black text-sm border-l-4 border-black pl-2 uppercase tracking-wide">📝 TABLATURAS:</h4>
+              <div className="space-y-4">
+                {richData.tablatures.map((tab: any, idx: number) => (
+                  <div key={idx} className="border-4 border-black p-4 bg-white space-y-2">
+                    <p className="text-[10px] font-black uppercase text-[#ff6b00]">{tab.name}</p>
+                    <div className="overflow-x-auto">
+                      <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
+                        {['e','B','G','D','A','E'].map((str, strIdx) => (
+                          <React.Fragment key={strIdx}>
+                            <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-1 min-w-[16px]">{str}</div>
+                            {Array.from({ length: 16 }).map((_, beat) => (
+                              <div key={beat} className="h-6 flex items-center justify-center bg-white border border-black/20 text-[10px] font-black">
+                                {tab.matrix?.[strIdx]?.[beat] || '-'}
+                              </div>
+                            ))}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -2167,23 +2195,18 @@ export default function AreaAluno() {
                         <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
                       </button>
 
-                      {/* App 5: Cifras Estelares (Em Manutenção) */}
+                      {/* App 5: Cifras Estelares */}
                       <div 
                         onClick={() => {
-                          toast.info('🛠️ O jogo Cifras Estelares está em manutenção para melhorias! Voltaremos em breve.');
+                          setSubGameType('cifras-musicais');
+                          setIsSubGameOpen(true);
                         }}
-                        className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-80 hover:opacity-100 transition-all"
+                        className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-100 hover:scale-105 transition-all"
                       >
-                        <div className="w-full aspect-square bg-[#334155] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl relative">
+                        <div className="w-full aspect-square bg-[#0f172a] border-4 border-cyan-500 shadow-[4px_4px_0_#0ea5e9] rounded-xl flex items-center justify-center text-3xl relative">
                           🚀
-                          <span className="absolute -top-1.5 -right-1 bg-[#eab308] text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse whitespace-nowrap">
-                            EM MANUTENÇÃO 🛠️
-                          </span>
-                          <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center text-xl">
-                            🔒
-                          </div>
                         </div>
-                        <span className="text-amber-400 font-black text-[8px] uppercase tracking-widest text-center">Cifras Estelares</span>
+                        <span className="text-cyan-400 font-black text-[8px] uppercase tracking-widest text-center">Cifras Estelares</span>
                       </div>
 
                       {/* App 5: Rhythm Hero (Locked) */}
@@ -2579,7 +2602,7 @@ export default function AreaAluno() {
             } catch {}
             const cursoNomeAula = alunoData?.matriculas?.[0]?.cursos?.nome || alunoData?.curso_ativo || aula.cursos?.nome || aula.curso_nome || '';
             const isCursoTeclado = /teclado|piano|keyboard/i.test(cursoNomeAula);
-            const currentInstrument = isCursoTeclado ? 'Teclado' : (cursoNomeAula || 'Piano');
+            const currentInstrument = isCursoTeclado ? 'Teclado' : (cursoNomeAula || 'Violão');
             return (
               <div className="fixed inset-0 bg-[#261812]/95 md:bg-black/80 z-[150] flex items-stretch md:items-center justify-center p-0 md:p-4 overflow-y-auto">
                 <div className="bg-[#fff8f6] border-0 md:border-8 border-black pt-16 pb-6 px-4 md:p-5 shadow-none md:shadow-[8px_8px_0_#000] w-full max-w-full md:max-w-[600px] min-h-screen md:min-h-0 flex flex-col space-y-4 relative font-['Space_Mono'] text-black select-none">
@@ -2659,6 +2682,30 @@ export default function AreaAluno() {
                                 </div>
                               ))}
                             </div>
+                          </div>
+                        )}
+                        {richData.tablatures && richData.tablatures.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t-2 border-black/10">
+                             <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">📝 TABLATURA:</span>
+                             {richData.tablatures.map((tab: any, idx: number) => (
+                               <div key={idx} className="border-2 border-black p-2 bg-white space-y-2">
+                                 <p className="text-[8px] font-black uppercase text-[#ff6b00]">{tab.name}</p>
+                                 <div className="overflow-x-auto">
+                                   <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
+                                     {['e','B','G','D','A','E'].map((str, strIdx) => (
+                                       <React.Fragment key={strIdx}>
+                                         <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-1 min-w-[16px]">{str}</div>
+                                         {Array.from({ length: 16 }).map((_, beat) => (
+                                           <div key={beat} className="h-4 flex items-center justify-center bg-white border border-black/20 text-[8px] font-black">
+                                             {tab.matrix?.[strIdx]?.[beat] || '-'}
+                                           </div>
+                                         ))}
+                                       </React.Fragment>
+                                     ))}
+                                   </div>
+                                 </div>
+                               </div>
+                             ))}
                           </div>
                         )}
                         {richData.drums && richData.drums.length > 0 && (
