@@ -2363,7 +2363,7 @@ async function startServer() {
             }
             const { data: prof, error } = await supabase.from('professores')
                 .select('*')
-                .ilike('email', req.user.email)
+                .ilike('email', req.user.email.trim())
                 .maybeSingle();
             
             if (error) throw error;
@@ -3231,7 +3231,10 @@ async function startServer() {
             let filterAlunoId: string | null = null;
 
             if (req.user && req.user.role === 'professor') {
-                const { data: prof } = await supabase.from('professores').select('id, nome').ilike('email', req.user.email).single();
+                const { data: prof, error: profErr } = await supabase.from('professores').select('id, nome').ilike('email', req.user.email.trim()).limit(1).maybeSingle();
+                if (profErr) {
+                    console.error('[AGENDA] Erro ao buscar professor:', profErr);
+                }
                 if (prof) {
                     const nome = prof.nome.toLowerCase();
                     // Aplica restrição a todos os professores para que vejam apenas suas próprias aulas
