@@ -24,7 +24,8 @@ export default function Agenda() {
   const [loading, setLoading] = useState(true);
   const [diaOffset, setDiaOffset] = useState(0);
   const [navType, setNavType] = useState<'dia' | 'semana'>('dia');
-  const [viewType, setViewType] = useState<'individual' | 'grupo'>('individual');
+  const [selectedProfessor, setSelectedProfessor] = useState<string>('todos');
+  const [confirmedMsgIds, setConfirmedMsgIds] = useState<Set<number>>(new Set());
   const [selectedAula, setSelectedAula] = useState<any>(null);
   const [cancelModalAula, setCancelModalAula] = useState<any>(null);
 
@@ -68,6 +69,7 @@ export default function Agenda() {
   const getAulaForProfHour = (profId: number, hour: string) => {
     const targetDate = format(currentBaseDate, 'yyyy-MM-dd');
     return aulas.filter(a => {
+      if (a.status === 'cancelada') return false;
       const h = (a.horario || '').substring(0, 5);
       const d = a.data ? a.data.split('T')[0] : '';
       return a.professor_id === profId && h === hour && d === targetDate;
@@ -267,21 +269,28 @@ export default function Agenda() {
 
             <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
               <span className="border-2 border-[#261812] rounded px-3 py-1 font-black text-xs text-[#261812] uppercase">{mesAno}</span>
-              <div className="flex items-center gap-4 ml-4">
+              <div className="flex items-center gap-4 ml-4 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
                 <button
-                  onClick={() => setViewType('individual')}
-                  className="flex items-center gap-2 text-xs font-black uppercase tracking-wider"
+                  onClick={() => setSelectedProfessor('todos')}
+                  className="flex items-center gap-2 text-xs font-black uppercase tracking-wider whitespace-nowrap"
                 >
-                  <div className={`w-4 h-4 rounded-full border-2 ${viewType === 'individual' ? 'bg-[#ff6b00] border-[#ff6b00]' : 'border-[#7b5647]'}`}></div>
-                  <span className="text-[#261812]">AULA INDIVIDUAL</span>
+                  <div className={`w-4 h-4 rounded-full border-2 ${selectedProfessor === 'todos' ? 'bg-[#ff6b00] border-[#ff6b00]' : 'border-[#7b5647]'}`}></div>
+                  <span className="text-[#261812]">TODOS</span>
                 </button>
-                <button
-                  onClick={() => setViewType('grupo')}
-                  className="flex items-center gap-2 text-xs font-black uppercase tracking-wider"
-                >
-                  <div className={`w-4 h-4 rounded-full border-2 ${viewType === 'grupo' ? 'bg-[#ff6b00] border-[#ff6b00]' : 'border-[#7b5647]'}`}></div>
-                  <span className="text-[#261812]">PRÁTICA EM GRUPO</span>
-                </button>
+                {professores.map(p => {
+                  const hasClassesToday = aulas.some(a => a.professor_id === p.id && a.status !== 'cancelada');
+                  if (!hasClassesToday) return null;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedProfessor(p.id.toString())}
+                      className="flex items-center gap-2 text-xs font-black uppercase tracking-wider whitespace-nowrap"
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 ${selectedProfessor === p.id.toString() ? 'bg-[#ff6b00] border-[#ff6b00]' : 'border-[#7b5647]'}`}></div>
+                      <span className="text-[#261812]">{p.nome.split(' ')[0]}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -297,13 +306,18 @@ export default function Agenda() {
               {/* VISÃO MOBILE (Cards) */}
               <div className="md:hidden flex flex-col gap-4 p-4 min-h-full">
                 {aulas.length > 0 ? (
-                  [...aulas].sort((a, b) => (a.horario || '').localeCompare(b.horario || '')).map(aula => {
+                  [...aulas]
+                    .filter(a => a.status !== 'cancelada')
+                    .filter(a => selectedProfessor === 'todos' || a.professor_id.toString() === selectedProfessor)
+                    .sort((a, b) => (a.horario || '').localeCompare(b.horario || ''))
+                    .map(aula => {
                     const c = getAulaColor(aula);
                     const prof = professores.find(p => p.id === aula.professor_id);
+                    const isMsgSent = confirmedMsgIds.has(aula.id);
                     return (
                       <div 
                         key={aula.id} 
-                        className="p-5 bg-white border-4 border-black shadow-[6px_6px_0_#000] cursor-pointer hover:bg-[#ffeae1] active:translate-y-1 active:shadow-[2px_2px_0_#000] transition-all"
+                        className={`p-5 border-4 border-black shadow-[6px_6px_0_#000] cursor-pointer hover:bg-[#ffeae1] active:translate-y-1 active:shadow-[2px_2px_0_#000] transition-all ${isMsgSent ? 'bg-yellow-300' : 'bg-white'}`}
                         onClick={(e) => {
                            e.stopPropagation();
                            if (selectedAula?.id === aula.id) {
@@ -402,6 +416,7 @@ export default function Agenda() {
                                     // 2. Open WhatsApp link directly (synchronously to bypass mobile popup blockers)
                                     const phoneClean = (aula.telefone || '').replace(/\D/g, '');
                                     if (phoneClean) {
+                                        setConfirmedMsgIds(prev => new Set(prev).add(aula.id));
                                         window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
                                     } else {
                                         toast.error('Telefone do aluno não cadastrado.');
@@ -482,7 +497,7 @@ export default function Agenda() {
                   </tr>
                 </thead>
                 <tbody>
-                  {professores.length > 0 ? professores.map((prof, pi) => {
+                  {professores.filter(p => selectedProfessor === 'todos' || p.id.toString() === selectedProfessor).length > 0 ? professores.filter(p => selectedProfessor === 'todos' || p.id.toString() === selectedProfessor).map((prof, pi) => {
                     const dayNames = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
                     const currentDayName = dayNames[currentBaseDate.getDay()];
                     
@@ -508,14 +523,22 @@ export default function Agenda() {
                             <div className="flex flex-col gap-1 min-h-full">
                               {aulasDaHora.map(aula => {
                                 const c = getAulaColor(aula);
+                                const isMsgSent = confirmedMsgIds.has(aula.id);
                                 return (
                                   <div
                                     key={aula.id}
-                                    draggable
+                                    draggable={!reschedulingAula}
                                     onDragStart={(e) => handleDragStart(e, aula)}
-                                    onClick={(e) => handleAulaClick(e, aula)}
-                                    className="px-2 py-1 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95 z-0 relative"
-                                    style={{ background: c.bg, border: `2px solid ${c.border}`, color: c.text, boxShadow: `3px 3px 0 ${c.border}` }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (selectedAula?.id === aula.id) {
+                                        setSelectedAula(null);
+                                      } else {
+                                        setSelectedAula(aula);
+                                      }
+                                    }}
+                                    className={`px-2 py-1 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95 z-0 relative ${isMsgSent ? 'bg-yellow-300' : ''}`}
+                                    style={{ background: isMsgSent ? '#fde047' : c.bg, border: `2px solid ${c.border}`, color: c.text, boxShadow: `3px 3px 0 ${c.border}`, opacity: reschedulingAula ? 0.5 : 1 }}
                                     title={aula.aluno_nome || (aula.type === 'experimental' ? 'Aula Experimental' : 'Aula')}
                                   >
                                     {(aula.type === 'experimental' || aula.tipo === 'experimental') && (
@@ -681,6 +704,7 @@ export default function Agenda() {
               // 2. Open WhatsApp link directly (synchronously to bypass mobile popup blockers)
               const phoneClean = (selectedAula.telefone || '').replace(/\D/g, '');
               if (phoneClean) {
+                  setConfirmedMsgIds(prev => new Set(prev).add(selectedAula.id));
                   window.open(`https://api.whatsapp.com/send?phone=55${phoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
               } else {
                   toast.error('Telefone do aluno não cadastrado.');

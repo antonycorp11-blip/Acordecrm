@@ -2198,8 +2198,8 @@ export default function AreaAluno() {
                       {/* App 5: Cifras Estelares */}
                       <div 
                         onClick={() => {
-                          setSubGameType('cifras-musicais');
-                          setIsSubGameOpen(true);
+                          setIsPlayingCifrasMusicais(true);
+                          playRetroSound(880, 'square', 0.1);
                         }}
                         className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-100 hover:scale-105 transition-all"
                       >
@@ -2787,6 +2787,46 @@ export default function AreaAluno() {
           {/* ===== ABA: HOME (HUB INTEGRADO DO JOGADOR) ===== */}
           {activeTab === 'home' && (
             <div className="px-4 py-5 space-y-6">
+              {/* Próximas Aulas e Confirmação */}
+              {aulasHoje.length > 0 && (
+                <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] space-y-3">
+                  <div className="flex justify-between items-center">
+                    <p className="text-black font-black text-[9px] uppercase tracking-widest">Suas Próximas Aulas</p>
+                  </div>
+                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide select-none">
+                    {aulasHoje.map((aula: any) => {
+                      const dataFormatada = format(new Date(aula.data + 'T12:00:00Z'), "dd/MMM", { locale: ptBR }).toUpperCase();
+                      const difDias = Math.floor((new Date(aula.data + 'T12:00:00Z').getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                      const podeConfirmar = difDias <= 7;
+                      
+                      return (
+                        <div key={aula.id} className="flex-shrink-0 bg-white border-4 border-black p-3 shadow-[4px_4px_0_#000] w-48 flex flex-col justify-between">
+                          <div className="space-y-1 mb-3">
+                            <span className="text-black font-black text-[12px] uppercase tracking-wider block">
+                              📅 {dataFormatada} às {aula.horario?.substring(0, 5)}
+                            </span>
+                            <p className="text-[#8e7164] font-black text-[9px] uppercase leading-tight line-clamp-2">
+                              {aula.conteudo || 'Aula Regular'}
+                            </p>
+                          </div>
+                          {aula.status === 'confirmada' ? (
+                            <span className="bg-green-500 text-white font-black text-[9px] px-2 py-1 text-center border-2 border-black uppercase block">✅ Confirmada</span>
+                          ) : podeConfirmar ? (
+                            <button
+                              onClick={() => handleConfirmarPresenca(aula.id)}
+                              className="bg-[#ff6b00] text-white font-black text-[9px] px-2 py-1 border-2 border-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-none transition-all active:bg-black w-full"
+                            >
+                              Confirmar Presença
+                            </button>
+                          ) : (
+                            <span className="bg-gray-300 text-gray-600 font-black text-[9px] px-2 py-1 text-center border-2 border-black uppercase block opacity-70 cursor-not-allowed" title="Disponível 7 dias antes da aula">Aguarde para Confirmar</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               
               {/* Diário de Evolução (Últimas Aulas Recentes no Topo) */}
               <div className="bg-[#261812] border-8 border-black p-4 shadow-[8px_8px_0_#000] space-y-3">

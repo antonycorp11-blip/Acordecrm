@@ -1630,7 +1630,7 @@ async function startServer() {
                             .select('id, data')
                             .eq('matricula_id', matriculaId)
                             .eq('status', 'pendente')
-                            .gte('data', hoje);
+                            .gt('data', hoje);
                             
                         if (aulasFuturas && aulasFuturas.length > 0) {
                             console.log(`[MATRICULA_UPDATE] Reagendando ${aulasFuturas.length} aulas pendentes na agenda...`);
@@ -1666,40 +1666,7 @@ async function startServer() {
                     console.warn(`[MATRICULA_UPDATE] Nenhuma matrícula encontrada para aluno ${studentId}`);
                 }
 
-                // PASSO 3: Reagendar aulas futuras pendentes se o dia da semana mudou
-                if (matUpdate.dia_semana !== undefined) {
-                    const hoje = getDateBR();
-                    const { data: aulasFuturas } = await supabase.from('aulas')
-                        .select('id, data')
-                        .eq('aluno_id', studentId)
-                        .eq('status', 'pendente')
-                        .gte('data', hoje);
-
-                    if (aulasFuturas && aulasFuturas.length > 0) {
-                        const novoDia = Number(matUpdate.dia_semana);
-                        for (const aula of aulasFuturas) {
-                            const dataAtual = new Date(aula.data + 'T12:00:00');
-                            const diaAtual = dataAtual.getDay();
-                            
-                            const updateAula: any = {};
-                            
-                            let diff = novoDia - diaAtual;
-                            if (diff !== 0) {
-                                // Move a aula para o novo dia dentro da mesma semana
-                                const novaData = new Date(dataAtual);
-                                novaData.setDate(novaData.getDate() + diff);
-                                updateAula.data = novaData.toISOString().split('T')[0];
-                            }
-
-                            if (matUpdate.horario) updateAula.horario = matUpdate.horario;
-                            
-                            if (Object.keys(updateAula).length > 0) {
-                                await supabase.from('aulas').update(updateAula).eq('id', aula.id);
-                            }
-                        }
-                        console.log(`[REAGENDAMENTO] ${aulasFuturas.length} aulas futuras reagendadas/atualizadas para dia ${matUpdate.dia_semana}.`);
-                    }
-                } else if (matUpdate.horario) {
+                if (matUpdate.horario && matUpdate.dia_semana === undefined) {
                     // Só mudou o horário, manter os dias das aulas
                     const hoje = getDateBR();
                     await supabase.from('aulas')
@@ -3268,6 +3235,8 @@ async function startServer() {
                 } else {
                     query = query.eq('status', statusFilter);
                 }
+            } else {
+                query = query.neq('status', 'cancelada');
             }
 
             const { data: rawAulas, error: errA } = await query;

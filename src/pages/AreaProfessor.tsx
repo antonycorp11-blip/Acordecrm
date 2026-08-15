@@ -3631,8 +3631,8 @@ export default function AreaProfessor() {
                         {/* App 5: Cifras Estelares */}
                         <div 
                           onClick={() => {
-                            setSubGameType('cifras-musicais');
-                            setIsSubGameOpen(true);
+                            setIsPlayingCifrasMusicais(true);
+                            playRetroSound(880, 'square', 0.1);
                           }}
                           className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-100 hover:scale-105 transition-all"
                         >
