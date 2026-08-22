@@ -840,6 +840,22 @@ export default function AlunoPerfil() {
     </div>
   );
 
+  if (!aluno) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-[#1a0a05] text-[#ff6b00] font-['Space_Mono'] p-6 text-center">
+        <AlertCircle className="w-12 h-12 mb-4 text-[#ff6b00]" />
+        <h2 className="text-xl font-black uppercase text-white mb-2">Aluno não encontrado</h2>
+        <p className="text-xs text-[#8e7164] mb-6">O perfil solicitado não foi carregado ou não existe.</p>
+        <button 
+          onClick={() => navigate('/alunos')}
+          className="bg-[#ff6b00] text-white font-black uppercase px-6 py-3 border-2 border-black shadow-[3px_3px_0_#000] text-xs"
+        >
+          Voltar para Lista de Alunos
+        </button>
+      </div>
+    );
+  }
+
   const isMinor = () => {
     if (!aluno?.data_nascimento) return false;
     const age = new Date().getFullYear() - new Date(aluno.data_nascimento).getFullYear();
