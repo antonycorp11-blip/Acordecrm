@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bell, LayoutGrid, List, Trophy, Star, Zap, Target, Plus, X, Save, Trash2 } from 'lucide-react';
+import { Search, Bell, LayoutGrid, List, Trophy, Star, Zap, Target, Plus, X, Save, Trash2, Crown, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
@@ -20,6 +20,11 @@ export default function Ranking() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [assignData, setAssignData] = useState({ aluno_id: '', conquista_id: '' });
+  const [temporadaAtual, setTemporadaAtual] = useState<{ id?: number; nome: string; data_fim?: string }>({
+    id: 3,
+    nome: 'TEMPORADA 3',
+    data_fim: '2026-09-22T23:59:59-04:00'
+  });
 
   const [selectedAluno, setSelectedAluno] = useState<any | null>(null);
   const [isAlunoModalOpen, setIsAlunoModalOpen] = useState(false);
@@ -29,15 +34,19 @@ export default function Ranking() {
 
   const fetchData = async () => {
     try {
-      const [resR, resA, resC] = await Promise.all([
+      const [resR, resA, resC, resT] = await Promise.all([
         fetch('/api/gamificacao/ranking', { headers }).then(r => r.ok ? r.json() : []),
         fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : []),
         fetch('/api/gamificacao/conquistas', { headers }).then(r => r.ok ? r.json() : []),
+        fetch('/api/temporada-atual', { headers }).then(r => r.ok ? r.json() : null),
       ]);
       const rankingData = Array.isArray(resR) ? resR : [];
       setRanking(rankingData);
       setAlunosList(Array.isArray(resA) ? resA : []);
       setConquistasList(Array.isArray(resC) ? resC : []);
+      if (resT && resT.nome) {
+        setTemporadaAtual(resT);
+      }
 
       // Atualiza o aluno selecionado se o modal estiver aberto
       if (selectedAluno) {
@@ -165,7 +174,7 @@ export default function Ranking() {
       <header className="relative z-10 flex items-center gap-6 px-8 py-6 border-b-8 border-black shrink-0 bg-[#feccba]">
         <div className="flex-1">
           <h1 className="text-black font-black text-2xl tracking-tighter uppercase italic italic">Ranking_Geral</h1>
-          <p className="text-[#8e7164] text-[10px] font-black uppercase tracking-widest">&gt;&gt; TEMPORADA_ATUAL_04</p>
+          <p className="text-[#8e7164] text-[10px] font-black uppercase tracking-widest">&gt;&gt; {temporadaAtual.nome || 'TEMPORADA 3'} (EM ANDAMENTO)</p>
         </div>
         <div className="flex items-center gap-6">
           <button className="text-black hover:text-[#ff6b00] transition-colors"><Bell className="w-7 h-7" /></button>
@@ -175,8 +184,65 @@ export default function Ranking() {
       {/* CONTENT */}
       <div className="relative z-10 flex-1 overflow-auto px-8 py-6">
 
+        {/* BANNER DA GRANDE CAMPEÃ DA TEMPORADA 2 */}
+        <div className="mb-6 relative overflow-hidden rounded-2xl border-4 border-[#ffb700] bg-gradient-to-r from-[#2b1704] via-[#422206] to-[#1a0a05] p-5 sm:p-6 shadow-[0_0_35px_rgba(255,183,0,0.3)]">
+          {/* Shimmer / Glow decoration */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-radial from-amber-500/20 to-transparent blur-3xl pointer-events-none -mr-20 -mt-20" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+            {/* Left: Trophy & Winner Info */}
+            <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+              <div className="relative shrink-0">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-4 border-[#ffb700] bg-[#120703] shadow-[4px_4px_0_#000] flex items-center justify-center overflow-hidden">
+                  <AvatarPixel
+                    config={{
+                      skinId: 'skin_t2_3',
+                      instrumentId: 'inst_gui_4',
+                      backgroundId: 'bg_4',
+                      tileId: 'tile_1',
+                      fontId: 'font_3'
+                    }}
+                    isSilhouette={false}
+                  />
+                </div>
+                <div className="absolute -top-3 -right-2 bg-[#ffeb3b] text-black border-2 border-black rounded-full p-1.5 shadow-[2px_2px_0_#000] animate-bounce">
+                  <Crown className="w-4 h-4 fill-amber-500 text-black" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <span className="bg-[#ffb700] text-black text-[10px] font-black uppercase px-2.5 py-0.5 rounded shadow-[2px_2px_0_#000] flex items-center gap-1">
+                    👑 GRANDE CAMPEÃ DA TEMPORADA 2
+                  </span>
+                  <span className="bg-black/60 border border-[#ffb700]/40 text-[#ffeb3b] text-[10px] font-black uppercase px-2 py-0.5 rounded">
+                    🏆 1º LUGAR GERAL
+                  </span>
+                </div>
+                <h2 className="text-white text-xl sm:text-2xl font-black uppercase tracking-tight" style={{ fontFamily: FONTS.find(f => f.id === 'font_3')?.fontFamily }}>
+                  KEMILY DE FARIAS OLIVEIRA
+                </h2>
+                <p className="text-[#feccba] text-xs font-semibold max-w-xl">
+                  Parabéns Kemily pelo desempenho incrível e dedicação exemplar em todas as aulas, treinos e desafios! 🎸🔥
+                </p>
+              </div>
+            </div>
+
+            {/* Right: Score card */}
+            <div className="flex flex-col items-center sm:items-end shrink-0">
+              <span className="text-[10px] font-black text-amber-300 uppercase tracking-widest">PONTUAÇÃO FINAL</span>
+              <div className="bg-black/80 border-2 border-[#ffb700] px-5 py-2.5 rounded-xl shadow-[4px_4px_0_#000] text-center sm:text-right mt-1">
+                <div className="text-2xl sm:text-3xl font-black text-[#ffeb3b] tracking-wider font-mono">
+                  46.217.414
+                </div>
+                <span className="text-[9px] font-black text-white/70 uppercase tracking-widest">PONTOS CONQUISTADOS</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Season Countdown Banner */}
-        <SeasonCountdown targetDate="2026-08-21T23:59:59-04:00" seasonName="TEMPORADA 2" className="mb-4" />
+        <SeasonCountdown targetDate={temporadaAtual.data_fim || "2026-09-22T23:59:59-04:00"} seasonName={temporadaAtual.nome || "TEMPORADA 3"} className="mb-4" />
 
         {/* Hora Dupla Banner */}
         <HoraDuplaBanner className="mb-6" />

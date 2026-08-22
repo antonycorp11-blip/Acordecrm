@@ -222,7 +222,13 @@ export default function Conquistas() {
               onClick={() => setSelectedTemporada(2)}
               className={`px-4 py-2 font-black text-xs uppercase ${selectedTemporada === 2 ? 'bg-[#ff6b00] text-white' : 'text-gray-400 hover:text-white'}`}
             >
-              Temporada 2 (Ativa)
+              Temporada 2
+            </button>
+            <button 
+              onClick={() => setSelectedTemporada(3)}
+              className={`px-4 py-2 font-black text-xs uppercase ${selectedTemporada === 3 ? 'bg-[#ff6b00] text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Temporada 3 (Ativa)
             </button>
           </div>
           <button 

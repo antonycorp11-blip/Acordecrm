@@ -8,8 +8,8 @@ interface SeasonCountdownProps {
 }
 
 export const SeasonCountdown: React.FC<SeasonCountdownProps> = ({
-  targetDate = "2026-08-21T23:59:59",
-  seasonName = "TEMPORADA 2",
+  targetDate = "2026-09-22T23:59:59",
+  seasonName = "TEMPORADA 3",
   className = ""
 }) => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });

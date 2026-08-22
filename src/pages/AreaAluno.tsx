@@ -374,8 +374,8 @@ export default function AreaAluno() {
   const [selectedTrophy, setSelectedTrophy] = useState<any | null>(null);
   const [todasConquistas, setTodasConquistas] = useState<any[]>([]);
   const [printAula, setPrintAula] = useState<any | null>(null);
-  const [temporada, setTemporada] = useState<{id?: number, nome: string}>({ id: 2, nome: 'TEMPORADA 2' });
-  const [selectedTemporada, setSelectedTemporada] = useState<number>(2);
+  const [temporada, setTemporada] = useState<{id?: number, nome: string, data_fim?: string}>({ id: 3, nome: 'TEMPORADA 3' });
+  const [selectedTemporada, setSelectedTemporada] = useState<number>(3);
   const [feed, setFeed] = useState<any[]>([]);
   const [showTools, setShowTools] = useState(false);
   const [selectedFicha, setSelectedFicha] = useState<any | null>(null);
@@ -1658,7 +1658,52 @@ export default function AreaAluno() {
           {/* ===== ABA: RANKING ===== */}
           {activeTab === 'ranking' && (
             <div className="px-4 py-5 space-y-3">
-              <SeasonCountdown targetDate="2026-08-21T23:59:59-04:00" seasonName="TEMPORADA 2" className="mb-3" />
+              {/* BANNER DA GRANDE CAMPEÃ DA TEMPORADA 2 */}
+              <div className="relative overflow-hidden rounded-xl border-2 border-[#ffb700] bg-gradient-to-r from-[#2b1704] via-[#422206] to-[#1a0a05] p-4 shadow-[0_0_20px_rgba(255,183,0,0.2)]">
+                <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 text-left w-full sm:w-auto">
+                    <div className="relative shrink-0">
+                      <div className="w-16 h-16 rounded-xl border-2 border-[#ffb700] bg-[#120703] shadow-[2px_2px_0_#000] flex items-center justify-center overflow-hidden">
+                        <AvatarPixel
+                          config={{
+                            skinId: 'skin_t2_3',
+                            instrumentId: 'inst_gui_4',
+                            backgroundId: 'bg_4',
+                            tileId: 'tile_1',
+                            fontId: 'font_3'
+                          }}
+                          isSilhouette={false}
+                          hideBackground={true}
+                        />
+                      </div>
+                      <div className="absolute -top-2 -right-1 bg-[#ffeb3b] text-black border border-black rounded-full p-0.5 shadow-[1px_1px_0_#000] animate-bounce">
+                        <Crown className="w-3 h-3 fill-amber-500 text-black" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="bg-[#ffb700] text-black text-[8px] font-black uppercase px-2 py-0.5 rounded shadow-[1px_1px_0_#000]">
+                          👑 CAMPEÃ TEMPORADA 2
+                        </span>
+                      </div>
+                      <h4 className="text-white text-sm font-black uppercase tracking-tight mt-0.5">
+                        KEMILY DE FARIAS
+                      </h4>
+                      <p className="text-[#feccba] text-[10px] font-semibold">
+                        Vencedora suprema com 46.217.414 PTS! 🏆
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-black/80 border border-[#ffb700] px-3 py-1.5 rounded-lg text-center shrink-0 w-full sm:w-auto">
+                    <div className="text-sm font-black text-[#ffeb3b] font-mono">
+                      46.217.414 PTS
+                    </div>
+                    <span className="text-[7px] font-black text-white/60 uppercase">PONTOS FINAIS</span>
+                  </div>
+                </div>
+              </div>
+
+              <SeasonCountdown targetDate={temporada?.data_fim || "2026-09-22T23:59:59-04:00"} seasonName={temporada?.nome || "TEMPORADA 3"} className="mb-3" />
 
               {/* Hora Dupla Banner */}
               <HoraDuplaBanner className="mb-4" />
@@ -2956,13 +3001,19 @@ export default function AreaAluno() {
                         onClick={() => { setSelectedTemporada(1); fetchTodasConquistas(1); }}
                         className={`px-3 py-1 text-xs font-black uppercase rounded border-2 border-black ${selectedTemporada === 1 ? 'bg-[#ff6b00] text-white' : 'bg-black text-gray-300'}`}
                       >
-                        T1 (ATUAL)
+                        T1
                       </button>
                       <button 
                         onClick={() => { setSelectedTemporada(2); fetchTodasConquistas(2); }}
                         className={`px-3 py-1 text-xs font-black uppercase rounded border-2 border-black ${selectedTemporada === 2 ? 'bg-[#ff6b00] text-white' : 'bg-black text-gray-300'}`}
                       >
-                        T2 (PREVIEW)
+                        T2
+                      </button>
+                      <button 
+                        onClick={() => { setSelectedTemporada(3); fetchTodasConquistas(3); }}
+                        className={`px-3 py-1 text-xs font-black uppercase rounded border-2 border-black ${selectedTemporada === 3 ? 'bg-[#ff6b00] text-white' : 'bg-black text-gray-300'}`}
+                      >
+                        T3 (ATUAL)
                       </button>
                     </div>
                   </div>

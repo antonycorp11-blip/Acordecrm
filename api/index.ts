@@ -3790,6 +3790,15 @@ async function startServer() {
     app.get('/api/gamificacao/ranking', async (req, res) => {
         try {
             await syncProvaTrophiesAndScores(supabase);
+
+            // Buscar temporada ativa
+            const { data: tempAtiva } = await supabase
+                .from('temporadas')
+                .select('id')
+                .eq('status', 'ativa')
+                .maybeSingle();
+            const activeTempId = tempAtiva?.id || 3;
+
             // Buscar alunos ativos (exclui arquivados e testes)
             const { data: alunos, error: alunosError } = await supabase
                 .from('alunos')
@@ -3801,8 +3810,9 @@ async function startServer() {
             
             const ranking = (alunos || []).map(al => {
                 const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
-                // XP unificado: XP de aulas realizadas + XP de conquistas manuais
-                const xpConquistas = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
+                // XP unificado: XP da temporada ativa (al.xp) + Troféus da temporada ativa
+                const progTemporada = prog.filter(p => p.conquista?.temporada_id === activeTempId);
+                const xpConquistas = progTemporada.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
                 const xpTotal = (Number(al.xp) || 0) + xpConquistas;
                 
                 const conquistasMap: any = {};
@@ -5321,18 +5331,18 @@ ${textoBruto}
             if (error && error.code !== 'PGRST116' && error.code !== '42P01') console.error(error);
             
             res.json(data || {
-                id: 2,
-                nome: 'TEMPORADA 2',
-                data_inicio: '2026-07-22T00:00:00-04:00',
-                data_fim: '2026-08-21T23:59:59-04:00',
+                id: 3,
+                nome: 'TEMPORADA 3',
+                data_inicio: '2026-08-22T00:00:00-04:00',
+                data_fim: '2026-09-22T23:59:59-04:00',
                 status: 'ativa'
             });
         } catch(error) {
             res.json({
-                id: 2,
-                nome: 'TEMPORADA 2',
-                data_inicio: '2026-07-22T00:00:00-04:00',
-                data_fim: '2026-08-21T23:59:59-04:00',
+                id: 3,
+                nome: 'TEMPORADA 3',
+                data_inicio: '2026-08-22T00:00:00-04:00',
+                data_fim: '2026-09-22T23:59:59-04:00',
                 status: 'ativa'
             });
         }
