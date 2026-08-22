@@ -530,11 +530,11 @@ export default function Agenda() {
                                     draggable={!reschedulingAula}
                                     onDragStart={(e) => handleDragStart(e, aula)}
                                     onClick={(e) => {
-                                      e.stopPropagation();
                                       if (selectedAula?.id === aula.id) {
                                         setSelectedAula(null);
+                                        setMenuPos(null);
                                       } else {
-                                        setSelectedAula(aula);
+                                        handleAulaClick(e, aula);
                                       }
                                     }}
                                     className={`px-2 py-1 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95 z-0 relative ${isMsgSent ? 'bg-yellow-300' : ''}`}
