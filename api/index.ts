@@ -188,7 +188,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
     // Ignorar rotas não-API e rotas públicas da API
     if (!req.path.startsWith('/api/')) return next();
     
-    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao'];
+    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos'];
     const isPublicContrato = req.path.match(/^\/api\/contratos\/[^/]+$/) && req.method === 'GET' && !req.headers.authorization;
     if (publicRoutes.includes(req.path) || isPublicContrato) return next();
     
@@ -4193,6 +4193,75 @@ async function startServer() {
             res.json(treinos || []);
         } catch (error: any) {
             res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Endpoint Cron do Vercel para limpeza diária de vídeos expirados
+    app.get('/api/cron/cleanup-videos', async (req, res) => {
+        try {
+            console.log('[CRON] Iniciando limpeza automática de vídeos de treino...');
+            const limitDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+            // 1. Buscar treinos com vídeos expirados (> 24h)
+            const { data: expirados } = await supabase
+                .from('aluno_treinos')
+                .select('id, video_url')
+                .not('video_url', 'is', null)
+                .lt('video_created_at', limitDate);
+
+            let deletedFromTreinos = 0;
+            if (expirados && expirados.length > 0) {
+                for (const item of expirados) {
+                    try {
+                        const filePath = item.video_url?.split('/uploads/')[1];
+                        if (filePath) {
+                            await supabase.storage.from('uploads').remove([filePath]);
+                        }
+                        await supabase
+                            .from('aluno_treinos')
+                            .update({ video_url: null, video_created_at: null })
+                            .eq('id', item.id);
+                        deletedFromTreinos++;
+                    } catch (e: any) {
+                        console.error('[CRON] Erro ao limpar item:', item.id, e.message);
+                    }
+                }
+            }
+
+            // 2. Limpar arquivos órfãos com mais de 24h na pasta uploads/treinos/
+            const { data: files } = await supabase.storage.from('uploads').list('treinos', { limit: 1000 });
+            let deletedOrphans = 0;
+            if (files && files.length > 0) {
+                const now = Date.now();
+                const orphansToDelete = files
+                    .filter(f => f.name !== '.emptyFolderPlaceholder' && (now - new Date(f.created_at).getTime()) > 24 * 60 * 60 * 1000)
+                    .map(f => `treinos/${f.name}`);
+                
+                if (orphansToDelete.length > 0) {
+                    await supabase.storage.from('uploads').remove(orphansToDelete);
+                    deletedOrphans = orphansToDelete.length;
+                }
+            }
+
+            // 3. Limpar possíveis arquivos no bucket 'videos'
+            const { data: vidFiles } = await supabase.storage.from('videos').list('', { limit: 1000 });
+            if (vidFiles && vidFiles.length > 0) {
+                const now = Date.now();
+                const vidsToDelete = vidFiles
+                    .filter(f => f.name !== '.emptyFolderPlaceholder' && (now - new Date(f.created_at).getTime()) > 24 * 60 * 60 * 1000)
+                    .map(f => f.name);
+                if (vidsToDelete.length > 0) {
+                    await supabase.storage.from('videos').remove(vidsToDelete);
+                }
+            }
+
+            res.json({
+                success: true,
+                message: `Limpeza concluída. ${deletedFromTreinos} registros de treinos e ${deletedOrphans} arquivos órfãos removidos.`
+            });
+        } catch (e: any) {
+            console.error('[CRON] Erro na limpeza de vídeos:', e);
+            res.status(500).json({ error: e.message });
         }
     });
 
