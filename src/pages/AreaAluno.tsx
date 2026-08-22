@@ -2796,14 +2796,17 @@ export default function AreaAluno() {
                   <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide select-none">
                     {aulasHoje.map((aula: any) => {
                       const dataFormatada = format(new Date(aula.data + 'T12:00:00Z'), "dd/MMM", { locale: ptBR }).toUpperCase();
-                      const difDias = Math.floor((new Date(aula.data + 'T12:00:00Z').getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-                      const podeConfirmar = difDias <= 7;
+                      const aulaHorario = aula.horario ? aula.horario.substring(0, 5) : '00:00';
+                      const aulaDateTime = new Date(`${aula.data}T${aula.horario || '00:00:00'}`);
+                      const difHoras = (aulaDateTime.getTime() - Date.now()) / (1000 * 3600);
+                      // Permite confirmar apenas 24h antes do horário da aula até 2h após o início
+                      const podeConfirmar = difHoras <= 24 && difHoras >= -2;
                       
                       return (
                         <div key={aula.id} className="flex-shrink-0 bg-white border-4 border-black p-3 shadow-[4px_4px_0_#000] w-48 flex flex-col justify-between">
                           <div className="space-y-1 mb-3">
                             <span className="text-black font-black text-[12px] uppercase tracking-wider block">
-                              📅 {dataFormatada} às {aula.horario?.substring(0, 5)}
+                              📅 {dataFormatada} às {aulaHorario}
                             </span>
                             <p className="text-[#8e7164] font-black text-[9px] uppercase leading-tight line-clamp-2">
                               {aula.conteudo || 'Aula Regular'}
@@ -2819,7 +2822,7 @@ export default function AreaAluno() {
                               Confirmar Presença
                             </button>
                           ) : (
-                            <span className="bg-gray-300 text-gray-600 font-black text-[9px] px-2 py-1 text-center border-2 border-black uppercase block opacity-70 cursor-not-allowed" title="Disponível 7 dias antes da aula">Aguarde para Confirmar</span>
+                            <span className="bg-gray-200 text-gray-600 font-black text-[8px] px-2 py-1.5 text-center border-2 border-black uppercase block opacity-80 cursor-not-allowed" title="Disponível apenas 24 horas antes do horário da aula">Liberado 24h antes</span>
                           )}
                         </div>
                       );

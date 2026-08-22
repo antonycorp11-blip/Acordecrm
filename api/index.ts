@@ -310,10 +310,10 @@ async function startServer() {
 
             if (error) throw error;
 
-            // 2. Enviar email usando nodemailer
-            const { data: configs } = await supabase.from('configuracoes').select('*');
-            let smtpEmail = configs?.find((c: any) => c.chave === 'SMTP_EMAIL')?.valor || process.env.SMTP_EMAIL;
-            let smtpPass = configs?.find((c: any) => c.chave === 'SMTP_PASS')?.valor || process.env.SMTP_PASS;
+            // 2. Enviar email
+            const { data: configs } = await supabase.from('system_config').select('*');
+            let smtpEmail = configs?.find((c: any) => c.key_name === 'SMTP_EMAIL' || c.chave === 'SMTP_EMAIL')?.key_value || configs?.find((c: any) => c.key_name === 'SMTP_EMAIL' || c.chave === 'SMTP_EMAIL')?.valor || process.env.SMTP_EMAIL;
+            let smtpPass = configs?.find((c: any) => c.key_name === 'SMTP_PASSWORD' || c.key_name === 'SMTP_PASS' || c.chave === 'SMTP_PASSWORD' || c.chave === 'SMTP_PASS')?.key_value || configs?.find((c: any) => c.key_name === 'SMTP_PASSWORD' || c.key_name === 'SMTP_PASS' || c.chave === 'SMTP_PASSWORD' || c.chave === 'SMTP_PASS')?.valor || process.env.SMTP_PASSWORD || process.env.SMTP_PASS;
 
             if (!smtpEmail || !smtpPass) {
                 throw new Error('Configurações de SMTP (email do estúdio) não encontradas no sistema.');
@@ -2502,9 +2502,9 @@ async function startServer() {
                 return res.json({ success: true, message: 'Os leads já foram notificados hoje ou são recentes.' });
             }
 
-            const { data: configs } = await supabase.from('configuracoes').select('*');
-            let smtpEmail = configs?.find((c: any) => c.chave === 'SMTP_EMAIL')?.valor || process.env.SMTP_EMAIL;
-            let smtpPass = configs?.find((c: any) => c.chave === 'SMTP_PASS')?.valor || process.env.SMTP_PASS;
+            const { data: configs } = await supabase.from('system_config').select('*');
+            let smtpEmail = configs?.find((c: any) => c.key_name === 'SMTP_EMAIL' || c.chave === 'SMTP_EMAIL')?.key_value || configs?.find((c: any) => c.key_name === 'SMTP_EMAIL' || c.chave === 'SMTP_EMAIL')?.valor || process.env.SMTP_EMAIL;
+            let smtpPass = configs?.find((c: any) => c.key_name === 'SMTP_PASSWORD' || c.key_name === 'SMTP_PASS' || c.chave === 'SMTP_PASSWORD' || c.chave === 'SMTP_PASS')?.key_value || configs?.find((c: any) => c.key_name === 'SMTP_PASSWORD' || c.key_name === 'SMTP_PASS' || c.chave === 'SMTP_PASSWORD' || c.chave === 'SMTP_PASS')?.valor || process.env.SMTP_PASSWORD || process.env.SMTP_PASS;
 
             if (!smtpEmail || !smtpPass) {
                 return res.status(400).json({ error: 'Configurações de SMTP não encontradas.' });
@@ -3255,7 +3255,14 @@ async function startServer() {
             const originalId = id.replace('reg-', '').replace('exp-', '');
 
             const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).single();
-            if (errA || !aula) throw new Error('Aula não encontrada');
+            // Trava de 24 horas para confirmação pelo aluno
+            if (req.user?.role === 'aluno' && aula.data) {
+                const aulaTime = new Date(`${aula.data}T${aula.horario || '00:00:00'}`).getTime();
+                const diffHoras = (aulaTime - Date.now()) / (1000 * 3600);
+                if (diffHoras > 24) {
+                    return res.status(400).json({ error: 'A confirmação só pode ser realizada com até 24 horas de antecedência.' });
+                }
+            }
 
             // Atualizar status
             await supabase.from('aulas').update({ status: 'confirmada' }).eq('id', originalId);

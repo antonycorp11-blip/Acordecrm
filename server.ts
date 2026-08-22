@@ -3336,7 +3336,14 @@ async function startServer() {
             const originalId = id.replace('reg-', '').replace('exp-', '');
 
             const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).single();
-            if (errA || !aula) throw new Error('Aula não encontrada');
+            // Trava de 24 horas para confirmação pelo aluno
+            if (req.user?.role === 'aluno' && aula.data) {
+                const aulaTime = new Date(`${aula.data}T${aula.horario || '00:00:00'}`).getTime();
+                const diffHoras = (aulaTime - Date.now()) / (1000 * 3600);
+                if (diffHoras > 24) {
+                    return res.status(400).json({ error: 'A confirmação só pode ser realizada com até 24 horas de antecedência.' });
+                }
+            }
 
             // Atualizar status
             await supabase.from('aulas').update({ status: 'confirmada' }).eq('id', originalId);
