@@ -620,6 +620,53 @@ export default function AlunoPerfil() {
   const [remanejarAulasModal, setRemanejarAulasModal] = useState(false);
   const [novaDataAulas, setNovaDataAulas] = useState('');
   
+  const [adicionarAulasModal, setAdicionarAulasModal] = useState(false);
+  const [addAulasForm, setAddAulasForm] = useState({
+    quantidade: 4,
+    data_primeira_aula: format(new Date(), 'yyyy-MM-dd'),
+    horario: '',
+    professor_id: '',
+    curso_id: ''
+  });
+
+  const handleAdicionarAulas = async () => {
+    if (!addAulasForm.data_primeira_aula) {
+      return toast.error('Informe a data da primeira aula');
+    }
+    const qtd = Number(addAulasForm.quantidade);
+    if (!qtd || qtd <= 0) {
+      return toast.error('Informe uma quantidade válida de aulas');
+    }
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/alunos/${id}/adicionar-aulas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          ...addAulasForm,
+          quantidade: qtd,
+          horario: addAulasForm.horario || aluno?.matriculas?.[0]?.horario || '14:00:00',
+          professor_id: addAulasForm.professor_id || aluno?.matriculas?.[0]?.professor_id || 1,
+          curso_id: addAulasForm.curso_id || aluno?.matriculas?.[0]?.curso_id || 1
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`🎉 ${data.count} aulas adicionadas com sucesso na agenda!`);
+        setAdicionarAulasModal(false);
+        await fetchData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || 'Erro ao adicionar aulas');
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao adicionar aulas');
+    } finally {
+      setSaving(false);
+    }
+  };
+  
   const handleRemanejarAulas = async () => {
     if (!novaDataAulas) return;
     setSaving(true);
@@ -1067,10 +1114,25 @@ export default function AlunoPerfil() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-4">
                 <h2 className="text-xl font-black text-black uppercase italic">Aulas do Aluno</h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button 
+                    onClick={() => {
+                      setAddAulasForm({
+                        quantidade: 4,
+                        data_primeira_aula: format(new Date(), 'yyyy-MM-dd'),
+                        horario: aluno?.matriculas?.[0]?.horario || '14:00:00',
+                        professor_id: aluno?.matriculas?.[0]?.professor_id || (professores[0]?.id || 1),
+                        curso_id: aluno?.matriculas?.[0]?.curso_id || (cursos[0]?.id || 1)
+                      });
+                      setAdicionarAulasModal(true);
+                    }}
+                    className="bg-[#22c55e] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-black shadow-[2px_2px_0_#000] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Adicionar Aulas
+                  </button>
                   <button 
                     onClick={() => setRemanejarAulasModal(true)}
-                    className="bg-[#ff6b00] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-white shadow-[2px_2px_0_#fff] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+                    className="bg-[#ff6b00] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-black shadow-[2px_2px_0_#000] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all cursor-pointer"
                   >
                     Remanejar Aulas
                   </button>
@@ -1578,6 +1640,125 @@ export default function AlunoPerfil() {
                   className="bg-black text-[#feccba] uppercase font-black px-6 py-2 shadow-[4px_4px_0_#000] border-2 border-black hover:bg-stone-800 transition-colors"
                 >
                   🖨️ IMPRIMIR / SALVAR PDF
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Modal Adicionar Mais Aulas */}
+        {adicionarAulasModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <Card className="w-full max-w-lg bg-[#fff8f6] border-4 border-black p-6 shadow-[8px_8px_0_#000] space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center border-b-2 border-black pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📅</span>
+                  <h3 className="font-black text-black text-sm uppercase tracking-wider">Adicionar Aulas Semanais</h3>
+                </div>
+                <button onClick={() => setAdicionarAulasModal(false)} className="p-1 border-2 border-black bg-black text-white hover:bg-red-600 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Quantidade de Aulas */}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-black block mb-1">Quantidade de Aulas</label>
+                  <div className="flex gap-2 mb-2">
+                    {[4, 8, 12, 16, 24, 48].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setAddAulasForm({ ...addAulasForm, quantidade: num })}
+                        className={`px-2.5 py-1 text-[9px] font-black uppercase border-2 border-black transition-all ${addAulasForm.quantidade === num ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black hover:bg-stone-100'}`}
+                      >
+                        {num}x
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={addAulasForm.quantidade}
+                    onChange={e => setAddAulasForm({ ...addAulasForm, quantidade: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-white border-2 border-black p-2 font-black text-sm text-black uppercase focus:outline-none focus:ring-2 focus:ring-[#ff6b00]"
+                  />
+                </div>
+
+                {/* Data da Primeira Aula */}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-black block mb-1">Data da 1ª Aula (Início)</label>
+                  <input
+                    type="date"
+                    value={addAulasForm.data_primeira_aula}
+                    onChange={e => setAddAulasForm({ ...addAulasForm, data_primeira_aula: e.target.value })}
+                    className="w-full bg-white border-2 border-black p-2 font-black text-sm text-black uppercase focus:outline-none"
+                  />
+                  <span className="text-[9px] text-[#8e7164] font-black uppercase block mt-1">
+                    * As aulas seguintes serão geradas a cada 7 dias (semanalmente).
+                  </span>
+                </div>
+
+                {/* Horário */}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-black block mb-1">Horário da Aula</label>
+                  <input
+                    type="time"
+                    value={addAulasForm.horario}
+                    onChange={e => setAddAulasForm({ ...addAulasForm, horario: e.target.value })}
+                    className="w-full bg-white border-2 border-black p-2 font-black text-sm text-black uppercase focus:outline-none"
+                  />
+                </div>
+
+                {/* Professor */}
+                <div>
+                  <label className="text-[10px] font-black uppercase text-black block mb-1">Professor Responsável</label>
+                  <select
+                    value={addAulasForm.professor_id}
+                    onChange={e => setAddAulasForm({ ...addAulasForm, professor_id: e.target.value })}
+                    className="w-full bg-white border-2 border-black p-2 font-black text-xs text-black uppercase focus:outline-none"
+                  >
+                    {professores.map(p => (
+                      <option key={p.id} value={p.id}>{p.nome}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Preview das Datas Geradas */}
+                {addAulasForm.data_primeira_aula && Number(addAulasForm.quantidade) > 0 && (
+                  <div className="bg-[#feccba]/40 border-2 border-black p-3 space-y-1">
+                    <p className="text-[9px] font-black uppercase text-black">📋 Preview das Primeiras Datas:</p>
+                    <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                      {Array.from({ length: Math.min(12, Number(addAulasForm.quantidade)) }).map((_, i) => {
+                        const [y, m, d] = addAulasForm.data_primeira_aula.split('-').map(Number);
+                        const dt = new Date(Date.UTC(y, m - 1, d + (i * 7)));
+                        return (
+                          <span key={i} className="text-[8px] font-black bg-white px-2 py-0.5 border border-black uppercase">
+                            #{i + 1}: {dt.toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                          </span>
+                        );
+                      })}
+                      {Number(addAulasForm.quantidade) > 12 && (
+                        <span className="text-[8px] font-black text-[#8e7164] self-center">
+                          + {Number(addAulasForm.quantidade) - 12} aulas seguintes
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-3 border-t-2 border-black">
+                <Button 
+                  onClick={handleAdicionarAulas} 
+                  disabled={saving} 
+                  className="flex-1 bg-[#22c55e] text-white hover:bg-green-600"
+                >
+                  {saving ? 'GERANDO AULAS...' : `CONFIRMAR E GERAR ${addAulasForm.quantidade || 0} AULAS`}
+                </Button>
+                <Button onClick={() => setAdicionarAulasModal(false)} variant="outline">
+                  CANCELAR
                 </Button>
               </div>
             </Card>

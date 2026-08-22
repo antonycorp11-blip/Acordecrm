@@ -1163,6 +1163,80 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
+    app.post('/api/alunos/:id/adicionar-aulas', async (req: any, res) => {
+        try {
+            const alunoId = req.params.id;
+            const { quantidade, data_primeira_aula, horario, professor_id, curso_id, sala_id } = req.body;
+            
+            const qtd = Number(quantidade) || 1;
+            if (qtd <= 0) return res.status(400).json({ error: 'Quantidade de aulas deve ser maior que zero.' });
+            if (!data_primeira_aula) return res.status(400).json({ error: 'Data da primeira aula é obrigatória.' });
+
+            // Buscar dados e matrícula do aluno
+            const { data: aluno, error: errA } = await supabase
+                .from('alunos')
+                .select('*, matriculas(*)')
+                .eq('id', alunoId)
+                .single();
+                
+            if (errA || !aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+            
+            const matricula = aluno.matriculas?.[0] || {};
+            const profId = professor_id || matricula.professor_id || 1;
+            const cId = curso_id || matricula.curso_id || 1;
+            const sId = sala_id || matricula.sala_id || null;
+            const hora = horario || matricula.horario || '14:00:00';
+            const matId = matricula.id || null;
+
+            const newAulas = [];
+            const [year, month, day] = data_primeira_aula.split('-').map(Number);
+            
+            for (let i = 0; i < qtd; i++) {
+                const targetDate = new Date(Date.UTC(year, month - 1, day + (i * 7)));
+                const dateStr = targetDate.toISOString().split('T')[0];
+                
+                newAulas.push({
+                    matricula_id: matId,
+                    aluno_id: Number(alunoId),
+                    professor_id: Number(profId),
+                    curso_id: Number(cId),
+                    sala_id: sId ? Number(sId) : null,
+                    data: dateStr,
+                    horario: hora,
+                    status: 'pendente',
+                    tipo: 'regular',
+                    midias: [],
+                    xp_ganho: 50
+                });
+            }
+
+            const { data: inserted, error: errIns } = await supabase
+                .from('aulas')
+                .insert(newAulas)
+                .select();
+
+            if (errIns) throw errIns;
+
+            // Atualizar matrícula
+            if (matId) {
+                const aulasRestantes = (matricula.aulas_restantes || 0) + qtd;
+                const aulasTotal = (matricula.aulas_total_contrato || 0) + qtd;
+                await supabase
+                    .from('matriculas')
+                    .update({ 
+                        aulas_restantes: aulasRestantes,
+                        aulas_total_contrato: aulasTotal
+                    })
+                    .eq('id', matId);
+            }
+
+            res.json({ success: true, count: inserted.length, aulas: inserted });
+        } catch (e: any) {
+            console.error('Erro ao adicionar aulas:', e);
+            res.status(500).json({ error: e.message });
+        }
+    });
+
     app.get('/api/alunos/:id/ultima-aula', async (req, res) => {
         try {
             const { data, error } = await supabase
