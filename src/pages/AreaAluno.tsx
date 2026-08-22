@@ -279,6 +279,55 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
             </div>
           )}
 
+          {/* Melodias / Solos */}
+          {richData?.isRich && Array.isArray(richData.melody) && richData.melody.length > 0 && (
+            <div className="space-y-3 pt-2 break-inside-avoid">
+              <h4 className="font-black text-sm border-l-4 border-black pl-2 uppercase tracking-wide">🎹 SOLOS E MELODIAS (BIMANUAL):</h4>
+              <div className="space-y-4">
+                {richData.melody.map((mel: any, idx: number) => (
+                  <div key={idx} className="border-4 border-black p-4 bg-white space-y-3 shadow-[2px_2px_0_#000]">
+                    {(mel.name || mel.title || mel.titulo) && (mel.name !== 'NOVA MELODIA / GUIA' && mel.title !== 'NOVA MELODIA / GUIA') && (
+                      <p className="text-[11px] font-black uppercase text-[#ff6b00]">{mel.name || mel.title || mel.titulo}</p>
+                    )}
+                    {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
+                      <div className="space-y-3">
+                        {mel.phrases.map((phrase: string[], pIdx: number) => (
+                          <div key={pIdx} className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[#ff6b00] font-black text-[10px] uppercase tracking-wider">PARTE {pIdx + 1}</span>
+                              <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {phrase.map((note: string, nIdx: number) => (
+                                <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_3px_0_#1e3a8a] rounded px-3 py-1.5 text-xs font-black uppercase flex items-center justify-center min-w-[34px]">
+                                  {translateNote(note)}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#ff6b00] font-black text-[10px] uppercase tracking-wider">MELODIA</span>
+                          <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {((Array.isArray(mel.phrases) && mel.phrases[0]) || (Array.isArray(mel.notes) && mel.notes) || []).map((note: string, nIdx: number) => (
+                            <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_3px_0_#1e3a8a] rounded px-3 py-1.5 text-xs font-black uppercase flex items-center justify-center min-w-[34px]">
+                              {translateNote(note)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Acordes */}
           {richData?.isRich && Array.isArray(richData.chords) && richData.chords.length > 0 && (
             <div className="space-y-3 pt-2 break-inside-avoid">
@@ -1705,6 +1754,76 @@ export default function AreaAluno() {
 
               <SeasonCountdown targetDate={temporada?.data_fim || "2026-09-22T23:59:59-04:00"} seasonName={temporada?.nome || "TEMPORADA 3"} className="mb-3" />
 
+              {/* BANNER DE REGRAS E SUPER BÔNUS DE INDICAÇÃO (1 MILHÃO DE PONTOS) */}
+              <div className="rounded-xl border-2 border-[#00ffcc] bg-gradient-to-r from-[#031d18] via-[#052b22] to-[#1a0a05] p-4 shadow-[0_0_20px_rgba(0,255,204,0.2)] relative overflow-hidden">
+                <div className="relative z-10 space-y-3">
+                  <div className="flex items-center justify-between border-b border-[#00ffcc]/30 pb-2">
+                    <span className="bg-[#00ffcc] text-black text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-[1px_1px_0_#000] flex items-center gap-1">
+                      ⚡ REGRAS DE PONTUAÇÃO &amp; BÔNUS
+                    </span>
+                    <span className="text-[9px] font-black text-[#00ffcc] uppercase font-mono">
+                      TEMPORADA 3
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* Bônus 1 Milhão */}
+                    <div className="bg-black/70 border border-[#00ffcc] p-2.5 rounded-lg flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">💎</span>
+                          <span className="bg-[#00ffcc] text-black text-[7px] font-black uppercase px-1.5 py-0.2 rounded">SUPER BÔNUS</span>
+                        </div>
+                        <h5 className="text-[#00ffcc] font-black text-[10px] uppercase">INDICAÇÃO FECHADA</h5>
+                        <p className="text-[#feccba] text-[9px] font-medium leading-tight mt-0.5">
+                          Indique um amigo! Se ele fechar matrícula, você ganha <strong className="text-[#00ffcc]">1.000.000 DE PONTOS</strong> imediatos!
+                        </p>
+                      </div>
+                      <div className="mt-2 pt-1 border-t border-[#00ffcc]/20 flex justify-between items-center text-[8px] font-black">
+                        <span className="text-stone-400">PONTOS:</span>
+                        <span className="text-[#00ffcc] font-mono">+1.000.000 PTS</span>
+                      </div>
+                    </div>
+
+                    {/* Prova Final Módulo 100k */}
+                    <div className="bg-black/70 border border-[#ffb700] p-2.5 rounded-lg flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">👑</span>
+                          <span className="bg-[#ffb700] text-black text-[7px] font-black uppercase px-1.5 py-0.2 rounded">ÚNICA TENTATIVA</span>
+                        </div>
+                        <h5 className="text-[#ffb700] font-black text-[10px] uppercase">PROVA FINAL MÓDULO</h5>
+                        <p className="text-[#feccba] text-[9px] font-medium leading-tight mt-0.5">
+                          Passe no desafio final do módulo EAD para faturar <strong className="text-[#ffb700]">100.000 PTS</strong> (1 única chance)!
+                        </p>
+                      </div>
+                      <div className="mt-2 pt-1 border-t border-[#ffb700]/20 flex justify-between items-center text-[8px] font-black">
+                        <span className="text-stone-400">PONTOS:</span>
+                        <span className="text-[#ffb700] font-mono">+100.000 PTS</span>
+                      </div>
+                    </div>
+
+                    {/* Refazer Aulas 50k */}
+                    <div className="bg-black/70 border border-[#ff6b00] p-2.5 rounded-lg flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm">🔁</span>
+                          <span className="bg-[#ff6b00] text-white text-[7px] font-black uppercase px-1.5 py-0.2 rounded">ILIMITADO</span>
+                        </div>
+                        <h5 className="text-[#ff6b00] font-black text-[10px] uppercase">REFAZER PROVAS</h5>
+                        <p className="text-[#feccba] text-[9px] font-medium leading-tight mt-0.5">
+                          Refaça as provas das aulas na Trilha quantas vezes quiser: +80% de acerto garante <strong className="text-[#ff6b00]">+50.000 PTS</strong>!
+                        </p>
+                      </div>
+                      <div className="mt-2 pt-1 border-t border-[#ff6b00]/20 flex justify-between items-center text-[8px] font-black">
+                        <span className="text-stone-400">PONTOS:</span>
+                        <span className="text-[#ff6b00] font-mono">+50.000 PTS/VEZ</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Hora Dupla Banner */}
               <HoraDuplaBanner className="mb-4" />
 
@@ -2065,19 +2184,30 @@ export default function AreaAluno() {
 
                               {/* Challenge Prova Final (Boss Stage Stitch) */}
                               {modulo.prova_final && modulo.prova_final.length > 0 && (() => {
-                                const isProvaConcluida = alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id));
+                                const isProvaConcluida = alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id)) || (alunoData?.questionariosAprovados || []).some((q: any) => Number(q.modulo_trilha_id) === Number(modulo.id));
                                 const isProvaDesbloqueada = !isEmProducao && isModuloDesbloqueado && (modAulas.length === 0 || modAulas.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))));
                                 return (
                                   <div className="mt-2 pt-4 border-t-2 border-dashed border-[#261812] flex flex-col items-center gap-2">
                                     <button
-                                      disabled={!isProvaDesbloqueada}
-                                      onClick={() => { setSelectedTrilhaModulo(modulo); handleStartQuestionario(true, modulo); }}
+                                      disabled={!isProvaDesbloqueada || isProvaConcluida}
+                                      onClick={() => { 
+                                        if (isProvaConcluida) {
+                                          toast.info('A Prova Final do Módulo vale 100.000 PTS e só pode ser realizada uma única vez (100K já garantidos).');
+                                          return;
+                                        }
+                                        setSelectedTrilhaModulo(modulo); 
+                                        handleStartQuestionario(true, modulo); 
+                                      }}
                                       className={`w-full py-3 px-4 rounded-lg border-4 border-[#261812] shadow-[4px_4px_0px_0px_#261812] font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                                        isProvaConcluida ? 'bg-yellow-400 text-black' : isProvaDesbloqueada ? 'bg-red-600 text-white animate-bounce' : 'bg-[#e2bfb0] text-[#5a4136] opacity-60 cursor-not-allowed'
+                                        isProvaConcluida 
+                                          ? 'bg-yellow-400/90 text-black cursor-not-allowed opacity-90' 
+                                          : isProvaDesbloqueada 
+                                            ? 'bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white animate-bounce' 
+                                            : 'bg-[#e2bfb0] text-[#5a4136] opacity-60 cursor-not-allowed'
                                       }`}
                                     >
                                       <span className="material-symbols-outlined text-xl">workspace_premium</span>
-                                      {isProvaConcluida ? 'DESAFIO CONCLUÍDO ✨' : 'DESAFIO DO MÓDULO 🏆'}
+                                      {isProvaConcluida ? 'PROVA FINAL CONCLUÍDA ✨ (100K GARANTIDOS)' : '👑 PROVA FINAL DO MÓDULO (100.000 PTS - ÚNICA TENTATIVA) 🏆'}
                                     </button>
                                   </div>
                                 );
@@ -2713,20 +2843,50 @@ export default function AreaAluno() {
                           </div>
                         )}
                         {richData.melody && richData.melody.length > 0 && (
-                          <div className="space-y-2 pt-2 border-t-2 border-black/10">
-                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">🎵 MELODIAS:</span>
-                            <div className="flex flex-col gap-2">
-                              {richData.melody.map((m: any, i: number) => (
-                                <div key={i} className="bg-white border-2 border-black p-2 shadow-[2px_2px_0_#000]">
-                                  <p className="text-black font-black text-[10px] uppercase mb-1">{m.title || m.titulo || 'Melodia'}</p>
-                                  <div className="text-[9px] font-bold text-black/70 flex flex-wrap gap-1">
-                                    {(m.phrases || []).map((phrase: any[], pIdx: number) => (
-                                      <span key={pIdx} className="bg-black/5 px-1 py-0.5 border border-black/20">{phrase.join(' - ')}</span>
+                          <div className="bg-[#f8f9fa] border-4 border-black p-4 space-y-4 shadow-[4px_4px_0_#000] rounded-xl font-['Inter']">
+                            <h4 className="text-xs sm:text-sm font-black text-black uppercase tracking-widest border-b-2 border-black/10 pb-2 flex items-center gap-2">
+                              🎹 SOLOS E MELODIAS (BIMANUAL)
+                            </h4>
+                            {richData.melody.map((mel: any, idx: number) => (
+                              <div key={idx} className="space-y-3">
+                                {(mel.name || mel.title || mel.titulo) && (mel.name !== 'NOVA MELODIA / GUIA' && mel.title !== 'NOVA MELODIA / GUIA') && (
+                                  <p className="text-xs font-black uppercase text-gray-700">{mel.name || mel.title || mel.titulo}</p>
+                                )}
+                                {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
+                                  <div className="space-y-4">
+                                    {mel.phrases.map((phrase: string[], pIdx: number) => (
+                                      <div key={pIdx} className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">PARTE {pIdx + 1}</span>
+                                          <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          {phrase.map((note: string, nIdx: number) => (
+                                            <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[38px] sm:min-w-[44px]">
+                                              {translateNote(note)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
                                     ))}
                                   </div>
-                                </div>
-                              ))}
-                            </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">MELODIA</span>
+                                      <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {((Array.isArray(mel.phrases) && mel.phrases[0]) || (Array.isArray(mel.notes) && mel.notes) || []).map((note: string, nIdx: number) => (
+                                        <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[38px] sm:min-w-[44px]">
+                                          {translateNote(note)}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         )}
                         {richData.tablatures && richData.tablatures.length > 0 && (
@@ -3946,7 +4106,7 @@ export default function AreaAluno() {
                   onClick={() => handleStartQuestionario(false)}
                   className="w-full bg-[#ff6b00] text-white border-4 border-black py-3 font-black text-xs sm:text-sm uppercase shadow-[4px_4px_0_#000] hover:translate-y-0.5 active:translate-y-1 transition-all flex items-center justify-center gap-2"
                 >
-                  📝 INICIAR QUESTIONÁRIO DA AULA
+                  📝 {trilhaProgresso.some(p => Number(p.aula_id) === Number(selectedTrilhaAula?.id)) ? 'REFAZER QUESTIONÁRIO (+50.000 PTS)' : 'INICIAR QUESTIONÁRIO (+50.000 PTS)'}
                 </button>
               ) : (
                 <div className="w-full bg-stone-200 border-4 border-black p-3 text-center flex flex-col items-center justify-center gap-1 opacity-80">
@@ -3972,8 +4132,8 @@ export default function AreaAluno() {
             <div className="bg-[#fff8f6] border-8 border-black p-6 w-full max-w-lg relative shadow-[12px_12px_0_#000] space-y-4">
               <div className="flex justify-between items-center border-b-4 border-black pb-3">
                 <div>
-                  <span className={`text-white font-black text-[9px] px-2 py-0.5 border border-black uppercase ${isProva ? 'bg-black' : 'bg-[#ff6b00]'}`}>
-                    {isProva ? '👑 Prova Geral do Módulo' : '📝 Questionário de Aula'}
+                  <span className={`text-white font-black text-[9px] px-2 py-0.5 border border-black uppercase ${isProva ? 'bg-black text-yellow-400' : 'bg-[#ff6b00]'}`}>
+                    {isProva ? '👑 Prova Geral do Módulo (+100.000 PTS - Única Tentativa)' : '📝 Questionário de Aula (+50.000 PTS)'}
                   </span>
                   <h3 className="font-black text-xs uppercase text-black mt-1">
                     {isProva ? selectedTrilhaModulo.nome : selectedTrilhaAula?.titulo}

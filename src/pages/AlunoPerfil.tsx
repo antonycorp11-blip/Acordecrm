@@ -1906,25 +1906,56 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
               )}
 
               {/* Melodia */}
-              {richData.melody?.length > 0 && (
-                <div className="p-4 bg-yellow-50 border-2 border-black shadow-[2px_2px_0_#000] space-y-3">
-                   <h4 className="font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
-                     <span className="text-lg">🎵</span> Melodias Estudadas
-                   </h4>
-                   <div className="flex flex-col gap-2">
-                     {richData.melody.map((m: any, i: number) => (
-                       <div key={i} className="bg-white border-2 border-black p-2 shadow-[2px_2px_0_#000]">
-                         <p className="text-black font-black text-[10px] uppercase mb-1">{m.title || m.titulo || 'Melodia'}</p>
-                         <div className="text-[9px] font-bold text-black/70 flex flex-wrap gap-1">
-                           {(m.phrases || []).map((phrase: any[], pIdx: number) => (
-                             <span key={pIdx} className="bg-black/5 px-1 py-0.5 border border-black/20">{phrase.join(' - ')}</span>
-                           ))}
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                </div>
-              )}
+              {richData.melody?.length > 0 && (() => {
+                const translateNote = (n: string) => n ? String(n).replace(/\d+$/, '') : '';
+                return (
+                  <div className="bg-[#f8f9fa] border-4 border-black p-4 space-y-4 shadow-[4px_4px_0_#000] rounded-xl font-['Inter']">
+                    <h4 className="text-xs sm:text-sm font-black text-black uppercase tracking-widest border-b-2 border-black/10 pb-2 flex items-center gap-2">
+                      🎹 SOLOS E MELODIAS (BIMANUAL)
+                    </h4>
+                    {richData.melody.map((mel: any, idx: number) => (
+                      <div key={idx} className="space-y-3">
+                        {(mel.name || mel.title || mel.titulo) && (mel.name !== 'NOVA MELODIA / GUIA' && mel.title !== 'NOVA MELODIA / GUIA') && (
+                          <p className="text-xs font-black uppercase text-gray-700">{mel.name || mel.title || mel.titulo}</p>
+                        )}
+                        {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
+                          <div className="space-y-4">
+                            {mel.phrases.map((phrase: string[], pIdx: number) => (
+                              <div key={pIdx} className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">PARTE {pIdx + 1}</span>
+                                  <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {phrase.map((note: string, nIdx: number) => (
+                                    <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[38px] sm:min-w-[44px]">
+                                      {translateNote(note)}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">MELODIA</span>
+                              <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {((Array.isArray(mel.phrases) && mel.phrases[0]) || (Array.isArray(mel.notes) && mel.notes) || []).map((note: string, nIdx: number) => (
+                                <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-3 sm:px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[38px] sm:min-w-[44px]">
+                                  {translateNote(note)}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* Tablatura */}
               {richData.tablatures?.length > 0 && (

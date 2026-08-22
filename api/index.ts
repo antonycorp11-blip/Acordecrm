@@ -5088,6 +5088,23 @@ ${textoBruto}
                 }
             }
 
+            // Se for a prova final de um Módulo, verificar se já passou (única tentativa permitida)
+            if (moduloId && !aulaId) {
+                const { data: jaPassou } = await supabase
+                    .from('tentativas_questionario_trilha')
+                    .select('id')
+                    .eq('aluno_id', aluno_id)
+                    .eq('modulo_trilha_id', moduloId)
+                    .eq('aprovado', true)
+                    .maybeSingle();
+
+                if (jaPassou) {
+                    return res.status(400).json({ 
+                        error: 'A Prova Final do Módulo vale 100.000 PTS e só pode ser realizada uma única vez (100K já garantidos).' 
+                    });
+                }
+            }
+
             if (gabaQuestions.length === 0) {
                 return res.status(400).json({ error: 'Nenhum questionário cadastrado para esta referência.' });
             }
@@ -5136,6 +5153,7 @@ ${textoBruto}
             let xpGanhos = 0;
             let moedasGanhas = 0;
             let conquistouMedalha = false;
+            const isProvaFinalModulo = Boolean(moduloId && !aulaId);
 
             if (aprovado) {
                 const { data: aluno } = await supabase
@@ -5145,9 +5163,11 @@ ${textoBruto}
                     .single();
 
                 if (aluno) {
-                    // Se a aula ou módulo não tem conquistaId vinculado, tentar encontrar ou criar um troféu de 20.000 pontos
+                    const pontosPadrao = isProvaFinalModulo ? 100000 : 50000;
+
+                    // Se a aula ou módulo não tem conquistaId vinculado, tentar encontrar ou criar um troféu
                     if (!conquistaId) {
-                        const nomeTrofeu = `Troféu Desafio: ${tituloReferencia}`;
+                        const nomeTrofeu = isProvaFinalModulo ? `Troféu Módulo: ${tituloReferencia}` : `Troféu Desafio: ${tituloReferencia}`;
                         const { data: existingConq } = await supabase
                             .from('gamificacao_conquistas')
                             .select('id')
@@ -5162,9 +5182,10 @@ ${textoBruto}
                                 .insert([{
                                     nome: nomeTrofeu,
                                     descricao: `Conquistado ao passar na prova/desafio: ${tituloReferencia}`,
-                                    pontos: 20000,
+                                    pontos: pontosPadrao,
                                     classe: 'Lendario',
-                                    instrumento: 'EAD'
+                                    instrumento: 'EAD',
+                                    temporada_id: 3
                                 }])
                                 .select('id')
                                 .single();
@@ -5186,7 +5207,7 @@ ${textoBruto}
                     if (conquistaId) {
                         await supabase
                             .from('gamificacao_conquistas')
-                            .update({ pontos: 20000 })
+                            .update({ pontos: pontosPadrao })
                             .eq('id', conquistaId);
 
                         const { data: found } = await supabase
@@ -5208,10 +5229,10 @@ ${textoBruto}
                         if (pTrilha) alreadyDone = true;
                     }
 
-                    const isRetake = alreadyDone;
-                    // 1ª vez: 20.000 pontos. Refazer (2ª, 3ª... N-ésima vez): 10.000 pontos a cada vez!
-                    xpGanhos = isRetake ? 10000 : 20000;
-                    moedasGanhas = isRetake ? 10000 : 20000;
+                    const isRetake = alreadyDone && !isProvaFinalModulo;
+                    // Prova Final do Módulo: 100.000 PTS (Única vez). Refazer/Fazer Provas de Aula: 50.000 PTS a cada vez!
+                    xpGanhos = isProvaFinalModulo ? 100000 : 50000;
+                    moedasGanhas = isProvaFinalModulo ? 100000 : 50000;
                     
                     const novoXp = (Number(aluno.xp) || 0) + xpGanhos;
                     const novasMoedas = (Number(aluno.acorde_coins) || 0) + moedasGanhas;
@@ -5224,17 +5245,23 @@ ${textoBruto}
                     await recordPontos(
                         aluno.id,
                         'aulas_video',
-                        isRetake ? `Refez Questionário: ${tituloReferencia}` : `Passou Questionário: ${tituloReferencia}`,
+                        isProvaFinalModulo 
+                            ? `Concluiu Prova Final do Módulo: ${tituloReferencia}`
+                            : isRetake 
+                                ? `Refez Questionário: ${tituloReferencia}` 
+                                : `Passou Questionário: ${tituloReferencia}`,
                         xpGanhos
                     );
 
                     await addToFeed(
                         aluno.id,
-                        aulaId ? 'aula_trilha_concluida' : 'modulo_trilha_concluido',
-                        isRetake 
-                            ? `Refez e passou novamente com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos.toLocaleString('pt-BR')} XP!`
-                            : `Aprovado com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos.toLocaleString('pt-BR')} XP & +${moedasGanhas.toLocaleString('pt-BR')} Moedas!`,
-                        aulaId ? '🎓' : '👑'
+                        isProvaFinalModulo ? 'modulo_trilha_concluido' : 'aula_trilha_concluida',
+                        isProvaFinalModulo
+                            ? `Concluiu a PROVA FINAL do módulo com ${nota}% em "${tituloReferencia}"! Faturou +100.000 XP & +100.000 Moedas! 👑🏆`
+                            : isRetake 
+                                ? `Refez e passou novamente com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos.toLocaleString('pt-BR')} XP!`
+                                : `Aprovado com ${nota}% em "${tituloReferencia}"! Ganhou +${xpGanhos.toLocaleString('pt-BR')} XP & +${moedasGanhas.toLocaleString('pt-BR')} Moedas!`,
+                        isProvaFinalModulo ? '👑' : '🎓'
                     );
 
                     if (aulaId) {
@@ -5250,6 +5277,20 @@ ${textoBruto}
                         conquistouMedalha = true;
                     }
                 }
+            }
+
+            // Salva a tentativa no histórico
+            try {
+                await supabase.from('tentativas_questionario_trilha').insert([{
+                    aluno_id: Number(aluno_id),
+                    aula_trilha_id: aulaId ? Number(aulaId) : null,
+                    modulo_trilha_id: moduloId ? Number(moduloId) : null,
+                    nota,
+                    aprovado,
+                    respostas: feedback
+                }]);
+            } catch (tErr) {
+                console.error('Erro ao registrar tentativa no banco:', tErr);
             }
 
             res.json({

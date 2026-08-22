@@ -244,6 +244,87 @@ export default function Ranking() {
         {/* Season Countdown Banner */}
         <SeasonCountdown targetDate={temporadaAtual.data_fim || "2026-09-22T23:59:59-04:00"} seasonName={temporadaAtual.nome || "TEMPORADA 3"} className="mb-4" />
 
+        {/* BANNER DE REGRAS E SUPER BÔNUS DE INDICAÇÃO (1 MILHÃO DE PONTOS) */}
+        <div className="mb-6 rounded-2xl border-4 border-[#00ffcc] bg-gradient-to-r from-[#031d18] via-[#052b22] to-[#1a0a05] p-5 sm:p-6 shadow-[0_0_30px_rgba(0,255,204,0.25)] relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-radial from-[#00ffcc]/20 to-transparent blur-3xl pointer-events-none -mr-16 -mt-16" />
+          
+          <div className="relative z-10 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b-2 border-[#00ffcc]/30 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="bg-[#00ffcc] text-black text-xs font-black uppercase px-3 py-1 rounded shadow-[2px_2px_0_#000] flex items-center gap-1.5 animate-pulse">
+                  ⚡ REGRAS DE PONTUAÇÃO &amp; SUPER BÔNUS
+                </span>
+                <span className="text-[#00ffcc] font-black text-xs uppercase tracking-widest hidden md:inline">&gt;&gt; TEMPORADA 3</span>
+              </div>
+              <span className="text-[11px] font-black text-[#feccba] uppercase bg-black/60 px-3 py-1 rounded border border-[#00ffcc]/30">
+                🚀 PONTUE E DISPARE NA LIDERANÇA
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* CARD 1: INDICAÇÃO 1 MILHÃO */}
+              <div className="bg-black/70 border-2 border-[#00ffcc] p-4 rounded-xl shadow-[4px_4px_0_#000] flex flex-col justify-between relative group hover:border-yellow-400 transition-colors">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl">💎</span>
+                    <span className="bg-[#00ffcc] text-black text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-[1px_1px_0_#000]">
+                      SUPER BÔNUS
+                    </span>
+                  </div>
+                  <h3 className="text-[#00ffcc] font-black text-sm uppercase">INDICAÇÃO FECHADA</h3>
+                  <p className="text-[#feccba] text-[11px] font-medium leading-relaxed">
+                    Indique um amigo ou cliente! Se ele se matricular e fechar contrato, você fatura <strong className="text-[#00ffcc]">1.000.000 DE PONTOS</strong> imediatos no ranking!
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-[#00ffcc]/20 flex items-center justify-between">
+                  <span className="text-[9px] font-black text-stone-400 uppercase">RECOMPENSA:</span>
+                  <span className="text-sm font-black text-[#00ffcc] font-mono tracking-wider">+1.000.000 PTS</span>
+                </div>
+              </div>
+
+              {/* CARD 2: PROVA FINAL DO MÓDULO (100K) */}
+              <div className="bg-black/70 border-2 border-[#ffb700] p-4 rounded-xl shadow-[4px_4px_0_#000] flex flex-col justify-between relative group hover:border-amber-300 transition-colors">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl">👑</span>
+                    <span className="bg-[#ffb700] text-black text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-[1px_1px_0_#000]">
+                      TENTATIVA ÚNICA
+                    </span>
+                  </div>
+                  <h3 className="text-[#ffb700] font-black text-sm uppercase">PROVA FINAL DO MÓDULO</h3>
+                  <p className="text-[#feccba] text-[11px] font-medium leading-relaxed">
+                    Conclua o desafio supremo do módulo EAD para faturar <strong className="text-[#ffb700]">100.000 PTS</strong>. Atenção: a prova final só pode ser feita <strong className="text-[#ffeb3b]">1 única vez</strong>!
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-[#ffb700]/20 flex items-center justify-between">
+                  <span className="text-[9px] font-black text-stone-400 uppercase">RECOMPENSA:</span>
+                  <span className="text-sm font-black text-[#ffb700] font-mono tracking-wider">+100.000 PTS</span>
+                </div>
+              </div>
+
+              {/* CARD 3: REFAZER PROVAS DE AULA (50K) */}
+              <div className="bg-black/70 border-2 border-[#ff6b00] p-4 rounded-xl shadow-[4px_4px_0_#000] flex flex-col justify-between relative group hover:border-orange-400 transition-colors">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl">🔁</span>
+                    <span className="bg-[#ff6b00] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-[1px_1px_0_#000]">
+                      ILIMITADO
+                    </span>
+                  </div>
+                  <h3 className="text-[#ff6b00] font-black text-sm uppercase">REFAZER QUESTIONÁRIOS</h3>
+                  <p className="text-[#feccba] text-[11px] font-medium leading-relaxed">
+                    Estude e refaça os questionários das aulas na Trilha EAD quantas vezes quiser. Cada aprovação (80%+) garante <strong className="text-[#ff6b00]">+50.000 PTS</strong> no ranking!
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-[#ff6b00]/20 flex items-center justify-between">
+                  <span className="text-[9px] font-black text-stone-400 uppercase">RECOMPENSA:</span>
+                  <span className="text-sm font-black text-[#ff6b00] font-mono tracking-wider">+50.000 PTS / VEZ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Hora Dupla Banner */}
         <HoraDuplaBanner className="mb-6" />
 
