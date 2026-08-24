@@ -1453,12 +1453,14 @@ export default function AreaAluno() {
   // --------------------------------------------------------------------------------
   const handleStartQuestionario = (isProva: boolean, targetOverride: any = null) => {
     const target = targetOverride || (isProva ? selectedTrilhaModulo : selectedTrilhaAula);
-    let rawQuestions = isProva ? target?.prova_final : target?.questionario;
-    if (typeof rawQuestions === 'string') {
-        try { rawQuestions = JSON.parse(rawQuestions); } catch(e) { rawQuestions = []; }
-    }
-    const allQuestions = Array.isArray(rawQuestions) ? rawQuestions : [];
+    const rawQuestions = isProva ? target?.prova_final : target?.questionario;
+    const allQuestions = parseTrilhaQuestions(rawQuestions);
     
+    if (allQuestions.length === 0) {
+      toast.error('Este questionário ainda não possui perguntas cadastradas.');
+      return;
+    }
+
     const mapped = allQuestions.map((q, idx) => ({ q, originalIdx: idx }));
     mapped.sort(() => Math.random() - 0.5);
     const selecionadas = mapped.slice(0, 15);
@@ -4403,14 +4405,48 @@ export default function AreaAluno() {
   );
 }
 
+// Helper utilitário robusto para decodificar perguntas de questionários e provas
+export function parseTrilhaQuestions(rawQuestions: any): any[] {
+  if (!rawQuestions) return [];
+  if (Array.isArray(rawQuestions)) return rawQuestions;
+  if (typeof rawQuestions === 'object') {
+    if (Array.isArray(rawQuestions.questions)) return rawQuestions.questions;
+    if (Array.isArray(rawQuestions.questoes)) return rawQuestions.questoes;
+    return [];
+  }
+  if (typeof rawQuestions === 'string') {
+    try {
+      const parsed = JSON.parse(rawQuestions);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed.questions)) return parsed.questions;
+        if (Array.isArray(parsed.questoes)) return parsed.questoes;
+      }
+    } catch (e) {
+      try {
+        const cleaned = rawQuestions
+          .replace(/\\+"([^"]+?)\\+"/g, "'$1'")
+          .replace(/\\\\"/g, '"');
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e2) {
+        console.error('Erro ao processar questionário:', e2);
+      }
+    }
+  }
+  return [];
+}
+
 // ================= COMPONENTE PLAYER DE VÍDEO DO YOUTUBE =================
 function YoutubePlayer({ videoUrl, onVideoComplete }: { videoUrl: string, onVideoComplete: () => void }) {
   const playerRef = React.useRef<HTMLDivElement>(null);
-  const [completed, setCompleted] = React.useState(false);
+  const completedRef = React.useRef(false);
   const playerInstance = React.useRef<any>(null);
-  const lastTime = React.useRef(0);
+  const maxTimeWatched = React.useRef(0);
+  const intervalRef = React.useRef<any>(null);
 
   const getVideoId = (url: string) => {
+    if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
@@ -4418,55 +4454,82 @@ function YoutubePlayer({ videoUrl, onVideoComplete }: { videoUrl: string, onVide
 
   const videoId = getVideoId(videoUrl);
 
+  const handleComplete = React.useCallback(() => {
+    if (!completedRef.current) {
+      completedRef.current = true;
+      onVideoComplete();
+    }
+  }, [onVideoComplete]);
+
   React.useEffect(() => {
     if (!videoId) return;
+    completedRef.current = false;
+    maxTimeWatched.current = 0;
 
-    let interval: any;
+    const clearActiveInterval = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
 
     const initPlayer = () => {
-      if (!window.YT || !window.YT.Player) return;
+      if (!window.YT || !window.YT.Player || !playerRef.current) return;
       
-      playerInstance.current = new window.YT.Player(playerRef.current, {
-        videoId: videoId,
-        height: '100%',
-        width: '100%',
-        playerVars: {
-          autoplay: 1,
-          controls: 1,
-          modestbranding: 1,
-          rel: 0,
-          disablekb: 1
-        },
-        events: {
-          onStateChange: (event: any) => {
-            // Tocando (Playing = 1)
-            if (event.data === 1) {
-              interval = setInterval(() => {
-                if (playerInstance.current && playerInstance.current.getCurrentTime) {
-                  const currentTime = playerInstance.current.getCurrentTime();
-                  const duration = playerInstance.current.getDuration();
-                  
-                  // Trava de Avanço Rápido: se pulou mais de 3 segundos
-                  if (currentTime > lastTime.current + 3) {
-                    playerInstance.current.seekTo(lastTime.current, true);
-                    toast.warning("Assista ao conteúdo sem pular partes! 🍿");
-                  } else {
-                    lastTime.current = currentTime;
-                  }
+      try {
+        playerInstance.current = new window.YT.Player(playerRef.current, {
+          videoId: videoId,
+          height: '100%',
+          width: '100%',
+          playerVars: {
+            autoplay: 1,
+            controls: 1,
+            modestbranding: 1,
+            rel: 0,
+            disablekb: 1
+          },
+          events: {
+            onStateChange: (event: any) => {
+              clearActiveInterval();
 
-                  // Habilita com 90% assistido
-                  if (duration > 0 && currentTime >= duration * 0.9 && !completed) {
-                    setCompleted(true);
-                    onVideoComplete();
+              // Vídeo Finalizado (Ended = 0)
+              if (event.data === 0) {
+                handleComplete();
+                return;
+              }
+
+              // Tocando (Playing = 1)
+              if (event.data === 1) {
+                intervalRef.current = setInterval(() => {
+                  if (playerInstance.current && playerInstance.current.getCurrentTime) {
+                    try {
+                      const currentTime = playerInstance.current.getCurrentTime() || 0;
+                      const duration = playerInstance.current.getDuration() || 0;
+                      
+                      // Trava de Avanço Rápido: se pulou mais de 8 segundos além do máximo já assistido
+                      if (currentTime > maxTimeWatched.current + 8) {
+                        playerInstance.current.seekTo(maxTimeWatched.current, true);
+                        toast.warning("Assista ao conteúdo sem pular partes! 🍿");
+                      } else {
+                        maxTimeWatched.current = Math.max(maxTimeWatched.current, currentTime);
+                      }
+
+                      // Habilita com 85% assistido ou a menos de 5 segundos do final
+                      if (duration > 0 && (currentTime >= duration * 0.85 || currentTime >= duration - 5)) {
+                        handleComplete();
+                      }
+                    } catch (err) {
+                      console.error("Erro ao verificar tempo do vídeo:", err);
+                    }
                   }
-                }
-              }, 1000);
-            } else {
-              clearInterval(interval);
+                }, 1000);
+              }
             }
           }
-        }
-      });
+        });
+      } catch (e) {
+        console.error("Erro ao inicializar YT.Player:", e);
+      }
     };
 
     if (window.YT && window.YT.Player) {
@@ -4489,12 +4552,14 @@ function YoutubePlayer({ videoUrl, onVideoComplete }: { videoUrl: string, onVide
     }
 
     return () => {
-      clearInterval(interval);
+      clearActiveInterval();
       if (playerInstance.current && playerInstance.current.destroy) {
-        playerInstance.current.destroy();
+        try {
+          playerInstance.current.destroy();
+        } catch (e) {}
       }
     };
-  }, [videoId]);
+  }, [videoId, handleComplete]);
 
   if (!videoId) {
     return <div className="text-center p-4 text-xs font-bold text-red-500 bg-red-100 border border-red-300">Link do YouTube inválido.</div>;

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, Plus, Trash2, Edit3, X, Save, Brain, HelpCircle, ArrowRight, Eye, Video } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { parseTrilhaQuestions } from './AreaAluno';
+
 export default function EadTrilhaAdmin() {
   const [modulos, setModulos] = useState<any[]>([]);
   const [aulas, setAulas] = useState<any[]>([]);
@@ -43,7 +45,7 @@ export default function EadTrilhaAdmin() {
       const [resMod, resAul, resConq] = await Promise.all([
         fetch('/api/trilha/modulos', { headers }),
         fetch('/api/trilha/aulas', { headers }),
-        fetch('/api/gamificacao/conquistas', { headers })
+        fetch('/api/conquistas', { headers })
       ]);
       if (resMod.ok) setModulos(await resMod.json());
       if (resAul.ok) setAulas(await resAul.json());
@@ -67,7 +69,7 @@ export default function EadTrilhaAdmin() {
         ordem: mod.ordem || 1,
         arte_index: mod.arte_index || 0,
         conquista_id: mod.conquista_id || '',
-        prova_final: Array.isArray(mod.prova_final) ? mod.prova_final : []
+        prova_final: parseTrilhaQuestions(mod.prova_final)
       });
     } else {
       setModuloForm({
@@ -93,7 +95,7 @@ export default function EadTrilhaAdmin() {
         youtube_url: aula.youtube_url || '',
         ordem: aula.ordem || 1,
         conquista_id: aula.conquista_id || '',
-        questionario: Array.isArray(aula.questionario) ? aula.questionario : []
+        questionario: parseTrilhaQuestions(aula.questionario)
       });
     } else {
       setAulaForm({
@@ -362,10 +364,10 @@ export default function EadTrilhaAdmin() {
                       <span className="bg-[#feccba]/40 border border-[#ff6b00]/30 px-1.5 py-0.5">{moduloConquista.nome}</span>
                     </div>
                   )}
-                  {mod.prova_final && Array.isArray(mod.prova_final) && mod.prova_final.length > 0 && (
+                  {parseTrilhaQuestions(mod.prova_final).length > 0 && (
                     <div className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-1">
                       <span>📝 Prova Final:</span>
-                      <span className="bg-emerald-100 border border-emerald-500/30 px-1.5 py-0.5">{mod.prova_final.length} questões cadastradas</span>
+                      <span className="bg-emerald-100 border border-emerald-500/30 px-1.5 py-0.5">{parseTrilhaQuestions(mod.prova_final).length} questões cadastradas</span>
                     </div>
                   )}
                 </div>
@@ -413,7 +415,7 @@ export default function EadTrilhaAdmin() {
                             <div className="flex items-center gap-2 text-[8px] font-bold text-stone-500 uppercase">
                               <span className="flex items-center gap-0.5"><Video className="w-2.5 h-2.5" /> YT: {aula.youtube_url?.substring(0, 15)}...</span>
                               <span>•</span>
-                              <span className="flex items-center gap-0.5"><HelpCircle className="w-2.5 h-2.5" /> {Array.isArray(aula.questionario) ? aula.questionario.length : 0} Qs</span>
+                              <span className="flex items-center gap-0.5"><HelpCircle className="w-2.5 h-2.5" /> {parseTrilhaQuestions(aula.questionario).length} Qs</span>
                             </div>
                             {aulaConquista && (
                               <p className="text-[8px] font-black uppercase text-[#ff6b00]">🎖️ {aulaConquista.nome}</p>

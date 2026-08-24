@@ -4879,6 +4879,38 @@ async function startServer() {
         }
     });
 
+    // Helper utilitário robusto para decodificar perguntas de questionários e provas
+    function parseTrilhaQuestions(rawQuestions: any): any[] {
+        if (!rawQuestions) return [];
+        if (Array.isArray(rawQuestions)) return rawQuestions;
+        if (typeof rawQuestions === 'object') {
+            if (Array.isArray(rawQuestions.questions)) return rawQuestions.questions;
+            if (Array.isArray(rawQuestions.questoes)) return rawQuestions.questoes;
+            return [];
+        }
+        if (typeof rawQuestions === 'string') {
+            try {
+                const parsed = JSON.parse(rawQuestions);
+                if (Array.isArray(parsed)) return parsed;
+                if (parsed && typeof parsed === 'object') {
+                    if (Array.isArray(parsed.questions)) return parsed.questions;
+                    if (Array.isArray(parsed.questoes)) return parsed.questoes;
+                }
+            } catch (e) {
+                try {
+                    const cleaned = rawQuestions
+                        .replace(/\\+"([^"]+?)\\+"/g, "'$1'")
+                        .replace(/\\\\"/g, '"');
+                    const parsed = JSON.parse(cleaned);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (e2) {
+                    console.error('Erro ao processar questionário:', e2);
+                }
+            }
+        }
+        return [];
+    }
+
     // --- TRILHA EAD & QUESTIONARIOS ---
     app.get('/api/trilha/modulos', async (req, res) => {
         try {
@@ -4896,6 +4928,7 @@ async function startServer() {
     app.post('/api/trilha/modulos', async (req, res) => {
         try {
             const { id, nome, descricao, ordem, arte_index, prova_final, conquista_id } = req.body;
+            const parsedProvaFinal = parseTrilhaQuestions(prova_final);
             let result;
             if (id) {
                 result = await supabase
@@ -4905,7 +4938,7 @@ async function startServer() {
                         descricao, 
                         ordem, 
                         arte_index, 
-                        prova_final, 
+                        prova_final: parsedProvaFinal, 
                         conquista_id: conquista_id ? Number(conquista_id) : null 
                     })
                     .eq('id', id)
@@ -4918,7 +4951,7 @@ async function startServer() {
                         descricao, 
                         ordem, 
                         arte_index, 
-                        prova_final, 
+                        prova_final: parsedProvaFinal, 
                         conquista_id: conquista_id ? Number(conquista_id) : null 
                     }])
                     .select();
@@ -4959,6 +4992,7 @@ async function startServer() {
     app.post('/api/trilha/aulas', async (req, res) => {
         try {
             const { id, modulo_id, titulo, youtube_url, ordem, questionario, conquista_id } = req.body;
+            const parsedQuestionario = parseTrilhaQuestions(questionario);
             let result;
             if (id) {
                 result = await supabase
@@ -4968,7 +5002,7 @@ async function startServer() {
                         titulo, 
                         youtube_url, 
                         ordem, 
-                        questionario, 
+                        questionario: parsedQuestionario, 
                         conquista_id: conquista_id ? Number(conquista_id) : null 
                     })
                     .eq('id', id)
@@ -4981,7 +5015,7 @@ async function startServer() {
                         titulo, 
                         youtube_url, 
                         ordem, 
-                        questionario, 
+                        questionario: parsedQuestionario, 
                         conquista_id: conquista_id ? Number(conquista_id) : null 
                     }])
                     .select();
@@ -5024,39 +5058,65 @@ async function startServer() {
             const { aluno_id, classroom_id, aula_id } = req.body;
             const targetAlunoId = aluno_id || req.body.alunoId;
             const targetAulaId = aula_id || req.body.aulaId;
-            
+            if (!targetAlunoId || !targetAulaId) {
+                return res.status(400).json({ error: 'aluno_id e aula_id são obrigatórios.' });
+            }
+
+            const { data: existing } = await supabase
+                .from('progresso_trilha')
+                .select('*')
+                .eq('aluno_id', targetAlunoId)
+                .eq('aula_id', targetAulaId)
+                .maybeSingle();
+
+            if (existing) {
+                return res.json(existing);
+            }
+
             const { data, error } = await supabase
                 .from('progresso_trilha')
-                .upsert([{ aluno_id: targetAlunoId, aula_id: targetAulaId }], { onConflict: 'aluno_id,aula_id' })
+                .insert([{
+                    aluno_id: targetAlunoId,
+                    classroom_id: classroom_id || null,
+                    aula_id: targetAulaId
+                }])
                 .select();
             if (error) throw error;
 
+            // Premiar aluno com 200 XP e 200 Coins
             const { data: aluno } = await supabase
                 .from('alunos')
-                .select('id, nome, xp, acorde_coins')
+                .select('xp, acorde_coins')
                 .eq('id', targetAlunoId)
                 .single();
-                
+
             if (aluno) {
                 const novoXp = (Number(aluno.xp) || 0) + 200;
                 const novasMoedas = (Number(aluno.acorde_coins) || 0) + 200;
                 await supabase
-                     .from('alunos')
-                     .update({ xp: novoXp, acorde_coins: novasMoedas })
-                     .eq('id', aluno.id);
-                     
+                    .from('alunos')
+                    .update({ xp: novoXp, acorde_coins: novasMoedas })
+                    .eq('id', targetAlunoId);
+
+                await recordPontos(
+                    targetAlunoId,
+                    'aulas_video',
+                    'Concluiu aula da Trilha EAD',
+                    200
+                );
+
                 await addToFeed(
-                     aluno.id,
-                     'aula_trilha_concluida',
-                     `Concluiu a aula da trilha e ganhou +200 XP & +200 Coins!`,
-                     '🎓'
+                    targetAlunoId,
+                    'aula_trilha_concluida',
+                    `Concluiu a aula da trilha e ganhou +200 XP & +200 Coins!`,
+                    '🎓'
                 );
             }
-            
-            res.json({ success: true, data });
-         } catch (error) {
-             res.status(500).json({ error: error.message });
-         }
+
+            res.json(data[0]);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
     });
 
     app.post('/api/trilha/gerar-questionario-ia', async (req, res) => {
@@ -5116,7 +5176,7 @@ ${textoBruto}
             const rawText = responseData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
-            const parsedQuestions = JSON.parse(cleanedText);
+            const parsedQuestions = parseTrilhaQuestions(cleanedText);
             res.json(parsedQuestions);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -5125,7 +5185,7 @@ ${textoBruto}
 
     app.post('/api/trilha/responder-questionario', async (req, res) => {
         try {
-            const { aluno_id, aula_trilha_id, modulo_trilha_id, respostas } = req.body;
+            const { aluno_id, aula_trilha_id, modulo_trilha_id, respostas, perguntas_sorteadas } = req.body;
             if (!aluno_id || (!aula_trilha_id && !modulo_trilha_id) || !respostas) {
                 return res.status(400).json({ error: 'aluno_id, respostas e um identificador de aula ou módulo são obrigatórios.' });
             }
@@ -5149,11 +5209,7 @@ ${textoBruto}
                 conquistaId = aula.conquista_id;
                 tituloReferencia = aula.titulo;
                 
-                if (aula.questionario && Array.isArray(aula.questionario)) {
-                    gabaQuestions = aula.questionario;
-                } else if (aula.questionario && typeof aula.questionario === 'object') {
-                    gabaQuestions = (aula.questionario as any).questions || [];
-                }
+                gabaQuestions = parseTrilhaQuestions(aula.questionario);
             } 
             // Se for a prova final de um Módulo
             else if (moduloId) {
@@ -5167,11 +5223,7 @@ ${textoBruto}
                 conquistaId = modulo.conquista_id;
                 tituloReferencia = `Prova Geral: ${modulo.nome}`;
 
-                if (modulo.prova_final && Array.isArray(modulo.prova_final)) {
-                    gabaQuestions = modulo.prova_final;
-                } else if (modulo.prova_final && typeof modulo.prova_final === 'object') {
-                    gabaQuestions = (modulo.prova_final as any).questions || [];
-                }
+                gabaQuestions = parseTrilhaQuestions(modulo.prova_final);
             }
 
             // Se for a prova final de um Módulo, verificar se já passou (única tentativa permitida)
