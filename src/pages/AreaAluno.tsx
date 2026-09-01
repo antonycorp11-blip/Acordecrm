@@ -35,6 +35,7 @@ import html2pdf from 'html2pdf.js';
 import { jsPDF } from 'jspdf';
 import { Download } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
+import { getMediaStreamUrl } from '../utils/mediaUtils';
 declare global {
   interface Window {
     YT: any;
@@ -246,6 +247,41 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
               <div className="grid grid-cols-2 gap-2 pl-3">
                 {richData.images.map((img: string, idx: number) => (
                   <img key={idx} src={img} alt="Anexo" className="w-full h-auto border-2 border-black shadow-[2px_2px_0_#000]" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Gravações e Áudios da Aula */}
+          {richData?.recordings && Array.isArray(richData.recordings) && richData.recordings.length > 0 && (
+            <div className="space-y-3 pt-2 break-inside-avoid">
+              <h4 className="font-black text-sm border-l-4 border-[#ff6b00] pl-2 uppercase tracking-wide text-[#ff6b00]">
+                🎧 GRAVAÇÕES E ÁUDIOS DA AULA:
+              </h4>
+              <div className="space-y-2 pl-3">
+                {richData.recordings.map((rec: any, idx: number) => (
+                  <div key={idx} className="bg-black/5 border-2 border-black p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-[2px_2px_0_#000]">
+                    <div className="flex items-center gap-2 overflow-hidden flex-1">
+                      <span className="text-lg">🎙️</span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-black uppercase text-black truncate">{rec.name || `Áudio da Aula ${idx + 1}`}</span>
+                        <span className="text-[8px] font-bold text-black/50 uppercase">Gravação do Professor em Sala</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <audio src={getMediaStreamUrl(rec.url)} controls className="h-7 max-w-full sm:max-w-[220px]" />
+                      <a
+                        href={getMediaStreamUrl(rec.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download
+                        className="bg-black text-white p-1.5 border border-black hover:bg-[#ff6b00] hover:text-black transition-colors shrink-0 text-xs font-black"
+                        title="Baixar áudio"
+                      >
+                        ⬇️
+                      </a>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -620,6 +656,14 @@ export default function AreaAluno() {
       setQuestionarioCorreto(data.aprovado);
 
       if (data.aprovado) {
+        // Imediatamente marca a aula como concluída no estado local para destravar a próxima na hora
+        if (target === 'aula' && targetId) {
+          setTrilhaProgresso(prev => {
+            if (prev.some(p => Number(p.aula_id) === Number(targetId))) return prev;
+            return [...prev, { aluno_id: alunoData?.id, aula_id: targetId, concluido_at: new Date().toISOString() }];
+          });
+        }
+
         // Toca som retro de vitória feliz (C5 -> E5 -> G5 -> C6)
         playRetroSound(523, 'sine', 0.15);
         setTimeout(() => playRetroSound(659, 'sine', 0.15), 150);
@@ -2067,10 +2111,16 @@ export default function AreaAluno() {
                         const modAulas = aulasCompletas.filter(a => String(a.modulo_id) === String(modulo.id));
                         const isEmProducao = modulo.em_producao;
 
+                        const isAulaConcluidaHelper = (targetAulaId: any) => {
+                          return trilhaProgresso.some(p => Number(p.aula_id) === Number(targetAulaId)) ||
+                            (alunoEadProgresso?.questionariosAprovados || []).some((q: any) => Number(q.aulaTrilhaId || q.aula_trilha_id) === Number(targetAulaId)) ||
+                            (alunoData?.questionariosAprovados || []).some((q: any) => Number(q.aulaTrilhaId || q.aula_trilha_id) === Number(targetAulaId));
+                        };
+
                         const isModuloDesbloqueado = !isEmProducao && (modIdx === 0 || (() => {
                           const modAnterior = modulosCompletos[modIdx - 1];
                           const aulasModAnterior = aulasCompletas.filter(a => String(a.modulo_id) === String(modAnterior.id));
-                          const todasConcluidas = aulasModAnterior.length === 0 || aulasModAnterior.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id)));
+                          const todasConcluidas = aulasModAnterior.length === 0 || aulasModAnterior.every(a => isAulaConcluidaHelper(a.id));
                           const provaConcluida = !modAnterior.prova_final || 
                             (Array.isArray(modAnterior.prova_final) && modAnterior.prova_final.length === 0) || 
                             (alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modAnterior.conquista_id) || Number(c.conquista_id) === Number(modAnterior.conquista_id))) ||
@@ -2078,7 +2128,7 @@ export default function AreaAluno() {
                           return todasConcluidas && provaConcluida;
                         })());
 
-                        const moduloConcluidoCount = modAulas.filter(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))).length;
+                        const moduloConcluidoCount = modAulas.filter(a => isAulaConcluidaHelper(a.id)).length;
                         const modPct = modAulas.length > 0 ? Math.round((moduloConcluidoCount / modAulas.length) * 100) : 0;
                         const totalXpModulo = modAulas.length * 100;
 
@@ -2143,8 +2193,8 @@ export default function AreaAluno() {
 
                                 {modAulas.map((aula, aIdx) => {
                                   const isAulaEmProducao = aula.em_producao;
-                                  const isConcluida = !isAulaEmProducao && trilhaProgresso.some(p => Number(p.aula_id) === Number(aula.id));
-                                  const isAulaDesbloqueada = !isAulaEmProducao && isModuloDesbloqueado && (aIdx === 0 || trilhaProgresso.some(p => Number(p.aula_id) === Number(modAulas[aIdx - 1].id)));
+                                  const isConcluida = !isAulaEmProducao && isAulaConcluidaHelper(aula.id);
+                                  const isAulaDesbloqueada = !isAulaEmProducao && isModuloDesbloqueado && (aIdx === 0 || isAulaConcluidaHelper(modAulas[aIdx - 1].id));
                                   const isAtiva = isAulaDesbloqueada && !isConcluida;
                                   const isSecondColumn = (aIdx % 2 !== 0);
 
@@ -2187,7 +2237,7 @@ export default function AreaAluno() {
                               {/* Challenge Prova Final (Boss Stage Stitch) */}
                               {modulo.prova_final && modulo.prova_final.length > 0 && (() => {
                                 const isProvaConcluida = alunoData?.conquistas?.some((c: any) => Number(c.id) === Number(modulo.conquista_id) || Number(c.conquista_id) === Number(modulo.conquista_id)) || (alunoData?.questionariosAprovados || []).some((q: any) => Number(q.modulo_trilha_id) === Number(modulo.id));
-                                const isProvaDesbloqueada = !isEmProducao && isModuloDesbloqueado && (modAulas.length === 0 || modAulas.every(a => trilhaProgresso.some(p => Number(p.aula_id) === Number(a.id))));
+                                const isProvaDesbloqueada = !isEmProducao && isModuloDesbloqueado && (modAulas.length === 0 || modAulas.every(a => isAulaConcluidaHelper(a.id)));
                                 return (
                                   <div className="mt-2 pt-4 border-t-2 border-dashed border-[#261812] flex flex-col items-center gap-2">
                                     <button
@@ -2945,6 +2995,41 @@ export default function AreaAluno() {
                                 <a key={i} href={img} target="_blank" rel="noopener noreferrer" className="block border-4 border-black hover:scale-[1.02] transition-transform shadow-[4px_4px_0_#000]">
                                   <img src={img} alt="Anexo" className="w-full h-24 object-cover" />
                                 </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Gravações e Áudios da Aula */}
+                        {Array.isArray(richData.recordings) && richData.recordings.length > 0 && (
+                          <div className="bg-[#feccba]/30 border-2 border-black/30 p-3 space-y-2">
+                            <span className="text-[9px] font-black text-[#ff6b00] uppercase flex items-center gap-1.5">
+                              🎧 GRAVAÇÕES E ÁUDIOS DA AULA ({richData.recordings.length}):
+                            </span>
+                            <div className="space-y-2">
+                              {richData.recordings.map((rec: any, idx: number) => (
+                                <div key={idx} className="bg-white border-2 border-black p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-[2px_2px_0_#000]">
+                                  <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                    <span className="text-lg">🎙️</span>
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-[10px] font-black uppercase text-black truncate">{rec.name || `Áudio da Aula ${idx + 1}`}</span>
+                                      <span className="text-[8px] font-bold text-gray-500 uppercase">Gravação do Professor em Sala</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <audio src={getMediaStreamUrl(rec.url)} controls className="h-7 w-full sm:w-48" />
+                                    <a
+                                      href={getMediaStreamUrl(rec.url)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download
+                                      className="bg-[#261812] text-[#feccba] p-1.5 border border-black hover:bg-[#ff6b00] hover:text-black transition-colors shrink-0 text-[10px] font-black"
+                                      title="Baixar ou abrir áudio"
+                                    >
+                                      ⬇️
+                                    </a>
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </div>

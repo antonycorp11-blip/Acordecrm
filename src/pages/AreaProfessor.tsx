@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
+import { getMediaStreamUrl } from '../utils/mediaUtils';
 import { 
   Bell, 
   Home, 
@@ -3209,7 +3210,7 @@ export default function AreaProfessor() {
                         <Volume2 className="w-4 h-4 text-[#ff6b00] shrink-0" />
                         <p className="text-[9px] font-black uppercase truncate">{rec.name}</p>
                       </div>
-                      <audio src={rec.url} controls className="h-6 w-full mt-1 border border-black/20" />
+                      <audio src={getMediaStreamUrl(rec.url)} controls className="h-6 w-full mt-1 border border-black/20" />
                     </div>
                     <button
                       type="button"

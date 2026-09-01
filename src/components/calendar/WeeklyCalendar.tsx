@@ -258,7 +258,13 @@ export function WeeklyCalendar({ onSelectSlot, selectedSlot }: WeeklyCalendarPro
                   <div className="w-[140px] min-w-[140px] h-20 border-r-4 border-black bg-[#ffeae1] sticky left-0 z-10 flex items-center px-4 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.1)]"><span className="text-[10px] font-black text-black leading-tight uppercase italic italic">{prof.nome}</span></div>
                   {HORARIOS.map(time => {
                     const dayStr = format(currentDate, 'yyyy-MM-dd');
-                    const lessons = agenda.filter(a => String(a.data).substring(0, 10) === dayStr && String(a.horario || '').substring(0, 5) === time && String(a.professor_id) === String(prof.id));
+                    const hourPrefix = time.substring(0, 2);
+                    const lessons = agenda.filter(a => {
+                      const d = String(a.data).substring(0, 10);
+                      const h = String(a.horario || '').substring(0, 5);
+                      const aHourPrefix = h.substring(0, 2);
+                      return d === dayStr && (h === time || aHourPrefix === hourPrefix) && String(a.professor_id) === String(prof.id);
+                    });
                     return (
                       <div key={`${prof.id}-${time}`} className="flex-1 min-w-[70px] border-r-2 border-black/5 relative">
                         <CalendarSlot id={`prof|${prof.id}|${time}:00`} isOccupied={lessons.length > 0} isSelected={selectedSlot?.data === dayStr && selectedSlot?.horario?.startsWith(time)} onSelect={() => onSelectSlot?.(dayStr, `${time}:00`)}>
@@ -284,7 +290,13 @@ export function WeeklyCalendar({ onSelectSlot, selectedSlot }: WeeklyCalendarPro
                   <div className="h-[70px] border-b-2 border-r-4 border-black flex items-center justify-center bg-[#ffeae1] sticky left-0 z-10"><span className="text-[10px] font-black text-black">{time}</span></div>
                   {weekDays.map((day, i) => {
                     const dayStr = day.toISOString().split('T')[0];
-                    const lessons = agenda.filter(a => String(a.data).substring(0, 10) === dayStr && String(a.horario || '').substring(0, 5) === time && (filterId === 'all' || String(a.sala_id) === String(filterId)));
+                    const hourPrefix = time.substring(0, 2);
+                    const lessons = agenda.filter(a => {
+                      const d = String(a.data).substring(0, 10);
+                      const h = String(a.horario || '').substring(0, 5);
+                      const aHourPrefix = h.substring(0, 2);
+                      return d === dayStr && (h === time || aHourPrefix === hourPrefix) && (filterId === 'all' || String(a.sala_id) === String(filterId));
+                    });
                     return (
                       <div key={`${i}-${time}`} className="border-b-2 border-r-2 border-black/5">
                         <CalendarSlot key={`${i}-${time}`} id={`sala|${i}|${time}:00`} isOccupied={lessons.length > 0} isSelected={selectedSlot?.data === dayStr && selectedSlot?.horario?.startsWith(time)} onSelect={() => onSelectSlot?.(dayStr, `${time}:00`, filterId !== 'all' ? Number(filterId) : undefined)}>

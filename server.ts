@@ -161,6 +161,24 @@ const syncProvaTrophiesAndScores = async (supabaseClient: any) => {
                 await supabaseClient.from('gamificacao_progresso').insert(inserts);
             }
         }
+
+        // Garantir retroativamente que todo aluno que passou em uma prova de aula tenha a aula em progresso_trilha
+        const { data: tentativasAprovadas } = await supabaseClient
+            .from('tentativas_questionario_trilha')
+            .select('aluno_id, aula_trilha_id')
+            .eq('aprovado', true)
+            .not('aula_trilha_id', 'is', null);
+
+        if (tentativasAprovadas && tentativasAprovadas.length > 0) {
+            for (const tent of tentativasAprovadas) {
+                try {
+                    await supabaseClient
+                        .from('progresso_trilha')
+                        .insert([{ aluno_id: Number(tent.aluno_id), aula_id: Number(tent.aula_trilha_id) }]);
+                } catch (_) {}
+            }
+        }
+
         hasSyncedProvaTrophies = true;
     } catch (err) {
         console.error('[SYNC PROVA TROPHIES ERROR]:', err);
@@ -266,6 +284,101 @@ async function startServer() {
 
     // --- API ROUTES ---
     // --- CONTRATOS ---
+    const CLAUSULAS_PADRAO_CONTRATO = [
+        "REPOSIÇÕES E REAGENDAMENTOS: A reposição de faltas será concedida exclusivamente mediante apresentação de atestado ou receita médica. Fica permitido o reagendamento de aulas no limite de apenas 1 (uma) vez ao mês.",
+        "DA ADESÃO: A assinatura implica ciência e aceitação integral das condições vigentes. Solicitação de cancelamento posterior não afasta as obrigações assumidas.",
+        "DA INADIMPLÊNCIA: Atrasos geram multa de 2% e juros de 1% a.m. Após 30 dias inadimplente, as aulas poderão ser suspensas até regularização, sem direito à reposição.",
+        "FALTAS PELA ESCOLA: Cancelamentos motivados pela escola ou professor terão reposição integral em data a combinar.",
+        "FERIADOS: Feriados e recessos já compõem o calendário acadêmico anual, não gerando reposição ou desconto.",
+        "PORTAL DO ALUNO: Acesso pessoal, intransferível e gratuito a materiais complementares. Sujeito a manutenções técnicas.",
+        "CERTIFICADO: A execução exige conclusão do curso, adimplência financeira e realização das atividades no Portal.",
+        "ABANDONO: A ausência injustificada não cancela o contrato. As parcelas seguem devidas até a solicitação formal de cancelamento.",
+        "TOLERÂNCIA: Limite de 15 minutos de atraso, sem reposição do tempo perdido, encerrando-se a aula no horário previsto original.",
+        "DADOS E IMAGEM: Dados tratados conforme LGPD. Autoriza-se o uso de imagem do aluno para fins institucionais da escola, salvo oposição formal por escrito.",
+        "EQUIPAMENTOS: O contratante responsabiliza-se pelo ressarcimento de danos aos equipamentos da escola causados por mau uso. Exclui-se o desgaste natural.",
+        "RESCISÃO PELO ALUNO: Vigência pelo período contratado. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
+        "NORMAS E RESCISÃO PELA ESCOLA: Exige-se respeito às normas. Inadimplência, mau comportamento ou danos ao patrimônio podem gerar advertência ou rescisão imediata do contrato pela escola.",
+        "PROFESSORES: A escola reserva-se o direito de substituir professores, horários ou alterar metodologias, não justificando cancelamento isento de multa.",
+        "FORO: Eleito o foro da Comarca de Cuiabá-MT para dirimir controvérsias judiciais decorrentes deste contrato."
+    ];
+
+    const generateContratoHtml = (params: {
+        alunoNome: string;
+        responsavelNome?: string | null;
+        cpf?: string | null;
+        endereco?: string | null;
+        cursoNome?: string | null;
+        duracaoAula?: string | null;
+        qtdAulas?: string | null;
+        valorPlano?: string | number | null;
+        diaVencimento?: string | number | null;
+        qtdParcelas?: string | number | null;
+        clausulas?: string[];
+        dataAssinatura?: Date;
+    }) => {
+        const {
+            alunoNome,
+            responsavelNome,
+            cpf = '',
+            endereco = '',
+            cursoNome = 'Música',
+            duracaoAula = '50 minutos',
+            qtdAulas = '1 aula por semana',
+            valorPlano = '370',
+            diaVencimento = '10',
+            qtdParcelas = '6',
+            clausulas = CLAUSULAS_PADRAO_CONTRATO,
+            dataAssinatura = new Date()
+        } = params;
+
+        const mesesStr = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+        const dataFormatada = `${dataAssinatura.getDate()} de ${mesesStr[dataAssinatura.getMonth()]} de ${dataAssinatura.getFullYear()}`;
+
+        const isMenorComResp = responsavelNome && responsavelNome.trim() !== '' && responsavelNome.trim().toLowerCase() !== (alunoNome || '').trim().toLowerCase();
+        const contratanteTxt = isMenorComResp
+            ? `${alunoNome}, representado(a) neste ato por seu Responsável Legal, <strong>${responsavelNome}</strong>, inscrito(a) no CPF/MF sob o nº <strong>${cpf || '_________________'}</strong>, residente e domiciliado à <strong>${endereco || '_____________________________________'}</strong>.`
+            : `${alunoNome}, inscrito(a) no CPF/MF sob o nº <strong>${cpf || '_________________'}</strong>, residente e domiciliado à <strong>${endereco || '_____________________________________'}</strong>.`;
+
+        const assinanteNome = isMenorComResp ? responsavelNome : alunoNome;
+
+        const clausulasHtml = clausulas.map((c: string, idx: number) => {
+            let text = c.replace(/Vigência de 12 \(doze\) meses/gi, `Vigência de ${qtdParcelas} meses`).replace(/Vigência de 12 meses/gi, `Vigência de ${qtdParcelas} meses`);
+            return `<p style="margin-bottom: 10px;"><strong>Cláusula ${idx + 1}ª.</strong> ${text}</p>`;
+        }).join('');
+
+        return `
+<div style="font-family: serif; font-size: 14px; line-height: 1.5; color: black; padding: 20px; background-color: white;">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="font-size: 20px; font-weight: bold; margin: 0 0 5px 0;">STUDIO ACORDE ESCOLA DE MÚSICA</h1>
+        <h2 style="font-size: 16px; font-weight: bold; margin: 0;">CONTRATO DE PRESTAÇÃO DE SERVIÇOS MUSICAIS</h2>
+    </div>
+    <div style="text-align: justify; margin-bottom: 20px;">
+        <p style="margin-bottom: 10px;"><strong>CONTRATADA:</strong> STUDIO ACORDE ESCOLA DE MUSICA LTDA, inscrita no CNPJ/MF sob o nº 55.273.720/0001-12, com sede à AV NEWTON RABELLO, nº 26, Pedra 90, Cuiabá - MT.</p>
+        <p style="margin-bottom: 10px;"><strong>CONTRATANTE:</strong> ${contratanteTxt}</p>
+        <p style="margin-bottom: 10px;"><strong>CURSO CONTRATADO:</strong> O objeto deste instrumento é o ensino de <strong>${cursoNome}</strong>, sendo <strong>${qtdAulas}</strong>, com duração de <strong>${duracaoAula}</strong> cada.</p>
+    </div>
+    <div style="text-align: justify; margin-bottom: 20px;">
+        ${clausulasHtml}
+        <p style="margin-bottom: 10px;"><strong>Cláusula ${clausulas.length + 1}ª.</strong> Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor certo e ajustado de <strong>R$ ${valorPlano}</strong> por mensalidade, com vencimento todo dia <strong>${diaVencimento}</strong> de cada mês, durante o plano de <strong>${qtdParcelas} meses</strong>.</p>
+    </div>
+    <div style="text-align: justify; margin-bottom: 40px;">
+        <p>E por estarem justas e contratadas, as partes assinam o presente contrato eletronicamente.</p>
+        <p style="text-align: right; margin-top: 10px;">Cuiabá - MT, ${dataFormatada}</p>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 60px; text-align: center;">
+        <div style="width: 45%; border-top: 1px solid black; padding-top: 5px;">
+            <p style="font-weight: bold; margin: 0;">STUDIO ACORDE</p>
+            <p style="font-size: 10px; margin: 0;">CONTRATADA</p>
+        </div>
+        <div style="width: 45%; border-top: 1px solid black; padding-top: 5px;">
+            <p style="font-weight: bold; margin: 0;">${assinanteNome || 'CONTRATANTE'}</p>
+            <p style="font-size: 10px; margin: 0;">CONTRATANTE</p>
+        </div>
+    </div>
+</div>
+        `.trim();
+    };
+
     app.get('/api/contratos/template', async (req, res) => {
         try {
             const { data, error } = await supabase.from('contrato_templates').select('*').limit(1).single();
@@ -1186,18 +1299,33 @@ async function startServer() {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         try {
             const ext = path.extname(req.file.originalname) || '';
-            const filename = `guias/${Date.now()}_${req.file.filename}${ext}`;
+            const filename = `guias/${Date.now()}_${req.file.filename || req.file.originalname}${ext}`;
             const fileBuffer = fs.readFileSync(req.file.path);
             const mimeType = req.file.mimetype || 'application/octet-stream';
 
+            // 1. Tentar upload direto para o Google Drive para poupar storage do Supabase
+            const driveResult = await uploadToGoogleDrive(req.file.originalname || `upload_${Date.now()}${ext}`, mimeType, fileBuffer);
+            if (driveResult) {
+                try { fs.unlinkSync(req.file.path); } catch {}
+                return res.json({ 
+                    url: driveResult.url, 
+                    fileId: driveResult.fileId, 
+                    webViewLink: driveResult.webViewLink,
+                    storage: 'google_drive' 
+                });
+            }
+
+            // 2. Fallback para Supabase Storage se Google Drive não estiver configurado
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('uploads')
                 .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
 
+            try { fs.unlinkSync(req.file.path); } catch {}
+
             if (uploadError) throw uploadError;
 
             const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
-            res.json({ url: publicUrlData.publicUrl });
+            res.json({ url: publicUrlData.publicUrl, storage: 'supabase' });
         } catch (error: any) {
             console.error('Erro no upload genérico:', error);
             res.status(500).json({ error: error.message || 'Erro ao fazer upload' });
@@ -1431,23 +1559,7 @@ async function startServer() {
             const { data: template } = await supabase.from('contrato_templates').select('*').limit(1).maybeSingle();
             const clausulas = (template && template.clausulas && template.clausulas.length > 0)
                 ? template.clausulas
-                : [
-                  "REPOSIÇÕES E REAGENDAMENTOS: A reposição de faltas será concedida exclusivamente mediante apresentação de atestado ou receita médica. Fica permitido o reagendamento de aulas no limite de apenas 1 (uma) vez ao mês.",
-                  "DA ADESÃO: A assinatura implica ciência e aceitação integral das condições vigentes. Solicitação de cancelamento posterior não afasta as obrigações assumidas.",
-                  "DA INADIMPLÊNCIA: Atrasos geram multa de 2% e juros de 1% a.m. Após 30 dias inadimplente, as aulas poderão ser suspensas até regularização, sem direito à reposição.",
-                  "FALTAS PELA ESCOLA: Cancelamentos motivados pela escola ou professor terão reposição integral em data a combinar.",
-                  "FERIADOS: Feriados e recessos já compõem o calendário acadêmico anual, não gerando reposição ou desconto.",
-                  "PORTAL DO ALUNO: Acesso pessoal, intransferível e gratuito a materiais complementares. Sujeito a manutenções técnicas.",
-                  "CERTIFICADO: A execução exige conclusão do curso, adimplência financeira e realização das atividades no Portal.",
-                  "ABANDONO: A ausência injustificada não cancela o contrato. As parcelas seguem devidas até a solicitação formal de cancelamento.",
-                  "TOLERÂNCIA: Limite de 15 minutos de atraso, sem reposição do tempo perdido, encerrando-se a aula no horário previsto original.",
-                  "DADOS E IMAGEM: Dados tratados conforme LGPD. Autoriza-se o uso de imagem do aluno para fins institucionais da escola, salvo oposição formal por escrito.",
-                  "EQUIPAMENTOS: O contratante responsabiliza-se pelo ressarcimento de danos aos equipamentos da escola causados por mau uso. Exclui-se o desgaste natural.",
-                  "RESCISÃO PELO ALUNO: Vigência pelo período contratado. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
-                  "NORMAS E RESCISÃO PELA ESCOLA: Exige-se respeito às normas. Inadimplência, mau comportamento ou danos ao patrimônio podem gerar advertência ou rescisão imediata do contrato pela escola.",
-                  "PROFESSORES: A escola reserva-se o direito de substituir professores, horários ou alterar metodologias, não justificando cancelamento isento de multa.",
-                  "FORO: Eleito o foro da Comarca de Cuiabá-MT para dirimir controvérsias judiciais decorrentes deste contrato."
-                ];
+                : CLAUSULAS_PADRAO_CONTRATO;
                 
             const responsavel = aluno.responsavel_nome || aluno.nome;
             const cpf = aluno.responsavel_cpf || aluno.cpf || '';
@@ -1456,46 +1568,18 @@ async function startServer() {
             const valorPlano = matricula?.valor_parcela || '370';
             const diaVencimento = matricula?.dia_vencimento || '10';
             const qtdParcelas = matricula?.total_parcelas || '6';
-            const clausulasHtml = clausulas.map((c: string, idx: number) => {
-                let text = c.replace(/Vigência de 12 \(doze\) meses/gi, `Vigência de ${qtdParcelas} meses`).replace(/Vigência de 12 meses/gi, `Vigência de ${qtdParcelas} meses`);
-                return `<p style="margin-bottom: 10px;"><strong>Cláusula ${idx + 1}ª.</strong> ${text}</p>`;
-            }).join('');
-            
-            const dataAtual = new Date();
-            const mesesStr = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-            const dataFormatada = `${dataAtual.getDate()} de ${mesesStr[dataAtual.getMonth()]} de ${dataAtual.getFullYear()}`;
-            
-            const conteudo_html = `
-<div style="font-family: serif; font-size: 14px; line-height: 1.5; color: black; padding: 20px; background-color: white;">
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="font-size: 20px; font-weight: bold; margin: 0 0 5px 0;">STUDIO ACORDE ESCOLA DE MÚSICA</h1>
-        <h2 style="font-size: 16px; font-weight: bold; margin: 0;">CONTRATO DE PRESTAÇÃO DE SERVIÇOS MUSICAIS</h2>
-    </div>
-    <div style="text-align: justify; margin-bottom: 20px;">
-        <p style="margin-bottom: 10px;"><strong>CONTRATADA:</strong> STUDIO ACORDE ESCOLA DE MUSICA LTDA, inscrita no CNPJ/MF sob o nº 55.273.720/0001-12, com sede à AV NEWTON RABELLO, nº 26, Pedra 90, Cuiabá - MT.</p>
-        <p style="margin-bottom: 10px;"><strong>CONTRATANTE:</strong> ${aluno.nome}, representado(a) neste ato por seu Responsável Legal, <strong>${responsavel}</strong>, inscrito(a) no CPF/MF sob o nº <strong>${cpf}</strong>, residente e domiciliado à <strong>${endereco}</strong>.</p>
-        <p style="margin-bottom: 10px;"><strong>CURSO CONTRATADO:</strong> O objeto deste instrumento é o ensino de <strong>${cursoNome}</strong>, sendo 1 aula por semana, com duração de 50 minutos cada.</p>
-    </div>
-    <div style="text-align: justify; margin-bottom: 20px;">
-        ${clausulasHtml}
-        <p style="margin-bottom: 10px;"><strong>Cláusula ${clausulas.length + 1}ª.</strong> Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor certo e ajustado de <strong>R$ ${valorPlano}</strong> por mensalidade, com vencimento todo dia <strong>${diaVencimento}</strong> de cada mês, durante o plano de <strong>${qtdParcelas} meses</strong>.</p>
-    </div>
-    <div style="text-align: justify; margin-bottom: 40px;">
-        <p>E por estarem justas e contratadas, as partes assinam o presente contrato eletronicamente.</p>
-        <p style="text-align: right; margin-top: 10px;">Cuiabá - MT, ${dataFormatada}</p>
-    </div>
-    <div style="display: flex; justify-content: space-between; margin-top: 60px; text-align: center;">
-        <div style="width: 45%; border-top: 1px solid black; padding-top: 5px;">
-            <p style="font-weight: bold; margin: 0;">STUDIO ACORDE</p>
-            <p style="font-size: 10px; margin: 0;">CONTRATADA</p>
-        </div>
-        <div style="width: 45%; border-top: 1px solid black; padding-top: 5px;">
-            <p style="font-weight: bold; margin: 0;">${responsavel}</p>
-            <p style="font-size: 10px; margin: 0;">CONTRATANTE</p>
-        </div>
-    </div>
-</div>
-            `.trim();
+
+            const conteudo_html = generateContratoHtml({
+                alunoNome: aluno.nome,
+                responsavelNome: aluno.responsavel_nome,
+                cpf,
+                endereco,
+                cursoNome,
+                valorPlano,
+                diaVencimento,
+                qtdParcelas,
+                clausulas
+            });
             
             if (contrato && contrato.status === 'pendente') {
                 const { data: updatedContrato, error: updateError } = await supabase.from('contratos').update({
@@ -1575,31 +1659,45 @@ async function startServer() {
             const studentId = req.params.id;
             const { 
                 nome, email, telefone, cpf, endereco, 
-                responsavel_nome, responsavel_telefone, 
-                curso_id, dia_semana, horario,
-                valor_parcela, valor_com_desconto, dia_vencimento, total_parcelas
+                responsavel_nome, responsavel_cpf, responsavel_telefone, 
+                curso_id, professor_id, dia_semana, horario,
+                valor_parcela, valor_com_desconto, dia_vencimento, total_parcelas,
+                status
             } = req.body;
             
-            console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, curso_id, dia_semana, horario, total_parcelas });
+            console.log(`[ALUNO_UPDATE] ID: ${studentId}`, { nome, professor_id, curso_id, dia_semana, horario, total_parcelas });
 
             // 1. Atualizar Aluno (campos básicos)
-            const { error: aluError } = await supabase.from('alunos')
-                .update({ 
-                    nome, email, telefone, cpf, endereco, 
-                    responsavel_nome, responsavel_telefone 
-                })
-                .eq('id', studentId);
-            
-            if (aluError) {
-                console.error('[ALUNO_UPDATE_ERROR]:', aluError);
-                return res.status(500).json({ error: aluError.message, stage: 'aluno' });
+            const alunoUpdate: any = {};
+            if (nome !== undefined) alunoUpdate.nome = nome;
+            if (email !== undefined) alunoUpdate.email = email;
+            if (telefone !== undefined) alunoUpdate.telefone = telefone;
+            if (cpf !== undefined) alunoUpdate.cpf = cpf;
+            if (endereco !== undefined) alunoUpdate.endereco = endereco;
+            if (responsavel_nome !== undefined) alunoUpdate.responsavel_nome = responsavel_nome;
+            if (responsavel_cpf !== undefined) alunoUpdate.responsavel_cpf = responsavel_cpf;
+            if (responsavel_telefone !== undefined) alunoUpdate.responsavel_telefone = responsavel_telefone;
+            if (status !== undefined) alunoUpdate.status = status;
+
+            if (Object.keys(alunoUpdate).length > 0) {
+                const { error: aluError } = await supabase.from('alunos')
+                    .update(alunoUpdate)
+                    .eq('id', studentId);
+                
+                if (aluError) {
+                    console.error('[ALUNO_UPDATE_ERROR]:', aluError);
+                    return res.status(500).json({ error: aluError.message, stage: 'aluno' });
+                }
             }
 
-            // 2. Atualizar Curso e Dia/Horário na Matrícula
+            // 2. Atualizar Matrícula e Aulas
             const matUpdate: any = {};
-            if (curso_id && !isNaN(Number(curso_id))) matUpdate.curso_id = Number(curso_id);
+            if (curso_id !== undefined && curso_id !== '' && !isNaN(Number(curso_id))) matUpdate.curso_id = Number(curso_id);
+            if (professor_id !== undefined && professor_id !== '' && !isNaN(Number(professor_id))) matUpdate.professor_id = Number(professor_id);
             if (dia_semana !== undefined && dia_semana !== '' && !isNaN(Number(dia_semana))) matUpdate.dia_semana = Number(dia_semana);
-            if (horario !== undefined && horario !== '') matUpdate.horario = horario;
+            if (horario !== undefined && horario !== '') {
+                matUpdate.horario = horario.length === 5 ? `${horario}:00` : horario;
+            }
             if (valor_parcela !== undefined && valor_parcela !== '') matUpdate.valor_parcela = Number(valor_parcela);
             if (valor_com_desconto !== undefined && valor_com_desconto !== '') matUpdate.valor_com_desconto = Number(valor_com_desconto);
             if (dia_vencimento !== undefined && dia_vencimento !== '') matUpdate.dia_vencimento = Number(dia_vencimento);
@@ -1608,50 +1706,70 @@ async function startServer() {
             console.log(`[MATRICULA_UPDATE] Aluno ${studentId}, payload:`, matUpdate);
 
             if (Object.keys(matUpdate).length > 0) {
-                // PASSO 1: Buscar a matrícula ativa (ou qualquer matrícula) do aluno via SELECT
-                let matriculaId: string | null = null;
-                
-                // Tenta primeiro matrículas com status 'ativa'
-                const { data: matAtiva } = await supabase
+                let { data: currentMat } = await supabase
                     .from('matriculas')
-                    .select('id')
+                    .select('*')
                     .eq('aluno_id', studentId)
-                    .eq('status', 'ativa')
                     .order('id', { ascending: false })
                     .limit(1)
                     .maybeSingle();
 
-                if (matAtiva) {
-                    matriculaId = matAtiva.id;
-                    console.log(`[MATRICULA_UPDATE] Matrícula ativa encontrada: id=${matriculaId}`);
-                } else {
-                    // Fallback: qualquer matrícula do aluno (a mais recente)
-                    const { data: matQualquer } = await supabase
-                        .from('matriculas')
-                        .select('id')
-                        .eq('aluno_id', studentId)
-                        .order('id', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
-
-                    if (matQualquer) {
-                        matriculaId = matQualquer.id;
-                        console.log(`[MATRICULA_UPDATE] Fallback - usando matrícula id=${matriculaId}`);
-                    }
-                }
-
-                // PASSO 2: Atualizar por ID (funciona corretamente no Supabase)
-                if (matriculaId) {
+                if (currentMat) {
                     const { error: matError } = await supabase
                         .from('matriculas')
                         .update(matUpdate)
-                        .eq('id', matriculaId);
+                        .eq('id', currentMat.id);
 
                     if (matError) {
                         console.error('[MATRICULA_UPDATE_ERROR]:', matError);
                         return res.status(500).json({ error: matError.message, stage: 'matricula' });
                     }
-                    console.log(`[MATRICULA_UPDATE] Sucesso! Matrícula ${matriculaId} atualizada com:`, matUpdate);
+                    console.log(`[MATRICULA_UPDATE] Sucesso! Matrícula ${currentMat.id} atualizada com:`, matUpdate);
+
+                    const hoje = getDateBR();
+                    const diaSemanaChanged = matUpdate.dia_semana !== undefined && Number(matUpdate.dia_semana) !== Number(currentMat.dia_semana);
+                    const horarioChanged = matUpdate.horario !== undefined && matUpdate.horario !== currentMat.horario;
+                    const professorChanged = matUpdate.professor_id !== undefined && Number(matUpdate.professor_id) !== Number(currentMat.professor_id);
+
+                    // Reagendar/Atualizar Aulas Pendentes
+                    if (diaSemanaChanged) {
+                        const { data: aulasFuturas } = await supabase.from('aulas')
+                            .select('id, data')
+                            .eq('aluno_id', studentId)
+                            .eq('status', 'pendente')
+                            .gt('data', hoje)
+                            .order('data', { ascending: true });
+
+                        if (aulasFuturas && aulasFuturas.length > 0) {
+                            let currentNextDay = new Date();
+                            currentNextDay.setHours(12, 0, 0, 0);
+                            currentNextDay.setDate(currentNextDay.getDate() + 1);
+                            while (currentNextDay.getDay() !== Number(matUpdate.dia_semana)) {
+                                currentNextDay.setDate(currentNextDay.getDate() + 1);
+                            }
+
+                            const updatePromises = aulasFuturas.map((af: any) => {
+                                const payload: any = { data: currentNextDay.toISOString().split('T')[0] };
+                                if (matUpdate.horario) payload.horario = matUpdate.horario;
+                                if (matUpdate.professor_id) payload.professor_id = matUpdate.professor_id;
+                                currentNextDay.setDate(currentNextDay.getDate() + 7);
+                                return supabase.from('aulas').update(payload).eq('id', af.id);
+                            });
+                            await Promise.all(updatePromises);
+                            console.log(`[AULAS_UPDATE] ${aulasFuturas.length} aulas reagendadas em paralelo para novo dia da semana.`);
+                        }
+                    } else if (horarioChanged || professorChanged) {
+                        const aulaPayload: any = {};
+                        if (matUpdate.horario) aulaPayload.horario = matUpdate.horario;
+                        if (matUpdate.professor_id) aulaPayload.professor_id = matUpdate.professor_id;
+
+                        await supabase.from('aulas')
+                            .update(aulaPayload)
+                            .eq('aluno_id', studentId)
+                            .eq('status', 'pendente')
+                            .gte('data', hoje);
+                        console.log(`[AULAS_UPDATE] Horário/Professor atualizado em lote para aulas futuras do aluno ${studentId}.`);
+                    }
 
                     // Atualizar pagamentos pendentes
                     if (matUpdate.valor_parcela !== undefined || matUpdate.dia_vencimento !== undefined) {
@@ -1663,7 +1781,7 @@ async function startServer() {
                             .eq('tipo_receita', 'mensalidade');
 
                         if (pendentes && pendentes.length > 0) {
-                            for (const pg of pendentes) {
+                            const pgPromises = pendentes.map((pg: any) => {
                                 const updatePg: any = {};
                                 if (matUpdate.valor_parcela !== undefined) updatePg.valor = matUpdate.valor_parcela;
                                 if (matUpdate.dia_vencimento !== undefined && pg.data_vencimento) {
@@ -1673,9 +1791,10 @@ async function startServer() {
                                         updatePg.data_vencimento = parts.join('-');
                                     }
                                 }
-                                await supabase.from('pagamentos').update(updatePg).eq('id', pg.id);
-                            }
-                            console.log('[PAGAMENTOS_UPDATE] Pagamentos pendentes atualizados.');
+                                return supabase.from('pagamentos').update(updatePg).eq('id', pg.id);
+                            });
+                            await Promise.all(pgPromises);
+                            console.log('[PAGAMENTOS_UPDATE] Pagamentos pendentes atualizados em paralelo.');
                         }
                     }
 
@@ -1690,66 +1809,83 @@ async function startServer() {
 
                         if (todasParc && todasParc.length > newTotal) {
                             const excedentes = todasParc.slice(newTotal).filter((p: any) => p.status === 'pendente');
-                            for (const exc of excedentes) {
-                                await supabase.from('pagamentos').delete().eq('id', exc.id);
-                            }
-                            console.log(`[PAGAMENTOS_UPDATE] Removidas ${excedentes.length} parcelas excedentes.`);
-                        }
-                    }
-
-                    // PASSO 3: Reagendar Aulas Pendentes se o dia ou horário mudou
-                    if (matUpdate.dia_semana !== undefined || matUpdate.horario !== undefined) {
-                        const hoje = getDateBR();
-                        const { data: aulasFuturas } = await supabase.from('aulas')
-                            .select('id, data')
-                            .eq('matricula_id', matriculaId)
-                            .eq('status', 'pendente')
-                            .gt('data', hoje);
-                            
-                        if (aulasFuturas && aulasFuturas.length > 0) {
-                            console.log(`[MATRICULA_UPDATE] Reagendando ${aulasFuturas.length} aulas pendentes na agenda...`);
-                            
-                            // Ordenar as aulas pendentes da mais próxima para a mais distante
-                            const aulasOrdenadas = aulasFuturas.sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime());
-                            
-                            // Achar a próxima data real possível para o novo dia da semana a partir de amanhã
-                            let currentNextDay = new Date();
-                            currentNextDay.setHours(12, 0, 0, 0);
-                            
-                            if (matUpdate.dia_semana !== undefined) {
-                                while (currentNextDay.getDay() !== Number(matUpdate.dia_semana)) {
-                                    currentNextDay.setDate(currentNextDay.getDate() + 1);
-                                }
-                            }
-
-                            for (let i = 0; i < aulasOrdenadas.length; i++) {
-                                const af = aulasOrdenadas[i];
-                                const payload: any = {};
-                                if (matUpdate.horario) payload.horario = matUpdate.horario;
-                                
-                                if (matUpdate.dia_semana !== undefined) {
-                                    payload.data = currentNextDay.toISOString().split('T')[0];
-                                    currentNextDay.setDate(currentNextDay.getDate() + 7);
-                                }
-                                
-                                await supabase.from('aulas').update(payload).eq('id', af.id);
+                            if (excedentes.length > 0) {
+                                const excIds = excedentes.map((e: any) => e.id);
+                                await supabase.from('pagamentos').delete().in('id', excIds);
+                                console.log(`[PAGAMENTOS_UPDATE] Removidas ${excedentes.length} parcelas excedentes.`);
                             }
                         }
                     }
                 } else {
                     console.warn(`[MATRICULA_UPDATE] Nenhuma matrícula encontrada para aluno ${studentId}`);
                 }
+            }
 
-                if (matUpdate.horario && matUpdate.dia_semana === undefined) {
-                    // Só mudou o horário, manter os dias das aulas
-                    const hoje = getDateBR();
-                    await supabase.from('aulas')
-                        .update({ horario: matUpdate.horario })
-                        .eq('aluno_id', studentId)
-                        .eq('status', 'pendente')
-                        .gte('data', hoje);
-                    console.log(`[HORARIO_UPDATE] Horário atualizado para aulas futuras do aluno ${studentId}.`);
+            // 3. Sincronizar dados do contrato (se houver contrato cadastrado)
+            try {
+                const { data: contratosExistentes } = await supabase
+                    .from('contratos')
+                    .select('*')
+                    .eq('aluno_id', studentId);
+
+                if (contratosExistentes && contratosExistentes.length > 0) {
+                    const { data: fullAluno } = await supabase
+                        .from('alunos')
+                        .select('*, matriculas(*, cursos(nome))')
+                        .eq('id', studentId)
+                        .single();
+
+                    if (fullAluno) {
+                        const { data: template } = await supabase.from('contrato_templates').select('*').limit(1).maybeSingle();
+                        const clausulasBase = (template && template.clausulas && template.clausulas.length > 0)
+                            ? template.clausulas
+                            : CLAUSULAS_PADRAO_CONTRATO;
+
+                        const m = fullAluno.matriculas?.[0];
+                        const responsavel = fullAluno.responsavel_nome || fullAluno.nome;
+                        const cpfFinal = fullAluno.responsavel_cpf || fullAluno.cpf || '';
+                        const enderecoFinal = fullAluno.endereco || '';
+                        const cursoFinal = m?.cursos?.nome || 'Música';
+                        const valorFinal = m?.valor_parcela || '370';
+                        const vencimentoFinal = m?.dia_vencimento || '10';
+                        const parcelasFinal = m?.total_parcelas || '6';
+
+                        const syncPromises = contratosExistentes.map((cont: any) => {
+                            const newHtml = generateContratoHtml({
+                                alunoNome: fullAluno.nome,
+                                responsavelNome: fullAluno.responsavel_nome,
+                                cpf: cpfFinal,
+                                endereco: enderecoFinal,
+                                cursoNome: cursoFinal,
+                                valorPlano: valorFinal,
+                                diaVencimento: vencimentoFinal,
+                                qtdParcelas: parcelasFinal,
+                                clausulas: clausulasBase,
+                                dataAssinatura: cont.data_assinatura ? new Date(cont.data_assinatura) : new Date(cont.created_at || Date.now())
+                            });
+
+                            const newDados = {
+                                responsavel,
+                                cpf: cpfFinal,
+                                endereco: enderecoFinal,
+                                cursoNome: cursoFinal,
+                                valorPlano: valorFinal,
+                                diaVencimento: vencimentoFinal,
+                                qtdParcelas: parcelasFinal
+                            };
+
+                            return supabase.from('contratos').update({
+                                conteudo_html: newHtml,
+                                dados_dinamicos: newDados
+                            }).eq('id', cont.id);
+                        });
+
+                        await Promise.all(syncPromises);
+                        console.log(`[CONTRATO_SYNC] ${contratosExistentes.length} contratos sincronizados para aluno ${studentId}.`);
+                    }
                 }
+            } catch (conErr) {
+                console.error('[CONTRATO_SYNC_ERROR]:', conErr);
             }
 
             res.json({ success: true });
@@ -2552,8 +2688,19 @@ async function startServer() {
 
     // Leads (Atendimento)
     app.get('/api/leads', async (req, res) => {
-        const { data } = await supabase.from('leads').select('*, cursos(nome)').order('data_criacao', { ascending: false });
-        res.json(data || []);
+        try {
+            const { data, error } = await supabase.from('leads').select('*, cursos(nome)').order('data_criacao', { ascending: false });
+            if (error) {
+                console.error('[GET /api/leads] Erro ao buscar com relação:', error);
+                const { data: rawLeads, error: rawError } = await supabase.from('leads').select('*').order('data_criacao', { ascending: false });
+                if (rawError) throw rawError;
+                return res.json(rawLeads || []);
+            }
+            res.json(data || []);
+        } catch (error: any) {
+            console.error('[GET /api/leads] Erro inesperado:', error);
+            res.status(500).json({ error: error.message || 'Erro ao buscar leads' });
+        }
     });
 
     app.post('/api/leads', async (req, res) => {
@@ -4126,15 +4273,193 @@ async function startServer() {
         }
     });
 
-    // 3. Upload de vídeo curto de treino (24h de duração)
+    // 3. Upload de mídia e vídeo para Google Drive
     
-    const driveFolderId = '1EHXi800HrwkDWOgd-l0lXKtQZkMlSFyV';
+    const DEFAULT_DRIVE_FOLDER_ID = '1EHXi800HrwkDWOgd-l0lXKtQZkMlSFyV';
+
+    async function uploadToGoogleDrive(filename: string, mimeType: string, fileBuffer: Buffer): Promise<{ url: string, fileId: string, webViewLink: string } | null> {
+        try {
+            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+            const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
+            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+            const targetFolderId = folderConfig?.key_value || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
+
+            if (!credsStr) return null;
+
+            let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
+            authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+
+            const auth = new GoogleAuth(authOptions);
+            const client = await auth.getClient();
+            const token = await client.getAccessToken();
+
+            const metadata = {
+                name: filename,
+                parents: [targetFolderId]
+            };
+
+            const initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.token}`,
+                    'Content-Type': 'application/json',
+                    'X-Upload-Content-Type': mimeType
+                },
+                body: JSON.stringify(metadata)
+            });
+
+            if (!initRes.ok) {
+                console.warn('[GDRIVE] Init resumable upload failed:', await initRes.text());
+                return null;
+            }
+
+            const resumableUrl = initRes.headers.get('Location');
+            if (!resumableUrl) return null;
+
+            const putRes = await fetch(resumableUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': mimeType,
+                    'Authorization': `Bearer ${token.token}`
+                },
+                body: fileBuffer
+            });
+
+            if (!putRes.ok) {
+                console.warn('[GDRIVE] PUT data failed:', await putRes.text());
+                return null;
+            }
+
+            const putData: any = await putRes.json();
+            const fileId = putData.id;
+
+            // Define permissão pública para leitura do arquivo
+            await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ role: 'reader', type: 'anyone' })
+            });
+
+            const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+            const webViewLink = `https://drive.google.com/file/d/${fileId}/view`;
+
+            return { url: directUrl, fileId, webViewLink };
+        } catch (e: any) {
+            console.error('[GDRIVE_HELPER] Erro ao enviar para Google Drive:', e.message);
+            return null;
+        }
+    }
+
+    app.get('/api/drive/status', async (req, res) => {
+        try {
+            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+            const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
+            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+            const folderId = folderConfig?.key_value || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
+
+            let clientEmail = null;
+            let isConfigured = false;
+
+            if (credsStr) {
+                try {
+                    const parsed = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+                    clientEmail = parsed.client_email || null;
+                    isConfigured = Boolean(parsed.client_email && parsed.private_key);
+                } catch {}
+            }
+
+            res.json({
+                isConfigured,
+                folderId,
+                clientEmail,
+                storageProvider: isConfigured ? 'google_drive' : 'supabase'
+            });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/drive/config', async (req, res) => {
+        try {
+            const { credentialsJson, folderId } = req.body;
+            if (!credentialsJson && !folderId) {
+                return res.status(400).json({ error: 'Nenhuma configuração enviada.' });
+            }
+
+            if (credentialsJson) {
+                let parsedCreds = credentialsJson;
+                if (typeof credentialsJson === 'string') {
+                    try {
+                        parsedCreds = JSON.parse(credentialsJson);
+                    } catch {
+                        return res.status(400).json({ error: 'JSON de credenciais do Google inválido.' });
+                    }
+                }
+
+                const strVal = JSON.stringify(parsedCreds);
+                const { data: existing } = await supabase.from('system_config').select('id').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+                if (existing) {
+                    await supabase.from('system_config').update({ key_value: strVal }).eq('key_name', 'GOOGLE_CREDENTIALS');
+                } else {
+                    await supabase.from('system_config').insert([{ key_name: 'GOOGLE_CREDENTIALS', key_value: strVal }]);
+                }
+            }
+
+            if (folderId) {
+                const { data: existingFolder } = await supabase.from('system_config').select('id').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
+                if (existingFolder) {
+                    await supabase.from('system_config').update({ key_value: folderId.trim() }).eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID');
+                } else {
+                    await supabase.from('system_config').insert([{ key_name: 'GOOGLE_DRIVE_FOLDER_ID', key_value: folderId.trim() }]);
+                }
+            }
+
+            res.json({ success: true, message: 'Configurações do Google Drive salvas com sucesso!' });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/drive/test', async (req, res) => {
+        try {
+            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+            const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
+            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+            const targetFolderId = folderConfig?.key_value || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
+
+            if (!credsStr) {
+                return res.status(400).json({ ok: false, error: 'Google Credentials não configuradas no sistema.' });
+            }
+
+            const authOptions: any = {
+                scopes: ['https://www.googleapis.com/auth/drive.file'],
+                credentials: typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr
+            };
+            const auth = new GoogleAuth(authOptions);
+            const client = await auth.getClient();
+            const token = await client.getAccessToken();
+
+            if (!token || !token.token) {
+                return res.status(400).json({ ok: false, error: 'Falha ao gerar token com as credenciais do Google.' });
+            }
+
+            res.json({ ok: true, message: 'Conexão com a API do Google Drive autenticada com sucesso!' });
+        } catch (e: any) {
+            res.status(500).json({ ok: false, error: e.message });
+        }
+    });
     
     app.post('/api/drive/upload-url', async (req, res) => {
         try {
             const { filename, mimeType } = req.body;
             const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
+            const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
             const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
+            const targetFolderId = folderConfig?.key_value || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
+
             let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
             if (credsStr) {
                 authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
@@ -4147,7 +4472,7 @@ async function startServer() {
 
             const metadata = {
                 name: filename,
-                parents: [driveFolderId]
+                parents: [targetFolderId]
             };
 
             const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
@@ -4206,7 +4531,8 @@ async function startServer() {
             });
             
             const fileData = await fileRes.json();
-            res.json({ url: fileData.webViewLink });
+            const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+            res.json({ url: directUrl, webViewLink: fileData.webViewLink });
         } catch(err: any) {
             res.status(500).json({ error: err.message });
         }
@@ -4247,7 +4573,6 @@ async function startServer() {
 
             // Se ainda não tinha vídeo hoje, concede os 100.000 pontos do vídeo!
             if (!jaTinhaVideo) {
-                // Se já tinha feito check-in simples sem vídeo (ganhou 50k), ganha mais 50k para completar os 100k do vídeo
                 const pontosAdicionais = jaTinhaTreino ? 50000 : 100000;
                 const novoXp = (Number(aluno.xp) || 0) + pontosAdicionais;
                 const novasMoedas = (Number(aluno.acorde_coins) || 0) + pontosAdicionais;
@@ -4271,29 +4596,37 @@ async function startServer() {
                     else mimeType = 'video/mp4';
                 }
 
-                const filename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
+                const filename = `treino_${aluno.id}_${Date.now()}${ext}`;
                 const fileBuffer = fs.readFileSync(req.file.path);
 
-                const { error: uploadError } = await supabase.storage
-                    .from('uploads')
-                    .upload(filename, fileBuffer, { 
-                        contentType: 'application/octet-stream', 
-                        upsert: true,
-                        cacheControl: '3600'
-                    });
+                // 1. Tenta upload direto para o Google Drive para poupar o Supabase
+                const driveResult = await uploadToGoogleDrive(filename, mimeType, fileBuffer);
+                if (driveResult) {
+                    url = driveResult.url;
+                } else {
+                    // Fallback para Supabase
+                    const storageFilename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
+                    const { error: uploadError } = await supabase.storage
+                        .from('uploads')
+                        .upload(storageFilename, fileBuffer, { 
+                            contentType: 'application/octet-stream', 
+                            upsert: true,
+                            cacheControl: '3600'
+                        });
 
-                try { fs.unlinkSync(req.file.path); } catch {}
+                    if (uploadError) {
+                        console.error('[TREINO_VIDEO_UPLOAD] Erro Storage:', uploadError.message);
+                        return res.status(500).json({ error: 'Falha ao salvar vídeo: ' + uploadError.message });
+                    }
 
-                if (uploadError) {
-                    console.error('[TREINO_VIDEO_UPLOAD] Erro Storage:', uploadError.message);
-                    return res.status(500).json({ error: 'Falha ao salvar vídeo: ' + uploadError.message });
+                    const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(storageFilename);
+                    url = publicUrlData?.publicUrl || '';
                 }
 
-                const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
-                url = publicUrlData?.publicUrl || '';
+                try { fs.unlinkSync(req.file.path); } catch {}
             }
 
-            if (treino.video_url && treino.video_url !== url) {
+            if (treino.video_url && treino.video_url !== url && treino.video_url.includes('/uploads/')) {
                 try {
                     const oldPath = treino.video_url.split('/uploads/')[1];
                     if (oldPath) {
@@ -5042,20 +5375,52 @@ async function startServer() {
 
     app.get('/api/trilha/progresso/:alunoId', async (req, res) => {
         try {
-            const { data, error } = await supabase
+            const alunoId = req.params.alunoId;
+            const { data: prog, error } = await supabase
                 .from('progresso_trilha')
                 .select('*')
-                .eq('aluno_id', req.params.alunoId);
+                .eq('aluno_id', alunoId);
             if (error) throw error;
-            res.json(data || []);
-        } catch (error) {
+
+            const { data: aprovadas } = await supabase
+                .from('tentativas_questionario_trilha')
+                .select('aula_trilha_id, created_at')
+                .eq('aluno_id', alunoId)
+                .eq('aprovado', true)
+                .not('aula_trilha_id', 'is', null);
+
+            const map = new Map<number, any>();
+            (prog || []).forEach((p: any) => {
+                if (p.aula_id) map.set(Number(p.aula_id), p);
+            });
+
+            if (aprovadas && aprovadas.length > 0) {
+                for (const ap of aprovadas) {
+                    const aId = Number(ap.aula_trilha_id);
+                    if (!map.has(aId)) {
+                        map.set(aId, {
+                            id: `quiz-${aId}`,
+                            aluno_id: Number(alunoId),
+                            aula_id: aId,
+                            concluido_at: ap.created_at
+                        });
+                        try {
+                            await supabase.from('progresso_trilha')
+                                .insert([{ aluno_id: Number(alunoId), aula_id: aId }]);
+                        } catch (_) {}
+                    }
+                }
+            }
+
+            res.json(Array.from(map.values()));
+        } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
     });
 
     app.post('/api/trilha/progresso', async (req, res) => {
         try {
-            const { aluno_id, classroom_id, aula_id } = req.body;
+            const { aluno_id, aula_id } = req.body;
             const targetAlunoId = aluno_id || req.body.alunoId;
             const targetAulaId = aula_id || req.body.aulaId;
             if (!targetAlunoId || !targetAulaId) {
@@ -5065,8 +5430,8 @@ async function startServer() {
             const { data: existing } = await supabase
                 .from('progresso_trilha')
                 .select('*')
-                .eq('aluno_id', targetAlunoId)
-                .eq('aula_id', targetAulaId)
+                .eq('aluno_id', Number(targetAlunoId))
+                .eq('aula_id', Number(targetAulaId))
                 .maybeSingle();
 
             if (existing) {
@@ -5076,9 +5441,8 @@ async function startServer() {
             const { data, error } = await supabase
                 .from('progresso_trilha')
                 .insert([{
-                    aluno_id: targetAlunoId,
-                    classroom_id: classroom_id || null,
-                    aula_id: targetAulaId
+                    aluno_id: Number(targetAlunoId),
+                    aula_id: Number(targetAulaId)
                 }])
                 .select();
             if (error) throw error;
@@ -5113,8 +5477,8 @@ async function startServer() {
                 );
             }
 
-            res.json(data[0]);
-        } catch (error) {
+            res.json(data ? data[0] : { success: true });
+        } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
     });
@@ -5404,9 +5768,23 @@ ${textoBruto}
                     );
 
                     if (aulaId) {
-                        await supabase
-                            .from('progresso_trilha')
-                            .upsert([{ aluno_id: aluno.id, aula_id: aulaId }], { onConflict: 'aluno_id,aula_id' });
+                        try {
+                            const { data: existingProg } = await supabase
+                                .from('progresso_trilha')
+                                .select('id')
+                                .eq('aluno_id', Number(aluno.id))
+                                .eq('aula_id', Number(aulaId))
+                                .maybeSingle();
+
+                            if (!existingProg) {
+                                await supabase
+                                    .from('progresso_trilha')
+                                    .insert([{ aluno_id: Number(aluno.id), aula_id: Number(aulaId) }]);
+                                console.log(`[TRILHA] Progresso registrado para aluno ${aluno.id}, aula ${aulaId}`);
+                            }
+                        } catch (progErr) {
+                            console.error('[TRILHA_PROGRESSO_ERROR]:', progErr);
+                        }
                     }
 
                     if (conquistaId && !alreadyDone) {

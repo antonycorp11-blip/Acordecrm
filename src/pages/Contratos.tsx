@@ -272,17 +272,18 @@ export default function Contratos() {
                   <section className="space-y-4">
                     <h4 className="font-bold border-b border-slate-200 pb-1">1. DAS PARTES</h4>
                     <p className="text-sm leading-relaxed">
-                      De um lado, <strong>STUDIO ACORDE</strong>, pessoa jurídica de direito privado, inscrita no CNPJ sob nº 00.000.000/0001-00, com sede na Rua Exemplo, 123. 
-                      E de outro lado, o(a) aluno(a) <strong>{selectedAluno?.nome || '_________________________________'}</strong>, 
-                      portador(a) do CPF nº <strong>{selectedAluno?.cpf || '_________________'}</strong>, doravante denominado(a) CONTRATANTE.
+                      De um lado, <strong>STUDIO ACORDE ESCOLA DE MUSICA LTDA</strong>, pessoa jurídica de direito privado, inscrita no CNPJ/MF sob nº 55.273.720/0001-12, com sede à AV NEWTON RABELLO, nº 26, Pedra 90, Cuiabá - MT. 
+                      E de outro lado, o(a) contratante <strong>{selectedAluno?.responsavel_nome || selectedAluno?.nome || '_________________________________'}</strong>
+                      {selectedAluno?.responsavel_nome && selectedAluno?.responsavel_nome !== selectedAluno?.nome ? ` (representante legal do aluno(a) ${selectedAluno.nome})` : ''}, 
+                      portador(a) do CPF nº <strong>{selectedAluno?.responsavel_cpf || selectedAluno?.cpf || '_________________'}</strong>, residente e domiciliado à <strong>{selectedAluno?.endereco || '_____________________________________'}</strong>, doravante denominado(a) CONTRATANTE.
                     </p>
                   </section>
 
                   <section className="space-y-4">
                     <h4 className="font-bold border-b border-slate-200 pb-1">2. DO OBJETO E VALORES</h4>
                     <p className="text-sm leading-relaxed">
-                      O presente contrato tem como objeto a prestação de serviços de ensino musical no curso selecionado.
-                      O valor da mensalidade acordado é de <strong>R$ {selectedAluno?.matriculas?.[0]?.pacote_id ? pacotes.find(p => p.id === selectedAluno.matriculas[0].pacote_id)?.valor_mensal : '________'}</strong>.
+                      O presente contrato tem como objeto a prestação de serviços de ensino musical no curso <strong>{selectedAluno?.matriculas?.[0]?.cursos?.nome || 'Música'}</strong>.
+                      O valor da mensalidade acordado é de <strong>R$ {selectedAluno?.matriculas?.[0]?.valor_parcela || (selectedAluno?.matriculas?.[0]?.pacote_id ? pacotes.find(p => p.id === selectedAluno.matriculas[0].pacote_id)?.valor_mensal : '370')}</strong>, com vencimento todo dia <strong>{selectedAluno?.matriculas?.[0]?.dia_vencimento || '10'}</strong> de cada mês.
                     </p>
                   </section>
 
@@ -302,7 +303,7 @@ export default function Contratos() {
                      <div className="text-center">
                         <div className="border-t border-slate-900 pt-2">
                           <p className="text-xs font-bold uppercase">Assinatura do Contratante</p>
-                          <p className="text-[10px] text-slate-500">{selectedAluno?.nome || 'Aluno'}</p>
+                          <p className="text-[10px] text-slate-500">{selectedAluno?.responsavel_nome || selectedAluno?.nome || 'Contratante'}</p>
                         </div>
                      </div>
                      <div className="text-center">

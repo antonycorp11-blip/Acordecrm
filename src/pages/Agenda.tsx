@@ -65,14 +65,16 @@ export default function Agenda() {
     fetchAulas();
   }, [diaOffset]);
 
-  // Map aula to grid position - simplificado para o dia atual exibido (ou lógica de semana se fosse o caso)
+  // Map aula to grid position - suporta horários exatos e fracionados (ex: 18:30 no slot de 18:00)
   const getAulaForProfHour = (profId: number, hour: string) => {
     const targetDate = format(currentBaseDate, 'yyyy-MM-dd');
+    const hourPrefix = hour.substring(0, 2);
     return aulas.filter(a => {
       if (a.status === 'cancelada') return false;
       const h = (a.horario || '').substring(0, 5);
       const d = a.data ? a.data.split('T')[0] : '';
-      return a.professor_id === profId && h === hour && d === targetDate;
+      const aHourPrefix = h.substring(0, 2);
+      return Number(a.professor_id) === Number(profId) && (h === hour || aHourPrefix === hourPrefix) && d === targetDate;
     });
   };
 
@@ -539,7 +541,7 @@ export default function Agenda() {
                                     }}
                                     className={`px-2 py-1 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95 z-0 relative ${isMsgSent ? 'bg-yellow-300' : ''}`}
                                     style={{ background: isMsgSent ? '#fde047' : c.bg, border: `2px solid ${c.border}`, color: c.text, boxShadow: `3px 3px 0 ${c.border}`, opacity: reschedulingAula ? 0.5 : 1 }}
-                                    title={aula.aluno_nome || (aula.type === 'experimental' ? 'Aula Experimental' : 'Aula')}
+                                    title={`${aula.horario ? aula.horario.substring(0, 5) : ''} - ${aula.aluno_nome || (aula.type === 'experimental' ? 'Aula Experimental' : 'Aula')}`}
                                   >
                                     {(aula.type === 'experimental' || aula.tipo === 'experimental') && (
                                       <span
@@ -554,12 +556,19 @@ export default function Agenda() {
                                         ✨EXP
                                       </span>
                                     )}
-                                    {(aula.type === 'experimental' || aula.tipo === 'experimental')
-                                      ? (aula.aluno_nome && aula.aluno_nome !== 'Aula Experimental'
-                                          ? aula.aluno_nome.split(' ')[0].substring(0, 8)
-                                          : 'EXP')
-                                      : (aula.aluno_nome || 'ALUNO').split(' ')[0].substring(0, 10)
-                                    }
+                                    <div className="flex items-center gap-1 justify-between">
+                                      <span className="text-[8px] opacity-80 font-mono shrink-0">
+                                        {aula.horario ? aula.horario.substring(0, 5) : ''}
+                                      </span>
+                                      <span className="truncate">
+                                        {(aula.type === 'experimental' || aula.tipo === 'experimental')
+                                          ? (aula.aluno_nome && aula.aluno_nome !== 'Aula Experimental'
+                                              ? aula.aluno_nome.split(' ')[0].substring(0, 8)
+                                              : 'EXP')
+                                          : (aula.aluno_nome || 'ALUNO').split(' ')[0].substring(0, 10)
+                                        }
+                                      </span>
+                                    </div>
                                   </div>
                                 );
                               })}

@@ -346,7 +346,15 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
               <strong>CONTRATADA:</strong> STUDIO ACORDE ESCOLA DE MUSICA LTDA, inscrita no CNPJ/MF sob o nº 55.273.720/0001-12, com sede à AV NEWTON RABELLO, nº 26, Pedra 90, Cuiabá - MT.
             </p>
             <p style={{ marginBottom: '10px' }}>
-              <strong>CONTRATANTE:</strong> {aluno.nome}, representado(a) neste ato por seu Responsável Legal, <strong>{novoResponsavel || '_____________________________________'}</strong>, inscrito(a) no CPF/MF sob o nº <strong>{novoCpf || '_________________'}</strong>, residente e domiciliado à <strong>{novoEndereco || '_____________________________________'}</strong>.
+              <strong>CONTRATANTE:</strong> {novoResponsavel && novoResponsavel.trim() !== '' && novoResponsavel.trim().toLowerCase() !== (aluno.nome || '').trim().toLowerCase() ? (
+                <>
+                  {aluno.nome}, representado(a) neste ato por seu Responsável Legal, <strong>{novoResponsavel}</strong>, inscrito(a) no CPF/MF sob o nº <strong>{novoCpf || '_________________'}</strong>, residente e domiciliado à <strong>{novoEndereco || '_____________________________________'}</strong>.
+                </>
+              ) : (
+                <>
+                  {aluno.nome}, inscrito(a) no CPF/MF sob o nº <strong>{novoCpf || '_________________'}</strong>, residente e domiciliado à <strong>{novoEndereco || '_____________________________________'}</strong>.
+                </>
+              )}
             </p>
             <p style={{ marginBottom: '10px' }}>
               <strong>CURSO CONTRATADO:</strong> O objeto deste instrumento é o ensino de <strong>{cursoNome}</strong>, sendo <strong>{qtdAulas}</strong>, com duração de <strong>{duracaoAula}</strong> cada.
@@ -374,7 +382,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
               <p style={{ fontSize: '10px', margin: '0' }}>CONTRATADA</p>
             </div>
             <div style={{ width: '45%', borderTop: '1px solid black', paddingTop: '5px' }}>
-              <p style={{ fontWeight: 'bold', margin: '0' }}>{novoResponsavel || "RESPONSÁVEL LEGAL"}</p>
+              <p style={{ fontWeight: 'bold', margin: '0' }}>{novoResponsavel || aluno.nome || "CONTRATANTE"}</p>
               <p style={{ fontSize: '10px', margin: '0' }}>CONTRATANTE</p>
             </div>
           </div>

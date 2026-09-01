@@ -631,31 +631,31 @@ export default function Atendimento() {
       </div>
 
       {/* TopAppBar Fiel ao Stitch com Buscador Integrado */}
-      <header className="px-8 py-4 bg-[#2b1c16] border-b-3 border-[#ffb693] flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-[0_6px_0_#170b06] relative z-20">
-        <div className="flex items-center gap-4">
-          <div className="bg-[#ff6b00] text-white p-3 border-3 border-black shadow-[4px_4px_0_#000] -rotate-1">
-            <span className="material-symbols-outlined text-3xl">person_add</span>
+      <header className="px-4 sm:px-8 py-3 sm:py-4 bg-[#2b1c16] border-b-3 border-[#ffb693] flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0 shadow-[0_6px_0_#170b06] relative z-20">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="bg-[#ff6b00] text-white p-2.5 sm:p-3 border-3 border-black shadow-[4px_4px_0_#000] -rotate-1 shrink-0">
+            <span className="material-symbols-outlined text-2xl sm:text-3xl">person_add</span>
           </div>
           <div>
-            <h1 className="text-xl font-black text-[#ffb693] uppercase tracking-tighter italic font-['Space_Grotesk'] flex items-center gap-2">
-              STUDIO_MASTER <span className="bg-[#ff6b00] text-white text-[9px] px-2 py-0.5 border border-black not-italic font-['Space_Mono'] shadow-[2px_2px_0_#000]">CRM 8-BIT</span>
+            <h1 className="text-base sm:text-xl font-black text-[#ffb693] uppercase tracking-tighter italic font-['Space_Grotesk'] flex items-center gap-2">
+              STUDIO_MASTER <span className="bg-[#ff6b00] text-white text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 border border-black not-italic font-['Space_Mono'] shadow-[2px_2px_0_#000]">CRM 8-BIT</span>
             </h1>
-            <p className="text-[9.5px] font-bold text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono'] mt-0.5">
+            <p className="text-[8.5px] sm:text-[9.5px] font-bold text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono'] mt-0.5">
               VIBE CHECK: ACTIVE • GESTÃO DE LEADS MAXIMALISTA
             </p>
           </div>
         </div>
 
         {/* BARRA DE PESQUISA POR NOME OU TELEFONE (INTEGRADA NO HEADER) */}
-        <div className="flex-1 max-w-xl mx-4">
-          <div className="bg-[#170b06] border-3 border-[#ffb693] px-4 py-2 flex items-center gap-3 shadow-[4px_4px_0_#000] focus-within:border-[#ff6b00] transition-colors">
-            <Search className="w-4 h-4 text-[#ff6b00] shrink-0 animate-pulse" />
+        <div className="flex-1 w-full sm:w-auto sm:max-w-xl sm:mx-4 order-3 sm:order-2">
+          <div className="bg-[#170b06] border-2 sm:border-3 border-[#ffb693] px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-2 sm:gap-3 shadow-[4px_4px_0_#000] focus-within:border-[#ff6b00] transition-colors">
+            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ff6b00] shrink-0 animate-pulse" />
             <input
               type="text"
-              placeholder="BUSCAR LEAD POR NOME OU ÚLTIMOS 4 DÍGITOS DO TELEFONE..."
+              placeholder="BUSCAR LEAD POR NOME OU ÚLTIMOS 4 DÍGITOS..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent text-[#f8ddd2] font-black text-xs uppercase w-full focus:outline-none placeholder:text-[#e2bfb0]/40 font-['Space_Mono']"
+              className="bg-transparent text-[#f8ddd2] font-black text-[10px] sm:text-xs uppercase w-full focus:outline-none placeholder:text-[#e2bfb0]/40 font-['Space_Mono']"
             />
             {searchTerm && (
               <button
@@ -663,14 +663,14 @@ export default function Atendimento() {
                 className="text-[#ffb693] hover:text-white shrink-0 p-0.5 cursor-pointer"
                 title="Limpar busca"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             )}
           </div>
         </div>
 
         {/* Dashboard de Métricas / KPI Bar (Vibe do Dia Stitch) */}
-        <div className="hidden xl:flex items-center gap-4 bg-[#170b06] px-5 py-2.5 border-3 border-[#41312a] shadow-[4px_4px_0_#000]">
+        <div className="hidden xl:flex items-center gap-4 bg-[#170b06] px-5 py-2.5 border-3 border-[#41312a] shadow-[4px_4px_0_#000] order-2">
           <div className="text-center">
             <p className="text-[8px] font-black text-[#e2bfb0] uppercase tracking-widest font-['Space_Mono']">NOVOS LEADS</p>
             <p className="text-lg font-black text-[#ffb693] font-['Space_Grotesk']">{emAtendimentoCount}</p>
@@ -692,18 +692,18 @@ export default function Atendimento() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 order-2 sm:order-4">
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-[#ff6b00] hover:bg-[#ff8c33] text-white px-5 py-2.5 border-3 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-2 transition-all cursor-pointer font-['Space_Mono']"
+            className="bg-[#ff6b00] hover:bg-[#ff8c33] text-white px-3.5 sm:px-5 py-2 sm:py-2.5 border-2 sm:border-3 border-black font-black uppercase text-[10px] sm:text-xs shadow-[3px_3px_0_#000] sm:shadow-[4px_4px_0_#000] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer font-['Space_Mono']"
           >
-            <Plus className="w-4 h-4" /> NOVO_LEAD
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> NOVO_LEAD
           </button>
         </div>
       </header>
 
       {/* Main Content Workspace */}
-      <div className="p-8 space-y-6 flex-1 overflow-auto relative z-10 font-['Space_Mono']">
+      <div className="p-4 sm:p-8 space-y-4 sm:space-y-6 flex-1 overflow-auto relative z-10 font-['Space_Mono']">
         {/* Navigation Tabs */}
         <div className="flex items-center gap-6 border-b-3 border-[#ffb693]/20">
            <button 

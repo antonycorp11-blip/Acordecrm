@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
+import { getMediaStreamUrl } from '../utils/mediaUtils';
 import { 
   User, 
   Calendar, 
@@ -591,6 +592,7 @@ export default function AlunoPerfil() {
   const [verContratoAssinadoModal, setVerContratoAssinadoModal] = useState(false);
   const [contratoAssinadoAtivo, setContratoAssinadoAtivo] = useState<any>(null);
   const [editFormData, setEditFormData] = useState<any>({});
+  const [savingEdit, setSavingEdit] = useState(false);
   const [cursos, setCursos] = useState<any[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAgendaList, setShowAgendaList] = useState(false);
@@ -774,6 +776,7 @@ export default function AlunoPerfil() {
 
   const handleSaveEdit = async () => {
     const token = localStorage.getItem('acorde_token');
+    setSavingEdit(true);
     try {
       const res = await fetch(`/api/alunos/${id}`, {
         method: 'PATCH',
@@ -783,14 +786,18 @@ export default function AlunoPerfil() {
 
       if (res.ok) {
         setIsEditModalOpen(false);
-        toast.success('Perfil atualizado! Recarregando dados...');
-        // Recarregar todos os dados (aluno + agenda) imediatamente após salvar
+        toast.success('Perfil e agenda atualizados com sucesso!');
         await fetchData();
       } else {
         const errData = await res.json().catch(() => ({}));
         toast.error(`Erro ao salvar: ${errData.error || 'Tente novamente.'}`);
       }
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error(err);
+      toast.error('Erro de conexão ao salvar alterações.');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleReschedule = async () => {
@@ -904,6 +911,8 @@ export default function AlunoPerfil() {
   }
 
   const isMinor = () => {
+    if (aluno?.responsavel_nome && aluno.responsavel_nome.trim() !== '') return true;
+    if (aluno?.responsavel_cpf && aluno.responsavel_cpf.trim() !== '') return true;
     if (!aluno?.data_nascimento) return false;
     const age = new Date().getFullYear() - new Date(aluno.data_nascimento).getFullYear();
     return age < 18;
@@ -965,14 +974,14 @@ export default function AlunoPerfil() {
               const m = aluno.matriculas?.[0];
               setEditFormData({ 
                 ...aluno, 
-                curso_id: m?.curso_id,
-                professor_id: m?.professor_id,
+                curso_id: m?.curso_id || '',
+                professor_id: m?.professor_id ? m.professor_id.toString() : '',
                 valor_parcela: m?.valor_parcela || '',
                 valor_com_desconto: m?.valor_com_desconto || '',
                 dia_vencimento: m?.dia_vencimento || '',
                 total_parcelas: m?.total_parcelas || 6,
                 dia_semana: m?.dia_semana !== undefined && m?.dia_semana !== null ? m.dia_semana : '',
-                horario: m?.horario || ''
+                horario: m?.horario ? m.horario.substring(0, 5) : ''
               });
               setIsEditModalOpen(true);
             }} className="whitespace-nowrap flex-1">
@@ -1420,7 +1429,9 @@ export default function AlunoPerfil() {
                 </div>
                 <div className="flex gap-4 mt-8">
                    <Button variant="secondary" className="flex-1" onClick={() => setIsEditModalOpen(false)}>CANCELAR</Button>
-                   <Button className="flex-1" onClick={handleSaveEdit}>SALVAR_ALTERAÇÕES</Button>
+                   <Button className="flex-1" onClick={handleSaveEdit} disabled={savingEdit}>
+                     {savingEdit ? 'SALVANDO...' : 'SALVAR_ALTERAÇÕES'}
+                   </Button>
                 </div>
              </Card>
           </div>
@@ -2003,15 +2014,30 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
 
               {/* Estúdio / Mídia */}
               {richData.recordings?.length > 0 && (
-                <div className="p-4 bg-[#ffeae1] border-2 border-black shadow-[2px_2px_0_#000]">
-                   <h4 className="font-black text-[10px] uppercase tracking-widest mb-3 flex items-center gap-2">
-                     <span className="text-lg">🎙️</span> Registros de Estúdio
+                <div className="p-4 bg-[#ffeae1] border-2 border-black shadow-[2px_2px_0_#000] space-y-3">
+                   <h4 className="font-black text-[10px] uppercase tracking-widest flex items-center gap-2 text-[#ff6b00]">
+                     <span className="text-lg">🎙️</span> Gravações e Áudios da Aula ({richData.recordings.length})
                    </h4>
-                   <ul className="list-disc pl-4 text-xs space-y-1">
+                   <div className="space-y-2">
                       {richData.recordings.map((r: any, i: number) => (
-                        <li key={i}>{r.name}</li>
+                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-white border border-black/20 shadow-[1px_1px_0_#000]">
+                          <span className="text-xs font-black uppercase text-black truncate flex-1">{r.name || `Gravação ${i + 1}`}</span>
+                          <div className="flex items-center gap-2">
+                            <audio src={getMediaStreamUrl(r.url)} controls className="h-6 max-w-[200px]" />
+                            <a
+                              href={getMediaStreamUrl(r.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download
+                              className="bg-black text-white p-1 border border-black hover:bg-[#ff6b00] hover:text-black transition-colors shrink-0 text-[10px] font-black"
+                              title="Baixar áudio"
+                            >
+                              ⬇️
+                            </a>
+                          </div>
+                        </div>
                       ))}
-                   </ul>
+                   </div>
                 </div>
               )}
 

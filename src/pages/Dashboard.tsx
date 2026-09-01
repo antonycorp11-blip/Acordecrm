@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, HelpCircle, Search, AlertTriangle, Megaphone, Sparkles, Clock, Plus, TrendingUp, ChevronRight } from 'lucide-react';
+import { Bell, HelpCircle, Search, AlertTriangle, Megaphone, Sparkles, Clock, Plus, TrendingUp, ChevronRight, HardDrive } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { FeedAtividades } from '../components/FeedAtividades';
+import { GoogleDriveModal } from '../components/GoogleDriveModal';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
+  const [showDriveModal, setShowDriveModal] = useState(false);
 
   const [aulasSemStatus, setAulasSemStatus] = useState<any[]>([]);
   const [leadsDoMes, setLeadsDoMes] = useState<any[]>([]);
@@ -116,6 +118,13 @@ export default function Dashboard() {
           <input placeholder="Buscar aluno ou aula..." className="bg-transparent text-sm text-[#fff8f6] placeholder:text-[#8e7164] outline-none flex-1" style={{ fontFamily: "'Space Mono', monospace" }} />
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setShowDriveModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00FF41] text-black border-2 border-black font-black text-xs uppercase shadow-[2px_2px_0_#fff] hover:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+            title="Configurar Armazenamento no Google Drive"
+          >
+            <HardDrive className="w-3.5 h-3.5" /> GOOGLE DRIVE
+          </button>
           <button className="text-[#8e7164] hover:text-white"><Bell className="w-5 h-5" /></button>
           <button className="text-[#8e7164] hover:text-white"><HelpCircle className="w-5 h-5" /></button>
           <div className="w-9 h-9 rounded-full border-2 border-[#ff6b00] bg-[#ff6b00] flex items-center justify-center text-white font-black text-sm">
@@ -434,6 +443,9 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* MODAL CONFIGURAÇÃO GOOGLE DRIVE */}
+      <GoogleDriveModal isOpen={showDriveModal} onClose={() => setShowDriveModal(false)} />
     </div>
   );
 }
