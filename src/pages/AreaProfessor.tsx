@@ -272,16 +272,18 @@ const getAulaLocalDateStr = (aula: any) => {
   }
 };
 
+import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
+
 export default function AreaProfessor() {
   const { user, logout } = useAuth();
   const pdfRef = useRef<HTMLDivElement>(null);
-  const [professorData, setProfessorData] = useState<any>(null);
+  const [professorData, setProfessorData] = useState<any>(() => getStoredCache('professor_data', null));
   const [disponibilidade, setDisponibilidade] = useState<string[]>([]);
   const [salvandoDisponibilidade, setSalvandoDisponibilidade] = useState(false);
   const [diaOffset, setDiaOffset] = useState(0);
   const [aulasHoje, setAulasHoje] = useState<any[]>([]);
-  const [alunosList, setAlunosList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [alunosList, setAlunosList] = useState<any[]>(() => getStoredCache('professor_alunos', []));
+  const [loading, setLoading] = useState(() => !professorData);
   const [showTools, setShowTools] = useState(false);
   
   // Modal de registro de aula existente (Musiclass)
@@ -548,32 +550,15 @@ export default function AreaProfessor() {
   const todayMonth = format(new Date(), 'MMM', { locale: ptBR }).toUpperCase();
 
   const loadData = () => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const reg of registrations) reg.unregister();
-      });
-    }
-    if ('caches' in window) {
-      caches.keys().then((names) => {
-        for (const name of names) caches.delete(name);
-      });
-    }
-
-    const token = localStorage.getItem('acorde_token');
-    const headers = { 
-      'Authorization': `Bearer ${token}`,
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache'
-    };
-    
     Promise.all([
-      fetch('/api/professores/me', { headers }).then(r => r.ok ? r.json() : null),
-      fetch(`/api/agenda?start=2020-01-01&end=2030-01-01`, { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/alunos', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/gamificacao/config-dobro', { headers }).then(r => r.ok ? r.json() : { success: false })
+      apiFetch('/api/professores/me').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch(`/api/agenda?start=2020-01-01&end=2030-01-01`).then(r => r.ok ? r.json() : []).catch(() => []),
+      apiFetch('/api/alunos').then(r => r.ok ? r.json() : []).catch(() => []),
+      apiFetch('/api/gamificacao/config-dobro').then(r => r.ok ? r.json() : { success: false }).catch(() => ({ success: false }))
     ]).then(([me, agenda, alunos, configDobro]) => {
       if (me) {
         setProfessorData(me);
+        setStoredCache('professor_data', me);
         if (me.disponibilidade && typeof me.disponibilidade === 'object' && !Array.isArray(me.disponibilidade)) {
           const dispArray: string[] = [];
           Object.entries(me.disponibilidade).forEach(([dia, horas]: [string, any]) => {
@@ -586,27 +571,26 @@ export default function AreaProfessor() {
           setDisponibilidade(me.disponibilidade);
         }
       }
-      if (alunos) {
+      if (alunos && Array.isArray(alunos)) {
         // Filtra alunos arquivados ou ativos, e verifica se o aluno tem vínculo com o professor logado
         const profId = me ? me.id : (professorData ? professorData.id : null);
-        const sortedAlunos = Array.isArray(alunos) 
-          ? alunos.filter((a: any) => {
-              if (a.status === 'arquivado') return false;
-              if (user?.role === 'admin') return true;
-              if (!profId) return false;
-              
-              const ehMeuAluno = a.matriculas?.some((m: any) => Number(m.professor_id) === Number(profId));
-              const naAgenda = agenda ? (Array.isArray(agenda) ? agenda : []).some((ag: any) => Number(ag.aluno_id) === Number(a.id) && Number(ag.professor_id) === Number(profId)) : false;
-              
-              return ehMeuAluno || naAgenda;
-            }).sort((a: any, b: any) => (a.nome || '').localeCompare(b.nome || '')) 
-          : [];
+        const sortedAlunos = alunos.filter((a: any) => {
+          if (a.status === 'arquivado') return false;
+          if (user?.role === 'admin') return true;
+          if (!profId) return false;
+          
+          const ehMeuAluno = a.matriculas?.some((m: any) => Number(m.professor_id) === Number(profId));
+          const naAgenda = agenda ? (Array.isArray(agenda) ? agenda : []).some((ag: any) => Number(ag.aluno_id) === Number(a.id) && Number(ag.professor_id) === Number(profId)) : false;
+          
+          return ehMeuAluno || naAgenda;
+        }).sort((a: any, b: any) => (a.nome || '').localeCompare(b.nome || ''));
         setAlunosList(sortedAlunos);
+        setStoredCache('professor_alunos', sortedAlunos);
       }
       
-      if (agenda) {
+      if (agenda && Array.isArray(agenda)) {
         const profIdParaFiltro = me ? me.id : (professorData ? professorData.id : null);
-        const sortedAgenda = (Array.isArray(agenda) ? agenda : [])
+        const sortedAgenda = agenda
           .filter((ag: any) => !profIdParaFiltro || Number(ag.professor_id) === Number(profIdParaFiltro))
           .sort((a: any, b: any) => {
             const dateCompare = (a.data || '').localeCompare(b.data || '');
@@ -614,9 +598,10 @@ export default function AreaProfessor() {
             return (a.horario || '').localeCompare(b.horario || '');
           });
         setAgendaCompleta(sortedAgenda);
+        setStoredCache('professor_agenda', sortedAgenda);
       }
     })
-    .catch(console.error)
+    .catch(err => console.warn('[AreaProfessor] Erro ao carregar dados:', err))
     .finally(() => setLoading(false));
   };
 
@@ -651,20 +636,31 @@ export default function AreaProfessor() {
 
       // Fetch God Mode status (Antony apenas)
       fetch('/api/godmode/status', { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => res.ok ? res.json() : null)
+        .then(res => res.json())
         .then(data => {
-          if (data) {
+          if (data && data.active) {
             setGodModeActive(true);
-            setGodModeJogosXp(data.jogos_dao_xp);
+            setGodModeJogosXp(!!data.jogosXp);
           }
         }).catch(() => console.log('God Mode inativo para este perfil (esperado).'));
     }
-    
+
+    const handleResume = () => {
+      loadData();
+      fetchNotificacoes();
+      fetchTreinos();
+    };
+
     // Atualização em background de notificações de 30 em 30 segundos
     const timer = setInterval(() => {
       fetchNotificacoes();
     }, 30000);
-    return () => clearInterval(timer);
+
+    window.addEventListener(APP_RESUMED_EVENT, handleResume);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(APP_RESUMED_EVENT, handleResume);
+    };
   }, []);
 
   const fetchNotificacoes = async () => {

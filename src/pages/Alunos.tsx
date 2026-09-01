@@ -13,37 +13,52 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlunoModal } from '../components/alunos/AlunoModal';
+import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
 
 export default function Alunos() {
   const navigate = useNavigate();
-  const [alunos, setAlunos] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ativos' | 'arquivados'>('ativos');
+  const [alunos, setAlunos] = useState<any[]>(() => getStoredCache(`alunos_${statusFilter}`, []));
+  const [loading, setLoading] = useState(() => alunos.length === 0);
+  const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const fetchAlunos = () => {
-    const token = localStorage.getItem('acorde_token');
-    setLoading(true);
-    const endpoint = statusFilter === 'ativos' ? '/api/alunos' : '/api/alunos?status=arquivado';
-    fetch(endpoint, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => res.ok ? res.json() : [])
-      .then(data => {
-        setAlunos(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setError(err.message);
-        setLoading(false);
-      });
+  const fetchAlunos = async () => {
+    try {
+      const endpoint = statusFilter === 'ativos' ? '/api/alunos' : '/api/alunos?status=arquivado';
+      const res = await apiFetch(endpoint);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setAlunos(data);
+          setStoredCache(`alunos_${statusFilter}`, data);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Alunos] Erro ao carregar dados:', err);
+      // Mantém os dados cacheados na tela sem apagar
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
+    // Ao trocar filtro, carrega do cache correspondente
+    const cached = getStoredCache(`alunos_${statusFilter}`, []);
+    if (cached.length > 0) {
+      setAlunos(cached);
+    }
     fetchAlunos();
+
+    const handleResume = () => {
+      fetchAlunos();
+    };
+
+    window.addEventListener(APP_RESUMED_EVENT, handleResume);
+    return () => {
+      window.removeEventListener(APP_RESUMED_EVENT, handleResume);
+    };
   }, [statusFilter]);
 
   const filteredAlunos = alunos.filter(aluno => 

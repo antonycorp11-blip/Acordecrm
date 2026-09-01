@@ -70,7 +70,6 @@ export default function Agenda() {
     const targetDate = format(currentBaseDate, 'yyyy-MM-dd');
     const hourPrefix = hour.substring(0, 2);
     return aulas.filter(a => {
-      if (a.status === 'cancelada') return false;
       const h = (a.horario || '').substring(0, 5);
       const d = a.data ? a.data.split('T')[0] : '';
       const aHourPrefix = h.substring(0, 2);
@@ -80,7 +79,11 @@ export default function Agenda() {
 
   // Color based on tipo/status
   const getAulaColor = (aula: any) => {
+    if (aula.status === 'cancelada' || aula.status === 'falta' || aula.status === 'falta_aluno') {
+      return { bg: '#ef4444', border: '#7f1d1d', text: '#ffffff' }; // Vermelho para canceladas/faltas
+    }
     if (aula.status === 'realizada' || aula.status === 'presente') return { bg: '#22c55e', border: '#14532d', text: '#ffffff' }; // Verde
+    if (aula.status === 'a_repor' || aula.status === 'reposicao') return { bg: '#f59e0b', border: '#78350f', text: '#000000' }; // Âmbar Reposição
     if (aula.status === 'confirmada') return { bg: '#3b82f6', border: '#1e3a8a', text: '#ffffff' }; // Azul
     if (aula.type === 'experimental' || aula.tipo === 'experimental') return { bg: '#fef08a', border: '#a16207', text: '#713f12' }; // Amarelo
     return { bg: '#ff6b00', border: '#261812', text: '#fff' };
@@ -280,7 +283,7 @@ export default function Agenda() {
                   <span className="text-[#261812]">TODOS</span>
                 </button>
                 {professores.map(p => {
-                  const hasClassesToday = aulas.some(a => a.professor_id === p.id && a.status !== 'cancelada');
+                  const hasClassesToday = aulas.some(a => a.professor_id === p.id);
                   if (!hasClassesToday) return null;
                   return (
                     <button
@@ -309,17 +312,17 @@ export default function Agenda() {
               <div className="md:hidden flex flex-col gap-4 p-4 min-h-full">
                 {aulas.length > 0 ? (
                   [...aulas]
-                    .filter(a => a.status !== 'cancelada')
                     .filter(a => selectedProfessor === 'todos' || a.professor_id.toString() === selectedProfessor)
                     .sort((a, b) => (a.horario || '').localeCompare(b.horario || ''))
                     .map(aula => {
                     const c = getAulaColor(aula);
                     const prof = professores.find(p => p.id === aula.professor_id);
                     const isMsgSent = confirmedMsgIds.has(aula.id);
+                    const isCancelada = aula.status === 'cancelada' || aula.status === 'falta' || aula.status === 'falta_aluno';
                     return (
                       <div 
                         key={aula.id} 
-                        className={`p-5 border-4 border-black shadow-[6px_6px_0_#000] cursor-pointer hover:bg-[#ffeae1] active:translate-y-1 active:shadow-[2px_2px_0_#000] transition-all ${isMsgSent ? 'bg-yellow-300' : 'bg-white'}`}
+                        className={`p-5 border-4 border-black shadow-[6px_6px_0_#000] cursor-pointer hover:bg-[#ffeae1] active:translate-y-1 active:shadow-[2px_2px_0_#000] transition-all ${isCancelada ? 'bg-red-50 border-red-900' : isMsgSent ? 'bg-yellow-300' : 'bg-white'}`}
                         onClick={(e) => {
                            e.stopPropagation();
                            if (selectedAula?.id === aula.id) {
@@ -330,13 +333,13 @@ export default function Agenda() {
                         }}
                       >
                         <div className="flex justify-between items-center mb-3">
-                           <span className="font-black text-2xl uppercase text-black">{aula.horario ? aula.horario.substring(0, 5) : '--:--'}</span>
+                           <span className={`font-black text-2xl uppercase ${isCancelada ? 'text-red-700 line-through' : 'text-black'}`}>{aula.horario ? aula.horario.substring(0, 5) : '--:--'}</span>
                            <span 
-                             className={`text-[10px] uppercase font-black px-2 py-1 border-2 border-black shadow-[2px_2px_0_#000] ${aula.status !== 'confirmada' ? 'cursor-pointer hover:scale-105 active:scale-95 transition-transform' : ''}`}
+                             className={`text-[10px] uppercase font-black px-2 py-1 border-2 border-black shadow-[2px_2px_0_#000] ${aula.status !== 'confirmada' && !isCancelada ? 'cursor-pointer hover:scale-105 active:scale-95 transition-transform' : ''}`}
                              style={{ background: c.bg, color: c.text }}
                              onClick={(e) => {
                                e.stopPropagation();
-                               if (aula.status !== 'confirmada') {
+                               if (aula.status !== 'confirmada' && !isCancelada) {
                                  if (window.confirm('Tem certeza que deseja confirmar esta aula para o professor? (Isso enviará uma notificação a ele)')) {
                                    fetch(`/api/agenda/${aula.id}/confirmar`, { 
                                      method: 'POST',
@@ -352,12 +355,12 @@ export default function Agenda() {
                                  }
                                }
                              }}
-                             title={aula.status !== 'confirmada' ? 'Clique para confirmar aula' : 'Aula confirmada'}
+                             title={isCancelada ? 'Aula Cancelada / Falta' : aula.status !== 'confirmada' ? 'Clique para confirmar aula' : 'Aula confirmada'}
                            >
-                             {aula.status || 'PENDENTE'}
+                             {isCancelada ? (aula.status === 'cancelada' ? 'CANCELADA' : 'FALTA') : (aula.status || 'PENDENTE')}
                            </span>
                         </div>
-                        <h3 className="font-black text-xl uppercase mb-1 text-black truncate">{aula.aluno_nome || 'ALUNO SEM NOME'}</h3>
+                        <h3 className={`font-black text-xl uppercase mb-1 truncate ${isCancelada ? 'text-red-800 line-through' : 'text-black'}`}>{aula.aluno_nome || 'ALUNO SEM NOME'}</h3>
                         <p className="text-[#ff6b00] font-black uppercase text-xs">PROF. {prof ? prof.nome.split(' ')[0] : 'DESCONHECIDO'}</p>
 
                         {/* ACÕES EXPOSTAS DO CARD */}
@@ -526,10 +529,11 @@ export default function Agenda() {
                               {aulasDaHora.map(aula => {
                                 const c = getAulaColor(aula);
                                 const isMsgSent = confirmedMsgIds.has(aula.id);
+                                const isCancelada = aula.status === 'cancelada' || aula.status === 'falta' || aula.status === 'falta_aluno';
                                 return (
                                   <div
                                     key={aula.id}
-                                    draggable={!reschedulingAula}
+                                    draggable={!reschedulingAula && !isCancelada}
                                     onDragStart={(e) => handleDragStart(e, aula)}
                                     onClick={(e) => {
                                       if (selectedAula?.id === aula.id) {
@@ -541,7 +545,7 @@ export default function Agenda() {
                                     }}
                                     className={`px-2 py-1 rounded text-[10px] font-black uppercase truncate w-full cursor-pointer transition-all hover:scale-105 active:scale-95 z-0 relative ${isMsgSent ? 'bg-yellow-300' : ''}`}
                                     style={{ background: isMsgSent ? '#fde047' : c.bg, border: `2px solid ${c.border}`, color: c.text, boxShadow: `3px 3px 0 ${c.border}`, opacity: reschedulingAula ? 0.5 : 1 }}
-                                    title={`${aula.horario ? aula.horario.substring(0, 5) : ''} - ${aula.aluno_nome || (aula.type === 'experimental' ? 'Aula Experimental' : 'Aula')}`}
+                                    title={`${aula.horario ? aula.horario.substring(0, 5) : ''} - ${aula.aluno_nome || (aula.type === 'experimental' ? 'Aula Experimental' : 'Aula')} (${aula.status || 'Pendente'})`}
                                   >
                                     {(aula.type === 'experimental' || aula.tipo === 'experimental') && (
                                       <span
@@ -556,11 +560,16 @@ export default function Agenda() {
                                         ✨EXP
                                       </span>
                                     )}
+                                    {isCancelada && (
+                                      <span className="absolute -top-1.5 -right-1 text-[6.5px] font-black px-1 py-px rounded bg-red-950 text-white border border-white/40 leading-tight">
+                                        ❌ CANC
+                                      </span>
+                                    )}
                                     <div className="flex items-center gap-1 justify-between">
                                       <span className="text-[8px] opacity-80 font-mono shrink-0">
                                         {aula.horario ? aula.horario.substring(0, 5) : ''}
                                       </span>
-                                      <span className="truncate">
+                                      <span className={`truncate ${isCancelada ? 'line-through opacity-90' : ''}`}>
                                         {(aula.type === 'experimental' || aula.tipo === 'experimental')
                                           ? (aula.aluno_nome && aula.aluno_nome !== 'Aula Experimental'
                                               ? aula.aluno_nome.split(' ')[0].substring(0, 8)

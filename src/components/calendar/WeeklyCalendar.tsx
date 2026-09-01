@@ -394,6 +394,32 @@ function DraggableLesson({ lesson, onCancel, isOpen, onOpenMenu, onCloseMenu, re
     refresh();
   };
 
+  const isCancelada = lesson.status === 'cancelada' || lesson.status === 'falta' || lesson.status === 'falta_aluno';
+  const isRealizada = lesson.status === 'realizada' || lesson.status === 'presente';
+  const isReposicao = lesson.status === 'a_repor' || lesson.status === 'reposicao';
+  const isConfirmada = lesson.status === 'confirmada';
+  const isExperimental = lesson.type === 'experimental' || lesson.tipo === 'experimental';
+
+  let lessonBg = 'bg-[#ff6b00] text-white border-black';
+  let statusBadge = '';
+
+  if (isCancelada) {
+    lessonBg = 'bg-red-600 text-white border-red-950';
+    statusBadge = '❌ CANC';
+  } else if (isRealizada) {
+    lessonBg = 'bg-emerald-600 text-white border-emerald-950';
+    statusBadge = '✔️ PRES';
+  } else if (isReposicao) {
+    lessonBg = 'bg-amber-500 text-black border-amber-950';
+    statusBadge = '⏱ REP';
+  } else if (isConfirmada) {
+    lessonBg = 'bg-blue-600 text-white border-blue-950';
+    statusBadge = '👍 CONF';
+  } else if (isExperimental) {
+    lessonBg = 'bg-yellow-400 text-black border-black';
+    statusBadge = '✨ EXP';
+  }
+
   return (
     <div className={`relative w-full ${isOpen ? 'z-[60]' : 'z-10'}`}>
       <div 
@@ -401,9 +427,16 @@ function DraggableLesson({ lesson, onCancel, isOpen, onOpenMenu, onCloseMenu, re
         {...listeners} 
         {...attributes}
         onClick={(e) => { e.stopPropagation(); onOpenMenu(); }} 
-        className="w-full p-2 border-2 border-black bg-[#ff6b00] text-white text-[8px] font-black uppercase truncate italic italic cursor-pointer shadow-[2px_2px_0_#000]"
+        className={`w-full p-2 border-2 text-[8px] font-black uppercase truncate italic cursor-pointer shadow-[2px_2px_0_#000] transition-all hover:scale-[1.02] ${lessonBg}`}
       >
-        {lesson.nome}
+        <div className="flex items-center justify-between gap-1">
+          <span className={`truncate ${isCancelada ? 'line-through opacity-90' : ''}`}>{lesson.nome}</span>
+          {statusBadge && (
+            <span className="text-[6.5px] px-1 py-0.5 rounded bg-black/30 text-white font-mono shrink-0">
+              {statusBadge}
+            </span>
+          )}
+        </div>
       </div>
 
       <AnimatePresence>

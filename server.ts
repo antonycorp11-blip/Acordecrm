@@ -206,7 +206,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
     // Ignorar rotas não-API e rotas públicas da API
     if (!req.path.startsWith('/api/')) return next();
     
-    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos'];
+    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos'];
     const isPublicContrato = req.path.match(/^\/api\/contratos\/[^/]+$/) && req.method === 'GET' && !req.headers.authorization;
     if (publicRoutes.includes(req.path) || isPublicContrato) return next();
     
@@ -218,6 +218,16 @@ const authenticateToken = (req: any, res: any, next: any) => {
     jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
         if (err) return res.status(403).json({ error: 'Acesso negado: Token inválido ou expirado.' });
         req.user = user;
+
+        try {
+            const exp = user.exp;
+            const now = Math.floor(Date.now() / 1000);
+            if (exp && exp - now < 30 * 24 * 60 * 60) {
+                const refreshedToken = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '180d' });
+                res.setHeader('x-refreshed-token', refreshedToken);
+            }
+        } catch (_) {}
+
         next();
     });
 };
@@ -546,9 +556,34 @@ async function startServer() {
                 return res.status(401).json({ message: 'Credenciais inválidas' });
             }
 
-            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '180d' });
             res.json({ token, user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
         } catch (error) { res.status(500).json({ error: 'Erro no login' }); }
+    });
+
+    app.get('/api/auth/verify', async (req, res) => {
+        try {
+            const authHeader = req.headers['authorization'];
+            const token = authHeader && authHeader.split(' ')[1];
+            if (!token) return res.status(401).json({ error: 'Token não fornecido' });
+
+            jwt.verify(token, JWT_SECRET, async (err: any, decoded: any) => {
+                if (err || !decoded) return res.status(403).json({ error: 'Token inválido ou expirado' });
+                
+                const { data: user } = await supabase.from('usuarios').select('id, nome, email, role').eq('id', decoded.id).maybeSingle();
+                if (!user) {
+                    const { data: userByEmail } = await supabase.from('usuarios').select('id, nome, email, role').ilike('email', decoded.email).maybeSingle();
+                    if (!userByEmail) return res.status(404).json({ error: 'Usuário não encontrado' });
+                    const refreshedToken = jwt.sign({ id: userByEmail.id, email: userByEmail.email, role: userByEmail.role }, JWT_SECRET, { expiresIn: '180d' });
+                    return res.json({ valid: true, user: userByEmail, token: refreshedToken });
+                }
+
+                const refreshedToken = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '180d' });
+                res.json({ valid: true, user, token: refreshedToken });
+            });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
     });
 
     app.get('/api/auth/check-student', async (req, res) => {
@@ -620,7 +655,7 @@ async function startServer() {
 
             if (error) throw error;
 
-            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+            const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '180d' });
             res.json({ token, user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
         } catch (error: any) { 
             console.error('Register error:', error);

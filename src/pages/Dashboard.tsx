@@ -5,18 +5,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { FeedAtividades } from '../components/FeedAtividades';
 import { GoogleDriveModal } from '../components/GoogleDriveModal';
+import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<any>(() => getStoredCache('dashboard_stats', null));
   const [showDriveModal, setShowDriveModal] = useState(false);
 
-  const [aulasSemStatus, setAulasSemStatus] = useState<any[]>([]);
-  const [leadsDoMes, setLeadsDoMes] = useState<any[]>([]);
-  const [faturasPendentes, setFaturasPendentes] = useState<any[]>([]);
-  const [temporada, setTemporada] = useState<{nome: string}>({ nome: 'Temporada 3' });
-  const [feed, setFeed] = useState<any[]>([]);
+  const [aulasSemStatus, setAulasSemStatus] = useState<any[]>(() => getStoredCache('dashboard_aulas_sem_status', []));
+  const [leadsDoMes, setLeadsDoMes] = useState<any[]>(() => getStoredCache('dashboard_leads_mes', []));
+  const [faturasPendentes, setFaturasPendentes] = useState<any[]>(() => getStoredCache('dashboard_faturas_pendentes', []));
+  const [temporada, setTemporada] = useState<{nome: string}>(() => getStoredCache('dashboard_temporada', { nome: 'Temporada 3' }));
+  const [feed, setFeed] = useState<any[]>(() => getStoredCache('dashboard_feed', []));
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [showModalAulas, setShowModalAulas] = useState(false);
   const [showModalFaturas, setShowModalFaturas] = useState(false);
@@ -39,22 +40,31 @@ export default function Dashboard() {
   };
 
   const loadAlerts = () => {
-    const token = localStorage.getItem('acorde_token');
-    const headers = { Authorization: `Bearer ${token}` };
-
     Promise.all([
-      fetch('/api/agenda/pendentes-passado', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/dashboard/faturas-pendentes', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/feed', { headers }).then(r => r.ok ? r.json() : []),
-      fetch('/api/temporada-atual', { headers }).then(r => r.ok ? r.json() : {nome: 'Temporada 3'}),
-      fetch('/api/leads', { headers }).then(r => r.ok ? r.json() : [])
+      apiFetch('/api/agenda/pendentes-passado').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch('/api/dashboard/faturas-pendentes').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch('/api/feed').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch('/api/temporada-atual').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch('/api/leads').then(r => r.ok ? r.json() : null).catch(() => null)
     ]).then(([aulas, faturas, feedData, temp, leadsList]) => {
-      setAulasSemStatus(aulas);
-      setFaturasPendentes(faturas);
-      setFeed(Array.isArray(feedData) ? feedData : []);
-      setTemporada(temp || {nome: 'Temporada 3'});
+      if (aulas && Array.isArray(aulas)) {
+        setAulasSemStatus(aulas);
+        setStoredCache('dashboard_aulas_sem_status', aulas);
+      }
+      if (faturas && Array.isArray(faturas)) {
+        setFaturasPendentes(faturas);
+        setStoredCache('dashboard_faturas_pendentes', faturas);
+      }
+      if (feedData && Array.isArray(feedData)) {
+        setFeed(feedData);
+        setStoredCache('dashboard_feed', feedData);
+      }
+      if (temp) {
+        setTemporada(temp);
+        setStoredCache('dashboard_temporada', temp);
+      }
 
-      if (Array.isArray(leadsList)) {
+      if (leadsList && Array.isArray(leadsList)) {
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth();
@@ -65,6 +75,7 @@ export default function Dashboard() {
           return leadDate.getFullYear() === currentYear && leadDate.getMonth() === currentMonth;
         });
         setLeadsDoMes(doMes);
+        setStoredCache('dashboard_leads_mes', doMes);
       }
       
       const quintoDia = getQuintoDiaUtil();
@@ -73,25 +84,44 @@ export default function Dashboard() {
       quintoDia.setHours(0,0,0,0);
 
       // Regra dos modais: Apenas se for maior que zero
-      if (aulas.length > 0) setShowModalAulas(true);
-      // Faturas apenas a partir do quinto dia útil
-      if (faturas.length > 0 && hoje >= quintoDia) setShowModalFaturas(true);
-    }).catch(console.error);
+      if (aulas && aulas.length > 0) {
+        setShowModalAulas(true);
+      } else if (faturas && faturas.length > 0 && hoje.getTime() > quintoDia.getTime()) {
+        setShowModalFaturas(true);
+      }
+    }).catch(err => console.warn('[Dashboard] Erro ao carregar alertas:', err));
+  };
+
+  const loadStats = () => {
+    apiFetch('/api/dashboard/stats')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          setStats(data);
+          setStoredCache('dashboard_stats', data);
+        }
+      })
+      .catch(err => console.warn('[Dashboard] Erro ao carregar stats:', err));
   };
 
   useEffect(() => {
     loadAlerts();
+    loadStats();
+    
     if (window.innerWidth < 768) {
       navigate('/agenda', { replace: true });
       return;
     }
 
-    fetch('/api/dashboard/stats', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('acorde_token')}` }
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => setStats(data))
-      .catch(() => setStats({ totalAlunos: 0, aulasHoje: 0, receitaMensal: 0, proximasAulas: [] }));
+    const handleResume = () => {
+      loadAlerts();
+      loadStats();
+    };
+
+    window.addEventListener(APP_RESUMED_EVENT, handleResume);
+    return () => {
+      window.removeEventListener(APP_RESUMED_EVENT, handleResume);
+    };
   }, []);
 
   const faturamento = stats?.receitaMensal ?? 0;

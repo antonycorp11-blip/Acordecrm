@@ -36,6 +36,7 @@ import { jsPDF } from 'jspdf';
 import { Download } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { getMediaStreamUrl } from '../utils/mediaUtils';
+import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
 declare global {
   interface Window {
     YT: any;
@@ -448,10 +449,10 @@ export default function AreaAluno() {
   const profileCardRef = useRef<HTMLDivElement>(null);
   const [avatarInventory, setAvatarInventory] = useState<string[]>([]);
   const VERSAO_CLIENTE = 'SYNC_V4.3.1';
-  const [alunoData, setAlunoData] = useState<any>(null);
-  const [aulasHoje, setAulasHoje] = useState<any[]>([]);
-  const [aulasRealizadas, setAulasRealizadas] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [alunoData, setAlunoData] = useState<any>(() => getStoredCache('aluno_data', null));
+  const [aulasHoje, setAulasHoje] = useState<any[]>(() => getStoredCache('aluno_aulas_hoje', []));
+  const [aulasRealizadas, setAulasRealizadas] = useState<any[]>(() => getStoredCache('aluno_aulas_realizadas', []));
+  const [loading, setLoading] = useState(() => !alunoData);
   const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas' | 'perfil' | 'jogos' | 'treino'>('home');
   const [rankingData, setRankingData] = useState<any[]>([]);
   const [isAlunoModalOpen, setIsAlunoModalOpen] = useState(false);
@@ -466,9 +467,9 @@ export default function AreaAluno() {
   const [selectedFicha, setSelectedFicha] = useState<any | null>(null);
 
   // Estados EAD Trilha Candy Crush
-  const [trilhaModulos, setTrilhaModulos] = useState<any[]>([]);
-  const [trilhaAulas, setTrilhaAulas] = useState<any[]>([]);
-  const [trilhaProgresso, setTrilhaProgresso] = useState<any[]>([]);
+  const [trilhaModulos, setTrilhaModulos] = useState<any[]>(() => getStoredCache('aluno_trilha_modulos', []));
+  const [trilhaAulas, setTrilhaAulas] = useState<any[]>(() => getStoredCache('aluno_trilha_aulas', []));
+  const [trilhaProgresso, setTrilhaProgresso] = useState<any[]>(() => getStoredCache('aluno_trilha_progresso', []));
   const [selectedTrilhaAula, setSelectedTrilhaAula] = useState<any | null>(null);
   const [selectedTrilhaModulo, setSelectedTrilhaModulo] = useState<any | null>(null);
   const [questionarioRespostas, setQuestionarioRespostas] = useState<Record<number, number>>({});
@@ -515,9 +516,9 @@ export default function AreaAluno() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [showContratoModal]);
-  const [alunoFinanceiro, setAlunoFinanceiro] = useState<any[]>([]);
-  const [alunoContrato, setAlunoContrato] = useState<any | null>(null);
-  const [alunoEadProgresso, setAlunoEadProgresso] = useState<{aulasAssistidas: any[], questionariosAprovados: any[]} | null>(null);
+  const [alunoFinanceiro, setAlunoFinanceiro] = useState<any[]>(() => getStoredCache('aluno_financeiro', []));
+  const [alunoContrato, setAlunoContrato] = useState<any | null>(() => getStoredCache('aluno_contrato', null));
+  const [alunoEadProgresso, setAlunoEadProgresso] = useState<{aulasAssistidas: any[], questionariosAprovados: any[]} | null>(() => getStoredCache('aluno_ead_progresso', null));
   const [loadingFinanceiroEContrato, setLoadingFinanceiroEContrato] = useState(false);
 
   // Estados para o Sistema de Treino Diário
@@ -567,52 +568,65 @@ export default function AreaAluno() {
   };
 
   const fetchTrilha = async () => {
-    const token = localStorage.getItem('acorde_token');
-    const h = { Authorization: `Bearer ${token}` };
     try {
-      const resMod = await fetch('/api/trilha/modulos', { headers: h });
-      const modsData = await resMod.json();
-      setTrilhaModulos(Array.isArray(modsData) ? modsData : []);
-      const resAul = await fetch('/api/trilha/aulas', { headers: h });
-      const aulsData = await resAul.json();
-      setTrilhaAulas(Array.isArray(aulsData) ? aulsData : []);
-    } catch (err) { console.error(err); }
+      const resMod = await apiFetch('/api/trilha/modulos');
+      const modsData = resMod.ok ? await resMod.json() : null;
+      if (Array.isArray(modsData)) {
+        setTrilhaModulos(modsData);
+        setStoredCache('aluno_trilha_modulos', modsData);
+      }
+      const resAul = await apiFetch('/api/trilha/aulas');
+      const aulsData = resAul.ok ? await resAul.json() : null;
+      if (Array.isArray(aulsData)) {
+        setTrilhaAulas(aulsData);
+        setStoredCache('aluno_trilha_aulas', aulsData);
+      }
+    } catch (err) { console.warn('[AreaAluno] Erro ao carregar trilha:', err); }
   };
 
   const fetchTrilhaProgresso = async (idAluno: any) => {
-    const token = localStorage.getItem('acorde_token');
     try {
-      const res = await fetch(`/api/trilha/progresso/${idAluno}`, { headers: { Authorization: `Bearer ${token}` } });
-      const prog = await res.json();
-      setTrilhaProgresso(Array.isArray(prog) ? prog : []);
-    } catch (err) { console.error(err); }
+      const res = await apiFetch(`/api/trilha/progresso/${idAluno}`);
+      const prog = res.ok ? await res.json() : null;
+      if (Array.isArray(prog)) {
+        setTrilhaProgresso(prog);
+        setStoredCache('aluno_trilha_progresso', prog);
+      }
+    } catch (err) { console.warn('[AreaAluno] Erro ao carregar progresso trilha:', err); }
   };
 
   const fetchFinanceiroEContrato = async (alunoId: any) => {
-    const token = localStorage.getItem('acorde_token');
-    const h = { Authorization: `Bearer ${token}` };
     try {
       setLoadingFinanceiroEContrato(true);
       
-      const resFin = await fetch(`/api/alunos/${alunoId}/financeiro`, { headers: h });
+      const resFin = await apiFetch(`/api/alunos/${alunoId}/financeiro`);
       if (resFin.ok) {
         const dataFin = await resFin.json();
-        setAlunoFinanceiro(Array.isArray(dataFin) ? dataFin : []);
+        if (Array.isArray(dataFin)) {
+          setAlunoFinanceiro(dataFin);
+          setStoredCache('aluno_financeiro', dataFin);
+        }
       }
       
-      const resCon = await fetch(`/api/alunos/${alunoId}/contrato`, { headers: h });
+      const resCon = await apiFetch(`/api/alunos/${alunoId}/contrato`);
       if (resCon.ok) {
         const dataCon = await resCon.json();
-        setAlunoContrato(dataCon);
+        if (dataCon) {
+          setAlunoContrato(dataCon);
+          setStoredCache('aluno_contrato', dataCon);
+        }
       }
       
-      const resEad = await fetch(`/api/alunos/${alunoId}/ead-progresso`, { headers: h });
+      const resEad = await apiFetch(`/api/alunos/${alunoId}/ead-progresso`);
       if (resEad.ok) {
         const dataEad = await resEad.json();
-        setAlunoEadProgresso(dataEad);
+        if (dataEad) {
+          setAlunoEadProgresso(dataEad);
+          setStoredCache('aluno_ead_progresso', dataEad);
+        }
       }
     } catch (err) {
-      console.error("Erro ao carregar dados do perfil:", err);
+      console.warn("[AreaAluno] Erro ao carregar dados do perfil:", err);
     } finally {
       setLoadingFinanceiroEContrato(false);
     }
@@ -821,32 +835,27 @@ export default function AreaAluno() {
   const xpPct = Math.min(100, ((xp % 100) / 100) * 100);
 
   useEffect(() => {
-    const token = localStorage.getItem('acorde_token');
-    const headers = { 
-      'Authorization': `Bearer ${token}`,
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache'
-    };
-
     const fetchAll = () => {
       const timestamp = Date.now();
       Promise.all([
-        fetch(`/api/alunos/me?t=${timestamp}`, { headers }).then(r => {
+        apiFetch(`/api/alunos/me?t=${timestamp}`).then(r => {
           if (r.status === 401) {
             logout();
             return null;
           }
           return r.ok ? r.json() : null;
-        }),
-        fetch(`/api/agenda?t=${timestamp}`, { headers }).then(r => r.ok ? r.json() : [])
+        }).catch(() => null),
+        apiFetch(`/api/agenda?t=${timestamp}`).then(r => r.ok ? r.json() : []).catch(() => [])
       ]).then(([me, agenda]) => {
         if (me) {
           setAlunoData(me);
+          setStoredCache('aluno_data', me);
           if (me.contratos && me.contratos.length > 0) {
             const sortedContratos = [...me.contratos].sort((a: any, b: any) => 
               new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             );
             setAlunoContrato(sortedContratos[0]);
+            setStoredCache('aluno_contrato', sortedContratos[0]);
           }
           fetchTrilhaProgresso(me.id);
           fetchFinanceiroEContrato(me.id);
@@ -875,16 +884,18 @@ export default function AreaAluno() {
 
           setAulasHoje(futureAulas);
           setAulasRealizadas(pastAulas);
+          setStoredCache('aluno_aulas_hoje', futureAulas);
+          setStoredCache('aluno_aulas_realizadas', pastAulas);
         }
       })
-      .catch(console.error)
+      .catch(err => console.warn('[AreaAluno] Erro ao carregar dados:', err))
       .finally(() => setLoading(false));
     };
 
     const fetchTodasConquistas = (tempId?: number) => {
       const targetTemp = tempId !== undefined ? tempId : selectedTemporada;
       const url = targetTemp ? `/api/gamificacao/conquistas?temporada_id=${targetTemp}` : '/api/gamificacao/conquistas';
-      fetch(url, { headers })
+      apiFetch(url)
         .then(r => r.ok ? r.json() : [])
         .then(data => setTodasConquistas(Array.isArray(data) ? data : []))
         .catch(console.error);
@@ -897,7 +908,7 @@ export default function AreaAluno() {
     // Buscar treinos do aluno na inicializacao
     const fetchTreinosInit = () => {
       const timestamp = Date.now();
-      fetch(`/api/treinos/me?t=${timestamp}`, { headers })
+      apiFetch(`/api/treinos/me?t=${timestamp}`)
         .then(r => r.ok ? r.json() : [])
         .then(data => setTreinos(Array.isArray(data) ? data : []))
         .catch(console.error);
@@ -905,7 +916,7 @@ export default function AreaAluno() {
     fetchTreinosInit();
 
     // Verificar versão do sistema contra cache do navegador
-    fetch(`/api/sistema/versao?t=${Date.now()}`)
+    apiFetch(`/api/sistema/versao?t=${Date.now()}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data && data.versao && data.versao !== VERSAO_CLIENTE) {
@@ -915,6 +926,17 @@ export default function AreaAluno() {
         }
       })
       .catch(console.error);
+
+    const handleResume = () => {
+      fetchAll();
+      fetchTrilha();
+      fetchTreinosInit();
+    };
+
+    window.addEventListener(APP_RESUMED_EVENT, handleResume);
+    return () => {
+      window.removeEventListener(APP_RESUMED_EVENT, handleResume);
+    };
   }, []);
 
   const fetchTreinos = () => {
