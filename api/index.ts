@@ -4175,9 +4175,8 @@ async function startServer() {
                                 to: emailTo,
                                 subject: titulo,
                                 html: emailHtml
-                            }),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP Timeout - Email cancelado mas API continua')), 5000))
-                        ]).catch(e => console.error('[SMTP_TIMEOUT_HANDLED]', e.message));
+}
+                        }).catch(e => console.error('[SMTP_TIMEOUT_HANDLED]', e.message));
                         console.log('[PUSH_NOTIFICATION] E-mail do Gmail disparado para', emailTo);
                     } else {
                         console.log('[PUSH_NOTIFICATION] SMTP_EMAIL ou SMTP_PASSWORD não configurado no env ou BD. E-mail ignorado.');
@@ -4196,8 +4195,9 @@ async function startServer() {
         try {
             const email = (req as any).user?.email;
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
+            const cleanEmail = email.toLowerCase().trim();
 
-            const { data: aluno } = await supabase.from('alunos').select('id').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id').ilike('email', cleanEmail).maybeSingle();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
 
             const { data: treinos, error } = await supabase
@@ -4218,8 +4218,9 @@ async function startServer() {
         try {
             const email = (req as any).user?.email;
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
+            const cleanEmail = email.toLowerCase().trim();
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', cleanEmail).maybeSingle();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
 
             const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
@@ -4244,20 +4245,27 @@ async function startServer() {
             if (error) throw error;
 
             // Criar notificação para o professor
-            const titulo = 'Treino registrado! 🔥';
-            const mensagem = `${aluno.nome} marcou seu check-in de treino diário!`;
-            
-            await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
+            try {
+                const titulo = 'Treino registrado! 🔥';
+                const mensagem = `${aluno.nome} marcou seu check-in de treino diário!`;
+                await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
+                sendPushNotification(titulo, mensagem);
+            } catch (e) {
+                console.error('[TREINO] Erro notificação:', e);
+            }
 
-            sendPushNotification(titulo, mensagem);
-
-            // Update XP and Coins (Check-in = 50.000 pts)
-            const novoXp = (Number(aluno.xp) || 0) + 50000;
-            const novasMoedas = (Number(aluno.acorde_coins) || 0) + 50000;
-            await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
-            await recordPontos(aluno.id, 'checkin', 'Check-in Diário de Treino', 50000);
-
-            await addToFeed(aluno.id, 'treino', `${aluno.nome} marcou o treino do dia! (+50.000 PTS) 💪`, '🎸');
+            // Update XP and Coins (50.000 pts para check-in sem vídeo)
+            let novoXp = 0;
+            let novasMoedas = 0;
+            try {
+                novoXp = (Number(aluno.xp) || 0) + 50000;
+                novasMoedas = (Number(aluno.acorde_coins) || 0) + 50000;
+                await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+                await recordPontos(aluno.id, 'checkin', 'Check-in Diário', 50000);
+                await addToFeed(aluno.id, 'treino', `${aluno.nome} marcou o treino do dia (+50.000 pts)! 💪`, '🎸');
+            } catch (e) {
+                console.error('[TREINO] Erro ao pontuar:', e);
+            }
 
             res.json({ success: true, data: treino, novoXp, novasMoedas });
         } catch (error: any) {
@@ -4535,11 +4543,11 @@ async function startServer() {
             return res.status(400).json({ error: 'Nenhum arquivo de vídeo enviado.' });
         }
         try {
-            const email = req.user?.email;
+            const email = (req.user?.email || '').toLowerCase().trim();
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').eq('email', email).single();
-            if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', email).maybeSingle();
+            if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado para este email.' });
 
             const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
 
@@ -4565,12 +4573,16 @@ async function startServer() {
 
             // Se ainda não tinha vídeo hoje, concede os 100.000 pontos do vídeo!
             if (!jaTinhaVideo) {
-                const pontosAdicionais = jaTinhaTreino ? 50000 : 100000;
-                const novoXp = (Number(aluno.xp) || 0) + pontosAdicionais;
-                const novasMoedas = (Number(aluno.acorde_coins) || 0) + pontosAdicionais;
-                await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
-                await recordPontos(aluno.id, 'treino_video', 'Vídeo de Treino', 100000);
-                await addToFeed(aluno.id, 'treino', `${aluno.nome} enviou um vídeo de treino (+100.000 pts)! 📹`, '📹');
+                try {
+                    const pontosAdicionais = jaTinhaTreino ? 50000 : 100000;
+                    const novoXp = (Number(aluno.xp) || 0) + pontosAdicionais;
+                    const novasMoedas = (Number(aluno.acorde_coins) || 0) + pontosAdicionais;
+                    await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+                    await recordPontos(aluno.id, 'treino_video', 'Vídeo de Treino', 100000);
+                    await addToFeed(aluno.id, 'treino', `${aluno.nome} enviou um vídeo de treino (+100.000 pts)! 📹`, '📹');
+                } catch (e) {
+                    console.error('[TREINO_VIDEO] Erro ao pontuar:', e);
+                }
             }
 
             let url = req.body.video_url || '';
@@ -4601,7 +4613,7 @@ async function startServer() {
                     const { error: uploadError } = await supabase.storage
                         .from('uploads')
                         .upload(storageFilename, fileBuffer, { 
-                            contentType: 'application/octet-stream', 
+                            contentType: mimeType, 
                             upsert: true,
                             cacheControl: '3600'
                         });
@@ -4642,12 +4654,14 @@ async function startServer() {
             if (updateError) throw updateError;
 
             // Criar notificação para o professor
-            const titulo = 'Vídeo de treino enviado! 📹';
-            const mensagem = `${aluno.nome} gravou um vídeo estudando hoje!`;
-            
-            await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
-
-            sendPushNotification(titulo, mensagem);
+            try {
+                const titulo = 'Vídeo de treino enviado! 📹';
+                const mensagem = `${aluno.nome} gravou um vídeo estudando hoje!`;
+                await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
+                sendPushNotification(titulo, mensagem);
+            } catch (e) {
+                console.error('[TREINO_VIDEO] Erro ao notificar professor:', e);
+            }
 
             res.json({ success: true, url, data: updatedTreino });
         } catch (error: any) {

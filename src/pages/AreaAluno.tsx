@@ -1181,14 +1181,18 @@ export default function AreaAluno() {
       // Tentativa de upload direto para o Supabase Storage com resiliência (retry de 3 vezes)
       let uploadSuccess = false;
       let uploadAttempts = 3;
-      const nomeAlunoSafe = (alunoData?.nome || 'Aluno').replace(/[^a-zA-Z0-9]/g, '_');
+      const nomeAlunoSafe = (alunoData?.nome || 'aluno')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]/g, '_')
+        .toLowerCase();
       const filename = `treinos/${nomeAlunoSafe}_${Date.now()}.${extensao}`;
 
       for (let attempt = 1; attempt <= uploadAttempts; attempt++) {
           try {
               console.log(`Tentativa ${attempt} de upload direto para o Supabase...`);
               const { error } = await supabase.storage.from('uploads').upload(filename, videoBlob, {
-                  contentType: mime,
+                  contentType: mime || 'video/mp4',
                   upsert: true
               });
               
@@ -1241,8 +1245,8 @@ export default function AreaAluno() {
       
       setUploadProgress(95);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erro ao registrar vídeo no sistema.');
+        const err = await res.json().catch(() => ({ error: 'Erro de resposta do servidor.' }));
+        throw new Error(err.error || `Erro ${res.status}: Falha ao registrar vídeo.`);
       }
       
       const data = await res.json();
