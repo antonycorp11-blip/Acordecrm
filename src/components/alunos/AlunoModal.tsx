@@ -114,10 +114,17 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
       if (selectedPacote) {
         const name = selectedPacote.nome.toLowerCase();
         const isLegacy = name.includes('legado') || name.includes('emusys');
+        const valorCheio = Number(selectedPacote.valor_mensal || 0);
+        const descAuto = Number(selectedPacote.desconto_automatico || 0);
+        const valorComDesc = descAuto > 0 ? Math.max(0, valorCheio - descAuto) : valorCheio;
+
         setFormData(prev => ({ 
           ...prev, 
           is_emusys_legacy: isLegacy,
-          valor_parcela: selectedPacote.valor_mensal || 0,
+          valor_parcela: valorCheio,
+          valor_com_desconto: (prev.valor_com_desconto !== '' && prev.valor_com_desconto != null && Number(prev.valor_com_desconto) > 100) 
+            ? prev.valor_com_desconto 
+            : (descAuto > 0 ? valorComDesc : valorCheio),
           total_parcelas: selectedPacote.total_parcelas || prev.total_parcelas || 6
         }));
       }
@@ -361,13 +368,13 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                               />
                           </div>
                           <div className="bg-white border border-black p-2">
-                              <label className="block text-[7px] font-bold uppercase text-green-700">Valor c/ Desconto (R$)</label>
+                              <label className="block text-[7px] font-bold uppercase text-green-700">Valor c/ Desconto Pontualidade (R$)</label>
                               <input 
                                   type="number" 
-                                  className="w-full bg-transparent border-none text-[10px] font-black outline-none" 
+                                  className="w-full bg-transparent border-none text-[10px] font-black outline-none text-green-700" 
                                   value={formData.valor_com_desconto}
                                   onChange={(e) => setFormData({...formData, valor_com_desconto: e.target.value})}
-                                  placeholder="---"
+                                  placeholder="Ex: 270 (valor final)"
                               />
                           </div>
                       </div>
