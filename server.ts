@@ -4783,13 +4783,6 @@ async function startServer() {
         }
     });
 
-            res.json({ success: true, url, data: updatedTreino });
-        } catch (error: any) {
-            console.error('[TREINO_VIDEO_UPLOAD] Erro geral:', error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
     // 4. Obter treinos de todos os alunos (Professor) com limpeza expirada integrada
     app.get('/api/treinos/prof', async (req, res) => {
         try {

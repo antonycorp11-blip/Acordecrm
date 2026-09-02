@@ -4175,8 +4175,9 @@ async function startServer() {
                                 to: emailTo,
                                 subject: titulo,
                                 html: emailHtml
-}
-                        }).catch(e => console.error('[SMTP_TIMEOUT_HANDLED]', e.message));
+                            }),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP Timeout - Email cancelado mas API continua')), 5000))
+                        ]).catch(e => console.error('[SMTP_TIMEOUT_HANDLED]', e.message));
                         console.log('[PUSH_NOTIFICATION] E-mail do Gmail disparado para', emailTo);
                     } else {
                         console.log('[PUSH_NOTIFICATION] SMTP_EMAIL ou SMTP_PASSWORD não configurado no env ou BD. E-mail ignorado.');
