@@ -3212,6 +3212,77 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
+    const DEFAULT_MENSAGEM_COBRANCA = {
+        mensagem_pendente: `Olá {nome}, tudo bem?\n\nSua mensalidade está próxima do vencimento ({vencimento}).\nPague até o dia do vencimento para garantir o seu valor com desconto de R$ {valor}.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ (toque para copiar):\n\`{chave_pix}\``,
+        mensagem_atrasada: `Olá {nome}, tudo bem?\n\nO pagamento da sua mensalidade no valor de R$ {valor} está em atraso.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ (toque para copiar):\n\`{chave_pix}\``,
+        chave_pix: `55273720000112`
+    };
+
+    // Configurações de Mensagem de Cobrança
+    app.get('/api/financeiro/mensagem-cobranca', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('system_config')
+                .select('key_value')
+                .eq('key_name', 'CONFIG_MENSAGEM_COBRANCA')
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (data && data.key_value) {
+                try {
+                    const parsed = JSON.parse(data.key_value);
+                    return res.json({
+                        mensagem_pendente: parsed.mensagem_pendente || DEFAULT_MENSAGEM_COBRANCA.mensagem_pendente,
+                        mensagem_atrasada: parsed.mensagem_atrasada || DEFAULT_MENSAGEM_COBRANCA.mensagem_atrasada,
+                        chave_pix: (parsed.chave_pix !== undefined && parsed.chave_pix !== null) ? parsed.chave_pix : DEFAULT_MENSAGEM_COBRANCA.chave_pix
+                    });
+                } catch (e) {
+                    console.error('Erro ao fazer parse de CONFIG_MENSAGEM_COBRANCA:', e);
+                }
+            }
+            res.json(DEFAULT_MENSAGEM_COBRANCA);
+        } catch (error: any) {
+            console.error('Erro get mensagem-cobranca:', error);
+            res.json(DEFAULT_MENSAGEM_COBRANCA);
+        }
+    });
+
+    app.post('/api/financeiro/mensagem-cobranca', requireAdmin, async (req, res) => {
+        try {
+            const { mensagem_pendente, mensagem_atrasada, chave_pix } = req.body;
+            const payload = JSON.stringify({
+                mensagem_pendente: mensagem_pendente || DEFAULT_MENSAGEM_COBRANCA.mensagem_pendente,
+                mensagem_atrasada: mensagem_atrasada || DEFAULT_MENSAGEM_COBRANCA.mensagem_atrasada,
+                chave_pix: (chave_pix !== undefined && chave_pix !== null) ? chave_pix : DEFAULT_MENSAGEM_COBRANCA.chave_pix
+            });
+
+            const { data: existing } = await supabase
+                .from('system_config')
+                .select('id')
+                .eq('key_name', 'CONFIG_MENSAGEM_COBRANCA')
+                .maybeSingle();
+
+            let result;
+            if (existing) {
+                result = await supabase
+                    .from('system_config')
+                    .update({ key_value: payload, updated_at: new Date().toISOString() })
+                    .eq('key_name', 'CONFIG_MENSAGEM_COBRANCA');
+            } else {
+                result = await supabase
+                    .from('system_config')
+                    .insert([{ key_name: 'CONFIG_MENSAGEM_COBRANCA', key_value: payload }]);
+            }
+
+            if (result.error) throw result.error;
+            res.json({ success: true, config: JSON.parse(payload) });
+        } catch (error: any) {
+            console.error('Erro post mensagem-cobranca:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // Resumo financeiro do mês
     app.get('/api/financeiro/resumo', requireAdmin, async (req, res) => {
         try {

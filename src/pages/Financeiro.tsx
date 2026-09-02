@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   DollarSign, Search, Filter, ArrowUpRight, ArrowDownLeft,
-  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity, Trash2, ExternalLink, Download, MessageCircle, Clock
+  Calendar, CreditCard, CheckCircle2, AlertCircle, Plus, X, Save, FileUp, Zap, Users, Shield, TrendingUp, Activity, Trash2, ExternalLink, Download, MessageCircle, Clock, MessageSquareText, RotateCcw, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, isBefore, startOfDay } from 'date-fns';
@@ -20,6 +20,12 @@ const TIPOS_EXTRA = [
 ];
 
 const MONTH_NAMES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
+const DEFAULT_MENSAGEM_CONFIG = {
+  mensagem_pendente: `Olá {nome}, tudo bem?\n\nSua mensalidade está próxima do vencimento ({vencimento}).\nPague até o dia do vencimento para garantir o seu valor com desconto de R$ {valor}.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ (toque para copiar):\n\`{chave_pix}\``,
+  mensagem_atrasada: `Olá {nome}, tudo bem?\n\nO pagamento da sua mensalidade no valor de R$ {valor} está em atraso.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ (toque para copiar):\n\`{chave_pix}\``,
+  chave_pix: `55273720000112`
+};
 
 export default function Financeiro() {
   const navigate = useNavigate();
@@ -49,6 +55,13 @@ export default function Financeiro() {
   const [descontoDia10, setDescontoDia10] = useState(false);
   
   const [whatsappModal, setWhatsappModal] = useState<'recebidos' | 'pendentes' | 'geral' | null>(null);
+
+  // Configuração Personalizada de Mensagem de Cobrança
+  const [mensagemConfig, setMensagemConfig] = useState(DEFAULT_MENSAGEM_CONFIG);
+  const [showMensagemConfigModal, setShowMensagemConfigModal] = useState(false);
+  const [editMensagemForm, setEditMensagemForm] = useState(DEFAULT_MENSAGEM_CONFIG);
+  const [savingMensagem, setSavingMensagem] = useState(false);
+  const [activeMensagemTab, setActiveMensagemTab] = useState<'pendente' | 'atrasada' | 'pix'>('pendente');
 
   // Mural da Vergonha
   const [muralVergonhaOpen, setMuralVergonhaOpen] = useState(false);
@@ -197,7 +210,81 @@ export default function Financeiro() {
     if (!silent) setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [currentMonth, descontoDia10]);
+  const fetchMensagemConfig = async () => {
+    try {
+      const res = await fetch('/api/financeiro/mensagem-cobranca');
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          const config = {
+            mensagem_pendente: data.mensagem_pendente || DEFAULT_MENSAGEM_CONFIG.mensagem_pendente,
+            mensagem_atrasada: data.mensagem_atrasada || DEFAULT_MENSAGEM_CONFIG.mensagem_atrasada,
+            chave_pix: (data.chave_pix !== undefined && data.chave_pix !== null) ? data.chave_pix : DEFAULT_MENSAGEM_CONFIG.chave_pix
+          };
+          setMensagemConfig(config);
+          setEditMensagemForm(config);
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao buscar configuração de mensagem:", e);
+    }
+  };
+
+  const handleSaveMensagemConfig = async () => {
+    setSavingMensagem(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch('/api/financeiro/mensagem-cobranca', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editMensagemForm)
+      });
+      if (res.ok) {
+        const result = await res.json();
+        const updated = result.config || editMensagemForm;
+        setMensagemConfig(updated);
+        setEditMensagemForm(updated);
+        toast.success("Mensagem de cobrança personalizada salva com sucesso!");
+        setShowMensagemConfigModal(false);
+      } else {
+        toast.error("Erro ao salvar mensagem de cobrança.");
+      }
+    } catch (err) {
+      console.error("Erro ao salvar mensagem de cobrança:", err);
+      toast.error("Erro ao conectar com o servidor.");
+    } finally {
+      setSavingMensagem(false);
+    }
+  };
+
+  const handleResetMensagemConfig = () => {
+    if (window.confirm("Deseja restaurar as mensagens de cobrança para o modelo padrão original?")) {
+      setEditMensagemForm({ ...DEFAULT_MENSAGEM_CONFIG });
+      toast.info("Modelos restaurados para o padrão. Clique em 'Salvar' para confirmar.");
+    }
+  };
+
+  const insertTagIntoMessage = (tag: string) => {
+    if (activeMensagemTab === 'pendente') {
+      setEditMensagemForm(prev => ({
+        ...prev,
+        mensagem_pendente: prev.mensagem_pendente + tag
+      }));
+    } else if (activeMensagemTab === 'atrasada') {
+      setEditMensagemForm(prev => ({
+        ...prev,
+        mensagem_atrasada: prev.mensagem_atrasada + tag
+      }));
+    }
+  };
+
+  useEffect(() => { 
+    fetchData(); 
+    fetchMensagemConfig();
+  }, [currentMonth, descontoDia10]);
 
   const setMonthByDate = (date: Date) => {
     setCurrentMonth(`${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`);
@@ -301,19 +388,56 @@ export default function Financeiro() {
     return p.valor;
   };
 
+  const formatarMensagemCobranca = (template: string, p: any) => {
+    if (!template) return '';
+    const isLate = isAtrasado(p);
+    const nome = p.aluno_nome || p.descricao || (p.aluno ? p.aluno.nome : 'Estudante');
+    const primeiroNome = nome.trim().split(' ')[0] || 'Estudante';
+    const dtVenc = p.data_vencimento ? new Date(p.data_vencimento + 'T12:00:00') : null;
+    const vencimentoCompleto = dtVenc ? format(dtVenc, 'dd/MM/yyyy') : '---';
+    const vencimentoCurto = dtVenc ? format(dtVenc, 'dd/MM') : '---';
+    
+    const valorOriginalNum = Number(p.valor || 0);
+    const valorOriginalStr = valorOriginalNum.toFixed(2).replace('.', ',');
+    
+    const valorComDescontoNum = Number(obterValorComDesconto(p) || p.valor || 0);
+    const valorComDescontoStr = valorComDescontoNum.toFixed(2).replace('.', ',');
+    
+    const valorStr = isLate ? valorOriginalStr : valorComDescontoStr;
+    
+    const daysDiff = dtVenc ? Math.ceil((new Date().getTime() - dtVenc.getTime()) / (1000 * 3600 * 24)) : 0;
+    const diasAtraso = Math.max(0, daysDiff);
+    
+    const pix = (editMensagemForm && showMensagemConfigModal ? editMensagemForm.chave_pix : mensagemConfig.chave_pix) || '55273720000112';
+    const mesRef = p.referencia_mes_ano || currentMonth || '---';
+    const desc = p.tipo_receita || p.descricao || 'Mensalidade';
+
+    let text = template;
+    text = text.replace(/\{nome\}/gi, nome);
+    text = text.replace(/\{primeiro_nome\}/gi, primeiroNome);
+    text = text.replace(/\{primeironome\}/gi, primeiroNome);
+    text = text.replace(/\{valor\}/gi, valorStr);
+    text = text.replace(/\{valor_original\}/gi, valorOriginalStr);
+    text = text.replace(/\{valor_desconto\}/gi, valorComDescontoStr);
+    text = text.replace(/\{vencimento\}/gi, vencimentoCurto);
+    text = text.replace(/\{vencimento_completo\}/gi, vencimentoCompleto);
+    text = text.replace(/\{dia_vencimento\}/gi, vencimentoCurto);
+    text = text.replace(/\{mes_referencia\}/gi, mesRef);
+    text = text.replace(/\{referencia\}/gi, mesRef);
+    text = text.replace(/\{chave_pix\}/gi, pix);
+    text = text.replace(/\{pix\}/gi, pix);
+    text = text.replace(/\{dias_atraso\}/gi, String(diasAtraso));
+    text = text.replace(/\{descricao\}/gi, desc);
+
+    return text;
+  };
+
   const gerarTextoCobranca = (p: any) => {
     const isLate = isAtrasado(p);
-    const nome = p.aluno_nome || p.descricao || 'Estudante';
-    const vencStr = p.data_vencimento ? format(new Date(p.data_vencimento + 'T12:00:00'), 'dd/MM') : 'vencimento';
-    
-    if (isLate) {
-      const valorStr = Number(p.valor).toFixed(2).replace('.', ',');
-      return `Olá ${nome}, tudo bem?\n\nO pagamento da sua mensalidade no valor de R$ ${valorStr} está em atraso.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ (toque para copiar):\n\`55273720000112\``;
-    } else {
-      const valorComDesconto = obterValorComDesconto(p);
-      const valorStr = Number(valorComDesconto).toFixed(2).replace('.', ',');
-      return `Olá ${nome}, tudo bem?\n\nSua mensalidade está próxima do vencimento (${vencStr}).\nPague até o dia do vencimento para garantir o seu valor com desconto de R$ ${valorStr}.\n\nAguardamos o comprovante para dar baixa no sistema! Obrigado.\n\nChave PIX CNPJ (toque para copiar):\n\`55273720000112\``;
-    }
+    const template = isLate 
+      ? (mensagemConfig.mensagem_atrasada || DEFAULT_MENSAGEM_CONFIG.mensagem_atrasada)
+      : (mensagemConfig.mensagem_pendente || DEFAULT_MENSAGEM_CONFIG.mensagem_pendente);
+    return formatarMensagemCobranca(template, p);
   };
 
   const pagamentosFiltrados = pagamentos.filter(p => {
@@ -525,6 +649,17 @@ export default function Financeiro() {
                
                <button onClick={() => setMuralVergonhaOpen(true)} className="px-2.5 sm:px-3 py-1.5 bg-[#8B0000] border-2 border-[#8B0000] text-white text-[8.5px] sm:text-[9px] font-black uppercase flex items-center gap-1.5 hover:bg-[#5A0000] transition-colors">
                  <ShieldAlert className="w-3 h-3" /> Mural da Vergonha
+               </button>
+
+               <button 
+                 onClick={() => {
+                   setEditMensagemForm({ ...mensagemConfig });
+                   setShowMensagemConfigModal(true);
+                 }} 
+                 className="px-2.5 sm:px-3 py-1.5 bg-[#1A1A1A] border-2 border-[#00FF41] text-[#00FF41] text-[8.5px] sm:text-[9px] font-black uppercase flex items-center gap-1.5 hover:bg-[#00FF41] hover:text-black transition-colors"
+                 title="Personalizar Mensagens de Cobrança do WhatsApp"
+               >
+                 <MessageSquareText className="w-3 h-3" /> Personalizar Cobrança
                </button>
              </div>
 
@@ -1601,6 +1736,233 @@ export default function Financeiro() {
                     Gerado em: {new Date().toLocaleDateString('pt-BR')}
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Personalizar Mensagem de Cobrança */}
+      <AnimatePresence>
+        {showMensagemConfigModal && (
+          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4" onClick={() => setShowMensagemConfigModal(false)}>
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0.95, opacity: 0 }} 
+              onClick={e => e.stopPropagation()} 
+              className="bg-[#1A1A1A] border-4 border-white p-4 sm:p-7 w-full max-w-4xl shadow-hard relative max-h-[92vh] flex flex-col"
+            >
+              <button 
+                onClick={() => setShowMensagemConfigModal(false)} 
+                className="absolute -top-4 -right-4 bg-[#FF0000] border-2 border-black p-1.5 shadow-hard-black hover:translate-x-1 hover:translate-y-1 transition-all z-10"
+              >
+                 <X className="w-5 h-5 text-white" />
+              </button>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-4 border-white/20 pb-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-[#00FF41] border-2 border-black flex items-center justify-center text-black font-black shadow-hard-black shrink-0">
+                    <MessageSquareText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-xl font-black uppercase text-white tracking-tighter">
+                      Personalizar Mensagem de Cobrança
+                    </h2>
+                    <p className="text-[8.5px] sm:text-[10px] font-bold text-[#00FF41] uppercase">
+                      Configuração Geral para Envios via WhatsApp
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={handleResetMensagemConfig}
+                  className="self-start sm:self-auto text-[9px] font-bold uppercase text-white/60 hover:text-[#FF8A00] flex items-center gap-1.5 border border-white/20 px-2.5 py-1 hover:border-[#FF8A00] transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" /> Restaurar Padrão
+                </button>
+              </div>
+
+              {/* Tabs de Seleção */}
+              <div className="flex bg-black border-2 border-white/20 mb-4 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setActiveMensagemTab('pendente')}
+                  className={`px-3 sm:px-4 py-2 text-[8.5px] sm:text-[9.5px] font-black uppercase transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    activeMensagemTab === 'pendente' 
+                      ? 'bg-[#FF8A00] text-black' 
+                      : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  🟡 Lembrete Vencimento (Em Aberto)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMensagemTab('atrasada')}
+                  className={`px-3 sm:px-4 py-2 text-[8.5px] sm:text-[9.5px] font-black uppercase transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    activeMensagemTab === 'atrasada' 
+                      ? 'bg-[#FF0000] text-white' 
+                      : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  🔴 Cobrança de Atraso (Vencida)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMensagemTab('pix')}
+                  className={`px-3 sm:px-4 py-2 text-[8.5px] sm:text-[9.5px] font-black uppercase transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    activeMensagemTab === 'pix' 
+                      ? 'bg-[#00FF41] text-black' 
+                      : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  🔑 Chave PIX Padrão
+                </button>
+              </div>
+
+              {/* Conteúdo do Modal com Scroll Interno */}
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+                {activeMensagemTab === 'pix' ? (
+                  <div className="bg-black border-2 border-white/20 p-4 sm:p-5 space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black text-[#00FF41] uppercase tracking-widest block mb-2">
+                        Chave PIX da Escola / Studio
+                      </label>
+                      <p className="text-[9px] text-white/70 mb-3">
+                        Essa chave substituirá automaticamente a tag <code className="text-[#00FF41] font-bold bg-white/10 px-1 py-0.5 border border-white/20">{"{chave_pix}"}</code> em todas as mensagens de cobrança.
+                      </p>
+                      <input 
+                        type="text"
+                        value={editMensagemForm.chave_pix}
+                        onChange={e => setEditMensagemForm(f => ({ ...f, chave_pix: e.target.value }))}
+                        placeholder="Ex: 55273720000112 ou financeiro@studioacorde.com.br"
+                        className="w-full bg-[#1A1A1A] border-2 border-white/30 p-3 text-[11px] font-bold text-white focus:border-[#00FF41] outline-none"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Variáveis Clicáveis */}
+                    <div className="bg-black border-2 border-white/20 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[8.5px] font-black uppercase tracking-wider text-[#FF8A00] flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> Variáveis Dinâmicas (Clique para Inserir):
+                        </span>
+                        <span className="text-[8px] text-white/50 uppercase">Preenchimento automático</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { tag: '{nome}', desc: 'Nome Completo' },
+                          { tag: '{primeiro_nome}', desc: 'Primeiro Nome' },
+                          { tag: '{valor}', desc: 'Valor da Parcela' },
+                          { tag: '{valor_original}', desc: 'Valor Integral' },
+                          { tag: '{vencimento}', desc: 'Data Vencimento (DD/MM)' },
+                          { tag: '{vencimento_completo}', desc: 'Data Completa (DD/MM/AAAA)' },
+                          { tag: '{mes_referencia}', desc: 'Mês Referência' },
+                          { tag: '{chave_pix}', desc: 'Chave PIX' },
+                          { tag: '{dias_atraso}', desc: 'Dias em Atraso' },
+                          { tag: '{descricao}', desc: 'Descrição' },
+                        ].map(({ tag, desc }) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => insertTagIntoMessage(tag)}
+                            className="bg-white/5 hover:bg-[#00FF41] hover:text-black border border-white/20 hover:border-black px-2 py-1 text-[8.5px] font-bold text-white transition-all flex items-center gap-1 active:scale-95"
+                            title={`Inserir ${desc}`}
+                          >
+                            <span className="font-mono text-[#00FF41] group-hover:text-black">{tag}</span>
+                            <span className="text-[7.5px] opacity-60">({desc})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Grid Editor + Preview */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Editor Textarea */}
+                      <div className="flex flex-col">
+                        <label className="text-[9.5px] font-black text-white uppercase mb-2 flex items-center justify-between">
+                          <span>Texto do Modelo:</span>
+                          <span className="text-[8px] text-white/50">WhatsApp: *negrito*, _itálico_</span>
+                        </label>
+                        <textarea
+                          rows={8}
+                          value={
+                            activeMensagemTab === 'pendente' 
+                              ? editMensagemForm.mensagem_pendente 
+                              : editMensagemForm.mensagem_atrasada
+                          }
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (activeMensagemTab === 'pendente') {
+                              setEditMensagemForm(f => ({ ...f, mensagem_pendente: val }));
+                            } else {
+                              setEditMensagemForm(f => ({ ...f, mensagem_atrasada: val }));
+                            }
+                          }}
+                          placeholder="Digite o modelo da mensagem..."
+                          className="w-full flex-1 bg-black border-2 border-white/30 p-3 text-[10px] font-mono text-gray-200 leading-relaxed focus:border-[#00FF41] outline-none resize-none"
+                        />
+                      </div>
+
+                      {/* Live WhatsApp Preview */}
+                      <div className="flex flex-col">
+                        <label className="text-[9.5px] font-black text-[#00FF41] uppercase mb-2 flex items-center gap-1.5">
+                          <MessageCircle className="w-3.5 h-3.5" /> Pré-visualização Realista (WhatsApp):
+                        </label>
+                        <div className="flex-1 bg-[#0b141a] border-2 border-[#00FF41]/40 p-3.5 flex flex-col justify-start rounded-none min-h-[190px]">
+                          <div className="bg-[#005c4b] text-[#e9edef] p-3 text-[9.5px] font-sans rounded-lg shadow-sm whitespace-pre-wrap leading-relaxed self-end max-w-full break-words border border-[#00a884]/30">
+                            {formatarMensagemCobranca(
+                              activeMensagemTab === 'pendente'
+                                ? editMensagemForm.mensagem_pendente
+                                : editMensagemForm.mensagem_atrasada,
+                              activeMensagemTab === 'pendente'
+                                ? (pagamentos.find(p => p.status !== 'pago' && !isAtrasado(p)) || {
+                                    aluno_nome: 'Gabriel Lucas',
+                                    valor: 200,
+                                    data_vencimento: new Date().toISOString().split('T')[0],
+                                    referencia_mes_ano: currentMonth,
+                                    tipo_receita: 'Mensalidade',
+                                    aluno: { matriculas: [{ valor_com_desconto: 180, status: 'ativa' }] }
+                                  })
+                                : (pagamentos.find(p => isAtrasado(p)) || {
+                                    aluno_nome: 'Juliana Fernandes',
+                                    valor: 220,
+                                    data_vencimento: new Date(Date.now() - 4 * 86400000).toISOString().split('T')[0],
+                                    referencia_mes_ano: currentMonth,
+                                    tipo_receita: 'Mensalidade'
+                                  })
+                            )}
+                            <div className="text-[7.5px] text-[#8696a0] text-right mt-1.5 font-mono">
+                              10:42 ✓✓
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Botões de Ação do Rodapé */}
+              <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t-2 border-white/20">
+                <button
+                  type="button"
+                  onClick={() => setShowMensagemConfigModal(false)}
+                  className="px-4 py-2.5 bg-transparent border-2 border-white text-white text-[9.5px] font-black uppercase hover:bg-white hover:text-black transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveMensagemConfig}
+                  disabled={savingMensagem}
+                  className="px-6 py-2.5 bg-[#00FF41] text-black border-4 border-black text-[10px] font-black uppercase shadow-hard-black hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {savingMensagem ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
               </div>
             </motion.div>
           </div>
