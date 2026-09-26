@@ -1,38 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { HardDrive, CheckCircle2, AlertCircle, RefreshCw, Key, Folder, ExternalLink, X, HelpCircle, ShieldCheck } from 'lucide-react';
+import { HardDrive, CheckCircle2, AlertCircle, RefreshCw, Key, X, Trash2, Link2, Unlink, Database } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiFetch } from '../services/apiClient';
 
 interface GoogleDriveModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface DriveStatus {
+  conectado: boolean;
+  temCredenciaisApp?: boolean;
+  conta?: string;
+  limiteBytes?: number;
+  usadoBytes?: number;
+  usoPct?: number;
+  videos?: number;
+  bytesVideos?: number;
+  videoMaisAntigo?: string | null;
+  retencaoDias: number;
+  alertaPct: number;
+  alerta?: boolean;
+  redirectUri?: string;
+}
+
+const formatBytes = (b?: number) => {
+  const v = Number(b) || 0;
+  if (v >= 1024 ** 3) return `${(v / 1024 ** 3).toFixed(2)} GB`;
+  if (v >= 1024 ** 2) return `${(v / 1024 ** 2).toFixed(1)} MB`;
+  return `${Math.round(v / 1024)} KB`;
+};
+
 export function GoogleDriveModal({ isOpen, onClose }: GoogleDriveModalProps) {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [status, setStatus] = useState<{
-    isConfigured: boolean;
-    folderId: string;
-    clientEmail?: string | null;
-    storageProvider: string;
-  } | null>(null);
-
-  const [credentialsJson, setCredentialsJson] = useState('');
-  const [folderId, setFolderId] = useState('');
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<DriveStatus | null>(null);
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [retencao, setRetencao] = useState(7);
+  const [alertaPct, setAlertaPct] = useState(80);
+  const [diasLimpeza, setDiasLimpeza] = useState(3);
 
   const loadStatus = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('acorde_token');
-      const res = await fetch('/api/drive/status', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/drive/status');
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
-        if (data.folderId) setFolderId(data.folderId);
+        setRetencao(data.retencaoDias || 7);
+        setAlertaPct(data.alertaPct || 80);
       }
     } catch (e) {
       console.error('Erro ao buscar status do Google Drive:', e);
@@ -42,205 +59,241 @@ export function GoogleDriveModal({ isOpen, onClose }: GoogleDriveModalProps) {
   };
 
   useEffect(() => {
-    if (isOpen) {
-      loadStatus();
-    }
+    if (isOpen) loadStatus();
   }, [isOpen]);
 
-  const handleSave = async (e: React.FormEvent) => {
+  const post = async (url: string, body: any) => {
+    const res = await apiFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro na operação');
+    return data;
+  };
+
+  const salvarCredenciais = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
+    setBusy(true);
     try {
-      const token = localStorage.getItem('acorde_token');
-      const res = await fetch('/api/drive/config', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          credentialsJson: credentialsJson.trim() || undefined,
-          folderId: folderId.trim() || undefined
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao salvar configurações.');
-
-      toast.success(data.message || 'Configurações do Google Drive salvas com sucesso!');
-      setCredentialsJson('');
+      await post('/api/drive/config', { clientId, ...(clientSecret ? { clientSecret } : {}) });
+      toast.success('Credenciais salvas. Agora clique em "Conectar minha conta Google".');
+      setClientSecret('');
       await loadStatus();
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao salvar.');
+      toast.error(err.message);
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   };
 
-  const handleTest = async () => {
-    setTesting(true);
+  const conectar = async () => {
+    setBusy(true);
     try {
-      const token = localStorage.getItem('acorde_token');
-      const res = await fetch('/api/drive/test', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/drive/oauth/start');
       const data = await res.json();
-      if (data.ok) {
-        toast.success(data.message || 'Conexão com Google Drive bem-sucedida! 🟢');
-      } else {
-        toast.error(data.error || 'Falha no teste com o Google Drive.');
-      }
+      if (!res.ok || !data.url) throw new Error(data.error || 'Não foi possível iniciar a conexão.');
+      window.location.href = data.url;
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao testar conexão.');
+      toast.error(err.message);
+      setBusy(false);
+    }
+  };
+
+  const salvarPreferencias = async () => {
+    setBusy(true);
+    try {
+      await post('/api/drive/config', { retencaoDias: retencao, alertaPct });
+      toast.success('Preferências salvas!');
+      await loadStatus();
+    } catch (err: any) {
+      toast.error(err.message);
     } finally {
-      setTesting(false);
+      setBusy(false);
+    }
+  };
+
+  const limparAgora = async () => {
+    if (!window.confirm(`Apagar do Google Drive os vídeos de treino com mais de ${diasLimpeza} dia(s)? Eles vão para a lixeira do Drive (recuperáveis por 30 dias).`)) return;
+    setBusy(true);
+    try {
+      const r = await post('/api/drive/limpar', { dias: diasLimpeza });
+      toast.success(`${r.apagados} vídeo(s) apagado(s), ${formatBytes(r.bytes)} liberados.`);
+      await loadStatus();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const backupAgora = async () => {
+    setBusy(true);
+    try {
+      const r = await post('/api/backup/agora', {});
+      if (r.ok) toast.success(`Backup salvo no Drive (${formatBytes(r.bytes)}).`);
+      else toast.error(r.motivo || 'Backup não realizado.');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const desconectar = async () => {
+    if (!window.confirm('Desconectar o Google Drive? Os arquivos já enviados continuam no Drive, mas novos vídeos de treino ficam bloqueados até reconectar.')) return;
+    setBusy(true);
+    try {
+      await post('/api/drive/desconectar', {});
+      toast.success('Google Drive desconectado.');
+      await loadStatus();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
-      <div className="bg-[#1A1A1A] border-4 border-white text-white w-full max-w-2xl p-6 shadow-[8px_8px_0_#000] relative max-h-[90vh] flex flex-col space-y-4">
-        {/* Header */}
-        <div className="flex justify-between items-start border-b-2 border-white/20 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#00FF41] border-2 border-black flex items-center justify-center text-black shadow-[2px_2px_0_#fff]">
-              <HardDrive className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
-                GOOGLE DRIVE INTEGRATION <span className="text-[9px] bg-[#FF8A00] text-black px-2 py-0.5 font-bold">MÍDIAS & ÁUDIOS</span>
-              </h2>
-              <p className="text-[10px] text-white/60 font-bold uppercase">
-                Armazenamento de gravações e vídeos fora do Supabase
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-white/60 hover:text-white border border-white/20 hover:border-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  const pct = status?.usoPct || 0;
+  const barraCor = pct >= (status?.alertaPct || 80) ? 'bg-red-600' : pct >= 60 ? 'bg-yellow-400' : 'bg-emerald-500';
 
-        {/* Status Card */}
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/80 flex items-center justify-center p-4 overflow-y-auto font-['Space_Mono']">
+      <div className="bg-[#fff8f6] border-8 border-black w-full max-w-lg p-6 relative shadow-[12px_12px_0_#000] max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute top-4 right-4 bg-black text-white p-2 border-2 border-white" title="Fechar">
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="flex items-center gap-2 mb-1">
+          <HardDrive className="w-6 h-6 text-[#ff6b00]" />
+          <h2 className="text-xl font-black uppercase italic text-black">Google Drive da escola</h2>
+        </div>
+        <p className="text-[9px] font-black text-[#8e7164] uppercase mb-5">
+          Vídeos de treino ficam só no Drive (nunca no Supabase) e são apagados automaticamente.
+        </p>
+
         {loading ? (
-          <div className="p-8 text-center text-xs uppercase animate-pulse">
-            Verificando status do Google Drive...
+          <div className="py-10 text-center font-black text-xs uppercase animate-pulse">Carregando...</div>
+        ) : status?.conectado ? (
+          <div className="space-y-5">
+            <div className="flex items-center gap-2 bg-emerald-50 border-4 border-emerald-600 p-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-black text-xs uppercase text-emerald-800">Conectado</p>
+                <p className="text-[10px] font-bold text-emerald-900 truncate">{status.conta}</p>
+              </div>
+            </div>
+
+            {/* Sensor de espaço */}
+            <div className="border-4 border-black bg-white p-4 space-y-2">
+              <div className="flex justify-between text-[10px] font-black uppercase">
+                <span>Espaço usado na conta</span>
+                <span>{formatBytes(status.usadoBytes)} de {formatBytes(status.limiteBytes)} ({pct}%)</span>
+              </div>
+              <div className="w-full h-4 border-2 border-black bg-stone-100">
+                <div className={`h-full ${barraCor}`} style={{ width: `${Math.min(100, pct)}%` }} />
+              </div>
+              <p className="text-[10px] font-bold text-[#8e7164]">
+                Vídeos de treino: <b>{status.videos}</b> arquivo(s), {formatBytes(status.bytesVideos)}
+                {status.videoMaisAntigo ? ` • mais antigo de ${new Date(status.videoMaisAntigo).toLocaleDateString('pt-BR')}` : ''}
+              </p>
+              {status.alerta && (
+                <p className="flex items-center gap-1 text-[10px] font-black uppercase text-red-700">
+                  <AlertCircle className="w-4 h-4" /> Espaço acima de {status.alertaPct}%: apague vídeos antigos.
+                </p>
+              )}
+            </div>
+
+            {/* Exclusão automática e alerta */}
+            <div className="border-4 border-black bg-white p-4 space-y-3">
+              <p className="font-black text-xs uppercase">Exclusão automática</p>
+              <label className="flex items-center justify-between gap-2 text-[10px] font-black uppercase">
+                Apagar vídeos com mais de
+                <span className="flex items-center gap-1">
+                  <input type="number" min={1} max={365} value={retencao} onChange={(e) => setRetencao(Number(e.target.value))} className="w-16 border-2 border-black p-1 text-center font-black" />
+                  dias
+                </span>
+              </label>
+              <label className="flex items-center justify-between gap-2 text-[10px] font-black uppercase">
+                Me avisar por e-mail quando o Drive passar de
+                <span className="flex items-center gap-1">
+                  <input type="number" min={10} max={99} value={alertaPct} onChange={(e) => setAlertaPct(Number(e.target.value))} className="w-16 border-2 border-black p-1 text-center font-black" />
+                  %
+                </span>
+              </label>
+              <button onClick={salvarPreferencias} disabled={busy} className="w-full bg-black text-white py-2 font-black text-xs uppercase border-2 border-black disabled:opacity-50">
+                Salvar preferências
+              </button>
+            </div>
+
+            {/* Limpeza manual */}
+            <div className="border-4 border-black bg-white p-4 space-y-3">
+              <p className="font-black text-xs uppercase">Apagar agora</p>
+              <label className="flex items-center justify-between gap-2 text-[10px] font-black uppercase">
+                Vídeos com mais de
+                <span className="flex items-center gap-1">
+                  <input type="number" min={1} value={diasLimpeza} onChange={(e) => setDiasLimpeza(Number(e.target.value))} className="w-16 border-2 border-black p-1 text-center font-black" />
+                  dias
+                </span>
+              </label>
+              <button onClick={limparAgora} disabled={busy} className="w-full bg-red-600 text-white py-2 font-black text-xs uppercase border-2 border-black flex items-center justify-center gap-2 disabled:opacity-50">
+                <Trash2 className="w-4 h-4" /> Apagar vídeos antigos
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={backupAgora} disabled={busy} className="bg-[#ff6b00] text-white py-2 font-black text-[10px] uppercase border-2 border-black flex items-center justify-center gap-1 disabled:opacity-50">
+                <Database className="w-4 h-4" /> Backup do banco agora
+              </button>
+              <button onClick={desconectar} disabled={busy} className="bg-white text-black py-2 font-black text-[10px] uppercase border-2 border-black flex items-center justify-center gap-1 disabled:opacity-50">
+                <Unlink className="w-4 h-4" /> Desconectar
+              </button>
+            </div>
+            <button onClick={loadStatus} disabled={busy} className="w-full text-[10px] font-black uppercase flex items-center justify-center gap-1 text-[#8e7164]">
+              <RefreshCw className="w-3 h-3" /> Atualizar
+            </button>
           </div>
         ) : (
-          <div className="space-y-4 overflow-y-auto pr-1">
-            <div className={`p-4 border-2 flex items-center justify-between ${
-              status?.isConfigured 
-                ? 'bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]' 
-                : 'bg-[#FF8A00]/10 border-[#FF8A00] text-[#FF8A00]'
-            }`}>
-              <div className="flex items-center gap-3">
-                {status?.isConfigured ? (
-                  <CheckCircle2 className="w-6 h-6 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-6 h-6 shrink-0" />
-                )}
-                <div>
-                  <h4 className="font-black text-xs uppercase">
-                    {status?.isConfigured ? 'GOOGLE DRIVE CONECTADO & ATIVO' : 'GOOGLE DRIVE PENDENTE'}
-                  </h4>
-                  <p className="text-[9px] text-white/80 mt-0.5">
-                    {status?.isConfigured 
-                      ? `Áudios e vídeos de treinos são enviados diretamente ao Google Drive. Conta: ${status.clientEmail || 'Service Account'}`
-                      : 'Arquivos estão usando fallback temporário. Configure as credenciais abaixo para evitar limites no Supabase.'}
-                  </p>
-                </div>
-              </div>
-              {status?.isConfigured && (
-                <button
-                  onClick={handleTest}
-                  disabled={testing}
-                  className="px-3 py-1.5 bg-white text-black border-2 border-black text-[9px] font-black uppercase shadow-[2px_2px_0_#000] hover:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1 shrink-0"
-                >
-                  <RefreshCw className={`w-3 h-3 ${testing ? 'animate-spin' : ''}`} />
-                  {testing ? 'TESTANDO...' : 'TESTAR'}
-                </button>
-              )}
+          <div className="space-y-5">
+            <div className="flex items-start gap-2 bg-yellow-50 border-4 border-yellow-500 p-3">
+              <AlertCircle className="w-5 h-5 text-yellow-700 shrink-0 mt-0.5" />
+              <p className="text-[10px] font-bold text-yellow-900">
+                Drive não conectado: os alunos não conseguem enviar vídeos de treino até a conexão ser feita.
+              </p>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-white/80 flex items-center gap-1.5">
-                  <Folder className="w-3.5 h-3.5 text-[#FF8A00]" /> ID da Pasta do Google Drive
-                </label>
-                <input
-                  type="text"
-                  placeholder="ex: 1EHXi800HrwkDWOgd-l0lXKtQZkMlSFyV"
-                  value={folderId}
-                  onChange={(e) => setFolderId(e.target.value)}
-                  className="w-full bg-black border-2 border-white/20 p-2 text-xs font-mono text-white focus:border-[#00FF41] outline-none"
-                />
-                <p className="text-[8px] text-white/40">
-                  O ID que fica na URL da pasta do Google Drive: https://drive.google.com/drive/folders/<strong>ID_DA_PASTA</strong>
-                </p>
-              </div>
+            <ol className="list-decimal pl-5 space-y-1.5 text-[10px] font-bold text-black">
+              <li>Acesse <b>console.cloud.google.com</b> com a conta Google da escola e crie um projeto.</li>
+              <li>Em <b>APIs e serviços → Biblioteca</b>, ative a <b>Google Drive API</b>.</li>
+              <li>Em <b>Tela de consentimento OAuth</b>, escolha "Externo", preencha o nome do app e <b>publique</b> o app (evita que a conexão expire em 7 dias).</li>
+              <li>Em <b>Credenciais → Criar credenciais → ID do cliente OAuth</b>, tipo <b>Aplicativo da Web</b>.</li>
+              <li>
+                Em "URIs de redirecionamento autorizados", adicione:
+                <code className="block bg-black text-[#00ff41] p-2 mt-1 break-all text-[9px]">{status?.redirectUri || 'https://acordecrm.vercel.app/api/drive/oauth/callback'}</code>
+              </li>
+              <li>Copie o <b>Client ID</b> e o <b>Client Secret</b> para os campos abaixo.</li>
+            </ol>
 
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-black uppercase text-white/80 flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5 text-[#FF8A00]" /> JSON da Service Account (Chave do Google Cloud)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowInstructions(!showInstructions)}
-                    className="text-[9px] text-[#00FF41] hover:underline flex items-center gap-1"
-                  >
-                    <HelpCircle className="w-3 h-3" /> {showInstructions ? 'Ocultar passo a passo' : 'Como criar a chave?'}
-                  </button>
-                </div>
-                <textarea
-                  rows={4}
-                  placeholder='Cole aqui o JSON da Service Account (ex: { "type": "service_account", "project_id": "...", "private_key": "..." })'
-                  value={credentialsJson}
-                  onChange={(e) => setCredentialsJson(e.target.value)}
-                  className="w-full bg-black border-2 border-white/20 p-2 text-[10px] font-mono text-white focus:border-[#00FF41] outline-none resize-none"
-                />
-              </div>
-
-              {/* Instructions Accordion */}
-              {showInstructions && (
-                <div className="p-3 bg-white/5 border border-white/20 text-[9px] space-y-2 text-white/80">
-                  <p className="font-bold text-white uppercase flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#00FF41]" /> Passo a passo gratuito (Google Cloud &amp; Drive):
-                  </p>
-                  <ol className="list-decimal pl-4 space-y-1">
-                    <li>Acesse o <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-[#00FF41] underline">Google Cloud Console</a> e crie um projeto.</li>
-                    <li>Em <strong>APIs e Serviços</strong> &gt; <strong>Biblioteca</strong>, ative a <strong>Google Drive API</strong>.</li>
-                    <li>Em <strong>Contas de Serviço (Service Accounts)</strong>, crie uma conta (ex: <code>acorde-drive</code>).</li>
-                    <li>Clique na conta criada &gt; <strong>Chaves</strong> &gt; <strong>Adicionar Chave</strong> &gt; <strong>Criar nova chave (JSON)</strong>.</li>
-                    <li>No seu Google Drive pessoal ou da escola, crie uma pasta (ex: <code>Acorde Mídias</code>) e <strong>compartilhe</strong> com o e-mail da conta de serviço (com permissão de <strong>Editor</strong>).</li>
-                    <li>Cole o conteúdo do arquivo JSON baixado no campo acima e salve!</li>
-                  </ol>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 bg-[#00FF41] text-black border-2 border-black py-2.5 font-black uppercase text-xs shadow-[4px_4px_0_#fff] hover:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50"
-                >
-                  {saving ? 'SALVANDO...' : 'SALVAR CONFIGURAÇÕES'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-6 bg-transparent border-2 border-white/40 text-white py-2.5 font-bold uppercase text-xs hover:border-white transition-colors"
-                >
-                  FECHAR
-                </button>
-              </div>
+            <form onSubmit={salvarCredenciais} className="space-y-3 border-4 border-black bg-white p-4">
+              <label className="block text-[10px] font-black uppercase">
+                Client ID
+                <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder={status?.temCredenciaisApp ? '(já cadastrado)' : '000000-xxxx.apps.googleusercontent.com'} className="w-full border-2 border-black p-2 mt-1 font-bold text-xs" />
+              </label>
+              <label className="block text-[10px] font-black uppercase">
+                Client Secret
+                <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder={status?.temCredenciaisApp ? '(já cadastrado)' : 'GOCSPX-...'} className="w-full border-2 border-black p-2 mt-1 font-bold text-xs" />
+              </label>
+              <button type="submit" disabled={busy || !clientId} className="w-full bg-black text-white py-2 font-black text-xs uppercase flex items-center justify-center gap-2 disabled:opacity-50">
+                <Key className="w-4 h-4" /> Salvar credenciais
+              </button>
             </form>
+
+            <button onClick={conectar} disabled={busy || !status?.temCredenciaisApp} className="w-full bg-[#00FF41] text-black py-3 font-black text-sm uppercase border-4 border-black shadow-[4px_4px_0_#000] flex items-center justify-center gap-2 disabled:opacity-40">
+              <Link2 className="w-5 h-5" /> Conectar minha conta Google
+            </button>
           </div>
         )}
       </div>

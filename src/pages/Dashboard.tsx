@@ -20,6 +20,20 @@ export default function Dashboard() {
   const [feed, setFeed] = useState<any[]>(() => getStoredCache('dashboard_feed', []));
   const [alunosEmAtraso, setAlunosEmAtraso] = useState<any[]>(() => getStoredCache('dashboard_alunos_em_atraso', []));
   const [aulasSemMensalidade, setAulasSemMensalidade] = useState<any[]>(() => getStoredCache('dashboard_aulas_sem_mensalidade', []));
+  const [driveStatus, setDriveStatus] = useState<any>(null);
+
+  // Sensor do Google Drive + retorno da conexão OAuth (?drive=ok)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const retorno = params.get('drive');
+    if (retorno) {
+      if (retorno === 'ok') toast.success('Google Drive conectado! Vídeos de treino liberados.');
+      else toast.error(retorno === 'cancelado' ? 'Conexão com o Google cancelada.' : 'Não foi possível conectar o Google Drive. Tente novamente.');
+      window.history.replaceState({}, '', window.location.pathname);
+      setShowDriveModal(true);
+    }
+    apiFetch('/api/drive/status').then(r => r.ok ? r.json() : null).then(setDriveStatus).catch(() => {});
+  }, []);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [showModalAulas, setShowModalAulas] = useState(false);
   const [showModalFaturas, setShowModalFaturas] = useState(false);
@@ -177,6 +191,24 @@ export default function Dashboard() {
 
       {/* MAIN CONTENT */}
       <div className="flex-1 overflow-auto p-6 space-y-5">
+
+        {driveStatus && (!driveStatus.conectado || driveStatus.alerta) && (
+          <button
+            onClick={() => setShowDriveModal(true)}
+            className={`w-full text-left flex items-center gap-3 p-4 border-4 border-black shadow-[4px_4px_0_#000] ${driveStatus.alerta ? 'bg-red-600 text-white' : 'bg-yellow-300 text-black'}`}
+          >
+            <HardDrive className="w-6 h-6 shrink-0" />
+            <div className="flex-1">
+              <p className="font-black text-xs uppercase">
+                {driveStatus.alerta
+                  ? `Google Drive com ${driveStatus.usoPct}% de uso: apague vídeos antigos`
+                  : 'Google Drive não conectado: alunos não conseguem enviar vídeos de treino'}
+              </p>
+              <p className="text-[10px] font-bold opacity-80 uppercase">Toque para abrir o painel do Google Drive</p>
+            </div>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        )}
 
         {/* TOP ROW */}
         <div className="grid grid-cols-3 gap-5">

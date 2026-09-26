@@ -1,0 +1,8 @@
+# Não enviar para a Vercel: arquivos avulsos e dados pessoais (regras ancoradas na raiz)
+/_arquivo/
+/scratch/
+/stitch_acorde_crm/
+/stitch cifra master redesign/
+/conquistas icones/
+/jogo-de-cifras-musicais/
+/metronome-flappy-bird/

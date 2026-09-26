@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { getMediaStreamUrl } from '../utils/mediaUtils';
+import { getMediaStreamUrl, getGoogleDrivePreviewUrl } from '../utils/mediaUtils';
 import { 
   Bell, 
   Home, 
@@ -4342,7 +4342,7 @@ export default function AreaProfessor() {
                     <Flame className="w-5 h-5 text-[#ff6b00] animate-pulse" /> TREINOS DOS ALUNOS
                   </h3>
                   <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider mt-1">
-                    Acompanhe os check-ins diários e assista às gravações de 24h dos alunos!
+                    Acompanhe os check-ins diários e assista às gravações recentes dos alunos!
                   </p>
                 </div>
 
@@ -4412,14 +4412,17 @@ export default function AreaProfessor() {
                       let tempoRestanteStr = '';
                       let isExpirado = true;
                       if (treino.video_url && treino.video_created_at) {
-                        const videoTime = new Date(treino.video_created_at).getTime();
-                        const now = Date.now();
-                        const diffMs = videoTime + 24 * 60 * 60 * 1000 - now;
+                        // O prazo vem do servidor (retenção configurada no painel do Google Drive)
+                        const expiraMs = treino.video_expira_em
+                          ? new Date(treino.video_expira_em).getTime()
+                          : new Date(treino.video_created_at).getTime() + 24 * 60 * 60 * 1000;
+                        const diffMs = expiraMs - Date.now();
                         if (diffMs > 0) {
                           isExpirado = false;
-                          const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                          const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                          const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                           const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                          tempoRestanteStr = `${diffHrs}h ${diffMins}m restantes`;
+                          tempoRestanteStr = diffDias > 0 ? `${diffDias}d ${diffHrs}h restantes` : `${diffHrs}h ${diffMins}m restantes`;
                         }
                       }
 
@@ -5717,17 +5720,28 @@ export default function AreaProfessor() {
 
             {/* Container do Player Brutalista com visual pixel art */}
             <div className="border-4 border-black bg-black shadow-[6px_6px_0_#000] overflow-hidden relative group aspect-video">
-              <video 
-                src={selectedTreinoVideo} 
-                controls 
-                autoPlay 
-                className="w-full h-full object-contain"
-                playsInline
-              />
+              {selectedTreinoVideo.includes('drive.google.com') ? (
+                // Vídeos do Google Drive tocam pelo player do próprio Drive
+                <iframe
+                  src={getGoogleDrivePreviewUrl(selectedTreinoVideo)}
+                  className="w-full h-full"
+                  allow="autoplay; fullscreen"
+                  allowFullScreen
+                  title="Vídeo de treino"
+                />
+              ) : (
+                <video 
+                  src={selectedTreinoVideo} 
+                  controls 
+                  autoPlay 
+                  className="w-full h-full object-contain"
+                  playsInline
+                />
+              )}
             </div>
             
             <div className="mt-4 bg-[#261812] text-white p-3 border-4 border-black text-[7.5px] font-black uppercase text-center tracking-widest">
-              ⏳ ESTE VÍDEO SERÁ EXCLUÍDO APÓS 24 HORAS PARA ECONOMIA DE ARMAZENAMENTO SUPABASE
+              ⏳ ESTE VÍDEO É EXCLUÍDO AUTOMATICAMENTE DO GOOGLE DRIVE APÓS O PRAZO DE RETENÇÃO
             </div>
           </div>
         </div>

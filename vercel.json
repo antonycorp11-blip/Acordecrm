@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "api/index.ts": {
-      "maxDuration": 30,
+      "maxDuration": 60,
       "memory": 1024
     }
   },
@@ -19,7 +19,11 @@
   "crons": [
     {
       "path": "/api/cron/cleanup-videos",
-      "schedule": "0 3 * * *"
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/backup",
+      "schedule": "0 7 * * 0"
     }
   ]
 }

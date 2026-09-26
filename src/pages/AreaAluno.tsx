@@ -1,11 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ojfnqcajbhvlqtprrfxg.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZm5xY2FqYmh2bHF0cHJyZnhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTI2MDMsImV4cCI6MjEwMjkyODYwM30.5yGrdipKkLNO6xx3whdE-6a2ub5MjEfVFEdxfqHlIbg';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 import { Bell, Home, Trophy, BookOpen, Target, ChevronRight, Play, HelpCircle, LogOut, Camera, Upload, Sparkles, Volume2, User, FileText, Printer, Gamepad2, Flame, Video, StopCircle, Award, X, RefreshCw, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
@@ -1144,8 +1139,8 @@ export default function AreaAluno() {
 
   const uploadVideo = async () => {
     if (!videoBlob) return;
-    
-    const MAX_SIZE = 150 * 1024 * 1024; // 150MB (o plano do Supabase tem 1GB de armazenamento no total)
+
+    const MAX_SIZE = 150 * 1024 * 1024; // 150MB
     if (videoBlob.size > MAX_SIZE) {
       toast.error('O vídeo ficou muito pesado (acima de 150MB)! Grave mais curto.');
       setVideoBlob(null);
@@ -1154,103 +1149,63 @@ export default function AreaAluno() {
     }
 
     setUploadingVideo(true);
-    setUploadProgress(10);
-    
+    setUploadProgress(5);
+
     try {
       const token = localStorage.getItem('acorde_token');
-      
-      const mime = videoBlob.type || 'video/webm';
-      let extensao = 'webm';
-      if (mime.includes('mp4')) {
-        extensao = 'mp4';
-      } else if (mime.includes('quicktime') || mime.includes('mov')) {
-        extensao = 'mp4'; // force mp4 for ios
-      }
-      
-      let finalVideoUrl = '';
-      setUploadProgress(20);
-      
-      // Tentativa de upload direto para o Supabase Storage com resiliência (retry de 3 vezes)
-      let uploadSuccess = false;
-      let uploadAttempts = 3;
-      const nomeAlunoSafe = (alunoData?.nome || 'aluno')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-zA-Z0-9]/g, '_')
-        .toLowerCase();
-      const filename = `treinos/${nomeAlunoSafe}_${Date.now()}.${extensao}`;
+      const mime = (videoBlob.type || 'video/webm').includes('quicktime') ? 'video/mp4' : (videoBlob.type || 'video/webm');
 
-      for (let attempt = 1; attempt <= uploadAttempts; attempt++) {
-          try {
-              console.log(`Tentativa ${attempt} de upload direto para o Supabase...`);
-              const { error } = await supabase.storage.from('uploads').upload(filename, videoBlob, {
-                  contentType: mime || 'video/mp4',
-                  upsert: true
-              });
-              
-              if (!error) {
-                  setUploadProgress(80);
-                  const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filename);
-                  finalVideoUrl = publicUrlData.publicUrl;
-                  uploadSuccess = true;
-                  break; // Sucesso!
-              } else {
-                  console.warn(`Tentativa ${attempt} falhou:`, error.message);
-                  if (attempt < uploadAttempts) {
-                      await new Promise(resolve => setTimeout(resolve, 1500 * attempt)); // Delay progressivo
-                  }
-              }
-          } catch (err: any) {
-              console.warn(`Exceção na tentativa ${attempt}:`, err.message || err);
-              if (attempt < uploadAttempts) {
-                  await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
-              }
+      // 1) O servidor abre uma sessão de upload no Google Drive da escola (vídeos nunca vão para o Supabase)
+      const sessRes = await fetch('/api/treinos/drive-upload-session', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tamanho: videoBlob.size, mimeType: mime })
+      });
+      const sess = await sessRes.json().catch(() => ({}));
+      if (!sessRes.ok || !sess.uploadUrl) throw new Error(sess.error || 'Não foi possível iniciar o envio do vídeo.');
+
+      // 2) O vídeo vai do celular direto para o Drive, com progresso real
+      const driveFile: any = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', sess.uploadUrl);
+        xhr.setRequestHeader('Content-Type', mime);
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) setUploadProgress(5 + Math.round((ev.loaded / ev.total) * 85));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('Resposta inválida do Google Drive.')); }
+          } else {
+            reject(new Error(`O envio falhou (${xhr.status}). Tente novamente com uma conexão melhor.`));
           }
-      }
+        };
+        xhr.onerror = () => reject(new Error('A conexão caiu durante o envio. Tente novamente no Wi-Fi.'));
+        xhr.send(videoBlob);
+      });
+      if (!driveFile?.id) throw new Error('O Google Drive não confirmou o arquivo.');
 
-      if (!uploadSuccess) {
-          console.warn('Todas as 3 tentativas de upload direto para o Supabase falharam. Usando fallback do backend.');
-          if (videoBlob.size > 4.5 * 1024 * 1024) {
-              toast.warning('Conexão oscilou! Como seu vídeo é grande (>4.5MB), o envio pode falhar. Recomendamos usar Wi-Fi estável ou reduzir a duração do vídeo.');
-          }
-      }
-
-      setUploadProgress(85);
-      
-      // Envia a URL pro backend para registrar o check-in (ou envia formData se falhar e precisar de fallback)
-      let reqBody, reqHeaders;
-      if (finalVideoUrl) {
-         reqBody = JSON.stringify({ video_url: finalVideoUrl });
-         reqHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
-      } else {
-         const formData = new FormData();
-         formData.append('video', videoBlob, `treino_video.${extensao}`);
-         reqBody = formData;
-         reqHeaders = { 'Authorization': `Bearer ${token}` };
-      }
-
+      // 3) Registra o treino e os pontos
+      setUploadProgress(92);
       const res = await fetch('/api/treinos/upload-video', {
         method: 'POST',
-        headers: reqHeaders,
-        body: reqBody
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ drive_file_id: driveFile.id })
       });
-      
-      setUploadProgress(95);
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Erro de resposta do servidor.' }));
         throw new Error(err.error || `Erro ${res.status}: Falha ao registrar vídeo.`);
       }
-      
-      const data = await res.json();
+
+      await res.json();
       setUploadProgress(100);
       toast.success('Vídeo de treino enviado com sucesso! 📹🔥');
       playRetroSound(880, 'sine', 0.15);
       setTimeout(() => playRetroSound(1320, 'sine', 0.25), 150);
-      
+
       setVideoBlob(null);
       setVideoPreviewUrl('');
       fetchTreinos();
-      
+
       const timestamp = Date.now();
       const fetchHeaders = { 'Authorization': `Bearer ${token}` };
       fetch(`/api/alunos/me?t=${timestamp}`, { headers: fetchHeaders })
@@ -2690,7 +2645,7 @@ export default function AreaAluno() {
                   MEU DIÁRIO DE TREINO
                 </h2>
                 <p className="text-[10px] text-[#261812] font-black uppercase">
-                  Marque sua presença de estudo diária e envie um vídeo opcional estudando (expira em 24h) para avisar seu professor!
+                  Marque sua presença de estudo diária e envie um vídeo opcional estudando (fica disponível para o professor por alguns dias) para avisar seu professor!
                 </p>
               </div>
 

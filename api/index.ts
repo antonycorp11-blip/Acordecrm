@@ -11,8 +11,8 @@ import { dirname, join, resolve } from 'path';
 import multer from 'multer';
 import { execSync } from 'child_process';
 import nodemailer from 'nodemailer';
-import { GoogleAuth } from 'google-auth-library';
 import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 
 // Mês de referência atual (MM/AAAA) no fuso de Cuiabá
 function getMesAtualBR() {
@@ -48,7 +48,7 @@ try {
 } catch (e) {
   console.warn('Could not create upload dir:', e);
 }
-const upload = multer({ dest: uploadDir });
+const upload = multer({ dest: uploadDir, limits: { fileSize: 150 * 1024 * 1024 } });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://ojfnqcajbhvlqtprrfxg.supabase.co';
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZm5xY2FqYmh2bHF0cHJyZnhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTI2MDMsImV4cCI6MjEwMjkyODYwM30.5yGrdipKkLNO6xx3whdE-6a2ub5MjEfVFEdxfqHlIbg';
@@ -74,6 +74,8 @@ const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', 
 // E-mail do dono (God Mode). Comparação exata, nunca por prefixo.
 const OWNER_EMAIL = 'antonycorp11@gmail.com';
 const ONESIGNAL_APP_ID = 'e5e38375-5fd8-4e92-bf0d-29996ba9426d';
+// Caixa que recebe os avisos da direção (relatório diário, confirmações de aula, resumo semanal)
+const EMAIL_AVISOS_DONO = 'santiagoaquilles11@gmail.com';
 const isOwner = (req: any) => String(req.user?.email || '').toLowerCase().trim() === OWNER_EMAIL;
 
 // Escapa curingas do ILIKE para comparar e-mails sem diferenciar maiúsculas/minúsculas
@@ -291,21 +293,92 @@ const VALOR_AULA_POUCOS_ALUNOS = 35;
 const VALOR_AULA_MUITOS_ALUNOS = 30;
 const LIMITE_ALUNOS_VALOR_AULA = 10;
 
-// Conta alunos ativos distintos por professor (matrícula ativa, aluno não arquivado)
-const contarAlunosAtivosPorProfessor = async (): Promise<Record<number, number>> => {
-    const { data } = await supabase.from('matriculas')
-        .select('professor_id, aluno_id, alunos(status)')
-        .eq('status', 'ativa')
-        .not('professor_id', 'is', null);
-    const porProf: Record<number, Set<number>> = {};
-    (data || []).forEach((m: any) => {
-        const aluno: any = Array.isArray(m.alunos) ? m.alunos[0] : m.alunos;
-        if (aluno?.status === 'arquivado') return;
-        (porProf[m.professor_id] ||= new Set()).add(m.aluno_id);
+// Status que geram pagamento ao professor
+const STATUS_AULA_PAGA = ['realizada', 'falta_aluno'];
+// Aulas ainda por acontecer que entram na previsão (inclui reposições já remarcadas)
+const STATUS_AULA_PREVISTA = ['pendente', 'confirmada', 'aguardando_confirmacao', 'reposicao', 'a_repor'];
+
+const isDonoPorNome = (nome: string) => {
+    const n = String(nome || '').toLowerCase();
+    return n.includes('aquilles') || n.includes('áquilles');
+};
+
+// Folha de um mês de aulas (MM/AAAA): calculada ao vivo a partir da agenda.
+// Valor da aula conforme o nº de alunos distintos que o professor atende NAQUELE mês.
+const calcularFolhaProfessores = async (mesAno: string, professorId?: number) => {
+    const [mStr, yStr] = String(mesAno).split('/');
+    const inicio = `${yStr}-${mStr.padStart(2, '0')}-01`;
+    const fim = toDateStr(new Date(Date.UTC(Number(yStr), Number(mStr), 0, 12)));
+
+    const aulas = await fetchAllRows(() => {
+        let q = supabase.from('aulas')
+            .select('id, professor_id, aluno_id, status, tipo, data, alunos(status), professores(nome)')
+            .gte('data', inicio)
+            .lte('data', fim)
+            .not('professor_id', 'is', null)
+            .in('status', [...STATUS_AULA_PAGA, ...STATUS_AULA_PREVISTA])
+            .order('id', { ascending: true });
+        if (professorId) q = q.eq('professor_id', professorId);
+        return q;
     });
-    const contagem: Record<number, number> = {};
-    Object.entries(porProf).forEach(([pid, set]) => { contagem[Number(pid)] = set.size; });
-    return contagem;
+
+    const porProf: Record<number, any> = {};
+    aulas.forEach((a: any) => {
+        const prof: any = Array.isArray(a.professores) ? a.professores[0] : a.professores;
+        const aluno: any = Array.isArray(a.alunos) ? a.alunos[0] : a.alunos;
+        if (isDonoPorNome(prof?.nome)) return;
+        const paga = STATUS_AULA_PAGA.includes(a.status);
+        // Aula futura de aluno arquivado não deve acontecer: fica fora da previsão
+        if (!paga && aluno?.status === 'arquivado') return;
+
+        const p = porProf[a.professor_id] ||= {
+            professor_id: a.professor_id,
+            professor_nome: prof?.nome || `Professor ${a.professor_id}`,
+            alunos: new Set<number>(),
+            aulas_realizadas: 0,
+            aulas_previstas: 0,
+            reposicoes_realizadas: 0,
+            reposicoes_previstas: 0
+        };
+        if (a.aluno_id) p.alunos.add(a.aluno_id);
+        const ehReposicao = a.tipo === 'reposicao' || a.status === 'reposicao' || a.status === 'a_repor';
+        if (paga) {
+            p.aulas_realizadas++;
+            if (ehReposicao) p.reposicoes_realizadas++;
+        } else {
+            p.aulas_previstas++;
+            if (ehReposicao) p.reposicoes_previstas++;
+        }
+    });
+
+    const professores = Object.values(porProf).map((p: any) => {
+        const qtdAlunos = p.alunos.size;
+        const valorAula = valorAulaPorQtdAlunos(qtdAlunos);
+        return {
+            professor_id: p.professor_id,
+            professor_nome: p.professor_nome,
+            alunos_no_mes: qtdAlunos,
+            valor_aula: valorAula,
+            aulas_realizadas: p.aulas_realizadas,
+            aulas_previstas: p.aulas_previstas,
+            reposicoes_realizadas: p.reposicoes_realizadas,
+            reposicoes_previstas: p.reposicoes_previstas,
+            valor_realizado: p.aulas_realizadas * valorAula,
+            valor_previsto_total: (p.aulas_realizadas + p.aulas_previstas) * valorAula
+        };
+    }).sort((a: any, b: any) => b.valor_previsto_total - a.valor_previsto_total);
+
+    return {
+        mes_aulas: `${mStr.padStart(2, '0')}/${yStr}`,
+        professores,
+        total_realizado: professores.reduce((acc: number, p: any) => acc + p.valor_realizado, 0),
+        total_previsto: professores.reduce((acc: number, p: any) => acc + p.valor_previsto_total, 0)
+    };
+};
+
+const mesAnterior = (mesAno: string) => {
+    const [m, y] = mesAno.split('/').map(Number);
+    return m === 1 ? `12/${y - 1}` : `${String(m - 1).padStart(2, '0')}/${y}`;
 };
 
 const valorAulaPorQtdAlunos = (qtdAlunos: number) =>
@@ -332,7 +405,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
     // Ignorar rotas não-API e rotas públicas da API
     if (!req.path.startsWith('/api/')) return next();
     
-    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos'];
+    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos', '/api/cron/backup', '/api/drive/oauth/callback'];
     // Link de assinatura enviado por e-mail: o contratante não está logado
     const isPublicContrato = req.method === 'GET' && /^\/api\/contratos\/[0-9a-f-]{36}$/i.test(req.path) && !token;
     const isPublicAssinatura = req.method === 'POST' && /^\/api\/contratos\/[0-9a-f-]{36}\/assinar$/i.test(req.path) && !token;
@@ -1509,7 +1582,13 @@ async function startServer() {
                 });
             }
 
-            // 2. Fallback para Supabase Storage se Google Drive não estiver configurado
+            // Vídeos nunca vão para o Supabase (lotaram o banco antigo)
+            if (mimeType.startsWith('video/')) {
+                try { fs.unlinkSync(req.file.path); } catch {}
+                return res.status(503).json({ error: 'Vídeos só podem ser salvos no Google Drive, que não está conectado.' });
+            }
+
+            // 2. Fallback para Supabase Storage (apenas arquivos pequenos: áudio, imagem, PDF)
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('uploads')
                 .upload(filename, fileBuffer, { contentType: mimeType, upsert: true });
@@ -2695,51 +2774,32 @@ async function startServer() {
 
             // Cálculo dinâmico do saldo do mês atual
             // Cálculo do histórico financeiro (últimos 6 meses)
-            const now = new Date();
-            const year = now.getFullYear();
-            const monthStr = String(now.getMonth() + 1).padStart(2, '0');
-            const currentMonthKey = `${year}-${monthStr}`;
-
-            const sixMonthsAgo = new Date(year, now.getMonth() - 5, 1);
-            const { data: todasAulas } = await supabase.from('aulas')
-                .select('data')
-                .eq('professor_id', prof.id)
-                .in('status', ['realizada', 'falta_aluno'])
-                .gte('data', sixMonthsAgo.toISOString().split('T')[0]);
-
-            const history: Record<string, number> = {};
-            for(let i=0; i<6; i++) {
-                const d = new Date(year, now.getMonth() - i, 1);
-                const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}`;
-                history[k] = 0;
-            }
-
-            if (todasAulas) {
-                todasAulas.forEach((aula: any) => {
-                    const mk = aula.data.substring(0, 7);
-                    if (history[mk] !== undefined) {
-                        history[mk]++;
-                    }
-                });
-            }
-
-            const alunosPorProf = await contarAlunosAtivosPorProfessor();
-            const alunosAtivos = alunosPorProf[prof.id] || 0;
-            const valorAula = valorAulaPorQtdAlunos(alunosAtivos);
-
+            // Últimos 6 meses calculados com a mesma regra da folha (valor da aula por nº de alunos do mês)
             const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-            const historico = Object.keys(history).sort().reverse().map(k => {
-                const [y, m] = k.split('-');
+            const meses: string[] = [];
+            let cursor = getMesAtualBR();
+            for (let i = 0; i < 6; i++) { meses.push(cursor); cursor = mesAnterior(cursor); }
+            const folhas = await Promise.all(meses.map((m) => calcularFolhaProfessores(m, prof.id)));
+
+            const historico = folhas.map((f, i) => {
+                const meu = f.professores.find((p: any) => Number(p.professor_id) === Number(prof.id));
+                const [m, y] = meses[i].split('/');
                 return {
-                    mes_ano: `${monthNames[Number(m)-1]} ${y}`,
-                    aulas: history[k],
-                    valor: history[k] * valorAula
+                    mes_ano: `${monthNames[Number(m) - 1]} ${y}`,
+                    aulas: meu?.aulas_realizadas || 0,
+                    valor: meu?.valor_realizado || 0,
+                    aulas_previstas: meu?.aulas_previstas || 0,
+                    valor_previsto_total: meu?.valor_previsto_total || 0,
+                    valor_aula: meu?.valor_aula || valorAulaPorQtdAlunos(0),
+                    alunos_no_mes: meu?.alunos_no_mes || 0
                 };
             });
 
-            prof.saldo = (history[currentMonthKey] || 0) * valorAula;
-            prof.valor_aula_calculado = valorAula;
-            prof.alunos_ativos = alunosAtivos;
+            const atual = historico[0];
+            prof.saldo = atual.valor;
+            prof.saldo_previsto_mes = atual.valor_previsto_total;
+            prof.valor_aula_calculado = atual.valor_aula;
+            prof.alunos_ativos = atual.alunos_no_mes;
             prof.historico_financeiro = historico;
 
             res.json(prof);
@@ -3509,25 +3569,9 @@ async function startServer() {
             const prevStartDate = `${yNumPrev}-${prevMStr}-01`;
             const prevEndDate = new Date(yNumPrev, mNumPrev, 0).toISOString().split('T')[0];
 
-            const { data: aulasPrev } = await supabase.from('aulas')
-                .select('professor_id, professor:professores(nome)')
-                .gte('data', prevStartDate)
-                .lte('data', prevEndDate)
-                .in('status', ['realizada', 'falta_aluno'])
-                .not('professor_id', 'is', null);
-                
-            let salariosPrevistos = 0;
-            if (aulasPrev) {
-                const aulasValidas = aulasPrev.filter(a => {
-                    const profData: any = a.professor;
-                    const nomeStr = Array.isArray(profData) ? (profData[0]?.nome || '') : (profData?.nome || '');
-                    const nome = nomeStr.toLowerCase();
-                    return !nome.includes('aquilles') && !nome.includes('áquilles');
-                });
-                const alunosPorProf = await contarAlunosAtivosPorProfessor();
-                salariosPrevistos = aulasValidas.reduce((acc: number, a: any) =>
-                    acc + valorAulaPorQtdAlunos(alunosPorProf[a.professor_id] || 0), 0);
-            }
+            // Salários pagos neste mês = aulas do mês anterior (dadas + ainda agendadas, com reposições)
+            const folhaPrev = await calcularFolhaProfessores(`${prevMStr}/${yNumPrev}`);
+            const salariosPrevistos = folhaPrev.total_previsto;
             const custoOperacional = salariosPrevistos;
 
             const lucroMes = receitaMes - despesasPagas; // Lucro Real (recebido - pago sem salários automáticos, a não ser que lance manual)
@@ -3581,53 +3625,20 @@ async function startServer() {
             const startDate = `${yNum}-${prevMStr}-01`;
             const endDate = new Date(yNum, mNum, 0).toISOString().split('T')[0];
 
-            const { data: todosProfessores, error: errProf } = await supabase.from('professores').select('id, nome');
-            if (errProf) throw errProf;
-
-            const remunByProf: Record<number, any> = {};
-            (todosProfessores || []).forEach(prof => {
-                remunByProf[prof.id] = {
-                    professor_id: prof.id,
-                    professor_nome: prof.nome,
-                    total_aulas: 0,
-                    valor_estimado: 0
-                };
-            });
-
-            const { data: aulas, error } = await supabase.from('aulas')
-                .select('professor_id, status, professor:professores(nome)')
-                .gte('data', startDate)
-                .lte('data', endDate)
-                .in('status', ['realizada', 'falta_aluno']);
-
-            if (error) throw error;
-
-            const alunosPorProf = await contarAlunosAtivosPorProfessor();
-            Object.values(remunByProf).forEach((r: any) => {
-                r.alunos_ativos = alunosPorProf[r.professor_id] || 0;
-                r.valor_aula = valorAulaPorQtdAlunos(r.alunos_ativos);
-            });
-
-            (aulas || []).forEach(aula => {
-                if (!aula.professor_id) return;
-                
-                const profData: any = aula.professor;
-                const nomeStr = Array.isArray(profData) ? (profData[0]?.nome || '') : (profData?.nome || '');
-                const nome = nomeStr.toLowerCase();
-                
-                if (nome.includes('aquilles') || nome.includes('áquilles')) return;
-                
-                if (remunByProf[aula.professor_id]) {
-                    remunByProf[aula.professor_id].total_aulas++;
-                    remunByProf[aula.professor_id].valor_estimado += remunByProf[aula.professor_id].valor_aula;
-                }
-            });
-
-            // Filter out professors with 0 classes and also exclude Aquilles from the final list
-            const finalRemun = Object.values(remunByProf).filter((r: any) => {
-                const nome = r.professor_nome?.toLowerCase() || '';
-                return !nome.includes('aquilles') && !nome.includes('áquilles') && r.total_aulas > 0;
-            });
+            const folha = await calcularFolhaProfessores(`${prevMStr}/${yNum}`);
+            const finalRemun = folha.professores
+                .filter((p: any) => p.aulas_realizadas > 0 || p.aulas_previstas > 0)
+                .map((p: any) => ({
+                    professor_id: p.professor_id,
+                    professor_nome: p.professor_nome,
+                    total_aulas: p.aulas_realizadas,
+                    valor_estimado: p.valor_realizado,
+                    valor_aula: p.valor_aula,
+                    alunos_ativos: p.alunos_no_mes,
+                    aulas_previstas: p.aulas_previstas,
+                    reposicoes: p.reposicoes_realizadas + p.reposicoes_previstas,
+                    valor_previsto_total: p.valor_previsto_total
+                }));
 
             res.json(finalRemun);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
@@ -3831,6 +3842,16 @@ async function startServer() {
                 }]);
 
                 await sendPushNotification(titulo, msg, String(aula.professores.id), profData?.email);
+            }
+
+            // Aviso imediato para a direção
+            if (req.user?.role === 'aluno' && (await getAutomacoes()).AUTO_AVISO_CONFIRMACAO) {
+                const quando = `${String(aula.data || '').split('-').reverse().join('/')} às ${String(aula.horario || '').substring(0, 5)}`;
+                await enviarEmailAviso(
+                    `✅ Aula confirmada: ${aula.alunos?.nome || 'aluno'}`,
+                    `${aula.alunos?.nome || 'O aluno'} confirmou presença na aula de ${quando} com ${aula.professores?.nome || 'o professor'}.`,
+                    EMAIL_AVISOS_DONO
+                );
             }
 
             res.json({ success: true, status: 'confirmada' });
@@ -4376,38 +4397,43 @@ async function startServer() {
         };
     }
 
-    // E-mail de aviso (independente do OneSignal: se o push falhar, o e-mail ainda sai)
-    async function enviarEmailAviso(titulo: string, mensagem: string, emailTo: string) {
+    // Envio de e-mail em HTML pelo Gmail da escola
+    async function enviarEmailHtml(titulo: string, html: string, emailTo: string) {
         try {
             const { smtpEmail, smtpPass } = await getSmtpConfig();
             if (!smtpEmail || !smtpPass) {
-                console.warn('[EMAIL_AVISO] SMTP_EMAIL/SMTP_PASSWORD não configurados. E-mail ignorado.');
+                console.warn('[EMAIL] SMTP_EMAIL/SMTP_PASSWORD não configurados. E-mail ignorado.');
                 return false;
             }
             const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpEmail, pass: smtpPass } });
-            const emailHtml = `
-                <div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812;">
-                    <h2 style="color: #ff6b00; text-transform: uppercase;">STUDIO ACORDE - AVISO DA ESCOLA</h2>
-                    <p style="font-size: 16px; font-weight: bold;">${escapeHtml(titulo)}</p>
-                    <p>${escapeHtml(mensagem)}</p>
-                    <br/>
-                    <a href="https://acordecrm.vercel.app" style="display: inline-block; padding: 15px 30px; background: #ff6b00; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px; border: 2px solid #261812; box-shadow: 4px 4px 0 #261812;">ACESSAR MEU APLICATIVO</a>
-                    <br/><br/>
-                    <hr style="border: 1px dashed #7b5647;" />
-                    <small style="color: #8e7164;">Esta é uma mensagem automática do Studio Acorde CRM. Não responda este e-mail.</small>
-                </div>
-            `;
             // Na Vercel a função é congelada após a resposta: o envio precisa terminar antes dela
             await Promise.race([
-                transporter.sendMail({ from: `"Studio Acorde" <${smtpEmail}>`, to: emailTo, subject: titulo, html: emailHtml }),
+                transporter.sendMail({ from: `"Studio Acorde" <${smtpEmail}>`, to: emailTo, subject: titulo, html }),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP Timeout (10s)')), 10000))
             ]);
-            console.log('[EMAIL_AVISO] E-mail enviado para', emailTo);
+            console.log('[EMAIL] Enviado para', emailTo, '-', titulo);
             return true;
         } catch (e: any) {
-            console.error('[EMAIL_AVISO] Falha ao enviar e-mail:', e?.message || e);
+            console.error('[EMAIL] Falha ao enviar e-mail:', e?.message || e);
             return false;
         }
+    }
+
+    // E-mail de aviso simples (independente do OneSignal: se o push falhar, o e-mail ainda sai)
+    async function enviarEmailAviso(titulo: string, mensagem: string, emailTo: string) {
+        const emailHtml = `
+            <div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812;">
+                <h2 style="color: #ff6b00; text-transform: uppercase;">STUDIO ACORDE - AVISO DA ESCOLA</h2>
+                <p style="font-size: 16px; font-weight: bold;">${escapeHtml(titulo)}</p>
+                <p>${escapeHtml(mensagem)}</p>
+                <br/>
+                <a href="https://acordecrm.vercel.app" style="display: inline-block; padding: 15px 30px; background: #ff6b00; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px; border: 2px solid #261812; box-shadow: 4px 4px 0 #261812;">ACESSAR MEU APLICATIVO</a>
+                <br/><br/>
+                <hr style="border: 1px dashed #7b5647;" />
+                <small style="color: #8e7164;">Esta é uma mensagem automática do Studio Acorde CRM. Não responda este e-mail.</small>
+            </div>
+        `;
+        return enviarEmailHtml(titulo, emailHtml, emailTo);
     }
 
     // O app registra no OneSignal o id da tabela usuarios; aqui convertemos o e-mail do destinatário nesse id.
@@ -4563,110 +4589,270 @@ async function startServer() {
         }
     });
 
-    // 3. Upload de mídia e vídeo para Google Drive
-    
-    const DEFAULT_DRIVE_FOLDER_ID = '1EHXi800HrwkDWOgd-l0lXKtQZkMlSFyV';
+    // =====================================================================
+    // GOOGLE DRIVE (conta Google da escola, 15GB grátis)
+    // Vídeos de treino vão SOMENTE para o Drive (nunca para o Supabase).
+    // A escola conecta a própria conta uma vez (OAuth); o refresh token fica
+    // salvo criptografado em system_config.
+    // Pastas: "Acorde CRM - Treinos" (vídeos, limpeza automática) e
+    //         "Acorde CRM - Materiais" (áudios/imagens das fichas, permanente).
+    // =====================================================================
+    const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+    const VIDEO_MAX_BYTES = 150 * 1024 * 1024;
+    const DRIVE_CFG = {
+        clientId: 'GOOGLE_OAUTH_CLIENT_ID',
+        clientSecret: 'GOOGLE_OAUTH_CLIENT_SECRET',
+        refreshToken: 'GOOGLE_OAUTH_REFRESH_TOKEN',
+        conta: 'GOOGLE_DRIVE_CONTA',
+        pastaTreinos: 'GOOGLE_DRIVE_PASTA_TREINOS',
+        pastaMateriais: 'GOOGLE_DRIVE_PASTA_MATERIAIS',
+        retencaoDias: 'VIDEO_RETENCAO_DIAS',
+        alertaPct: 'DRIVE_ALERTA_PCT'
+    };
 
-    async function uploadToGoogleDrive(filename: string, mimeType: string, fileBuffer: Buffer): Promise<{ url: string, fileId: string, webViewLink: string } | null> {
+    // Criptografia simples (AES-256-GCM) dos segredos do Drive guardados no banco
+    const cryptoKey = crypto.createHash('sha256').update(`drive:${JWT_SECRET}`).digest();
+    const encryptSecret = (plain: string) => {
+        const iv = crypto.randomBytes(12);
+        const cipher = crypto.createCipheriv('aes-256-gcm', cryptoKey, iv);
+        const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+        return `enc:${iv.toString('base64')}:${cipher.getAuthTag().toString('base64')}:${enc.toString('base64')}`;
+    };
+    const decryptSecret = (value: string | null | undefined) => {
+        if (!value) return null;
+        if (!value.startsWith('enc:')) return value;
         try {
-            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
-            const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
-            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
-            const targetFolderId = folderConfig?.key_value || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
+            const [, ivB, tagB, dataB] = value.split(':');
+            const decipher = crypto.createDecipheriv('aes-256-gcm', cryptoKey, Buffer.from(ivB, 'base64'));
+            decipher.setAuthTag(Buffer.from(tagB, 'base64'));
+            return Buffer.concat([decipher.update(Buffer.from(dataB, 'base64')), decipher.final()]).toString('utf8');
+        } catch {
+            return null;
+        }
+    };
 
-            if (!credsStr) return null;
+    const getConfigValues = async (keys: string[]) => {
+        const { data } = await supabase.from('system_config').select('key_name, key_value').in('key_name', keys);
+        const out: Record<string, string | null> = {};
+        keys.forEach((k) => { out[k] = data?.find((d: any) => d.key_name === k)?.key_value ?? null; });
+        return out;
+    };
+    const setConfigValue = async (key: string, value: string | null) => {
+        const { data: existing } = await supabase.from('system_config').select('id').eq('key_name', key).maybeSingle();
+        if (value === null) {
+            if (existing) await supabase.from('system_config').delete().eq('key_name', key);
+            return;
+        }
+        if (existing) await supabase.from('system_config').update({ key_value: value }).eq('key_name', key);
+        else await supabase.from('system_config').insert([{ key_name: key, key_value: value }]);
+    };
 
-            let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
-            authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
+    const getDriveSettings = async () => {
+        const cfg = await getConfigValues(Object.values(DRIVE_CFG));
+        return {
+            clientId: process.env.GOOGLE_OAUTH_CLIENT_ID || cfg[DRIVE_CFG.clientId],
+            clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || decryptSecret(cfg[DRIVE_CFG.clientSecret]),
+            refreshToken: decryptSecret(cfg[DRIVE_CFG.refreshToken]),
+            conta: cfg[DRIVE_CFG.conta],
+            pastaTreinos: cfg[DRIVE_CFG.pastaTreinos],
+            pastaMateriais: cfg[DRIVE_CFG.pastaMateriais],
+            retencaoDias: Math.max(1, Number(cfg[DRIVE_CFG.retencaoDias]) || 7),
+            alertaPct: Math.min(99, Math.max(10, Number(cfg[DRIVE_CFG.alertaPct]) || 80))
+        };
+    };
 
-            const auth = new GoogleAuth(authOptions);
-            const client = await auth.getClient();
-            const token = await client.getAccessToken();
+    // Token de acesso de curta duração (cache por instância)
+    let driveTokenCache: { token: string; exp: number } | null = null;
+    const getDriveAccessToken = async (): Promise<string | null> => {
+        if (driveTokenCache && driveTokenCache.exp > Date.now() + 60000) return driveTokenCache.token;
+        const s = await getDriveSettings();
+        if (!s.clientId || !s.clientSecret || !s.refreshToken) return null;
+        const r = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: s.clientId,
+                client_secret: s.clientSecret,
+                refresh_token: s.refreshToken,
+                grant_type: 'refresh_token'
+            })
+        });
+        const data: any = await r.json().catch(() => ({}));
+        if (!r.ok || !data.access_token) {
+            console.error('[DRIVE] Falha ao renovar token:', data?.error || r.status);
+            return null;
+        }
+        driveTokenCache = { token: data.access_token, exp: Date.now() + (Number(data.expires_in) || 3000) * 1000 };
+        return data.access_token;
+    };
 
-            const metadata = {
-                name: filename,
-                parents: [targetFolderId]
+    const driveFetch = async (url: string, init: any = {}) => {
+        const token = await getDriveAccessToken();
+        if (!token) throw new Error('Google Drive não conectado.');
+        return fetch(url, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } });
+    };
+
+    // Garante a pasta no Drive (criada pelo próprio app, acessível com o escopo drive.file)
+    const garantirPastaDrive = async (tipo: 'treinos' | 'materiais') => {
+        const s = await getDriveSettings();
+        const atual = tipo === 'treinos' ? s.pastaTreinos : s.pastaMateriais;
+        if (atual) {
+            const check = await driveFetch(`https://www.googleapis.com/drive/v3/files/${atual}?fields=id,trashed`);
+            const j: any = await check.json().catch(() => ({}));
+            if (check.ok && !j.trashed) return atual;
+        }
+        const nome = tipo === 'treinos' ? 'Acorde CRM - Treinos (apagados automaticamente)' : 'Acorde CRM - Materiais das fichas';
+        const r = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: nome, mimeType: 'application/vnd.google-apps.folder' })
+        });
+        const j: any = await r.json();
+        if (!r.ok || !j.id) throw new Error('Não foi possível criar a pasta no Google Drive.');
+        await setConfigValue(tipo === 'treinos' ? DRIVE_CFG.pastaTreinos : DRIVE_CFG.pastaMateriais, j.id);
+        return j.id as string;
+    };
+
+    const tornarLeituraPublica = async (fileId: string) => {
+        await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: 'reader', type: 'anyone' })
+        });
+    };
+
+    const driveIdDaUrl = (url: string | null | undefined) => {
+        if (!url || !url.includes('drive.google.com')) return null;
+        const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        return m?.[1] || null;
+    };
+
+    // Upload feito pelo servidor (arquivos pequenos: áudios/imagens das fichas)
+    async function uploadToGoogleDrive(filename: string, mimeType: string, fileBuffer: Buffer, tipo: 'treinos' | 'materiais' = 'materiais'): Promise<{ url: string, fileId: string, webViewLink: string } | null> {
+        try {
+            if (!(await getDriveAccessToken())) return null;
+            const folderId = await garantirPastaDrive(tipo);
+            const boundary = `acorde${Date.now()}`;
+            const meta = JSON.stringify({ name: filename, parents: [folderId] });
+            const body = Buffer.concat([
+                Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`),
+                fileBuffer,
+                Buffer.from(`\r\n--${boundary}--`)
+            ]);
+            const r = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+                method: 'POST',
+                headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+                body
+            });
+            const j: any = await r.json();
+            if (!r.ok || !j.id) {
+                console.warn('[DRIVE] Upload falhou:', JSON.stringify(j).slice(0, 300));
+                return null;
+            }
+            await tornarLeituraPublica(j.id);
+            return {
+                url: `https://drive.google.com/uc?export=download&id=${j.id}`,
+                fileId: j.id,
+                webViewLink: `https://drive.google.com/file/d/${j.id}/view`
             };
-
-            const initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token.token}`,
-                    'Content-Type': 'application/json',
-                    'X-Upload-Content-Type': mimeType
-                },
-                body: JSON.stringify(metadata)
-            });
-
-            if (!initRes.ok) {
-                console.warn('[GDRIVE] Init resumable upload failed:', await initRes.text());
-                return null;
-            }
-
-            const resumableUrl = initRes.headers.get('Location');
-            if (!resumableUrl) return null;
-
-            const putRes = await fetch(resumableUrl, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': mimeType,
-                    'Authorization': `Bearer ${token.token}`
-                },
-                body: fileBuffer
-            });
-
-            if (!putRes.ok) {
-                console.warn('[GDRIVE] PUT data failed:', await putRes.text());
-                return null;
-            }
-
-            const putData: any = await putRes.json();
-            const fileId = putData.id;
-
-            // Define permissão pública para leitura do arquivo
-            await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token.token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ role: 'reader', type: 'anyone' })
-            });
-
-            const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-            const webViewLink = `https://drive.google.com/file/d/${fileId}/view`;
-
-            return { url: directUrl, fileId, webViewLink };
         } catch (e: any) {
             console.error('[GDRIVE_HELPER] Erro ao enviar para Google Drive:', e.message);
             return null;
         }
     }
 
+    // Uso do Drive: cota da conta + tamanho da pasta de treinos
+    const getDriveUso = async () => {
+        const s = await getDriveSettings();
+        const conectado = Boolean(s.clientId && s.clientSecret && s.refreshToken && await getDriveAccessToken());
+        if (!conectado) return { conectado: false, retencaoDias: s.retencaoDias, alertaPct: s.alertaPct, temCredenciaisApp: Boolean(s.clientId && s.clientSecret) };
+
+        const aboutR = await driveFetch('https://www.googleapis.com/drive/v3/about?fields=storageQuota,user(emailAddress)');
+        const about: any = await aboutR.json().catch(() => ({}));
+        const limite = Number(about?.storageQuota?.limit) || 0;
+        const usado = Number(about?.storageQuota?.usage) || 0;
+
+        let videos = 0, bytesVideos = 0, maisAntigo: string | null = null;
+        if (s.pastaTreinos) {
+            let pageToken = '';
+            do {
+                const q = encodeURIComponent(`'${s.pastaTreinos}' in parents and trashed = false`);
+                const r = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,size,createdTime)&pageSize=1000${pageToken ? `&pageToken=${pageToken}` : ''}`);
+                const j: any = await r.json().catch(() => ({}));
+                (j.files || []).forEach((f: any) => {
+                    videos++;
+                    bytesVideos += Number(f.size) || 0;
+                    if (!maisAntigo || f.createdTime < maisAntigo) maisAntigo = f.createdTime;
+                });
+                pageToken = j.nextPageToken || '';
+            } while (pageToken);
+        }
+
+        const pct = limite > 0 ? Math.round((usado / limite) * 1000) / 10 : 0;
+        return {
+            conectado: true,
+            conta: about?.user?.emailAddress || s.conta,
+            limiteBytes: limite,
+            usadoBytes: usado,
+            usoPct: pct,
+            videos,
+            bytesVideos,
+            videoMaisAntigo: maisAntigo,
+            retencaoDias: s.retencaoDias,
+            alertaPct: s.alertaPct,
+            alerta: limite > 0 && pct >= s.alertaPct
+        };
+    };
+
+    // Apaga do Drive os vídeos da pasta de treinos mais antigos que N dias
+    // (vão para a lixeira do Drive, de onde ainda podem ser recuperados por 30 dias)
+    const limparVideosDrive = async (dias: number) => {
+        const s = await getDriveSettings();
+        if (!s.pastaTreinos || !(await getDriveAccessToken())) return { apagados: 0, bytes: 0 };
+        const limite = new Date(Date.now() - dias * 86400000).toISOString();
+        let apagados = 0, bytes = 0, pageToken = '';
+        const idsApagados: string[] = [];
+        do {
+            const q = encodeURIComponent(`'${s.pastaTreinos}' in parents and trashed = false and createdTime < '${limite}'`);
+            const r = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,size)&pageSize=200${pageToken ? `&pageToken=${pageToken}` : ''}`);
+            const j: any = await r.json().catch(() => ({}));
+            for (const f of (j.files || [])) {
+                const del = await driveFetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trashed: true })
+                });
+                if (del.ok) {
+                    apagados++;
+                    bytes += Number(f.size) || 0;
+                    idsApagados.push(f.id);
+                }
+            }
+            pageToken = j.nextPageToken || '';
+        } while (pageToken);
+
+        // Remove o link dos treinos cujos vídeos foram apagados (o check-in continua registrado)
+        if (idsApagados.length > 0) {
+            const { data: treinosComVideo } = await supabase.from('aluno_treinos').select('id, video_url').not('video_url', 'is', null);
+            const alvos = (treinosComVideo || []).filter((t: any) => idsApagados.includes(driveIdDaUrl(t.video_url) || ''));
+            for (const t of alvos) {
+                await supabase.from('aluno_treinos').update({ video_url: null, video_created_at: null }).eq('id', t.id);
+            }
+        }
+        return { apagados, bytes };
+    };
+
+    // --- Conexão da conta Google (OAuth) ---
+    const getRedirectUri = (req: any) => {
+        const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+        const host = (req.headers['x-forwarded-host'] as string) || req.headers.host;
+        return `${proto.split(',')[0]}://${host}/api/drive/oauth/callback`;
+    };
+
     app.get('/api/drive/status', requireAdmin, async (req, res) => {
         try {
-            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
-            const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
-            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
-            const folderId = folderConfig?.key_value || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
-
-            let clientEmail = null;
-            let isConfigured = false;
-
-            if (credsStr) {
-                try {
-                    const parsed = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
-                    clientEmail = parsed.client_email || null;
-                    isConfigured = Boolean(parsed.client_email && parsed.private_key);
-                } catch {}
-            }
-
-            res.json({
-                isConfigured,
-                folderId,
-                clientEmail,
-                storageProvider: isConfigured ? 'google_drive' : 'supabase'
-            });
+            const uso = await getDriveUso();
+            res.json({ ...uso, redirectUri: getRedirectUri(req) });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
@@ -4674,172 +4860,198 @@ async function startServer() {
 
     app.post('/api/drive/config', requireAdmin, async (req, res) => {
         try {
-            const { credentialsJson, folderId } = req.body;
-            if (!credentialsJson && !folderId) {
-                return res.status(400).json({ error: 'Nenhuma configuração enviada.' });
+            const { clientId, clientSecret, retencaoDias, alertaPct } = req.body;
+            if (clientId !== undefined) await setConfigValue(DRIVE_CFG.clientId, String(clientId).trim() || null);
+            if (clientSecret) await setConfigValue(DRIVE_CFG.clientSecret, encryptSecret(String(clientSecret).trim()));
+            if (retencaoDias !== undefined) {
+                const d = Math.floor(Number(retencaoDias));
+                if (!d || d < 1 || d > 365) return res.status(400).json({ error: 'Dias de retenção devem estar entre 1 e 365.' });
+                await setConfigValue(DRIVE_CFG.retencaoDias, String(d));
             }
-
-            if (credentialsJson) {
-                let parsedCreds = credentialsJson;
-                if (typeof credentialsJson === 'string') {
-                    try {
-                        parsedCreds = JSON.parse(credentialsJson);
-                    } catch {
-                        return res.status(400).json({ error: 'JSON de credenciais do Google inválido.' });
-                    }
-                }
-
-                const strVal = JSON.stringify(parsedCreds);
-                const { data: existing } = await supabase.from('system_config').select('id').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
-                if (existing) {
-                    await supabase.from('system_config').update({ key_value: strVal }).eq('key_name', 'GOOGLE_CREDENTIALS');
-                } else {
-                    await supabase.from('system_config').insert([{ key_name: 'GOOGLE_CREDENTIALS', key_value: strVal }]);
-                }
+            if (alertaPct !== undefined) {
+                const p = Math.floor(Number(alertaPct));
+                if (!p || p < 10 || p > 99) return res.status(400).json({ error: 'O alerta deve ficar entre 10% e 99%.' });
+                await setConfigValue(DRIVE_CFG.alertaPct, String(p));
             }
-
-            if (folderId) {
-                const { data: existingFolder } = await supabase.from('system_config').select('id').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
-                if (existingFolder) {
-                    await supabase.from('system_config').update({ key_value: folderId.trim() }).eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID');
-                } else {
-                    await supabase.from('system_config').insert([{ key_name: 'GOOGLE_DRIVE_FOLDER_ID', key_value: folderId.trim() }]);
-                }
-            }
-
-            res.json({ success: true, message: 'Configurações do Google Drive salvas com sucesso!' });
+            driveTokenCache = null;
+            res.json({ success: true });
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
     });
 
-    app.post('/api/drive/test', requireAdmin, async (req, res) => {
+    app.get('/api/drive/oauth/start', requireAdmin, async (req: any, res) => {
         try {
-            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
-            const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
-            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
-            const targetFolderId = folderConfig?.key_value || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
-
-            if (!credsStr) {
-                return res.status(400).json({ ok: false, error: 'Google Credentials não configuradas no sistema.' });
-            }
-
-            const authOptions: any = {
-                scopes: ['https://www.googleapis.com/auth/drive.file'],
-                credentials: typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr
-            };
-            const auth = new GoogleAuth(authOptions);
-            const client = await auth.getClient();
-            const token = await client.getAccessToken();
-
-            if (!token || !token.token) {
-                return res.status(400).json({ ok: false, error: 'Falha ao gerar token com as credenciais do Google.' });
-            }
-
-            res.json({ ok: true, message: 'Conexão com a API do Google Drive autenticada com sucesso!' });
-        } catch (e: any) {
-            res.status(500).json({ ok: false, error: e.message });
-        }
-    });
-    
-    app.post('/api/drive/upload-url', async (req, res) => {
-        try {
-            const { filename, mimeType } = req.body;
-            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
-            const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
-            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
-            const targetFolderId = folderConfig?.key_value || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID;
-
-            let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
-            if (credsStr) {
-                authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
-            } else {
-                authOptions.keyFile = './google-credentials.json';
-            }
-            const auth = new GoogleAuth(authOptions);
-            const client = await auth.getClient();
-            const token = await client.getAccessToken();
-
-            const metadata = {
-                name: filename,
-                parents: [targetFolderId]
-            };
-
-            const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token.token}`,
-                    'Content-Type': 'application/json',
-                    'X-Upload-Content-Type': mimeType
-                },
-                body: JSON.stringify(metadata)
+            const s = await getDriveSettings();
+            if (!s.clientId || !s.clientSecret) return res.status(400).json({ error: 'Cadastre primeiro o Client ID e o Client Secret do Google.' });
+            const state = jwt.sign({ purpose: 'drive_oauth', uid: req.user.id }, JWT_SECRET, { expiresIn: '15m' });
+            const params = new URLSearchParams({
+                client_id: s.clientId,
+                redirect_uri: getRedirectUri(req),
+                response_type: 'code',
+                scope: DRIVE_SCOPE,
+                access_type: 'offline',
+                prompt: 'consent',
+                include_granted_scopes: 'true',
+                state
             });
-
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error('Google Drive Error: ' + text);
-            }
-
-            const resumableUrl = response.headers.get('Location');
-            res.json({ uploadUrl: resumableUrl });
+            res.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` });
         } catch (error: any) {
-            console.error('Drive API Error:', error);
             res.status(500).json({ error: error.message });
         }
     });
 
-    app.post('/api/drive/finish-upload', async (req, res) => {
+    // Rota pública: o Google redireciona para cá após o consentimento (validada pelo "state" assinado)
+    app.get('/api/drive/oauth/callback', async (req: any, res) => {
+        const voltar = (status: string) => res.redirect(`/?drive=${encodeURIComponent(status)}`);
         try {
-            const { fileId } = req.body;
-            const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
-            const credsStr = config?.key_value || process.env.GOOGLE_CREDENTIALS;
-            let authOptions: any = { scopes: ['https://www.googleapis.com/auth/drive.file'] };
-            if (credsStr) {
-                authOptions.credentials = typeof credsStr === 'string' ? JSON.parse(credsStr) : credsStr;
-            } else {
-                authOptions.keyFile = './google-credentials.json';
+            const { code, state, error } = req.query;
+            if (error) return voltar('cancelado');
+            try {
+                const decoded: any = jwt.verify(String(state || ''), JWT_SECRET);
+                if (decoded?.purpose !== 'drive_oauth') return voltar('erro');
+            } catch {
+                return voltar('expirado');
             }
-            const auth = new GoogleAuth(authOptions);
-            const client = await auth.getClient();
-            const token = await client.getAccessToken();
-
-            // Set file to anyone with link can view (so professor can see it)
-            await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+            const s = await getDriveSettings();
+            const r = await fetch('https://oauth2.googleapis.com/token', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token.token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    role: 'reader',
-                    type: 'anyone'
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    code: String(code || ''),
+                    client_id: String(s.clientId || ''),
+                    client_secret: String(s.clientSecret || ''),
+                    redirect_uri: getRedirectUri(req),
+                    grant_type: 'authorization_code'
                 })
             });
+            const data: any = await r.json().catch(() => ({}));
+            if (!r.ok || !data.refresh_token) {
+                console.error('[DRIVE_OAUTH] Troca de código falhou:', data?.error || r.status);
+                return voltar('erro');
+            }
+            await setConfigValue(DRIVE_CFG.refreshToken, encryptSecret(data.refresh_token));
+            driveTokenCache = { token: data.access_token, exp: Date.now() + (Number(data.expires_in) || 3000) * 1000 };
 
-            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=webViewLink`, {
-                headers: { 'Authorization': `Bearer ${token.token}` }
-            });
-            
-            const fileData = await fileRes.json();
-            const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-            res.json({ url: directUrl, webViewLink: fileData.webViewLink });
-        } catch(err: any) {
-            res.status(500).json({ error: err.message });
+            const about = await driveFetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)');
+            const aj: any = await about.json().catch(() => ({}));
+            if (aj?.user?.emailAddress) await setConfigValue(DRIVE_CFG.conta, aj.user.emailAddress);
+
+            await garantirPastaDrive('treinos');
+            await garantirPastaDrive('materiais');
+            voltar('ok');
+        } catch (e: any) {
+            console.error('[DRIVE_OAUTH] Erro:', e.message);
+            voltar('erro');
         }
     });
 
-    app.post('/api/treinos/upload-video', upload.single('video'), async (req: any, res) => {
-        if (!req.file && !req.body.video_url) {
-            return res.status(400).json({ error: 'Nenhum arquivo de vídeo enviado.' });
+    app.post('/api/drive/desconectar', requireAdmin, async (req, res) => {
+        try {
+            // Só remove a conexão; os arquivos já enviados continuam no Drive
+            await setConfigValue(DRIVE_CFG.refreshToken, null);
+            driveTokenCache = null;
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
         }
+    });
+
+    // Limpeza manual (botão no painel): apaga vídeos com mais de N dias
+    app.post('/api/drive/limpar', requireAdmin, async (req, res) => {
+        try {
+            const dias = Math.floor(Number(req.body?.dias));
+            if (!dias || dias < 1) return res.status(400).json({ error: 'Informe quantos dias manter (mínimo 1).' });
+            const r = await limparVideosDrive(dias);
+            res.json({ success: true, ...r });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // --- Vídeos de treino ---
+    // 1) O app do aluno pede uma sessão de upload: o vídeo vai do celular direto para o Drive
+    app.post('/api/treinos/drive-upload-session', async (req: any, res) => {
+        try {
+            const alunoId = await getAlunoIdDoUsuario(req);
+            if (!alunoId) return res.status(404).json({ error: 'Estudante não encontrado.' });
+            const tamanho = Number(req.body?.tamanho) || 0;
+            const mimeType = String(req.body?.mimeType || 'video/mp4');
+            if (!mimeType.startsWith('video/')) return res.status(400).json({ error: 'Envie um arquivo de vídeo.' });
+            if (tamanho > VIDEO_MAX_BYTES) return res.status(400).json({ error: 'O vídeo passou de 150MB. Grave um vídeo mais curto.' });
+            if (!(await getDriveAccessToken())) {
+                return res.status(503).json({ error: 'O envio de vídeos está temporariamente indisponível. Avise a escola.' });
+            }
+            const folderId = await garantirPastaDrive('treinos');
+            const ext = mimeType.includes('webm') ? 'webm' : 'mp4';
+            const r = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,size,mimeType,parents,createdTime', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json; charset=UTF-8',
+                    'X-Upload-Content-Type': mimeType,
+                    ...(tamanho ? { 'X-Upload-Content-Length': String(tamanho) } : {}),
+                    // Necessário para o navegador conseguir enviar direto para a URL de upload
+                    ...(req.headers.origin ? { Origin: String(req.headers.origin) } : {})
+                },
+                body: JSON.stringify({ name: `treino_${alunoId}_${getDateBR()}_${Date.now()}.${ext}`, parents: [folderId] })
+            });
+            if (!r.ok) {
+                console.error('[TREINO_UPLOAD_SESSION] Falha:', r.status, (await r.text()).slice(0, 300));
+                return res.status(502).json({ error: 'Não foi possível iniciar o envio para o Google Drive.' });
+            }
+            res.json({ uploadUrl: r.headers.get('Location') });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // 2) Depois do upload, o app registra o vídeo (ou envia o arquivo pequeno direto pelo servidor)
+    app.post('/api/treinos/upload-video', upload.single('video'), async (req: any, res) => {
+        const limparTemp = () => { if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch {} } };
         try {
             const email = (req.user?.email || '').toLowerCase().trim();
-            if (!email) return res.status(401).json({ error: 'Não autorizado.' });
+            if (!email) { limparTemp(); return res.status(401).json({ error: 'Não autorizado.' }); }
+            if (!req.file && !req.body.drive_file_id) {
+                return res.status(400).json({ error: 'Nenhum vídeo enviado.' });
+            }
 
             const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', escapeLike(email)).maybeSingle();
-            if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado para este email.' });
+            if (!aluno) { limparTemp(); return res.status(404).json({ error: 'Estudante não encontrado para este email.' }); }
 
-            const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+            if (!(await getDriveAccessToken())) {
+                limparTemp();
+                return res.status(503).json({ error: 'O envio de vídeos está temporariamente indisponível. Avise a escola.' });
+            }
+            const pastaTreinos = await garantirPastaDrive('treinos');
+
+            let fileId: string | null = null;
+            if (req.body.drive_file_id) {
+                // Confere se o arquivo existe na pasta de treinos e é um vídeo
+                fileId = String(req.body.drive_file_id).replace(/[^a-zA-Z0-9_-]/g, '');
+                const info = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,parents,mimeType,size,trashed`);
+                const j: any = await info.json().catch(() => ({}));
+                if (!info.ok || j.trashed || !(j.parents || []).includes(pastaTreinos) || !String(j.mimeType || '').startsWith('video/')) {
+                    return res.status(400).json({ error: 'Vídeo não encontrado no armazenamento da escola.' });
+                }
+                if (Number(j.size) > VIDEO_MAX_BYTES) {
+                    await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+                    return res.status(400).json({ error: 'O vídeo passou de 150MB.' });
+                }
+                await tornarLeituraPublica(fileId);
+            } else {
+                // Envio pequeno pelo servidor (a Vercel aceita até ~4,5MB por requisição)
+                let mimeType = req.file.mimetype || 'video/mp4';
+                if (!mimeType.startsWith('video/')) mimeType = 'video/mp4';
+                const ext = mimeType.includes('webm') ? '.webm' : '.mp4';
+                const buffer = fs.readFileSync(req.file.path);
+                limparTemp();
+                const up = await uploadToGoogleDrive(`treino_${aluno.id}_${getDateBR()}_${Date.now()}${ext}`, mimeType, buffer, 'treinos');
+                if (!up) return res.status(502).json({ error: 'Falha ao salvar o vídeo no Google Drive.' });
+                fileId = up.fileId;
+            }
+
+            const url = `https://drive.google.com/file/d/${fileId}/view`;
+            const todayStr = getDateBR();
 
             let { data: treino } = await supabase
                 .from('aluno_treinos')
@@ -4861,75 +5073,15 @@ async function startServer() {
                 treino = novoTreino;
             }
 
-            let url = req.body.video_url || '';
-
-            if (!req.body.video_url && req.file) {
-                let ext = path.extname(req.file.originalname) || '.mp4';
-                let mimeType = req.file.mimetype || 'video/mp4';
-                const extLower = ext.toLowerCase();
-
-                if (mimeType.includes('quicktime') || extLower === '.mov' || extLower === '.qt') {
-                    mimeType = 'video/mp4';
-                    ext = '.mp4';
-                } else if (!mimeType.startsWith('video/') || mimeType.includes('text/plain') || mimeType.includes('octet-stream')) {
-                    if (extLower === '.webm') mimeType = 'video/webm';
-                    else mimeType = 'video/mp4';
-                }
-
-                const filename = `treino_${aluno.id}_${Date.now()}${ext}`;
-                const fileBuffer = fs.readFileSync(req.file.path);
-
-                // 1. Tenta upload direto para o Google Drive para poupar o Supabase
-                const driveResult = await uploadToGoogleDrive(filename, mimeType, fileBuffer);
-                if (driveResult) {
-                    url = driveResult.url;
-                } else {
-                    // Fallback para Supabase
-                    const storageFilename = `treinos/${aluno.id}_${Date.now()}_video${ext}`;
-                    const { error: uploadError } = await supabase.storage
-                        .from('uploads')
-                        .upload(storageFilename, fileBuffer, { 
-                            contentType: mimeType, 
-                            upsert: true,
-                            cacheControl: '3600'
-                        });
-
-                    if (uploadError) {
-                        console.error('[TREINO_VIDEO_UPLOAD] Erro Storage:', uploadError.message);
-                        return res.status(500).json({ error: 'Falha ao salvar vídeo: ' + uploadError.message });
-                    }
-
-                    const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(storageFilename);
-                    url = publicUrlData?.publicUrl || '';
-                }
-
-                try { fs.unlinkSync(req.file.path); } catch {}
-            }
-
-            if (treino.video_url && treino.video_url !== url && treino.video_url.includes('/uploads/')) {
-                try {
-                    const oldPath = treino.video_url.split('/uploads/')[1];
-                    if (oldPath) {
-                        await supabase.storage.from('uploads').remove([oldPath]);
-                    }
-                } catch (e) {
-                    console.error('Erro ao deletar vídeo antigo do storage:', e);
-                }
-            }
-
             const { data: updatedTreino, error: updateError } = await supabase
                 .from('aluno_treinos')
-                .update({ 
-                    video_url: url,
-                    video_created_at: new Date().toISOString()
-                })
+                .update({ video_url: url, video_created_at: new Date().toISOString() })
                 .eq('id', treino.id)
                 .select()
                 .single();
-
             if (updateError) throw updateError;
 
-            // Pontos do vídeo só depois do upload salvo (se ainda não tinha vídeo hoje)
+            // Pontos do vídeo só depois de salvo (se ainda não tinha vídeo hoje)
             if (!jaTinhaVideo) {
                 try {
                     const pontosAdicionais = jaTinhaTreino ? 50000 : 100000;
@@ -4943,7 +5095,6 @@ async function startServer() {
                 }
             }
 
-            // Criar notificação para o professor
             try {
                 const titulo = 'Vídeo de treino enviado! 📹';
                 const mensagem = `${aluno.nome} gravou um vídeo estudando hoje!`;
@@ -4955,122 +5106,108 @@ async function startServer() {
 
             res.json({ success: true, url, data: updatedTreino });
         } catch (error: any) {
+            limparTemp();
             console.error('[TREINO_VIDEO_UPLOAD] Erro geral:', error);
             res.status(500).json({ error: error.message });
         }
     });
 
-    // 4. Obter treinos de todos os alunos (Professor) com limpeza expirada integrada
+    // 4. Treinos de todos os alunos (Professor), com a data em que cada vídeo expira
     app.get('/api/treinos/prof', requireStaff, async (req, res) => {
         try {
-            // Rotina de limpeza automática de vídeos antigos (> 24 horas)
-            const limitDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-            const { data: expirados } = await supabase
-                .from('aluno_treinos')
-                .select('id, video_url')
-                .not('video_url', 'is', null)
-                .lt('video_created_at', limitDate);
-
-            if (expirados && expirados.length > 0) {
-                console.log(`[TREINO_VIDEO_CLEANUP] Limpando ${expirados.length} vídeos com mais de 24h...`);
-                for (const item of expirados) {
-                    try {
-                        const filePath = item.video_url.split('/uploads/')[1];
-                        if (filePath) {
-                            await supabase.storage.from('uploads').remove([filePath]);
-                        }
-                        await supabase
-                            .from('aluno_treinos')
-                            .update({ video_url: null, video_created_at: null })
-                            .eq('id', item.id);
-                    } catch (e: any) {
-                        console.error('[CLEANUP] Erro no item:', item.id, e.message);
-                    }
-                }
-            }
-
             const { data: treinos, error } = await supabase
                 .from('aluno_treinos')
                 .select('*, alunos(id, nome, foto_url)')
                 .order('id', { ascending: false })
                 .limit(100);
-
             if (error) throw error;
-            res.json(treinos || []);
+
+            const { retencaoDias } = await getDriveSettings();
+            const agora = Date.now();
+            res.json((treinos || []).map((t: any) => {
+                const expiraEm = t.video_created_at ? new Date(new Date(t.video_created_at).getTime() + retencaoDias * 86400000).toISOString() : null;
+                const expirado = !expiraEm || new Date(expiraEm).getTime() <= agora;
+                return { ...t, video_expira_em: expiraEm, video_url: expirado ? null : t.video_url, retencao_dias: retencaoDias };
+            }));
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
     });
 
-    // Endpoint Cron do Vercel para limpeza diária de vídeos expirados
+    // Cron da Vercel: só aceita chamadas com o CRON_SECRET (a Vercel envia no header Authorization)
+    const cronAutorizado = (req: any) => {
+        const cronSecret = process.env.CRON_SECRET;
+        if (cronSecret) return req.headers['authorization'] === `Bearer ${cronSecret}`;
+        return String(req.headers['user-agent'] || '').includes('vercel-cron');
+    };
+
+    // Rotina diária (07h de Cuiabá): limpeza de vídeos + e-mails automáticos
     app.get('/api/cron/cleanup-videos', async (req, res) => {
-        try {
-            const cronSecret = process.env.CRON_SECRET;
-            if (cronSecret && req.headers['authorization'] !== `Bearer ${cronSecret}`) {
-                return res.status(401).json({ error: 'Não autorizado' });
-            }
-            console.log('[CRON] Iniciando limpeza automática de vídeos de treino...');
-            const limitDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        if (!cronAutorizado(req)) return res.status(401).json({ error: 'Não autorizado' });
+        const hoje = getDateBR();
+        const resultado: Record<string, any> = {};
+        const etapa = async (nome: string, fn: () => Promise<any>) => {
+            try { resultado[nome] = await fn(); } catch (e: any) { resultado[nome] = { erro: e.message }; console.error(`[CRON] ${nome}:`, e); }
+        };
 
-            // 1. Buscar treinos com vídeos expirados (> 24h)
-            const { data: expirados } = await supabase
-                .from('aluno_treinos')
-                .select('id, video_url')
-                .not('video_url', 'is', null)
-                .lt('video_created_at', limitDate);
+        // 1) Vídeos: apaga do Drive os que passaram do prazo de retenção
+        await etapa('videos_drive', async () => {
+            const { retencaoDias } = await getDriveSettings();
+            return limparVideosDrive(retencaoDias);
+        });
 
-            let deletedFromTreinos = 0;
-            if (expirados && expirados.length > 0) {
-                for (const item of expirados) {
-                    try {
-                        const filePath = item.video_url?.split('/uploads/')[1];
-                        if (filePath) {
-                            await supabase.storage.from('uploads').remove([filePath]);
-                        }
-                        await supabase
-                            .from('aluno_treinos')
-                            .update({ video_url: null, video_created_at: null })
-                            .eq('id', item.id);
-                        deletedFromTreinos++;
-                    } catch (e: any) {
-                        console.error('[CRON] Erro ao limpar item:', item.id, e.message);
-                    }
-                }
-            }
-
-            // 2. Limpar arquivos órfãos com mais de 24h na pasta uploads/treinos/
+        // 2) Legado: vídeos antigos que ainda estejam no Supabase Storage
+        await etapa('videos_supabase_legado', async () => {
             const { data: files } = await supabase.storage.from('uploads').list('treinos', { limit: 1000 });
-            let deletedOrphans = 0;
-            if (files && files.length > 0) {
-                const now = Date.now();
-                const orphansToDelete = files
-                    .filter(f => f.name !== '.emptyFolderPlaceholder' && (now - new Date(f.created_at).getTime()) > 24 * 60 * 60 * 1000)
-                    .map(f => `treinos/${f.name}`);
-                
-                if (orphansToDelete.length > 0) {
-                    await supabase.storage.from('uploads').remove(orphansToDelete);
-                    deletedOrphans = orphansToDelete.length;
-                }
+            const antigos = (files || [])
+                .filter((f: any) => f.name !== '.emptyFolderPlaceholder' && (Date.now() - new Date(f.created_at).getTime()) > 24 * 60 * 60 * 1000)
+                .map((f: any) => `treinos/${f.name}`);
+            if (antigos.length) await supabase.storage.from('uploads').remove(antigos);
+            const { data: treinosSupa } = await supabase.from('aluno_treinos').select('id, video_url').like('video_url', '%/storage/v1/object/public/uploads/treinos/%');
+            for (const t of (treinosSupa || [])) {
+                const caminho = String(t.video_url).split('/uploads/')[1];
+                if (antigos.includes(caminho)) await supabase.from('aluno_treinos').update({ video_url: null, video_created_at: null }).eq('id', t.id);
             }
+            return { apagados: antigos.length };
+        });
 
-            // 3. Limpar possíveis arquivos no bucket 'videos'
-            const { data: vidFiles } = await supabase.storage.from('videos').list('', { limit: 1000 });
-            if (vidFiles && vidFiles.length > 0) {
-                const now = Date.now();
-                const vidsToDelete = vidFiles
-                    .filter(f => f.name !== '.emptyFolderPlaceholder' && (now - new Date(f.created_at).getTime()) > 24 * 60 * 60 * 1000)
-                    .map(f => f.name);
-                if (vidsToDelete.length > 0) {
-                    await supabase.storage.from('videos').remove(vidsToDelete);
+        // 3) E-mails: no máximo uma vez por dia
+        const { AUTO_ULTIMO_ENVIO_DIARIO: ultimo } = await getConfigValues(['AUTO_ULTIMO_ENVIO_DIARIO']);
+        if (ultimo === hoje) {
+            resultado.emails = 'já enviados hoje';
+        } else {
+            await setConfigValue('AUTO_ULTIMO_ENVIO_DIARIO', hoje);
+            const auto = await getAutomacoes();
+            if (auto.AUTO_EMAIL_DIARIO_DONO) await etapa('relatorio_diario_direcao', () => relatorioDiarioDono(hoje));
+            if (auto.AUTO_LEMBRETE_PRESENCA) await etapa('lembrete_presenca', () => lembretePresencaProfessores(hoje));
+            if (auto.AUTO_COBRANCA_ALUNOS) await etapa('cobranca_alunos', () => cobrancaAlunos(hoje));
+            if (auto.AUTO_RESUMO_SEMANAL && parseDateOnly(hoje).getUTCDay() === 1) await etapa('resumo_semanal', () => resumoSemanalEscola(hoje));
+            // Sensor do Drive: avisa a direção quando o espaço passa do limite configurado
+            await etapa('sensor_drive', async () => {
+                const uso: any = await getDriveUso();
+                if (uso.conectado && uso.alerta) {
+                    await enviarEmailAviso('⚠️ Google Drive quase cheio',
+                        `O Google Drive da escola está com ${uso.usoPct}% de uso (${uso.videos} vídeos de treino). Abra o painel do Google Drive no sistema para apagar vídeos antigos ou reduzir o prazo de retenção.`,
+                        EMAIL_AVISOS_DONO);
+                    return { alerta_enviado: true, usoPct: uso.usoPct };
                 }
-            }
-
-            res.json({
-                success: true,
-                message: `Limpeza concluída. ${deletedFromTreinos} registros de treinos e ${deletedOrphans} arquivos órfãos removidos.`
+                return { alerta_enviado: false, usoPct: uso.usoPct ?? null };
             });
+        }
+
+        console.log('[CRON] Rotina diária:', JSON.stringify(resultado));
+        res.json({ success: true, resultado });
+    });
+
+    // Backup semanal (domingo) no Google Drive
+    app.get('/api/cron/backup', async (req, res) => {
+        if (!cronAutorizado(req)) return res.status(401).json({ error: 'Não autorizado' });
+        try {
+            if (!(await getAutomacoes()).AUTO_BACKUP_SEMANAL) return res.json({ success: true, pulado: 'backup desativado' });
+            const r = await fazerBackupDrive();
+            if (!r.ok) await enviarEmailAviso('⚠️ Backup semanal não realizado', `O backup automático do banco falhou: ${r.motivo}.`, EMAIL_AVISOS_DONO);
+            res.json({ success: true, ...r });
         } catch (e: any) {
-            console.error('[CRON] Erro na limpeza de vídeos:', e);
             res.status(500).json({ error: e.message });
         }
     });
@@ -5125,6 +5262,9 @@ async function startServer() {
             await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'confirmacao', aluno_id: aluno.id }]);
 
             await notificarProfessorDoAluno(aluno.id, titulo, mensagem);
+            if ((await getAutomacoes()).AUTO_AVISO_CONFIRMACAO) {
+                await enviarEmailAviso(`✅ Aula confirmada: ${aluno.nome}`, mensagem, EMAIL_AVISOS_DONO);
+            }
 
             res.json({ success: true, data: aula });
         } catch (error: any) {
@@ -5785,17 +5925,7 @@ async function startServer() {
                 return res.status(400).json({ error: 'Texto bruto é obrigatório.' });
             }
 
-            let apiKey = process.env.GEMINI_API_KEY;
-            if (!apiKey) {
-                const { data: dbConfig } = await supabase
-                    .from('system_config')
-                    .select('key_value')
-                    .eq('key_name', 'GEMINI_API_KEY')
-                    .maybeSingle();
-                if (dbConfig?.key_value) {
-                    apiKey = dbConfig.key_value;
-                }
-            }
+            const apiKey = await getGeminiKey();
             if (!apiKey) {
                 return res.status(500).json({ error: 'GEMINI_API_KEY não configurada no servidor nem no banco de dados (tabela system_config).' });
             }
@@ -5817,9 +5947,9 @@ Texto com perguntas e respostas a ser estruturado:
 ${textoBruto}
 """`;
 
-            const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: { responseMimeType: 'application/json' }
@@ -6413,6 +6543,760 @@ ${textoBruto}
 
             res.json(lista);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // =====================================================================
+    // RELATÓRIOS (painel do administrador)
+    // =====================================================================
+    const intervaloDoMes = (mesAno: string) => {
+        const [m, y] = mesAno.split('/');
+        const inicio = `${y}-${m.padStart(2, '0')}-01`;
+        const fim = toDateStr(new Date(Date.UTC(Number(y), Number(m), 0, 12)));
+        return { inicio, fim };
+    };
+    const somarDias = (dataStr: string, dias: number) => toDateStr(new Date(parseDateOnly(dataStr).getTime() + dias * 86400000));
+
+    // Plano chegando ao fim: última mensalidade gerada vence nos próximos 30 dias
+    const calcularRenovacoes = async (hoje: string) => {
+        const mensalidades = await fetchAllRows(() => supabase.from('pagamentos')
+            .select('id, aluno_id, data_vencimento')
+            .eq('tipo_receita', 'mensalidade')
+            .not('aluno_id', 'is', null)
+            .order('id', { ascending: true }));
+        const ultima: Record<number, string> = {};
+        mensalidades.forEach((m: any) => {
+            if (!ultima[m.aluno_id] || m.data_vencimento > ultima[m.aluno_id]) ultima[m.aluno_id] = m.data_vencimento;
+        });
+        const limite = somarDias(hoje, 30);
+        const ids = Object.keys(ultima).map(Number).filter((id) => ultima[id] >= hoje && ultima[id] <= limite);
+        if (ids.length === 0) return [];
+        const { data: alunos } = await supabase.from('alunos').select('id, nome, telefone, responsavel_telefone, status').in('id', ids);
+        return (alunos || [])
+            .filter((a: any) => a.status !== 'arquivado')
+            .map((a: any) => ({
+                aluno_id: a.id,
+                nome: a.nome,
+                telefone: a.telefone || a.responsavel_telefone || null,
+                ultima_mensalidade: ultima[a.id],
+                dias_restantes: Math.round((parseDateOnly(ultima[a.id]).getTime() - parseDateOnly(hoje).getTime()) / 86400000)
+            }))
+            .sort((a: any, b: any) => a.dias_restantes - b.dias_restantes);
+    };
+
+    // Risco de evasão: faltas recentes, atraso e ausência de treino/app
+    const calcularRiscoEvasao = async (hoje: string) => {
+        const desde = somarDias(hoje, -30);
+        const { data: alunos } = await supabase.from('alunos').select('id, nome, telefone, responsavel_telefone, push_ativo').eq('status', 'ativo');
+        const aulas30 = await fetchAllRows(() => supabase.from('aulas')
+            .select('id, aluno_id, status')
+            .gte('data', desde).lt('data', hoje)
+            .in('status', ['realizada', 'falta_aluno', 'falta'])
+            .order('id', { ascending: true }));
+        const { data: treinos } = await supabase.from('aluno_treinos').select('aluno_id').gte('data', desde);
+        const atrasados = await fetchAllRows(() => supabase.from('pagamentos')
+            .select('id, aluno_id, valor')
+            .neq('status', 'pago').lt('data_vencimento', hoje)
+            .not('aluno_id', 'is', null)
+            .order('id', { ascending: true }));
+
+        const faltas: Record<number, number> = {};
+        const presencas: Record<number, number> = {};
+        aulas30.forEach((a: any) => {
+            if (a.status === 'realizada') presencas[a.aluno_id] = (presencas[a.aluno_id] || 0) + 1;
+            else if (a.status === 'falta_aluno') faltas[a.aluno_id] = (faltas[a.aluno_id] || 0) + 1;
+        });
+        const treinou = new Set((treinos || []).map((t: any) => t.aluno_id));
+        const emAtraso: Record<number, number> = {};
+        atrasados.forEach((p: any) => { emAtraso[p.aluno_id] = (emAtraso[p.aluno_id] || 0) + 1; });
+
+        return (alunos || []).map((a: any) => {
+            const motivos: string[] = [];
+            let pontos = 0;
+            const f = faltas[a.id] || 0;
+            if (f >= 2) { motivos.push(`${f} faltas em 30 dias`); pontos += f * 2; }
+            if ((emAtraso[a.id] || 0) > 0) { motivos.push(`${emAtraso[a.id]} parcela(s) em atraso`); pontos += 3 + emAtraso[a.id]; }
+            if ((presencas[a.id] || 0) === 0 && f === 0) { motivos.push('nenhuma aula registrada em 30 dias'); pontos += 2; }
+            if (!treinou.has(a.id)) { motivos.push('sem treino no app em 30 dias'); pontos += 1; }
+            if (!a.push_ativo) { motivos.push('app/notificações desativados'); pontos += 1; }
+            return { aluno_id: a.id, nome: a.nome, telefone: a.telefone || a.responsavel_telefone || null, pontos, motivos };
+        }).filter((r: any) => r.pontos >= 4).sort((a: any, b: any) => b.pontos - a.pontos);
+    };
+
+    // Horários livres dos próximos 7 dias (disponibilidade do professor menos aulas marcadas)
+    const calcularHorariosVagos = async (hoje: string) => {
+        const diasNome = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+        const fim = somarDias(hoje, 7);
+        const { data: profs } = await supabase.from('professores').select('id, nome, disponibilidade, status').neq('status', 'inativo');
+        const { data: ocupadas } = await supabase.from('aulas').select('professor_id, data, horario, status')
+            .gte('data', hoje).lt('data', fim).not('status', 'in', '(falta,cancelada)');
+        const { data: exps } = await supabase.from('aulas_experimentais').select('professor_id, data, horario, status')
+            .gte('data', hoje).lt('data', fim).neq('status', 'cancelada');
+        const ocupado = new Set([...(ocupadas || []), ...(exps || [])].map((a: any) => `${a.professor_id}_${a.data}_${String(a.horario || '').substring(0, 5)}`));
+
+        return (profs || []).filter((p: any) => !isDonoPorNome(p.nome) && p.disponibilidade && typeof p.disponibilidade === 'object').map((p: any) => {
+            const livres: { data: string; dia: string; horario: string }[] = [];
+            for (let i = 0; i < 7; i++) {
+                const data = somarDias(hoje, i);
+                const dia = diasNome[parseDateOnly(data).getUTCDay()];
+                const horas: string[] = Array.isArray(p.disponibilidade[dia]) ? p.disponibilidade[dia] : [];
+                horas.forEach((h) => {
+                    const hh = String(h).substring(0, 5);
+                    if (!ocupado.has(`${p.id}_${data}_${hh}`)) livres.push({ data, dia, horario: hh });
+                });
+            }
+            return { professor_id: p.id, professor_nome: p.nome, total_livres: livres.length, livres };
+        }).sort((a: any, b: any) => b.total_livres - a.total_livres);
+    };
+
+    app.get('/api/relatorios', requireAdmin, async (req, res) => {
+        try {
+            const hoje = getDateBR();
+            const mesRef = /^\d{2}\/\d{4}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : getMesAtualBR();
+            const { inicio, fim } = intervaloDoMes(mesRef);
+
+            const [pagsMes, despesasMes, aulasMes, leadsMes, expsMes, alunosAll, matriculasMes, vencidos, placeholders] = await Promise.all([
+                fetchAllRows(() => supabase.from('pagamentos').select('id, valor, status, tipo_receita, aluno_id, data_pagamento, alunos:aluno_id(status)').eq('referencia_mes_ano', mesRef).order('id', { ascending: true })),
+                supabase.from('despesas').select('valor, status, categoria').gte('data_vencimento', inicio).lte('data_vencimento', fim),
+                fetchAllRows(() => supabase.from('aulas').select('id, status, tipo, data').gte('data', inicio).lte('data', fim).order('id', { ascending: true })),
+                supabase.from('leads').select('id, status, origem, data_criacao').gte('data_criacao', `${inicio}T00:00:00-04:00`).lte('data_criacao', `${fim}T23:59:59-04:00`),
+                supabase.from('aulas_experimentais').select('id, status, lead_id').gte('data', inicio).lte('data', fim),
+                supabase.from('alunos').select('id, status, data_cadastro, push_ativo, nome, telefone, responsavel_telefone'),
+                supabase.from('matriculas').select('id, aluno_id').gte('data_inicio', inicio).lte('data_inicio', fim),
+                fetchAllRows(() => supabase.from('pagamentos').select('id, valor, aluno_id, alunos:aluno_id(status)').neq('status', 'pago').lt('data_vencimento', hoje).not('aluno_id', 'is', null).order('id', { ascending: true })),
+                supabase.from('aulas').select('id', { count: 'exact', head: true }).in('status', ['reposicao', 'a_repor']).gte('data', '2099-01-01')
+            ]);
+
+            // Financeiro do mês
+            const pags = pagsMes.filter((p: any) => (Array.isArray(p.alunos) ? p.alunos[0] : p.alunos)?.status !== 'arquivado');
+            const recebido = pags.filter((p: any) => p.status === 'pago').reduce((a: number, p: any) => a + Number(p.valor || 0), 0);
+            const previsto = pags.reduce((a: number, p: any) => a + Number(p.valor || 0), 0);
+            const mensalidadesPagas = pags.filter((p: any) => p.status === 'pago' && p.tipo_receita === 'mensalidade');
+            const pagantes = new Set(mensalidadesPagas.map((p: any) => p.aluno_id)).size;
+            const despesas = despesasMes.data || [];
+            const despesasTotal = despesas.reduce((a: number, d: any) => a + Number(d.valor || 0), 0);
+            const vencidosAtivos = vencidos.filter((p: any) => (Array.isArray(p.alunos) ? p.alunos[0] : p.alunos)?.status !== 'arquivado');
+
+            // Folha: aulas do mês escolhido (pagas no mês seguinte)
+            const folha = await calcularFolhaProfessores(mesRef);
+
+            // Aulas do mês por status
+            const porStatus: Record<string, number> = {};
+            aulasMes.filter((a: any) => a.data < '2099-01-01').forEach((a: any) => { porStatus[a.status] = (porStatus[a.status] || 0) + 1; });
+            const realizadas = porStatus['realizada'] || 0;
+            const faltasAluno = porStatus['falta_aluno'] || 0;
+            const semRegistro = aulasMes.filter((a: any) => a.data < hoje && ['pendente', 'confirmada', 'aguardando_confirmacao'].includes(a.status)).length;
+
+            // Alunos
+            const alunos = alunosAll.data || [];
+            const ativos = alunos.filter((a: any) => a.status === 'ativo');
+            const novosAlunos = new Set((matriculasMes.data || []).map((m: any) => m.aluno_id)).size;
+
+            // Funil de leads do mês
+            const leads = leadsMes.data || [];
+            const porOrigem: Record<string, number> = {};
+            leads.forEach((l: any) => { const o = l.origem || 'Não informada'; porOrigem[o] = (porOrigem[o] || 0) + 1; });
+            const exps = expsMes.data || [];
+
+            // Evolução dos últimos 6 meses (receita recebida x prevista)
+            const meses: string[] = [];
+            let cursor = mesRef;
+            for (let i = 0; i < 6; i++) { meses.unshift(cursor); cursor = mesAnterior(cursor); }
+            const evolucao = await Promise.all(meses.map(async (m) => {
+                const rowsAll = await fetchAllRows(() => supabase.from('pagamentos').select('id, valor, status, alunos:aluno_id(status)').eq('referencia_mes_ano', m).order('id', { ascending: true }));
+                const rows = rowsAll.filter((r: any) => (Array.isArray(r.alunos) ? r.alunos[0] : r.alunos)?.status !== 'arquivado');
+                return {
+                    mes: m,
+                    recebido: rows.filter((r: any) => r.status === 'pago').reduce((a: number, r: any) => a + Number(r.valor || 0), 0),
+                    previsto: rows.reduce((a: number, r: any) => a + Number(r.valor || 0), 0)
+                };
+            }));
+
+            const [renovacoes, risco, horariosVagos] = await Promise.all([
+                calcularRenovacoes(hoje),
+                calcularRiscoEvasao(hoje),
+                calcularHorariosVagos(hoje)
+            ]);
+
+            const semApp = ativos.filter((a: any) => !a.push_ativo).map((a: any) => ({
+                aluno_id: a.id, nome: a.nome, telefone: a.telefone || a.responsavel_telefone || null
+            }));
+
+            res.json({
+                mes: mesRef,
+                financeiro: {
+                    previsto, recebido, pendente: previsto - recebido,
+                    ticket_medio: pagantes > 0 ? mensalidadesPagas.reduce((a: number, p: any) => a + Number(p.valor || 0), 0) / pagantes : 0,
+                    alunos_pagantes: pagantes,
+                    despesas: despesasTotal,
+                    despesas_pagas: despesas.filter((d: any) => d.status === 'pago').reduce((a: number, d: any) => a + Number(d.valor || 0), 0),
+                    salarios_previstos_mes_seguinte: folha.total_previsto,
+                    resultado_previsto: previsto - despesasTotal - folha.total_previsto,
+                    inadimplencia_total: vencidosAtivos.reduce((a: number, p: any) => a + Number(p.valor || 0), 0),
+                    inadimplentes: new Set(vencidosAtivos.map((p: any) => p.aluno_id)).size
+                },
+                alunos: {
+                    ativos: ativos.length,
+                    arquivados: alunos.filter((a: any) => a.status === 'arquivado').length,
+                    novos_no_mes: novosAlunos,
+                    com_app: ativos.filter((a: any) => a.push_ativo).length
+                },
+                aulas: {
+                    por_status: porStatus,
+                    realizadas,
+                    faltas_aluno: faltasAluno,
+                    taxa_presenca: realizadas + faltasAluno > 0 ? Math.round((realizadas / (realizadas + faltasAluno)) * 1000) / 10 : null,
+                    sem_registro_no_mes: semRegistro,
+                    reposicoes_sem_data: placeholders.count || 0
+                },
+                folha,
+                leads: {
+                    total: leads.length,
+                    experimentais_no_mes: exps.length,
+                    experimentais_realizadas: exps.filter((e: any) => e.status === 'realizada').length,
+                    matriculados: leads.filter((l: any) => l.status === 'matriculado').length,
+                    taxa_conversao: leads.length > 0 ? Math.round((leads.filter((l: any) => l.status === 'matriculado').length / leads.length) * 1000) / 10 : null,
+                    por_origem: porOrigem
+                },
+                evolucao,
+                renovacoes,
+                risco_evasao: risco,
+                horarios_vagos: horariosVagos,
+                sem_app: semApp
+            });
+        } catch (error: any) {
+            console.error('[RELATORIOS]', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Folha isolada (atualização rápida ao trocar o mês)
+    app.get('/api/relatorios/folha', requireAdmin, async (req, res) => {
+        try {
+            const mesRef = /^\d{2}\/\d{4}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : getMesAtualBR();
+            res.json(await calcularFolhaProfessores(mesRef));
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // =====================================================================
+    // AUTOMAÇÕES DIÁRIAS (acionadas pelo cron da Vercel)
+    // Cada uma pode ser ligada/desligada no painel de Relatórios.
+    // =====================================================================
+    const AUTOMACOES_PADRAO: Record<string, boolean> = {
+        AUTO_EMAIL_DIARIO_DONO: true,   // e-mail diário para a direção: presenças de ontem, vencimentos próximos e atrasos
+        AUTO_AVISO_CONFIRMACAO: true,   // e-mail imediato para a direção quando um aluno confirma a aula
+        AUTO_LEMBRETE_PRESENCA: true,   // e-mail/push ao professor com aulas passadas sem presença/falta
+        AUTO_RESUMO_SEMANAL: true,      // resumo de segunda-feira para a escola (atrasos, renovações, Drive)
+        AUTO_BACKUP_SEMANAL: true,      // cópia do banco no Google Drive aos domingos
+        AUTO_COBRANCA_ALUNOS: false     // e-mail de cobrança ao aluno (3 dias antes, 1 e 7 dias depois)
+    };
+    const getAutomacoes = async () => {
+        const cfg = await getConfigValues(Object.keys(AUTOMACOES_PADRAO));
+        const out: Record<string, boolean> = {};
+        Object.entries(AUTOMACOES_PADRAO).forEach(([k, padrao]) => {
+            out[k] = cfg[k] === null ? padrao : cfg[k] === 'true';
+        });
+        return out;
+    };
+
+    app.get('/api/automacoes', requireAdmin, async (req, res) => {
+        try { res.json(await getAutomacoes()); } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/automacoes', requireAdmin, async (req, res) => {
+        try {
+            for (const k of Object.keys(AUTOMACOES_PADRAO)) {
+                if (typeof req.body?.[k] === 'boolean') await setConfigValue(k, req.body[k] ? 'true' : 'false');
+            }
+            res.json(await getAutomacoes());
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    const brl = (v: number) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const dataBR = (d: string) => String(d || '').substring(0, 10).split('-').reverse().join('/');
+    const tabelaHtml = (cabecalho: string[], linhas: (string | number)[][]) => `
+        <table style="width:100%; border-collapse:collapse; margin:8px 0 18px; background:#fff; font-size:13px;">
+            <thead><tr>${cabecalho.map((c) => `<th style="text-align:left; padding:6px 8px; background:#261812; color:#fff; font-size:11px; text-transform:uppercase;">${escapeHtml(c)}</th>`).join('')}</tr></thead>
+            <tbody>${linhas.map((l) => `<tr>${l.map((c) => `<td style="padding:6px 8px; border-bottom:1px solid #eee;">${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>`;
+
+    // E-mail diário para a direção: presenças/faltas de ontem, vencimentos dos próximos 5 dias e atrasos
+    const relatorioDiarioDono = async (hoje: string) => {
+        const ontem = somarDias(hoje, -1);
+        const ate = somarDias(hoje, 5);
+
+        const [aulasOntem, proximos, vencidos] = await Promise.all([
+            fetchAllRows(() => supabase.from('aulas')
+                .select('id, horario, status, tipo, alunos(nome, status), professores(nome)')
+                .eq('data', ontem)
+                .order('id', { ascending: true })),
+            fetchAllRows(() => supabase.from('pagamentos')
+                .select('id, valor, data_vencimento, tipo_receita, alunos:aluno_id(nome, status)')
+                .neq('status', 'pago')
+                .gte('data_vencimento', hoje)
+                .lte('data_vencimento', ate)
+                .order('id', { ascending: true })),
+            fetchAllRows(() => supabase.from('pagamentos')
+                .select('id, valor, data_vencimento, aluno_id, alunos:aluno_id(nome, status)')
+                .neq('status', 'pago')
+                .lt('data_vencimento', hoje)
+                .not('aluno_id', 'is', null)
+                .order('id', { ascending: true }))
+        ]);
+        const un = (x: any) => (Array.isArray(x) ? x[0] : x);
+
+        // 1) Presenças e faltas de ontem, por professor (só se houve aula)
+        const rotulo: Record<string, string> = {
+            realizada: '✅ Presença', falta_aluno: '❌ Falta do aluno', falta: '🚫 Cancelada', reposicao: '🔁 Para repor', a_repor: '🔁 Para repor',
+            pendente: '⚠️ Sem registro', confirmada: '⚠️ Sem registro (confirmada)', aguardando_confirmacao: '⚠️ Sem registro'
+        };
+        const aulasValidas = aulasOntem.filter((a: any) => un(a.alunos)?.status !== 'arquivado');
+        let secPresenca = '';
+        if (aulasValidas.length > 0) {
+            const porProf: Record<string, any[]> = {};
+            aulasValidas.forEach((a: any) => { (porProf[un(a.professores)?.nome || 'Sem professor'] ||= []).push(a); });
+            const total = (st: string[]) => aulasValidas.filter((a: any) => st.includes(a.status)).length;
+            secPresenca = `<h3 style="color:#ff6b00;">📋 Presenças e faltas de ${dataBR(ontem)}</h3>
+                <p>${aulasValidas.length} aula(s): <b>${total(['realizada'])}</b> presenças, <b>${total(['falta_aluno'])}</b> faltas, <b>${total(['pendente', 'confirmada', 'aguardando_confirmacao'])}</b> sem registro.</p>` +
+                Object.entries(porProf).map(([prof, aulas]) => `<p style="margin:10px 0 0; font-weight:bold;">${escapeHtml(prof)}</p>` +
+                    tabelaHtml(['Horário', 'Aluno', 'Situação'], aulas
+                        .sort((x: any, y: any) => String(x.horario).localeCompare(String(y.horario)))
+                        .map((a: any) => [String(a.horario || '').substring(0, 5), un(a.alunos)?.nome || '-', rotulo[a.status] || a.status]))
+                ).join('');
+        }
+
+        // 2) Vencimentos dos próximos 5 dias
+        const prox = proximos.filter((p: any) => un(p.alunos)?.status !== 'arquivado')
+            .sort((a: any, b: any) => a.data_vencimento.localeCompare(b.data_vencimento));
+        const secProximos = `<h3 style="color:#ff6b00;">📅 Vencimentos até ${dataBR(ate)} (${prox.length})</h3>` + (prox.length
+            ? tabelaHtml(['Vencimento', 'Aluno', 'Valor'], prox.map((p: any) => [dataBR(p.data_vencimento), un(p.alunos)?.nome || p.tipo_receita || '-', brl(p.valor)]))
+              + `<p>Total a receber no período: <b>${brl(prox.reduce((a: number, p: any) => a + Number(p.valor || 0), 0))}</b></p>`
+            : '<p>Nenhum vencimento nos próximos dias.</p>');
+
+        // 3) Mensalidades em atraso (agrupadas por aluno)
+        const porAluno: Record<number, any> = {};
+        vencidos.filter((p: any) => un(p.alunos)?.status !== 'arquivado').forEach((p: any) => {
+            const it = porAluno[p.aluno_id] ||= { nome: un(p.alunos)?.nome, parcelas: 0, total: 0, desde: p.data_vencimento };
+            it.parcelas++; it.total += Number(p.valor || 0);
+            if (p.data_vencimento < it.desde) it.desde = p.data_vencimento;
+        });
+        const atrasos = Object.values(porAluno).sort((a: any, b: any) => a.desde.localeCompare(b.desde));
+        const hojeMs = parseDateOnly(hoje).getTime();
+        const secAtrasos = `<h3 style="color:#dc2626;">💸 Mensalidades em atraso (${atrasos.length} aluno(s), ${brl(atrasos.reduce((a: number, x: any) => a + x.total, 0))})</h3>` + (atrasos.length
+            ? tabelaHtml(['Aluno', 'Parcelas', 'Total', 'Atraso desde', 'Dias'], atrasos.map((x: any) => [x.nome || '-', x.parcelas, brl(x.total), dataBR(x.desde), Math.floor((hojeMs - parseDateOnly(x.desde).getTime()) / 86400000)]))
+            : '<p>Nenhum aluno em atraso. 🎉</p>');
+
+        const html = `<div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812; max-width: 720px; margin: 0 auto;">
+            <h2 style="color:#ff6b00; text-transform:uppercase; margin-top:0;">Studio Acorde - Relatório diário ${dataBR(hoje)}</h2>
+            ${secPresenca}${secProximos}${secAtrasos}
+            <p style="margin-top:20px;"><a href="https://acordecrm.vercel.app/relatorios" style="background:#ff6b00; color:#fff; padding:10px 18px; text-decoration:none; font-weight:bold;">ABRIR RELATÓRIOS</a></p>
+            <small style="color:#8e7164;">Mensagem automática do Studio Acorde CRM.</small>
+        </div>`;
+        const enviado = await enviarEmailHtml(`📊 Relatório diário Studio Acorde - ${dataBR(hoje)}`, html, EMAIL_AVISOS_DONO);
+        return { enviado, aulas_ontem: aulasValidas.length, vencimentos_proximos: prox.length, alunos_em_atraso: atrasos.length };
+    };
+
+    const lembretePresencaProfessores = async (hoje: string) => {
+        const pendentes = await fetchAllRows(() => supabase.from('aulas')
+            .select('id, data, horario, professor_id, alunos(nome, status), professores(nome, email)')
+            .lt('data', hoje)
+            .in('status', ['pendente', 'confirmada', 'aguardando_confirmacao'])
+            .order('id', { ascending: true }));
+        const porProf: Record<number, { email: string; nome: string; aulas: any[] }> = {};
+        pendentes.forEach((a: any) => {
+            const prof: any = Array.isArray(a.professores) ? a.professores[0] : a.professores;
+            const aluno: any = Array.isArray(a.alunos) ? a.alunos[0] : a.alunos;
+            if (!prof?.email || aluno?.status === 'arquivado') return;
+            (porProf[a.professor_id] ||= { email: prof.email, nome: prof.nome, aulas: [] }).aulas.push(a);
+        });
+        let enviados = 0;
+        for (const p of Object.values(porProf)) {
+            const qtd = p.aulas.length;
+            const exemplos = p.aulas.sort((x: any, y: any) => y.data.localeCompare(x.data)).slice(0, 5)
+                .map((a: any) => `${a.data.split('-').reverse().join('/')} ${String(a.horario || '').substring(0, 5)} - ${(Array.isArray(a.alunos) ? a.alunos[0] : a.alunos)?.nome || 'aluno'}`).join('; ');
+            await sendPushNotification(
+                `Registre a presença de ${qtd} aula(s) ⏰`,
+                `Olá ${String(p.nome || '').split(' ')[0]}! Existem ${qtd} aula(s) passadas sem presença/falta. Ex.: ${exemplos}. Sem esse registro a aula não entra no seu pagamento.`,
+                undefined, p.email
+            );
+            enviados++;
+        }
+        return { professores_avisados: enviados, aulas_sem_registro: pendentes.length };
+    };
+
+    const cobrancaAlunos = async (hoje: string) => {
+        const alvos = [somarDias(hoje, 3), somarDias(hoje, -1), somarDias(hoje, -7)];
+        const { data: pags } = await supabase.from('pagamentos')
+            .select('id, valor, data_vencimento, ultima_cobranca_em, cobranca_contador, alunos:aluno_id(nome, email, status)')
+            .neq('status', 'pago')
+            .eq('tipo_receita', 'mensalidade')
+            .in('data_vencimento', alvos);
+        const { data: cfg } = await supabase.from('system_config').select('key_value').eq('key_name', 'CONFIG_MENSAGEM_COBRANCA').maybeSingle();
+        let chavePix = DEFAULT_MENSAGEM_COBRANCA.chave_pix;
+        try { chavePix = JSON.parse(cfg?.key_value || '{}').chave_pix || chavePix; } catch {}
+        let enviados = 0;
+        for (const p of (pags || [])) {
+            const aluno: any = Array.isArray(p.alunos) ? p.alunos[0] : p.alunos;
+            if (!aluno?.email || aluno.status === 'arquivado') continue;
+            if (p.ultima_cobranca_em && String(p.ultima_cobranca_em).substring(0, 10) === hoje) continue;
+            const venc = p.data_vencimento.split('-').reverse().join('/');
+            const antes = p.data_vencimento > hoje;
+            const titulo = antes ? 'Sua mensalidade vence em breve 🎵' : 'Mensalidade em aberto - Studio Acorde';
+            const msg = antes
+                ? `Olá ${aluno.nome.split(' ')[0]}! Sua mensalidade de R$ ${Number(p.valor).toFixed(2)} vence em ${venc}. Chave PIX (CNPJ): ${chavePix}. Se já pagou, desconsidere.`
+                : `Olá ${aluno.nome.split(' ')[0]}! Não identificamos o pagamento da mensalidade de R$ ${Number(p.valor).toFixed(2)} que venceu em ${venc}. Chave PIX (CNPJ): ${chavePix}. Se já pagou, envie o comprovante para a escola.`;
+            const ok = await enviarEmailAviso(titulo, msg, aluno.email);
+            if (ok) {
+                await supabase.from('pagamentos').update({ ultima_cobranca_em: new Date().toISOString(), cobranca_contador: (Number(p.cobranca_contador) || 0) + 1 }).eq('id', p.id);
+                enviados++;
+            }
+        }
+        return { cobrancas_enviadas: enviados };
+    };
+
+    const resumoSemanalEscola = async (hoje: string) => {
+        const [renovacoes, risco] = await Promise.all([calcularRenovacoes(hoje), calcularRiscoEvasao(hoje)]);
+        const vencidos = await fetchAllRows(() => supabase.from('pagamentos').select('id, valor, aluno_id, alunos:aluno_id(status)').neq('status', 'pago').lt('data_vencimento', hoje).not('aluno_id', 'is', null).order('id', { ascending: true }));
+        const ativos = vencidos.filter((p: any) => (Array.isArray(p.alunos) ? p.alunos[0] : p.alunos)?.status !== 'arquivado');
+        let drive: any = null;
+        try { drive = await getDriveUso(); } catch {}
+        const linhas = [
+            `Inadimplência: ${new Set(ativos.map((p: any) => p.aluno_id)).size} aluno(s), R$ ${ativos.reduce((a: number, p: any) => a + Number(p.valor || 0), 0).toFixed(2)}.`,
+            `Planos terminando em 30 dias: ${renovacoes.length}${renovacoes.length ? ' (' + renovacoes.slice(0, 5).map((r: any) => r.nome).join(', ') + ')' : ''}.`,
+            `Alunos em risco de evasão: ${risco.length}${risco.length ? ' (' + risco.slice(0, 5).map((r: any) => r.nome).join(', ') + ')' : ''}.`,
+            drive?.conectado ? `Google Drive: ${drive.usoPct}% usado, ${drive.videos} vídeo(s) de treino.` : 'Google Drive: não conectado (vídeos de treino desativados).'
+        ];
+        await enviarEmailAviso('Resumo semanal da escola 📊', linhas.join(' '), EMAIL_AVISOS_DONO);
+        return { enviado: true };
+    };
+
+    // Backup: exporta todas as tabelas para JSON e salva no Google Drive (mantém os 8 mais recentes)
+    const TABELAS_BACKUP = ['alunos', 'matriculas', 'pagamentos', 'despesas', 'aulas', 'aulas_experimentais', 'professores', 'cursos', 'pacotes', 'salas',
+        'leads', 'contratos', 'contrato_templates', 'usuarios', 'gamificacao_conquistas', 'gamificacao_progresso', 'gamificacao_solicitacoes',
+        'modulos_trilha', 'aulas_trilha', 'progresso_trilha', 'tentativas_questionario_trilha', 'aluno_treinos', 'materiais', 'materiais_salvos',
+        'notificacoes', 'temporadas', 'locacoes', 'mural_vergonha', 'migracao_alunos', 'feed_atividades'];
+
+    const fazerBackupDrive = async () => {
+        if (!(await getDriveAccessToken())) return { ok: false, motivo: 'Google Drive não conectado' };
+        const dump: Record<string, any[]> = {};
+        await Promise.all(TABELAS_BACKUP.map(async (t) => {
+            try {
+                const { count } = await supabase.from(t).select('*', { count: 'exact', head: true });
+                const total = count || 0;
+                const paginas = await Promise.all(Array.from({ length: Math.ceil(total / PAGE_SIZE) }, (_, i) =>
+                    supabase.from(t).select('*').order('id', { ascending: true }).range(i * PAGE_SIZE, i * PAGE_SIZE + PAGE_SIZE - 1)));
+                dump[t] = paginas.flatMap((p: any) => p.data || []);
+            } catch (e: any) {
+                dump[t] = [];
+                console.error('[BACKUP] Falha na tabela', t, e.message);
+            }
+        }));
+        // Senhas (hash e texto) não entram no backup
+        dump['usuarios'] = (dump['usuarios'] || []).map(({ senha, senha_plana, ...resto }: any) => resto);
+
+        const conteudo = Buffer.from(JSON.stringify({ gerado_em: new Date().toISOString(), tabelas: dump }));
+        const s = await getDriveSettings();
+        let pastaBackup = (await getConfigValues(['GOOGLE_DRIVE_PASTA_BACKUPS']))['GOOGLE_DRIVE_PASTA_BACKUPS'];
+        if (pastaBackup) {
+            const chk = await driveFetch(`https://www.googleapis.com/drive/v3/files/${pastaBackup}?fields=id,trashed`);
+            const cj: any = await chk.json().catch(() => ({}));
+            if (!chk.ok || cj.trashed) pastaBackup = null;
+        }
+        if (!pastaBackup) {
+            const r = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: 'Acorde CRM - Backups do banco', mimeType: 'application/vnd.google-apps.folder' })
+            });
+            pastaBackup = ((await r.json()) as any).id;
+            await setConfigValue('GOOGLE_DRIVE_PASTA_BACKUPS', pastaBackup);
+        }
+        const boundary = `bkp${Date.now()}`;
+        const meta = JSON.stringify({ name: `backup_acorde_${getDateBR()}.json`, parents: [pastaBackup], mimeType: 'application/json' });
+        const body = Buffer.concat([
+            Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n`),
+            conteudo,
+            Buffer.from(`\r\n--${boundary}--`)
+        ]);
+        const up = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,size', {
+            method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body
+        });
+        if (!up.ok) return { ok: false, motivo: `Falha no upload (${up.status})` };
+
+        // Mantém só os 8 backups mais recentes (os antigos vão para a lixeira do Drive)
+        const q = encodeURIComponent(`'${pastaBackup}' in parents and trashed = false`);
+        const lista = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime desc&fields=files(id)&pageSize=100`);
+        const lj: any = await lista.json().catch(() => ({}));
+        for (const f of (lj.files || []).slice(8)) {
+            await driveFetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+        }
+        void s;
+        return { ok: true, tabelas: Object.keys(dump).length, bytes: conteudo.length };
+    };
+
+    app.post('/api/backup/agora', requireAdmin, async (req, res) => {
+        try { res.json(await fazerBackupDrive()); } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // =====================================================================
+    // ASSISTENTE DE IA (Gemini, camada gratuita) — somente administradores
+    // Consultas são feitas direto; qualquer alteração vira uma "ação pendente"
+    // que só é executada depois que o administrador confirma no painel.
+    // =====================================================================
+    const GEMINI_MODEL = 'gemini-2.5-flash';
+
+    const getGeminiKey = async () => {
+        if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+        const cfg = await getConfigValues(['GEMINI_API_KEY']);
+        return decryptSecret(cfg['GEMINI_API_KEY']);
+    };
+
+    const DIAS_SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+    const ferramentasLeitura: Record<string, (args: any) => Promise<any>> = {
+        buscar_alunos: async ({ nome }) => {
+            const termo = String(nome || '').trim();
+            if (termo.length < 2) return { erro: 'Informe pelo menos 2 letras do nome.' };
+            const { data } = await supabase.from('alunos')
+                .select('id, nome, status, email, matriculas(id, status, dia_semana, horario, professor_id, professores(nome), cursos(nome))')
+                .ilike('nome', `%${escapeLike(termo)}%`)
+                .limit(10);
+            return (data || []).map((a: any) => {
+                const mat = [...(a.matriculas || [])].sort((x: any, y: any) => y.id - x.id)[0];
+                return {
+                    aluno_id: a.id, nome: a.nome, status: a.status, tem_email: Boolean(a.email),
+                    matricula: mat ? {
+                        status: mat.status,
+                        dia_semana: mat.dia_semana !== null && mat.dia_semana !== undefined ? DIAS_SEMANA[mat.dia_semana] : null,
+                        horario: String(mat.horario || '').substring(0, 5),
+                        professor: mat.professores?.nome, professor_id: mat.professor_id, curso: mat.cursos?.nome
+                    } : null
+                };
+            });
+        },
+        listar_pagamentos: async ({ aluno_id, somente_em_aberto }) => {
+            let q = supabase.from('pagamentos')
+                .select('id, referencia_mes_ano, data_vencimento, valor, status, tipo_receita, data_pagamento')
+                .eq('aluno_id', Number(aluno_id))
+                .order('data_vencimento', { ascending: true });
+            if (somente_em_aberto !== false) q = q.neq('status', 'pago');
+            const { data } = await q.limit(40);
+            return data || [];
+        },
+        listar_aulas: async ({ aluno_id, data_inicio, data_fim }) => {
+            const hoje = getDateBR();
+            const { data } = await supabase.from('aulas')
+                .select('id, data, horario, status, tipo, professores(nome)')
+                .eq('aluno_id', Number(aluno_id))
+                .gte('data', data_inicio || somarDiasBR(hoje, -30))
+                .lte('data', data_fim || somarDiasBR(hoje, 90))
+                .order('data', { ascending: true })
+                .limit(60);
+            return (data || []).map((a: any) => ({ aula_id: a.id, data: a.data, horario: String(a.horario || '').substring(0, 5), status: a.status, tipo: a.tipo, professor: a.professores?.nome }));
+        },
+        listar_professores: async () => {
+            const { data } = await supabase.from('professores').select('id, nome, status').neq('status', 'inativo').order('nome');
+            return (data || []).map((p: any) => ({ professor_id: p.id, nome: p.nome }));
+        },
+        resumo_financeiro_hoje: async () => {
+            const hoje = getDateBR();
+            const { data: vencidos } = await supabase.from('pagamentos').select('valor, aluno_id').neq('status', 'pago').lt('data_vencimento', hoje).not('aluno_id', 'is', null);
+            const { data: semana } = await supabase.from('pagamentos').select('valor').neq('status', 'pago').gte('data_vencimento', hoje).lte('data_vencimento', somarDiasBR(hoje, 7));
+            return {
+                em_atraso_total: (vencidos || []).reduce((a: number, p: any) => a + Number(p.valor || 0), 0),
+                alunos_em_atraso: new Set((vencidos || []).map((p: any) => p.aluno_id)).size,
+                vence_nos_proximos_7_dias: (semana || []).reduce((a: number, p: any) => a + Number(p.valor || 0), 0)
+            };
+        }
+    };
+
+    // Ações que alteram dados: descritas para o administrador confirmar antes
+    const descreverAcao: Record<string, (args: any) => Promise<string>> = {
+        dar_baixa_pagamento: async ({ pagamento_id, metodo_pagamento }) => {
+            const { data: p } = await supabase.from('pagamentos').select('valor, referencia_mes_ano, status, alunos:aluno_id(nome)').eq('id', Number(pagamento_id)).maybeSingle();
+            if (!p) throw new Error(`Pagamento ${pagamento_id} não encontrado.`);
+            if (p.status === 'pago') throw new Error('Este pagamento já está pago.');
+            return `Dar baixa na parcela ${p.referencia_mes_ano} de ${(p as any).alunos?.nome || 'aluno'} (R$ ${Number(p.valor).toFixed(2)}) via ${metodo_pagamento || 'pix'}.`;
+        },
+        reagendar_aula: async ({ aula_id, nova_data, novo_horario }) => {
+            const { data: a } = await supabase.from('aulas').select('data, horario, alunos(nome)').eq('id', Number(aula_id)).maybeSingle();
+            if (!a) throw new Error(`Aula ${aula_id} não encontrada.`);
+            return `Reagendar a aula de ${(a as any).alunos?.nome || 'aluno'} de ${String(a.data).split('-').reverse().join('/')} ${String(a.horario || '').substring(0, 5)} para ${String(nova_data).split('-').reverse().join('/')} ${novo_horario || String(a.horario || '').substring(0, 5)}.`;
+        },
+        alterar_horario_fixo_aluno: async ({ aluno_id, dia_semana, horario, professor_id }) => {
+            const { data: al } = await supabase.from('alunos').select('nome').eq('id', Number(aluno_id)).maybeSingle();
+            if (!al) throw new Error(`Aluno ${aluno_id} não encontrado.`);
+            let prof = '';
+            if (professor_id) {
+                const { data: p } = await supabase.from('professores').select('nome').eq('id', Number(professor_id)).maybeSingle();
+                prof = p ? ` com ${p.nome}` : '';
+            }
+            const dia = dia_semana !== undefined && dia_semana !== null ? DIAS_SEMANA[Number(dia_semana)] : 'o mesmo dia';
+            return `Mudar o horário fixo de ${al.nome} para ${dia}${horario ? ` às ${horario}` : ''}${prof}. As aulas pendentes futuras serão ajustadas.`;
+        },
+        enviar_email: async ({ destinatario, assunto }) => {
+            return `Enviar e-mail para ${destinatario} com o assunto "${assunto}".`;
+        }
+    };
+
+    const somarDiasBR = (dataStr: string, dias: number) => toDateStr(new Date(parseDateOnly(dataStr).getTime() + dias * 86400000));
+
+    const declaracoesFerramentas = [
+        { name: 'buscar_alunos', description: 'Procura alunos pelo nome e retorna id, status e horário fixo da matrícula.', parameters: { type: 'OBJECT', properties: { nome: { type: 'STRING' } }, required: ['nome'] } },
+        { name: 'listar_pagamentos', description: 'Lista os pagamentos de um aluno (por padrão só os em aberto).', parameters: { type: 'OBJECT', properties: { aluno_id: { type: 'INTEGER' }, somente_em_aberto: { type: 'BOOLEAN' } }, required: ['aluno_id'] } },
+        { name: 'listar_aulas', description: 'Lista as aulas de um aluno num período (datas AAAA-MM-DD).', parameters: { type: 'OBJECT', properties: { aluno_id: { type: 'INTEGER' }, data_inicio: { type: 'STRING' }, data_fim: { type: 'STRING' } }, required: ['aluno_id'] } },
+        { name: 'listar_professores', description: 'Lista os professores ativos com seus ids.', parameters: { type: 'OBJECT', properties: {} } },
+        { name: 'resumo_financeiro_hoje', description: 'Totais de inadimplência e vencimentos da semana.', parameters: { type: 'OBJECT', properties: {} } },
+        { name: 'dar_baixa_pagamento', description: 'Marca um pagamento como pago (precisa de confirmação do administrador).', parameters: { type: 'OBJECT', properties: { pagamento_id: { type: 'INTEGER' }, metodo_pagamento: { type: 'STRING', enum: ['pix', 'dinheiro', 'cartao', 'transferencia'] } }, required: ['pagamento_id'] } },
+        { name: 'reagendar_aula', description: 'Muda a data/horário de UMA aula específica (precisa de confirmação).', parameters: { type: 'OBJECT', properties: { aula_id: { type: 'INTEGER' }, nova_data: { type: 'STRING', description: 'AAAA-MM-DD' }, novo_horario: { type: 'STRING', description: 'HH:MM' } }, required: ['aula_id', 'nova_data'] } },
+        { name: 'alterar_horario_fixo_aluno', description: 'Muda o dia da semana/horário/professor fixo do aluno e ajusta as aulas futuras (precisa de confirmação). dia_semana: 0=domingo ... 6=sábado.', parameters: { type: 'OBJECT', properties: { aluno_id: { type: 'INTEGER' }, dia_semana: { type: 'INTEGER' }, horario: { type: 'STRING', description: 'HH:MM' }, professor_id: { type: 'INTEGER' } }, required: ['aluno_id'] } },
+        { name: 'enviar_email', description: 'Envia um e-mail da escola para um aluno ou professor cadastrado (precisa de confirmação).', parameters: { type: 'OBJECT', properties: { destinatario: { type: 'STRING', description: 'e-mail cadastrado' }, assunto: { type: 'STRING' }, mensagem: { type: 'STRING' } }, required: ['destinatario', 'assunto', 'mensagem'] } }
+    ];
+
+    app.get('/api/assistente/status', requireAdmin, async (req, res) => {
+        res.json({ configurado: Boolean(await getGeminiKey()), modelo: GEMINI_MODEL });
+    });
+
+    app.post('/api/assistente/config', requireAdmin, async (req, res) => {
+        try {
+            const chave = String(req.body?.apiKey || '').trim();
+            if (!chave.startsWith('AIza') || chave.length < 30) return res.status(400).json({ error: 'Chave inválida. Ela começa com "AIza".' });
+            await setConfigValue('GEMINI_API_KEY', encryptSecret(chave));
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/assistente/chat', requireAdmin, async (req: any, res) => {
+        try {
+            const apiKey = await getGeminiKey();
+            if (!apiKey) return res.status(400).json({ error: 'Cadastre a chave gratuita do Gemini para usar o assistente.' });
+
+            const historico = (Array.isArray(req.body?.mensagens) ? req.body.mensagens : []).slice(-12);
+            const contents: any[] = historico.map((m: any) => ({ role: m.role === 'model' ? 'model' : 'user', parts: [{ text: String(m.texto || '').substring(0, 4000) }] }));
+            if (contents.length === 0) return res.status(400).json({ error: 'Envie uma mensagem.' });
+
+            const hoje = getDateBR();
+            const systemInstruction = {
+                parts: [{ text: `Você é o assistente do Studio Acorde, escola de música em Cuiabá-MT. Hoje é ${hoje.split('-').reverse().join('/')} (${DIAS_SEMANA[parseDateOnly(hoje).getUTCDay()]}). Responda sempre em português do Brasil, de forma curta e direta.
+Regras:
+- Use as ferramentas de consulta para descobrir ids; nunca invente ids, valores ou datas.
+- Se houver mais de um aluno com o nome, pergunte qual é antes de propor ações.
+- Ações que alteram dados (baixa, reagendamento, troca de horário, e-mail) NÃO são executadas por você: ao chamar essas ferramentas, você só as PROPÕE e o administrador confirma num botão. Diga isso ao usuário em uma frase.
+- Não peça nem mostre CPF, endereço ou senhas.` }]
+            };
+
+            const acoesPendentes: any[] = [];
+            let textoFinal = '';
+            for (let rodada = 0; rodada < 6; rodada++) {
+                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                    body: JSON.stringify({ systemInstruction, contents, tools: [{ functionDeclarations: declaracoesFerramentas }], generationConfig: { temperature: 0.2 } })
+                });
+                const data: any = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    const msg = data?.error?.message || `Erro ${r.status}`;
+                    return res.status(502).json({ error: r.status === 429 ? 'Limite gratuito do Gemini atingido por agora. Tente de novo em alguns minutos.' : `Gemini: ${msg}` });
+                }
+                const content = data?.candidates?.[0]?.content;
+                const parts: any[] = content?.parts || [];
+                const chamadas = parts.filter((p: any) => p.functionCall);
+                textoFinal = parts.filter((p: any) => p.text && !p.thought).map((p: any) => p.text).join('\n').trim() || textoFinal;
+                if (chamadas.length === 0) break;
+
+                contents.push(content); // mantém a resposta do modelo como veio (inclui assinaturas de raciocínio)
+                const respostas: any[] = [];
+                for (const c of chamadas) {
+                    const { name, args } = c.functionCall;
+                    let resultado: any;
+                    try {
+                        if (ferramentasLeitura[name]) {
+                            resultado = { resultado: await ferramentasLeitura[name](args || {}) };
+                        } else if (descreverAcao[name]) {
+                            const descricao = await descreverAcao[name](args || {});
+                            const token = jwt.sign({ purpose: 'acao_assistente', tipo: name, args: args || {}, uid: req.user.id }, JWT_SECRET, { expiresIn: '15m' });
+                            acoesPendentes.push({ tipo: name, descricao, token });
+                            resultado = { status: 'aguardando confirmação do administrador no painel', descricao };
+                        } else {
+                            resultado = { erro: 'Ferramenta desconhecida' };
+                        }
+                    } catch (e: any) {
+                        resultado = { erro: e.message };
+                    }
+                    respostas.push({ functionResponse: { name, response: resultado } });
+                }
+                contents.push({ role: 'user', parts: respostas });
+            }
+
+            res.json({ resposta: textoFinal || (acoesPendentes.length ? 'Preparei a ação abaixo. Confira e confirme.' : 'Não consegui entender. Pode reformular?'), acoes: acoesPendentes });
+        } catch (error: any) {
+            console.error('[ASSISTENTE]', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Executa uma ação proposta pelo assistente, reaproveitando as mesmas rotas (e validações) do sistema
+    app.post('/api/assistente/executar', requireAdmin, async (req: any, res) => {
+        try {
+            let acao: any;
+            try {
+                acao = jwt.verify(String(req.body?.token || ''), JWT_SECRET);
+            } catch {
+                return res.status(400).json({ error: 'Ação expirada. Peça de novo ao assistente.' });
+            }
+            if (acao?.purpose !== 'acao_assistente' || String(acao.uid) !== String(req.user.id)) {
+                return res.status(403).json({ error: 'Ação inválida.' });
+            }
+            const base = getRedirectUri(req).replace('/api/drive/oauth/callback', '');
+            const chamar = async (method: string, path: string, body: any) => {
+                const r = await fetch(`${base}${path}`, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', Authorization: String(req.headers['authorization'] || '') },
+                    body: JSON.stringify(body)
+                });
+                const j: any = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(j.error || `Erro ${r.status}`);
+                return j;
+            };
+            const a = acao.args || {};
+            let resultado: any;
+            switch (acao.tipo) {
+                case 'dar_baixa_pagamento':
+                    resultado = await chamar('PATCH', `/api/pagamentos/${Number(a.pagamento_id)}/baixa`, { metodo_pagamento: a.metodo_pagamento || 'pix' });
+                    break;
+                case 'reagendar_aula': {
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(a.nova_data))) throw new Error('Data inválida.');
+                    const { data: aula } = await supabase.from('aulas').select('horario').eq('id', Number(a.aula_id)).maybeSingle();
+                    if (!aula) throw new Error('Aula não encontrada.');
+                    resultado = await chamar('PATCH', `/api/agenda/reg-${Number(a.aula_id)}`, { data: a.nova_data, horario: a.novo_horario || aula.horario });
+                    break;
+                }
+                case 'alterar_horario_fixo_aluno': {
+                    const body: any = {};
+                    if (a.dia_semana !== undefined && a.dia_semana !== null) body.dia_semana = Number(a.dia_semana);
+                    if (a.horario) body.horario = String(a.horario);
+                    if (a.professor_id) body.professor_id = Number(a.professor_id);
+                    if (Object.keys(body).length === 0) throw new Error('Nada para alterar.');
+                    resultado = await chamar('PATCH', `/api/alunos/${Number(a.aluno_id)}`, body);
+                    break;
+                }
+                case 'enviar_email': {
+                    // Só para e-mails cadastrados no sistema (alunos, professores ou a direção)
+                    const dest = String(a.destinatario || '').trim();
+                    const { data: al } = await supabase.from('alunos').select('id').ilike('email', escapeLike(dest)).limit(1);
+                    const { data: pr } = await supabase.from('professores').select('id').ilike('email', escapeLike(dest)).limit(1);
+                    if (!(al?.length || pr?.length || dest.toLowerCase() === EMAIL_AVISOS_DONO)) throw new Error('Só é possível enviar para e-mails cadastrados no sistema.');
+                    const ok = await enviarEmailAviso(String(a.assunto || 'Aviso do Studio Acorde'), String(a.mensagem || ''), dest);
+                    if (!ok) throw new Error('Falha ao enviar o e-mail.');
+                    resultado = { enviado: true };
+                    break;
+                }
+                default:
+                    throw new Error('Tipo de ação desconhecido.');
+            }
+            console.log('[ASSISTENTE] Ação executada:', acao.tipo, JSON.stringify(a), 'por', req.user.email);
+            res.json({ success: true, resultado });
+        } catch (error: any) {
+            res.status(400).json({ error: error.message });
+        }
     });
 
     // --- RECOMPENSA POR ATIVAR NOTIFICAÇÕES (500 XP, uma única vez) ---

@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useNavigate,
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OneSignalService } from './services/OneSignalService';
 import { Sidebar } from './components/layout/Sidebar';
-import { Menu, X, LayoutDashboard, Users, Music, CreditCard, LogOut, RefreshCcw } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Users, Music, CreditCard, LogOut, RefreshCcw, BarChart3 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Alunos from './pages/Alunos';
 import Professores from './pages/Professores';
@@ -25,6 +25,8 @@ import { Reposicoes } from './pages/Reposicoes';
 import Assinatura from './pages/Assinatura';
 import { GlobalUpdater } from './components/GlobalUpdater';
 import EadTrilhaAdmin from './pages/EadTrilhaAdmin';
+import Relatorios from './pages/Relatorios';
+import { AssistenteIA } from './components/AssistenteIA';
 
 import { Toaster } from 'sonner';
 
@@ -57,6 +59,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
     { icon: Music, label: 'Aulas', path: '/agenda' },
     { icon: RefreshCcw, label: 'Reposições', path: '/reposicoes' },
     { icon: CreditCard, label: 'Financeiro', path: '/financeiro' },
+    { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },
   ];
 
   const handleLogout = () => {
@@ -106,6 +109,9 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
           {children}
         </main>
       </div>
+
+      {/* Assistente de IA (somente no painel do administrador) */}
+      <AssistenteIA />
 
       {/* Gaveta Mobile Sidebar (Drawer) */}
       {isMobileMenuOpen && (
@@ -253,6 +259,7 @@ export default function App() {
                       <Route path="/professores" element={<Professores />} />
                       <Route path="/cursos" element={<Cursos />} />
                       <Route path="/financeiro" element={<Financeiro />} />
+                      <Route path="/relatorios" element={<Relatorios />} />
                       <Route path="/contratos" element={<Contratos />} />
                       <Route path="/conquistas" element={<Conquistas />} />
                       <Route path="/ranking" element={<Ranking />} />
