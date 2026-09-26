@@ -293,6 +293,80 @@ const VALOR_AULA_POUCOS_ALUNOS = 35;
 const VALOR_AULA_MUITOS_ALUNOS = 30;
 const LIMITE_ALUNOS_VALOR_AULA = 10;
 
+// ---------------------------------------------------------------------
+// MENSALIDADES: regras únicas usadas por Dashboard, Relatórios, e-mails e assistente
+// - "cancelado" nunca é dívida
+// - valor de parcela em aberto = mensalidade com desconto da matrícula (igual à tela Financeiro)
+// - valor de parcela paga = valor efetivamente pago (valor_pago) ou, se não registrado, o valor da parcela
+// - parcela vencida só é "em atraso" se o aluno NÃO pagou nenhuma mensalidade com vencimento posterior;
+//   se pagou, ela vai para "para conferir" (provável baixa esquecida)
+// ---------------------------------------------------------------------
+const STATUS_EM_ABERTO = ['pendente', 'atrasado'];
+const unRel = (x: any) => (Array.isArray(x) ? x[0] : x);
+
+const valorEmAberto = (p: any) => {
+    const valor = Number(p.valor) || 0;
+    const mat = unRel(p.matriculas) || unRel(p.matricula);
+    const desc = Number(mat?.valor_com_desconto) || 0;
+    return desc > 0 ? Math.min(valor || desc, desc) : valor;
+};
+const valorPago = (p: any) => Number(p.valor_pago != null ? p.valor_pago : p.valor) || 0;
+const valorMensalidade = (p: any) => (p.status === 'pago' ? valorPago(p) : valorEmAberto(p));
+// Mês de referência da parcela (MM/AAAA); usa o vencimento quando a referência não existe
+const refDaParcela = (p: any) => (/^\d{2}\/\d{4}$/.test(String(p.referencia_mes_ano || '')) ? p.referencia_mes_ano : toRefMesAno(parseDateOnly(p.data_vencimento)));
+const intervaloDoMes = (mesAno: string) => {
+    const [m, y] = mesAno.split('/');
+    const inicio = `${y}-${m.padStart(2, '0')}-01`;
+    const fim = toDateStr(new Date(Date.UTC(Number(y), Number(m), 0, 12)));
+    return { inicio, fim };
+};
+const refOrdenavel = (ref: string) => { const [m, y] = ref.split('/'); return `${y}-${m}`; };
+
+const calcularSituacaoMensalidades = async (hoje: string) => {
+    const pags = await fetchAllRows(() => supabase.from('pagamentos')
+        .select('id, aluno_id, valor, valor_pago, status, data_vencimento, data_pagamento, referencia_mes_ano, tipo_receita, matriculas:matricula_id(valor_com_desconto), alunos:aluno_id(nome, status, telefone, responsavel_telefone)')
+        .eq('tipo_receita', 'mensalidade')
+        .not('aluno_id', 'is', null)
+        .order('id', { ascending: true }));
+
+    const ultimoPagoPorAluno: Record<number, string> = {};
+    pags.forEach((p: any) => {
+        if (p.status === 'pago' && p.data_vencimento && (!ultimoPagoPorAluno[p.aluno_id] || p.data_vencimento > ultimoPagoPorAluno[p.aluno_id])) {
+            ultimoPagoPorAluno[p.aluno_id] = p.data_vencimento;
+        }
+    });
+
+    const emAtraso: Record<number, any> = {};
+    const paraConferir: Record<number, any> = {};
+    const hojeMs = parseDateOnly(hoje).getTime();
+    pags.forEach((p: any) => {
+        const aluno = unRel(p.alunos);
+        if (!aluno || aluno.status === 'arquivado') return;
+        if (!STATUS_EM_ABERTO.includes(p.status) || !p.data_vencimento || p.data_vencimento >= hoje) return;
+        const pagouDepois = (ultimoPagoPorAluno[p.aluno_id] || '') > p.data_vencimento;
+        const alvo = pagouDepois ? paraConferir : emAtraso;
+        const item = alvo[p.aluno_id] ||= {
+            aluno_id: p.aluno_id, nome: aluno.nome,
+            telefone: aluno.telefone || aluno.responsavel_telefone || null,
+            parcelas: [] as any[], total: 0
+        };
+        const valor = valorEmAberto(p);
+        item.parcelas.push({ pagamento_id: p.id, referencia: refDaParcela(p), vencimento: p.data_vencimento, valor, dias_atraso: Math.floor((hojeMs - parseDateOnly(p.data_vencimento).getTime()) / 86400000) });
+        item.total += valor;
+    });
+
+    const fechar = (obj: Record<number, any>) => Object.values(obj).map((a: any) => {
+        a.parcelas.sort((x: any, y: any) => x.vencimento.localeCompare(y.vencimento));
+        a.total = Math.round(a.total * 100) / 100;
+        a.vencimento_mais_antigo = a.parcelas[0].vencimento;
+        a.dias_atraso = a.parcelas[0].dias_atraso;
+        a.ultimo_pagamento = ultimoPagoPorAluno[a.aluno_id] || null;
+        return a;
+    }).sort((a: any, b: any) => b.dias_atraso - a.dias_atraso);
+
+    return { pags, emAtraso: fechar(emAtraso), paraConferir: fechar(paraConferir) };
+};
+
 // Status que geram pagamento ao professor
 const STATUS_AULA_PAGA = ['realizada', 'falta_aluno'];
 // Aulas ainda por acontecer que entram na previsão (inclui reposições já remarcadas)
@@ -2363,11 +2437,11 @@ async function startServer() {
 
             // Receita: apenas mensalidades pagas no mês atual
             const { data: pagamentosMes } = await supabase.from('pagamentos')
-                .select('valor')
+                .select('valor, valor_pago')
                 .eq('status', 'pago')
                 .eq('tipo_receita', 'mensalidade')
                 .eq('referencia_mes_ano', mesAtual);
-            const receitaMensal = pagamentosMes?.reduce((acc, curr) => acc + Number(curr.valor), 0) || 0;
+            const receitaMensal = pagamentosMes?.reduce((acc: number, curr: any) => acc + Number(curr.valor_pago != null ? curr.valor_pago : curr.valor), 0) || 0;
             
             // Aulas do dia (regulares)
             const { data: aulasRegData } = await supabase.from('aulas')
@@ -3229,10 +3303,15 @@ async function startServer() {
     app.patch('/api/pagamentos/:id/baixa', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
-            const { metodo_pagamento } = req.body;
+            const { metodo_pagamento, valor_pago } = req.body;
             const today = getDateBR();
+            const update: any = { status: 'pago', data_pagamento: today, metodo_pagamento: metodo_pagamento || 'dinheiro' };
+            // Guarda o valor efetivamente recebido (a tela envia; antes era descartado)
+            if (valor_pago !== undefined && valor_pago !== null && valor_pago !== '' && Number.isFinite(Number(valor_pago)) && Number(valor_pago) >= 0) {
+                update.valor_pago = Number(valor_pago);
+            }
             const { data, error } = await supabase.from('pagamentos')
-                .update({ status: 'pago', data_pagamento: today, metodo_pagamento: metodo_pagamento || 'dinheiro' })
+                .update(update)
                 .eq('id', id).select().single();
             if (error) throw error;
             res.json(data);
@@ -3480,8 +3559,9 @@ async function startServer() {
             
             // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
             const { data: rawPags, error } = await supabase.from('pagamentos')
-                .select('valor, status, tipo_receita, matricula_id, aluno:aluno_id(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
-                .eq('referencia_mes_ano', mesRef);
+                .select('valor, valor_pago, status, tipo_receita, matricula_id, aluno:aluno_id(status, matriculas(id, status, valor_com_desconto, valor_parcela))')
+                .eq('referencia_mes_ano', mesRef)
+                .neq('status', 'cancelado');
             
             if (error) throw error;
             
@@ -3517,12 +3597,13 @@ async function startServer() {
                         }
                     }
 
+                    const recebidoParcela = Number(p.valor_pago != null ? p.valor_pago : p.valor);
                     if (p.status === 'pago') {
-                        receitaMes += Number(p.valor);
+                        receitaMes += recebidoParcela;
                     } else {
                         pendentes += valorEfetivo;
                     }
-                    faturamentoPrevisto += (p.status === 'pago' ? Number(p.valor) : valorEfetivo);
+                    faturamentoPrevisto += (p.status === 'pago' ? recebidoParcela : valorEfetivo);
                 }
             }
             const [m, y] = mesRef.split('/');
@@ -6439,121 +6520,89 @@ ${textoBruto}
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
+    // Parcelas em atraso (mesma regra do card "Alunos em atraso"), uma linha por parcela
     app.get('/api/dashboard/faturas-pendentes', requireAdmin, async (req, res) => {
         try {
-            const hoje = getDateBR();
-            const { data, error } = await supabase.from('pagamentos')
-                .select('id, valor, data_vencimento, status, tipo_receita, aluno_id, alunos:aluno_id(nome, status)')
-                .neq('status', 'pago')
-                .lt('data_vencimento', hoje)
-                .order('data_vencimento', { ascending: true });
-            if (error) throw error;
-            res.json((data || []).filter((p: any) => p.alunos?.status !== 'arquivado'));
+            const { emAtraso } = await calcularSituacaoMensalidades(getDateBR());
+            const linhas = emAtraso.flatMap((a: any) => a.parcelas.map((p: any) => ({
+                id: p.pagamento_id,
+                aluno_id: a.aluno_id,
+                alunos: { nome: a.nome },
+                data_vencimento: p.vencimento,
+                valor: p.valor,
+                status: 'em atraso',
+                referencia: p.referencia
+            }))).sort((x: any, y: any) => x.data_vencimento.localeCompare(y.data_vencimento));
+            res.json(linhas);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    // Alunos com mensalidades vencidas e não pagas, agrupadas por aluno (mais antigas primeiro)
+    // Alunos com mensalidade vencida e não paga (regras em calcularSituacaoMensalidades)
     app.get('/api/dashboard/alunos-em-atraso', requireAdmin, async (req, res) => {
         try {
-            const hoje = getDateBR();
-            const pags = await fetchAllRows(() => supabase.from('pagamentos')
-                .select('id, valor, data_vencimento, status, tipo_receita, aluno_id, alunos:aluno_id(nome, status, telefone, responsavel_telefone)')
-                .neq('status', 'pago')
-                .lt('data_vencimento', hoje)
-                .not('aluno_id', 'is', null)
-                .order('id', { ascending: true }));
-
-            const hojeMs = parseDateOnly(hoje).getTime();
-            const porAluno: Record<number, any> = {};
-            pags.forEach((p: any) => {
-                const aluno: any = Array.isArray(p.alunos) ? p.alunos[0] : p.alunos;
-                if (!aluno || aluno.status === 'arquivado') return;
-                const item = porAluno[p.aluno_id] ||= {
-                    aluno_id: p.aluno_id,
-                    nome: aluno.nome,
-                    telefone: aluno.telefone || aluno.responsavel_telefone || null,
-                    parcelas: 0,
-                    total: 0,
-                    vencimento_mais_antigo: p.data_vencimento
-                };
-                item.parcelas++;
-                item.total += Number(p.valor) || 0;
-                if (p.data_vencimento < item.vencimento_mais_antigo) item.vencimento_mais_antigo = p.data_vencimento;
-            });
-
-            const lista = Object.values(porAluno).map((a: any) => ({
-                ...a,
-                total: Math.round(a.total * 100) / 100,
-                dias_atraso: Math.floor((hojeMs - parseDateOnly(a.vencimento_mais_antigo).getTime()) / 86400000)
-            })).sort((a: any, b: any) => b.dias_atraso - a.dias_atraso);
-
-            res.json(lista);
+            const { emAtraso, paraConferir } = await calcularSituacaoMensalidades(getDateBR());
+            if (req.query.incluir_conferir === '1') return res.json({ emAtraso, paraConferir });
+            res.json(emAtraso);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    // Alunos com aulas agendadas depois da última mensalidade gerada (aula sem cobrança correspondente)
+    // Aluno com aula marcada NESTE mês e sem nenhuma mensalidade no MÊS QUE VEM (plano acabando)
+    const calcularAulasSemMensalidadeProxMes = async (hoje: string) => {
+        const mesAtualRef = toRefMesAno(parseDateOnly(hoje));
+        const proxRef = (() => { const [m, y] = mesAtualRef.split('/').map(Number); return m === 12 ? `01/${y + 1}` : `${String(m + 1).padStart(2, '0')}/${y}`; })();
+        const { inicio, fim } = intervaloDoMes(mesAtualRef);
+
+        const aulasMes = await fetchAllRows(() => supabase.from('aulas')
+            .select('id, aluno_id, data, status')
+            .gte('data', inicio).lte('data', fim)
+            .not('aluno_id', 'is', null)
+            .not('status', 'in', '(falta,cancelada)')
+            .order('id', { ascending: true }));
+
+        const mensalidades = await fetchAllRows(() => supabase.from('pagamentos')
+            .select('id, aluno_id, referencia_mes_ano, data_vencimento, status')
+            .eq('tipo_receita', 'mensalidade')
+            .neq('status', 'cancelado')
+            .not('aluno_id', 'is', null)
+            .order('id', { ascending: true }));
+
+        const refsPorAluno: Record<number, Set<string>> = {};
+        const ultimaRef: Record<number, string> = {};
+        mensalidades.forEach((m: any) => {
+            const ref = refDaParcela(m);
+            (refsPorAluno[m.aluno_id] ||= new Set()).add(ref);
+            if (!ultimaRef[m.aluno_id] || refOrdenavel(ref) > refOrdenavel(ultimaRef[m.aluno_id])) ultimaRef[m.aluno_id] = ref;
+        });
+
+        const aulasPorAluno: Record<number, number> = {};
+        aulasMes.forEach((a: any) => { aulasPorAluno[a.aluno_id] = (aulasPorAluno[a.aluno_id] || 0) + 1; });
+
+        const ids = Object.keys(aulasPorAluno).map(Number).filter((id) => !(refsPorAluno[id]?.has(proxRef)));
+        if (ids.length === 0) return { mes_atual: mesAtualRef, proximo_mes: proxRef, alunos: [] };
+        const { data: alunos } = await supabase.from('alunos').select('id, nome, status, telefone, responsavel_telefone').in('id', ids);
+        const lista = (alunos || [])
+            .filter((a: any) => a.status !== 'arquivado')
+            .map((a: any) => ({
+                aluno_id: a.id,
+                nome: a.nome,
+                telefone: a.telefone || a.responsavel_telefone || null,
+                aulas_neste_mes: aulasPorAluno[a.id],
+                ultima_mensalidade: ultimaRef[a.id] || null
+            }))
+            .sort((a: any, b: any) => String(a.nome).localeCompare(String(b.nome)));
+        return { mes_atual: mesAtualRef, proximo_mes: proxRef, alunos: lista };
+    };
+
     app.get('/api/dashboard/aulas-sem-mensalidade', requireAdmin, async (req, res) => {
         try {
-            const hoje = getDateBR();
-            const aulasFuturas = await fetchAllRows(() => supabase.from('aulas')
-                .select('id, aluno_id, data')
-                .eq('status', 'pendente')
-                .gte('data', hoje)
-                .lt('data', '2099-01-01')
-                .not('aluno_id', 'is', null)
-                .order('id', { ascending: true }));
-
-            const mensalidades = await fetchAllRows(() => supabase.from('pagamentos')
-                .select('id, aluno_id, data_vencimento')
-                .eq('tipo_receita', 'mensalidade')
-                .not('aluno_id', 'is', null)
-                .order('id', { ascending: true }));
-
-            const ultimaMensalidade: Record<number, string> = {};
-            mensalidades.forEach((m: any) => {
-                if (!ultimaMensalidade[m.aluno_id] || m.data_vencimento > ultimaMensalidade[m.aluno_id]) {
-                    ultimaMensalidade[m.aluno_id] = m.data_vencimento;
-                }
-            });
-
-            const porAluno: Record<number, { aulas: number; ultima_aula: string }> = {};
-            aulasFuturas.forEach((a: any) => {
-                const ultima = ultimaMensalidade[a.aluno_id];
-                // Sem nenhuma mensalidade, ou aula num mês posterior ao da última mensalidade
-                if (ultima && a.data.substring(0, 7) <= ultima.substring(0, 7)) return;
-                const item = porAluno[a.aluno_id] ||= { aulas: 0, ultima_aula: a.data };
-                item.aulas++;
-                if (a.data > item.ultima_aula) item.ultima_aula = a.data;
-            });
-
-            const ids = Object.keys(porAluno).map(Number);
-            if (ids.length === 0) return res.json([]);
-            const { data: alunos } = await supabase.from('alunos').select('id, nome, status').in('id', ids);
-
-            const lista = (alunos || [])
-                .filter((a: any) => a.status !== 'arquivado')
-                .map((a: any) => ({
-                    aluno_id: a.id,
-                    nome: a.nome,
-                    aulas_sem_mensalidade: porAluno[a.id].aulas,
-                    ultima_mensalidade: ultimaMensalidade[a.id] || null,
-                    ultima_aula: porAluno[a.id].ultima_aula
-                }))
-                .sort((a: any, b: any) => b.aulas_sem_mensalidade - a.aulas_sem_mensalidade);
-
-            res.json(lista);
+            const r = await calcularAulasSemMensalidadeProxMes(getDateBR());
+            res.json(r.alunos.map((a: any) => ({ ...a, mes_atual: r.mes_atual, proximo_mes: r.proximo_mes })));
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
     // =====================================================================
     // RELATÓRIOS (painel do administrador)
     // =====================================================================
-    const intervaloDoMes = (mesAno: string) => {
-        const [m, y] = mesAno.split('/');
-        const inicio = `${y}-${m.padStart(2, '0')}-01`;
-        const fim = toDateStr(new Date(Date.UTC(Number(y), Number(m), 0, 12)));
-        return { inicio, fim };
-    };
     const somarDias = (dataStr: string, dias: number) => toDateStr(new Date(parseDateOnly(dataStr).getTime() + dias * 86400000));
 
     // Plano chegando ao fim: última mensalidade gerada vence nos próximos 30 dias
@@ -6561,6 +6610,7 @@ ${textoBruto}
         const mensalidades = await fetchAllRows(() => supabase.from('pagamentos')
             .select('id, aluno_id, data_vencimento')
             .eq('tipo_receita', 'mensalidade')
+            .neq('status', 'cancelado')
             .not('aluno_id', 'is', null)
             .order('id', { ascending: true }));
         const ultima: Record<number, string> = {};
@@ -6593,11 +6643,7 @@ ${textoBruto}
             .in('status', ['realizada', 'falta_aluno', 'falta'])
             .order('id', { ascending: true }));
         const { data: treinos } = await supabase.from('aluno_treinos').select('aluno_id').gte('data', desde);
-        const atrasados = await fetchAllRows(() => supabase.from('pagamentos')
-            .select('id, aluno_id, valor')
-            .neq('status', 'pago').lt('data_vencimento', hoje)
-            .not('aluno_id', 'is', null)
-            .order('id', { ascending: true }));
+        const { emAtraso: atrasadosAlunos } = await calcularSituacaoMensalidades(hoje);
 
         const faltas: Record<number, number> = {};
         const presencas: Record<number, number> = {};
@@ -6607,7 +6653,7 @@ ${textoBruto}
         });
         const treinou = new Set((treinos || []).map((t: any) => t.aluno_id));
         const emAtraso: Record<number, number> = {};
-        atrasados.forEach((p: any) => { emAtraso[p.aluno_id] = (emAtraso[p.aluno_id] || 0) + 1; });
+        atrasadosAlunos.forEach((a: any) => { emAtraso[a.aluno_id] = a.parcelas.length; });
 
         return (alunos || []).map((a: any) => {
             const motivos: string[] = [];
@@ -6654,30 +6700,33 @@ ${textoBruto}
             const mesRef = /^\d{2}\/\d{4}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : getMesAtualBR();
             const { inicio, fim } = intervaloDoMes(mesRef);
 
-            const [pagsMes, despesasMes, aulasMes, leadsMes, expsMes, alunosAll, matriculasMes, vencidos, placeholders] = await Promise.all([
-                fetchAllRows(() => supabase.from('pagamentos').select('id, valor, status, tipo_receita, aluno_id, data_pagamento, alunos:aluno_id(status)').eq('referencia_mes_ano', mesRef).order('id', { ascending: true })),
+            const [pagsMes, despesasMes, aulasMes, leadsMes, expsMes, alunosAll, matriculasMes, situacao, placeholders] = await Promise.all([
+                fetchAllRows(() => supabase.from('pagamentos').select('id, valor, valor_pago, status, tipo_receita, aluno_id, data_pagamento, matriculas:matricula_id(valor_com_desconto), alunos:aluno_id(status)').eq('referencia_mes_ano', mesRef).neq('status', 'cancelado').order('id', { ascending: true })),
                 supabase.from('despesas').select('valor, status, categoria').gte('data_vencimento', inicio).lte('data_vencimento', fim),
                 fetchAllRows(() => supabase.from('aulas').select('id, status, tipo, data').gte('data', inicio).lte('data', fim).order('id', { ascending: true })),
                 supabase.from('leads').select('id, status, origem, data_criacao').gte('data_criacao', `${inicio}T00:00:00-04:00`).lte('data_criacao', `${fim}T23:59:59-04:00`),
                 supabase.from('aulas_experimentais').select('id, status, lead_id').gte('data', inicio).lte('data', fim),
                 supabase.from('alunos').select('id, status, data_cadastro, push_ativo, nome, telefone, responsavel_telefone'),
                 supabase.from('matriculas').select('id, aluno_id').gte('data_inicio', inicio).lte('data_inicio', fim),
-                fetchAllRows(() => supabase.from('pagamentos').select('id, valor, aluno_id, alunos:aluno_id(status)').neq('status', 'pago').lt('data_vencimento', hoje).not('aluno_id', 'is', null).order('id', { ascending: true })),
+                calcularSituacaoMensalidades(hoje),
                 supabase.from('aulas').select('id', { count: 'exact', head: true }).in('status', ['reposicao', 'a_repor']).gte('data', '2099-01-01')
             ]);
 
-            // Financeiro do mês
-            const pags = pagsMes.filter((p: any) => (Array.isArray(p.alunos) ? p.alunos[0] : p.alunos)?.status !== 'arquivado');
-            const recebido = pags.filter((p: any) => p.status === 'pago').reduce((a: number, p: any) => a + Number(p.valor || 0), 0);
-            const previsto = pags.reduce((a: number, p: any) => a + Number(p.valor || 0), 0);
-            const mensalidadesPagas = pags.filter((p: any) => p.status === 'pago' && p.tipo_receita === 'mensalidade');
+            // Financeiro do mês (parcelas com referência no mês; canceladas ficam fora)
+            const pags = pagsMes.filter((p: any) => unRel(p.alunos)?.status !== 'arquivado');
+            const pagas = pags.filter((p: any) => p.status === 'pago');
+            const abertas = pags.filter((p: any) => STATUS_EM_ABERTO.includes(p.status));
+            const recebido = pagas.reduce((a: number, p: any) => a + valorPago(p), 0);
+            const aReceber = abertas.reduce((a: number, p: any) => a + valorEmAberto(p), 0);
+            const aReceberVencido = abertas.filter((p: any) => p.data_vencimento < hoje).reduce((a: number, p: any) => a + valorEmAberto(p), 0);
+            const previsto = recebido + aReceber;
+            const mensalidadesPagas = pagas.filter((p: any) => p.tipo_receita === 'mensalidade');
             const pagantes = new Set(mensalidadesPagas.map((p: any) => p.aluno_id)).size;
             const despesas = despesasMes.data || [];
             const despesasTotal = despesas.reduce((a: number, d: any) => a + Number(d.valor || 0), 0);
-            const vencidosAtivos = vencidos.filter((p: any) => (Array.isArray(p.alunos) ? p.alunos[0] : p.alunos)?.status !== 'arquivado');
 
-            // Folha: aulas do mês escolhido (pagas no mês seguinte)
-            const folha = await calcularFolhaProfessores(mesRef);
+            // Folha: aulas do mês escolhido (paga no mês seguinte) e folha paga neste mês (aulas do mês anterior)
+            const [folha, folhaPagaNoMes] = await Promise.all([calcularFolhaProfessores(mesRef), calcularFolhaProfessores(mesAnterior(mesRef))]);
 
             // Aulas do mês por status
             const porStatus: Record<string, number> = {};
@@ -6702,13 +6751,11 @@ ${textoBruto}
             let cursor = mesRef;
             for (let i = 0; i < 6; i++) { meses.unshift(cursor); cursor = mesAnterior(cursor); }
             const evolucao = await Promise.all(meses.map(async (m) => {
-                const rowsAll = await fetchAllRows(() => supabase.from('pagamentos').select('id, valor, status, alunos:aluno_id(status)').eq('referencia_mes_ano', m).order('id', { ascending: true }));
-                const rows = rowsAll.filter((r: any) => (Array.isArray(r.alunos) ? r.alunos[0] : r.alunos)?.status !== 'arquivado');
-                return {
-                    mes: m,
-                    recebido: rows.filter((r: any) => r.status === 'pago').reduce((a: number, r: any) => a + Number(r.valor || 0), 0),
-                    previsto: rows.reduce((a: number, r: any) => a + Number(r.valor || 0), 0)
-                };
+                const rowsAll = await fetchAllRows(() => supabase.from('pagamentos').select('id, valor, valor_pago, status, matriculas:matricula_id(valor_com_desconto), alunos:aluno_id(status)').eq('referencia_mes_ano', m).neq('status', 'cancelado').order('id', { ascending: true }));
+                const rows = rowsAll.filter((r: any) => unRel(r.alunos)?.status !== 'arquivado');
+                const recebidoMes = rows.filter((r: any) => r.status === 'pago').reduce((a: number, r: any) => a + valorPago(r), 0);
+                const abertoMes = rows.filter((r: any) => STATUS_EM_ABERTO.includes(r.status)).reduce((a: number, r: any) => a + valorEmAberto(r), 0);
+                return { mes: m, recebido: recebidoMes, previsto: recebidoMes + abertoMes };
             }));
 
             const [renovacoes, risco, horariosVagos] = await Promise.all([
@@ -6724,15 +6771,23 @@ ${textoBruto}
             res.json({
                 mes: mesRef,
                 financeiro: {
-                    previsto, recebido, pendente: previsto - recebido,
-                    ticket_medio: pagantes > 0 ? mensalidadesPagas.reduce((a: number, p: any) => a + Number(p.valor || 0), 0) / pagantes : 0,
+                    mes_referencia: mesRef,
+                    previsto, recebido,
+                    a_receber: aReceber,
+                    a_receber_vencido: aReceberVencido,
+                    parcelas_pagas: pagas.length,
+                    parcelas_em_aberto: abertas.length,
+                    ticket_medio: pagantes > 0 ? mensalidadesPagas.reduce((a: number, p: any) => a + valorPago(p), 0) / pagantes : 0,
                     alunos_pagantes: pagantes,
                     despesas: despesasTotal,
                     despesas_pagas: despesas.filter((d: any) => d.status === 'pago').reduce((a: number, d: any) => a + Number(d.valor || 0), 0),
-                    salarios_previstos_mes_seguinte: folha.total_previsto,
-                    resultado_previsto: previsto - despesasTotal - folha.total_previsto,
-                    inadimplencia_total: vencidosAtivos.reduce((a: number, p: any) => a + Number(p.valor || 0), 0),
-                    inadimplentes: new Set(vencidosAtivos.map((p: any) => p.aluno_id)).size
+                    salarios_pagos_no_mes: folhaPagaNoMes.total_previsto,
+                    salarios_mes_aulas: mesAnterior(mesRef),
+                    resultado_previsto: previsto - despesasTotal - folhaPagaNoMes.total_previsto,
+                    inadimplencia_total: situacao.emAtraso.reduce((a: number, x: any) => a + x.total, 0),
+                    inadimplentes: situacao.emAtraso.length,
+                    para_conferir_total: situacao.paraConferir.reduce((a: number, x: any) => a + x.total, 0),
+                    para_conferir_alunos: situacao.paraConferir.length
                 },
                 alunos: {
                     ativos: ativos.length,
@@ -6758,6 +6813,8 @@ ${textoBruto}
                     por_origem: porOrigem
                 },
                 evolucao,
+                em_atraso: situacao.emAtraso,
+                para_conferir: situacao.paraConferir,
                 renovacoes,
                 risco_evasao: risco,
                 horarios_vagos: horariosVagos,
@@ -6830,17 +6887,12 @@ ${textoBruto}
                 .eq('data', ontem)
                 .order('id', { ascending: true })),
             fetchAllRows(() => supabase.from('pagamentos')
-                .select('id, valor, data_vencimento, tipo_receita, alunos:aluno_id(nome, status)')
-                .neq('status', 'pago')
+                .select('id, valor, data_vencimento, tipo_receita, matriculas:matricula_id(valor_com_desconto), alunos:aluno_id(nome, status)')
+                .in('status', STATUS_EM_ABERTO)
                 .gte('data_vencimento', hoje)
                 .lte('data_vencimento', ate)
                 .order('id', { ascending: true })),
-            fetchAllRows(() => supabase.from('pagamentos')
-                .select('id, valor, data_vencimento, aluno_id, alunos:aluno_id(nome, status)')
-                .neq('status', 'pago')
-                .lt('data_vencimento', hoje)
-                .not('aluno_id', 'is', null)
-                .order('id', { ascending: true }))
+            calcularSituacaoMensalidades(hoje)
         ]);
         const un = (x: any) => (Array.isArray(x) ? x[0] : x);
 
@@ -6868,22 +6920,16 @@ ${textoBruto}
         const prox = proximos.filter((p: any) => un(p.alunos)?.status !== 'arquivado')
             .sort((a: any, b: any) => a.data_vencimento.localeCompare(b.data_vencimento));
         const secProximos = `<h3 style="color:#ff6b00;">📅 Vencimentos até ${dataBR(ate)} (${prox.length})</h3>` + (prox.length
-            ? tabelaHtml(['Vencimento', 'Aluno', 'Valor'], prox.map((p: any) => [dataBR(p.data_vencimento), un(p.alunos)?.nome || p.tipo_receita || '-', brl(p.valor)]))
-              + `<p>Total a receber no período: <b>${brl(prox.reduce((a: number, p: any) => a + Number(p.valor || 0), 0))}</b></p>`
+            ? tabelaHtml(['Vencimento', 'Aluno', 'Valor'], prox.map((p: any) => [dataBR(p.data_vencimento), un(p.alunos)?.nome || p.tipo_receita || '-', brl(valorEmAberto(p))]))
+              + `<p>Total a receber no período: <b>${brl(prox.reduce((a: number, p: any) => a + valorEmAberto(p), 0))}</b></p>`
             : '<p>Nenhum vencimento nos próximos dias.</p>');
 
-        // 3) Mensalidades em atraso (agrupadas por aluno)
-        const porAluno: Record<number, any> = {};
-        vencidos.filter((p: any) => un(p.alunos)?.status !== 'arquivado').forEach((p: any) => {
-            const it = porAluno[p.aluno_id] ||= { nome: un(p.alunos)?.nome, parcelas: 0, total: 0, desde: p.data_vencimento };
-            it.parcelas++; it.total += Number(p.valor || 0);
-            if (p.data_vencimento < it.desde) it.desde = p.data_vencimento;
-        });
-        const atrasos = Object.values(porAluno).sort((a: any, b: any) => a.desde.localeCompare(b.desde));
-        const hojeMs = parseDateOnly(hoje).getTime();
+        // 3) Mensalidades em atraso (mesma regra do Dashboard e dos Relatórios)
+        const atrasos = vencidos.emAtraso;
         const secAtrasos = `<h3 style="color:#dc2626;">💸 Mensalidades em atraso (${atrasos.length} aluno(s), ${brl(atrasos.reduce((a: number, x: any) => a + x.total, 0))})</h3>` + (atrasos.length
-            ? tabelaHtml(['Aluno', 'Parcelas', 'Total', 'Atraso desde', 'Dias'], atrasos.map((x: any) => [x.nome || '-', x.parcelas, brl(x.total), dataBR(x.desde), Math.floor((hojeMs - parseDateOnly(x.desde).getTime()) / 86400000)]))
-            : '<p>Nenhum aluno em atraso. 🎉</p>');
+            ? tabelaHtml(['Aluno', 'Meses em atraso', 'Total', 'Dias'], atrasos.map((x: any) => [x.nome || '-', x.parcelas.map((p: any) => `${p.referencia} (${brl(p.valor)})`).join(', '), brl(x.total), x.dias_atraso]))
+            : '<p>Nenhum aluno em atraso. 🎉</p>')
+            + (vencidos.paraConferir.length ? `<p style="font-size:12px;color:#8e7164;">Para conferir: ${vencidos.paraConferir.length} aluno(s) com parcelas antigas em aberto, mas com mensalidade posterior paga (possível baixa esquecida). Veja em Relatórios.</p>` : '');
 
         const html = `<div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812; max-width: 720px; margin: 0 auto;">
             <h2 style="color:#ff6b00; text-transform:uppercase; margin-top:0;">Studio Acorde - Relatório diário ${dataBR(hoje)}</h2>
@@ -6926,24 +6972,26 @@ ${textoBruto}
     const cobrancaAlunos = async (hoje: string) => {
         const alvos = [somarDias(hoje, 3), somarDias(hoje, -1), somarDias(hoje, -7)];
         const { data: pags } = await supabase.from('pagamentos')
-            .select('id, valor, data_vencimento, ultima_cobranca_em, cobranca_contador, alunos:aluno_id(nome, email, status)')
-            .neq('status', 'pago')
+            .select('id, aluno_id, valor, data_vencimento, ultima_cobranca_em, cobranca_contador, matriculas:matricula_id(valor_com_desconto), alunos:aluno_id(nome, email, status)')
+            .in('status', STATUS_EM_ABERTO)
             .eq('tipo_receita', 'mensalidade')
             .in('data_vencimento', alvos);
+        const { paraConferir } = await calcularSituacaoMensalidades(hoje);
+        const naoCobrar = new Set(paraConferir.flatMap((a: any) => a.parcelas.map((p: any) => p.pagamento_id)));
         const { data: cfg } = await supabase.from('system_config').select('key_value').eq('key_name', 'CONFIG_MENSAGEM_COBRANCA').maybeSingle();
         let chavePix = DEFAULT_MENSAGEM_COBRANCA.chave_pix;
         try { chavePix = JSON.parse(cfg?.key_value || '{}').chave_pix || chavePix; } catch {}
         let enviados = 0;
         for (const p of (pags || [])) {
             const aluno: any = Array.isArray(p.alunos) ? p.alunos[0] : p.alunos;
-            if (!aluno?.email || aluno.status === 'arquivado') continue;
+            if (!aluno?.email || aluno.status === 'arquivado' || naoCobrar.has(p.id)) continue;
             if (p.ultima_cobranca_em && String(p.ultima_cobranca_em).substring(0, 10) === hoje) continue;
             const venc = p.data_vencimento.split('-').reverse().join('/');
             const antes = p.data_vencimento > hoje;
             const titulo = antes ? 'Sua mensalidade vence em breve 🎵' : 'Mensalidade em aberto - Studio Acorde';
             const msg = antes
-                ? `Olá ${aluno.nome.split(' ')[0]}! Sua mensalidade de R$ ${Number(p.valor).toFixed(2)} vence em ${venc}. Chave PIX (CNPJ): ${chavePix}. Se já pagou, desconsidere.`
-                : `Olá ${aluno.nome.split(' ')[0]}! Não identificamos o pagamento da mensalidade de R$ ${Number(p.valor).toFixed(2)} que venceu em ${venc}. Chave PIX (CNPJ): ${chavePix}. Se já pagou, envie o comprovante para a escola.`;
+                ? `Olá ${aluno.nome.split(' ')[0]}! Sua mensalidade de R$ ${valorEmAberto(p).toFixed(2)} vence em ${venc}. Chave PIX (CNPJ): ${chavePix}. Se já pagou, desconsidere.`
+                : `Olá ${aluno.nome.split(' ')[0]}! Não identificamos o pagamento da mensalidade de R$ ${valorEmAberto(p).toFixed(2)} que venceu em ${venc}. Chave PIX (CNPJ): ${chavePix}. Se já pagou, envie o comprovante para a escola.`;
             const ok = await enviarEmailAviso(titulo, msg, aluno.email);
             if (ok) {
                 await supabase.from('pagamentos').update({ ultima_cobranca_em: new Date().toISOString(), cobranca_contador: (Number(p.cobranca_contador) || 0) + 1 }).eq('id', p.id);
@@ -6955,12 +7003,11 @@ ${textoBruto}
 
     const resumoSemanalEscola = async (hoje: string) => {
         const [renovacoes, risco] = await Promise.all([calcularRenovacoes(hoje), calcularRiscoEvasao(hoje)]);
-        const vencidos = await fetchAllRows(() => supabase.from('pagamentos').select('id, valor, aluno_id, alunos:aluno_id(status)').neq('status', 'pago').lt('data_vencimento', hoje).not('aluno_id', 'is', null).order('id', { ascending: true }));
-        const ativos = vencidos.filter((p: any) => (Array.isArray(p.alunos) ? p.alunos[0] : p.alunos)?.status !== 'arquivado');
+        const { emAtraso } = await calcularSituacaoMensalidades(hoje);
         let drive: any = null;
         try { drive = await getDriveUso(); } catch {}
         const linhas = [
-            `Inadimplência: ${new Set(ativos.map((p: any) => p.aluno_id)).size} aluno(s), R$ ${ativos.reduce((a: number, p: any) => a + Number(p.valor || 0), 0).toFixed(2)}.`,
+            `Inadimplência: ${emAtraso.length} aluno(s), ${brl(emAtraso.reduce((a: number, x: any) => a + x.total, 0))}.`,
             `Planos terminando em 30 dias: ${renovacoes.length}${renovacoes.length ? ' (' + renovacoes.slice(0, 5).map((r: any) => r.nome).join(', ') + ')' : ''}.`,
             `Alunos em risco de evasão: ${risco.length}${risco.length ? ' (' + risco.slice(0, 5).map((r: any) => r.nome).join(', ') + ')' : ''}.`,
             drive?.conectado ? `Google Drive: ${drive.usoPct}% usado, ${drive.videos} vídeo(s) de treino.` : 'Google Drive: não conectado (vídeos de treino desativados).'
@@ -7074,12 +7121,12 @@ ${textoBruto}
         },
         listar_pagamentos: async ({ aluno_id, somente_em_aberto }) => {
             let q = supabase.from('pagamentos')
-                .select('id, referencia_mes_ano, data_vencimento, valor, status, tipo_receita, data_pagamento')
+                .select('id, referencia_mes_ano, data_vencimento, valor, valor_pago, status, tipo_receita, data_pagamento, matriculas:matricula_id(valor_com_desconto)')
                 .eq('aluno_id', Number(aluno_id))
                 .order('data_vencimento', { ascending: true });
-            if (somente_em_aberto !== false) q = q.neq('status', 'pago');
+            if (somente_em_aberto !== false) q = q.in('status', STATUS_EM_ABERTO);
             const { data } = await q.limit(40);
-            return data || [];
+            return (data || []).map((p: any) => ({ pagamento_id: p.id, referencia: p.referencia_mes_ano, vencimento: p.data_vencimento, status: p.status, valor_mensalidade: valorMensalidade(p), data_pagamento: p.data_pagamento }));
         },
         listar_aulas: async ({ aluno_id, data_inicio, data_fim }) => {
             const hoje = getDateBR();
@@ -7098,12 +7145,13 @@ ${textoBruto}
         },
         resumo_financeiro_hoje: async () => {
             const hoje = getDateBR();
-            const { data: vencidos } = await supabase.from('pagamentos').select('valor, aluno_id').neq('status', 'pago').lt('data_vencimento', hoje).not('aluno_id', 'is', null);
-            const { data: semana } = await supabase.from('pagamentos').select('valor').neq('status', 'pago').gte('data_vencimento', hoje).lte('data_vencimento', somarDiasBR(hoje, 7));
+            const { emAtraso, paraConferir } = await calcularSituacaoMensalidades(hoje);
+            const { data: semana } = await supabase.from('pagamentos').select('valor, matriculas:matricula_id(valor_com_desconto)').in('status', STATUS_EM_ABERTO).eq('tipo_receita', 'mensalidade').gte('data_vencimento', hoje).lte('data_vencimento', somarDiasBR(hoje, 7));
             return {
-                em_atraso_total: (vencidos || []).reduce((a: number, p: any) => a + Number(p.valor || 0), 0),
-                alunos_em_atraso: new Set((vencidos || []).map((p: any) => p.aluno_id)).size,
-                vence_nos_proximos_7_dias: (semana || []).reduce((a: number, p: any) => a + Number(p.valor || 0), 0)
+                alunos_em_atraso: emAtraso.map((a: any) => ({ nome: a.nome, meses: a.parcelas.map((p: any) => p.referencia), total: a.total })),
+                em_atraso_total: emAtraso.reduce((a: number, x: any) => a + x.total, 0),
+                parcelas_antigas_para_conferir: paraConferir.length,
+                vence_nos_proximos_7_dias: (semana || []).reduce((a: number, p: any) => a + valorEmAberto(p), 0)
             };
         }
     };

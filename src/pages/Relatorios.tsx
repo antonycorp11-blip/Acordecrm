@@ -8,6 +8,8 @@ const brl = (v: number) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimu
 const dataBR = (d?: string | null) => (d ? String(d).substring(0, 10).split('-').reverse().join('/') : '-');
 const mesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const mesLabel = (mm: string) => { const [m, y] = mm.split('/'); return `${mesNomes[Number(m) - 1]}/${y.slice(2)}`; };
+const mesesExtenso = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const mesExtenso = (mm: string) => { const [m, y] = mm.split('/'); return `${mesesExtenso[Number(m) - 1]} de ${y}`; };
 
 const mesAtual = () => {
   const [y, m] = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse();
@@ -40,7 +42,7 @@ const AUTOMACOES_LABEL: Record<string, { titulo: string; desc: string }> = {
 
 function Card({ title, icon: Icon, color = '#261812', children, extra }: any) {
   return (
-    <section className="rounded-lg overflow-hidden flex flex-col" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '4px 4px 0 #261812' }}>
+    <section className="rounded-lg overflow-hidden flex flex-col text-[#261812]" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '4px 4px 0 #261812' }}>
       <div className="flex items-center justify-between gap-2 px-4 py-3" style={{ background: color, borderBottom: '3px solid #261812' }}>
         <div className="flex items-center gap-2 min-w-0">
           {Icon && <Icon className="w-4 h-4 text-white shrink-0" />}
@@ -159,7 +161,7 @@ export default function Relatorios() {
     <div className="flex-1 flex flex-col min-h-full" style={{ background: '#1a110d' }}>
       <header className="flex flex-wrap items-center gap-3 px-6 py-4" style={{ background: '#261812', borderBottom: '3px solid #ff6b00' }}>
         <h1 className="text-white font-black text-lg tracking-widest uppercase flex-1" style={{ fontFamily: "'Space Mono', monospace" }}>Relatórios</h1>
-        <div className="flex items-center gap-1 bg-[#fff8f6] border-2 border-black rounded">
+        <div className="flex items-center gap-1 bg-[#fff8f6] text-[#261812] border-2 border-black rounded">
           <button onClick={() => setMes(somarMes(mes, -1))} className="p-2" title="Mês anterior"><ChevronLeft className="w-4 h-4" /></button>
           <span className="font-black text-xs uppercase px-2 min-w-[70px] text-center">{mesLabel(mes)}</span>
           <button onClick={() => setMes(somarMes(mes, 1))} className="p-2" title="Próximo mês"><ChevronRight className="w-4 h-4" /></button>
@@ -194,18 +196,61 @@ export default function Relatorios() {
         ) : dados && (
           <>
             {/* FINANCEIRO */}
-            <Card title={`Financeiro de ${mesLabel(dados.mes)}`} icon={Wallet} color="#ff6b00">
+            <Card title={`Financeiro de ${mesExtenso(f.mes_referencia)}`} icon={Wallet} color="#ff6b00">
+              <p className="text-[10px] font-bold text-[#8e7164] mb-3">
+                Considera as parcelas com referência em {mesExtenso(f.mes_referencia)} (canceladas ficam fora). Pagas contam pelo valor recebido; em aberto, pelo valor da mensalidade com desconto.
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Kpi label="Faturamento previsto" value={brl(f.previsto)} />
-                <Kpi label="Recebido" value={brl(f.recebido)} tone="good" sub={f.previsto > 0 ? `${Math.round((f.recebido / f.previsto) * 100)}% do previsto` : undefined} />
-                <Kpi label="A receber" value={brl(f.pendente)} />
+                <Kpi label={`Faturamento previsto (${mesLabel(f.mes_referencia)})`} value={brl(f.previsto)} sub={`${f.parcelas_pagas + f.parcelas_em_aberto} parcelas`} />
+                <Kpi label={`Recebido (${mesLabel(f.mes_referencia)})`} value={brl(f.recebido)} tone="good" sub={`${f.parcelas_pagas} pagas${f.previsto > 0 ? ` • ${Math.round((f.recebido / f.previsto) * 100)}%` : ''}`} />
+                <Kpi label={`A receber (${mesLabel(f.mes_referencia)})`} value={brl(f.a_receber)} sub={`${f.parcelas_em_aberto} em aberto • ${brl(f.a_receber_vencido)} já vencido`} />
                 <Kpi label="Ticket médio" value={brl(f.ticket_medio)} sub={`${f.alunos_pagantes} alunos pagantes`} />
-                <Kpi label="Despesas do mês" value={brl(f.despesas)} sub={`${brl(f.despesas_pagas)} pagas`} />
-                <Kpi label="Salários (pagos no mês seguinte)" value={brl(f.salarios_previstos_mes_seguinte)} />
-                <Kpi label="Resultado previsto" value={brl(f.resultado_previsto)} tone={f.resultado_previsto < 0 ? 'bad' : 'good'} />
-                <Kpi label="Inadimplência (hoje)" value={brl(f.inadimplencia_total)} tone="bad" sub={`${f.inadimplentes} aluno(s)`} />
+                <Kpi label={`Despesas (${mesLabel(f.mes_referencia)})`} value={brl(f.despesas)} sub={`${brl(f.despesas_pagas)} já pagas`} />
+                <Kpi label={`Salários pagos em ${mesLabel(f.mes_referencia)}`} value={brl(f.salarios_pagos_no_mes)} sub={`aulas de ${mesLabel(f.salarios_mes_aulas)}`} />
+                <Kpi label="Resultado previsto do mês" value={brl(f.resultado_previsto)} tone={f.resultado_previsto < 0 ? 'bad' : 'good'} sub="previsto − despesas − salários" />
+                <Kpi label="Em atraso hoje (todos os meses)" value={brl(f.inadimplencia_total)} tone="bad" sub={`${f.inadimplentes} aluno(s)`} />
               </div>
             </Card>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <Card title={`Em atraso hoje (${dados.em_atraso.length})`} icon={AlertTriangle} color="#dc2626"
+                extra={<span className="text-white font-black text-sm">{brl(f.inadimplencia_total)}</span>}>
+                <p className="text-[10px] font-bold text-[#8e7164] mb-2">Mensalidades vencidas e não pagas, sem nenhum pagamento posterior do aluno.</p>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {dados.em_atraso.map((a: any) => (
+                    <button key={a.aluno_id} onClick={() => navigate(`/alunos/${a.aluno_id}`)} className="w-full text-left bg-white border-2 border-black p-2 hover:bg-red-50">
+                      <div className="flex justify-between gap-2">
+                        <span className="font-black text-xs uppercase truncate">{a.nome}</span>
+                        <span className="font-black text-xs text-red-700 shrink-0">{brl(a.total)}</span>
+                      </div>
+                      <p className="text-[9px] font-bold text-[#8e7164] uppercase">
+                        {a.parcelas.map((p: any) => `${mesLabel(p.referencia)} ${brl(p.valor)}`).join(' • ')} • {a.dias_atraso} dias
+                      </p>
+                    </button>
+                  ))}
+                  {dados.em_atraso.length === 0 && <p className="text-[10px] font-bold text-[#8e7164]">Nenhum aluno em atraso. 🎉</p>}
+                </div>
+              </Card>
+
+              <Card title={`Para conferir (${dados.para_conferir.length})`} icon={AlertTriangle} color="#ca8a04"
+                extra={<span className="text-white font-black text-sm">{brl(f.para_conferir_total)}</span>}>
+                <p className="text-[10px] font-bold text-[#8e7164] mb-2">Parcelas antigas ainda em aberto, mas o aluno já pagou uma mensalidade posterior. Provável baixa esquecida: confira e dê baixa ou cancele no Financeiro.</p>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {dados.para_conferir.map((a: any) => (
+                    <button key={a.aluno_id} onClick={() => navigate(`/alunos/${a.aluno_id}`)} className="w-full text-left bg-white border-2 border-black p-2 hover:bg-yellow-50">
+                      <div className="flex justify-between gap-2">
+                        <span className="font-black text-xs uppercase truncate">{a.nome}</span>
+                        <span className="font-black text-xs shrink-0">{brl(a.total)}</span>
+                      </div>
+                      <p className="text-[9px] font-bold text-[#8e7164] uppercase">
+                        Em aberto: {a.parcelas.map((p: any) => mesLabel(p.referencia)).join(', ')} • último pagamento venc. {dataBR(a.ultimo_pagamento)}
+                      </p>
+                    </button>
+                  ))}
+                  {dados.para_conferir.length === 0 && <p className="text-[10px] font-bold text-[#8e7164]">Nada para conferir.</p>}
+                </div>
+              </Card>
+            </div>
 
             {/* FOLHA DOS PROFESSORES */}
             <Card title={`Salário previsto dos professores - aulas de ${mesLabel(folha.mes_aulas)}`} icon={Users} color="#7c3aed"
@@ -273,7 +318,7 @@ export default function Relatorios() {
               {/* AULAS */}
               <Card title={`Aulas de ${mesLabel(dados.mes)}`} icon={CalendarClock} color="#0f766e">
                 <div className="grid grid-cols-2 gap-3 mb-3">
-                  <Kpi label="Taxa de presença" value={dados.aulas.taxa_presenca === null ? '-' : `${dados.aulas.taxa_presenca}%`} sub={`${dados.aulas.realizadas} presenças / ${dados.aulas.faltas_aluno} faltas`} />
+                  <Kpi label="Presença (só aulas registradas)" value={dados.aulas.taxa_presenca === null ? '-' : `${dados.aulas.taxa_presenca}%`} sub={`${dados.aulas.realizadas} presenças • ${dados.aulas.faltas_aluno} faltas • ${dados.aulas.sem_registro_no_mes} sem registro`} />
                   <Kpi label="Sem presença registrada" value={String(dados.aulas.sem_registro_no_mes)} tone={dados.aulas.sem_registro_no_mes > 0 ? 'bad' : 'good'} sub="aulas já passadas" />
                   <Kpi label="Reposições sem data" value={String(dados.aulas.reposicoes_sem_data)} sub="aguardando agendamento" />
                   <Kpi label="Alunos ativos" value={String(dados.alunos.ativos)} sub={`${dados.alunos.novos_no_mes} novos no mês • ${dados.alunos.com_app} com app`} />

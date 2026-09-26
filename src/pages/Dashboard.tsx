@@ -110,10 +110,18 @@ export default function Dashboard() {
       quintoDia.setHours(0,0,0,0);
 
       // Regra dos modais: Apenas se for maior que zero
-      if (aulas && aulas.length > 0) {
-        setShowModalAulas(true);
-      } else if (faturas && faturas.length > 0 && hoje.getTime() > quintoDia.getTime()) {
-        setShowModalFaturas(true);
+      // Os avisos aparecem no máximo uma vez por dia (antes reabriam a cada foco da janela)
+      const chaveAviso = `acorde_aviso_dashboard_${new Date().toDateString()}`;
+      let jaAvisado = false;
+      try { jaAvisado = sessionStorage.getItem(chaveAviso) === '1' || localStorage.getItem(chaveAviso) === '1'; } catch {}
+      if (!jaAvisado) {
+        if (aulas && aulas.length > 0) {
+          setShowModalAulas(true);
+          try { localStorage.setItem(chaveAviso, '1'); } catch {}
+        } else if (faturas && faturas.length > 0 && hoje.getTime() > quintoDia.getTime()) {
+          setShowModalFaturas(true);
+          try { localStorage.setItem(chaveAviso, '1'); } catch {}
+        }
       }
     }).catch(err => console.warn('[Dashboard] Erro ao carregar alertas:', err));
   };
@@ -274,7 +282,7 @@ export default function Dashboard() {
                   <div className="min-w-0 flex-1">
                     <p className="font-black text-black uppercase text-xs truncate">{a.nome}</p>
                     <p className="text-[9px] font-bold text-[#8e7164] uppercase">
-                      {a.parcelas} {a.parcelas === 1 ? 'parcela' : 'parcelas'} • desde {String(a.vencimento_mais_antigo).split('-').reverse().join('/')}
+                      {(a.parcelas || []).map((p: any) => `${p.referencia} R$ ${Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`).join(' • ')}
                     </p>
                   </div>
                   <div className="shrink-0 text-right ml-2">
@@ -294,11 +302,13 @@ export default function Dashboard() {
             <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#7c3aed', borderBottom: '3px solid #261812' }}>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-white" />
-                <p className="text-white text-[11px] font-black uppercase tracking-widest">Aulas sem mensalidade ({aulasSemMensalidade.length})</p>
+                <p className="text-white text-[11px] font-black uppercase tracking-widest">Sem mensalidade no mês que vem ({aulasSemMensalidade.length})</p>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-              <p className="text-[9px] font-bold text-[#8e7164] uppercase">Aulas agendadas depois da última mensalidade gerada. Renove o plano ou gere as parcelas.</p>
+              <p className="text-[9px] font-bold text-[#8e7164] uppercase">
+                Têm aula este mês{aulasSemMensalidade[0]?.mes_atual ? ` (${aulasSemMensalidade[0].mes_atual})` : ''} e nenhuma mensalidade em {aulasSemMensalidade[0]?.proximo_mes || 'o mês que vem'}. Renove o plano ou gere as parcelas.
+              </p>
               {aulasSemMensalidade.length > 0 ? aulasSemMensalidade.map((a) => (
                 <button
                   key={a.aluno_id}
@@ -308,16 +318,16 @@ export default function Dashboard() {
                   <div className="min-w-0 flex-1">
                     <p className="font-black text-black uppercase text-xs truncate">{a.nome}</p>
                     <p className="text-[9px] font-bold text-[#8e7164] uppercase">
-                      {a.ultima_mensalidade ? `Última mensalidade: ${String(a.ultima_mensalidade).split('-').reverse().join('/')}` : 'Nenhuma mensalidade gerada'}
+                      {a.ultima_mensalidade ? `Última mensalidade: ${a.ultima_mensalidade}` : 'Nenhuma mensalidade gerada'}
                     </p>
                   </div>
                   <div className="shrink-0 text-right ml-2">
-                    <p className="font-black text-violet-700 text-sm">{a.aulas_sem_mensalidade} aulas</p>
-                    <p className="text-[8px] font-black uppercase text-[#8e7164]">até {String(a.ultima_aula).split('-').reverse().join('/')}</p>
+                    <p className="font-black text-violet-700 text-sm">{a.aulas_neste_mes} {a.aulas_neste_mes === 1 ? 'aula' : 'aulas'}</p>
+                    <p className="text-[8px] font-black uppercase text-[#8e7164]">neste mês</p>
                   </div>
                 </button>
               )) : (
-                <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center py-6">Todas as aulas têm mensalidade. ✅</div>
+                <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center py-6">Todos os alunos com aula têm mensalidade no mês que vem. ✅</div>
               )}
             </div>
           </div>
@@ -369,7 +379,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#ff6b00', borderBottom: '3px solid #261812' }}>
               <div className="flex items-center gap-2">
                 <span className="text-white font-black text-sm">💰</span>
-                <p className="text-white text-[11px] font-black uppercase tracking-widest">Cobranças do Mês ({faturasPendentes.length})</p>
+                <p className="text-white text-[11px] font-black uppercase tracking-widest">Parcelas em atraso ({faturasPendentes.length})</p>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
