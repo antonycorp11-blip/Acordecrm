@@ -26,6 +26,7 @@ import Assinatura from './pages/Assinatura';
 import { GlobalUpdater } from './components/GlobalUpdater';
 import EadTrilhaAdmin from './pages/EadTrilhaAdmin';
 import Relatorios from './pages/Relatorios';
+import Privacidade from './pages/Privacidade';
 import { AssistenteIA } from './components/AssistenteIA';
 
 import { Toaster } from 'sonner';
@@ -236,6 +237,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/assinatura/:id" element={<Assinatura />} />
+          <Route path="/privacidade" element={<Privacidade tipo="privacidade" />} />
+          <Route path="/termos" element={<Privacidade tipo="termos" />} />
 
           {/* Rotas Privadas */}
           <Route path="/*" element={
