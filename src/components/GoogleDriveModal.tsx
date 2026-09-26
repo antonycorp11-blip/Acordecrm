@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HardDrive, CheckCircle2, AlertCircle, RefreshCw, Key, X, Trash2, Link2, Unlink, Database } from 'lucide-react';
+import { HardDrive, CheckCircle2, AlertCircle, RefreshCw, X, Trash2, Link2, Unlink, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '../services/apiClient';
 
@@ -73,25 +73,19 @@ export function GoogleDriveModal({ isOpen, onClose }: GoogleDriveModalProps) {
     return data;
   };
 
-  const salvarCredenciais = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Um único passo: salva as credenciais (se preenchidas), confere e já abre o login do Google
+  const salvarEConectar = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setBusy(true);
     try {
-      await post('/api/drive/config', { clientId, ...(clientSecret ? { clientSecret } : {}) });
-      toast.success('Credenciais salvas. Agora clique em "Conectar minha conta Google".');
-      setClientSecret('');
-      await loadStatus();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const conectar = async () => {
-    setBusy(true);
-    try {
-      const res = await apiFetch('/api/drive/oauth/start');
+      if (clientId.trim() || clientSecret.trim()) {
+        if (!clientId.trim() || !clientSecret.trim()) throw new Error('Preencha o Client ID e o Client Secret.');
+        const r = await post('/api/drive/config', { clientId: clientId.trim(), clientSecret: clientSecret.trim() });
+        if (!r.temCredenciaisApp) throw new Error('As credenciais não foram salvas. Tente novamente.');
+      } else if (!status?.temCredenciaisApp) {
+        throw new Error('Preencha o Client ID e o Client Secret.');
+      }
+      const res = await apiFetch('/api/drive/oauth/start', { headers: { 'Cache-Control': 'no-store' } });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error || 'Não foi possível iniciar a conexão.');
       window.location.href = data.url;
@@ -277,23 +271,22 @@ export function GoogleDriveModal({ isOpen, onClose }: GoogleDriveModalProps) {
               <li>Copie o <b>Client ID</b> e o <b>Client Secret</b> para os campos abaixo.</li>
             </ol>
 
-            <form onSubmit={salvarCredenciais} className="space-y-3 border-4 border-black bg-white p-4">
+            <form onSubmit={salvarEConectar} className="space-y-3 border-4 border-black bg-white p-4">
               <label className="block text-[10px] font-black uppercase">
                 Client ID
-                <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder={status?.temCredenciaisApp ? '(já cadastrado)' : '000000-xxxx.apps.googleusercontent.com'} className="w-full border-2 border-black p-2 mt-1 font-bold text-xs" />
+                <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder={status?.temCredenciaisApp ? '(já cadastrado)' : '000000-xxxx.apps.googleusercontent.com'} className="w-full border-2 border-black p-2 mt-1 font-bold text-xs" autoComplete="off" />
               </label>
               <label className="block text-[10px] font-black uppercase">
                 Client Secret
-                <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder={status?.temCredenciaisApp ? '(já cadastrado)' : 'GOCSPX-...'} className="w-full border-2 border-black p-2 mt-1 font-bold text-xs" />
+                <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder={status?.temCredenciaisApp ? '(já cadastrado)' : 'GOCSPX-...'} className="w-full border-2 border-black p-2 mt-1 font-bold text-xs" autoComplete="off" />
               </label>
-              <button type="submit" disabled={busy || !clientId} className="w-full bg-black text-white py-2 font-black text-xs uppercase flex items-center justify-center gap-2 disabled:opacity-50">
-                <Key className="w-4 h-4" /> Salvar credenciais
+              <button type="submit" disabled={busy || (!status?.temCredenciaisApp && (!clientId.trim() || !clientSecret.trim()))} className="w-full bg-[#00FF41] text-black py-3 font-black text-sm uppercase border-4 border-black shadow-[4px_4px_0_#000] flex items-center justify-center gap-2 disabled:opacity-40">
+                <Link2 className="w-5 h-5" /> {busy ? 'Conectando...' : 'Salvar e conectar minha conta Google'}
               </button>
+              {!status?.temCredenciaisApp && (!clientId.trim() || !clientSecret.trim()) && (
+                <p className="text-[9px] font-bold text-[#8e7164]">Preencha os dois campos para liberar o botão.</p>
+              )}
             </form>
-
-            <button onClick={conectar} disabled={busy || !status?.temCredenciaisApp} className="w-full bg-[#00FF41] text-black py-3 font-black text-sm uppercase border-4 border-black shadow-[4px_4px_0_#000] flex items-center justify-center gap-2 disabled:opacity-40">
-              <Link2 className="w-5 h-5" /> Conectar minha conta Google
-            </button>
           </div>
         )}
       </div>

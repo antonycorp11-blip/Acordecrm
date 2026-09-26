@@ -4721,14 +4721,26 @@ async function startServer() {
         keys.forEach((k) => { out[k] = data?.find((d: any) => d.key_name === k)?.key_value ?? null; });
         return out;
     };
+    // Grava uma configuração e CONFERE o resultado (antes os erros do banco eram ignorados)
     const setConfigValue = async (key: string, value: string | null) => {
-        const { data: existing } = await supabase.from('system_config').select('id').eq('key_name', key).maybeSingle();
+        const { data: existentes, error: errSel } = await supabase.from('system_config').select('id').eq('key_name', key).order('id', { ascending: true });
+        if (errSel) throw new Error(`Falha ao ler ${key}: ${errSel.message}`);
         if (value === null) {
-            if (existing) await supabase.from('system_config').delete().eq('key_name', key);
+            if (existentes && existentes.length) {
+                const { error } = await supabase.from('system_config').delete().eq('key_name', key);
+                if (error) throw new Error(`Falha ao remover ${key}: ${error.message}`);
+            }
             return;
         }
-        if (existing) await supabase.from('system_config').update({ key_value: value }).eq('key_name', key);
-        else await supabase.from('system_config').insert([{ key_name: key, key_value: value }]);
+        if (existentes && existentes.length) {
+            const { error } = await supabase.from('system_config').update({ key_value: value, updated_at: new Date().toISOString() }).eq('key_name', key);
+            if (error) throw new Error(`Falha ao atualizar ${key}: ${error.message}`);
+        } else {
+            const { error } = await supabase.from('system_config').insert([{ key_name: key, key_value: value }]);
+            if (error) throw new Error(`Falha ao gravar ${key}: ${error.message}`);
+        }
+        const { data: conferido } = await supabase.from('system_config').select('key_value').eq('key_name', key).limit(1).maybeSingle();
+        if (!conferido || conferido.key_value !== value) throw new Error(`O banco não confirmou a gravação de ${key}.`);
     };
 
     const getDriveSettings = async () => {
@@ -4934,6 +4946,7 @@ async function startServer() {
     };
 
     app.get('/api/drive/status', requireAdmin, async (req, res) => {
+        res.set('Cache-Control', 'no-store');
         try {
             const uso = await getDriveUso();
             res.json({ ...uso, redirectUri: getRedirectUri(req) });
@@ -4944,7 +4957,15 @@ async function startServer() {
 
     app.post('/api/drive/config', requireAdmin, async (req, res) => {
         try {
-            const { clientId, clientSecret, retencaoDias, alertaPct } = req.body;
+            const corpo = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+            console.log('[DRIVE_CONFIG] campos recebidos:', Object.keys(corpo).join(', ') || '(nenhum)');
+            const { clientId, clientSecret, retencaoDias, alertaPct } = corpo;
+            if (clientId !== undefined && String(clientId).trim() && !String(clientId).trim().endsWith('.apps.googleusercontent.com')) {
+                return res.status(400).json({ error: 'O Client ID deve terminar com ".apps.googleusercontent.com".' });
+            }
+            if (clientSecret && !String(clientSecret).trim().startsWith('GOCSPX-')) {
+                return res.status(400).json({ error: 'O Client Secret deve começar com "GOCSPX-".' });
+            }
             if (clientId !== undefined) await setConfigValue(DRIVE_CFG.clientId, String(clientId).trim() || null);
             if (clientSecret) await setConfigValue(DRIVE_CFG.clientSecret, encryptSecret(String(clientSecret).trim()));
             if (retencaoDias !== undefined) {
@@ -4958,8 +4979,10 @@ async function startServer() {
                 await setConfigValue(DRIVE_CFG.alertaPct, String(p));
             }
             driveTokenCache = null;
-            res.json({ success: true });
+            const s = await getDriveSettings();
+            res.json({ success: true, temClientId: Boolean(s.clientId), temClientSecret: Boolean(s.clientSecret), temCredenciaisApp: Boolean(s.clientId && s.clientSecret) });
         } catch (error: any) {
+            console.error('[DRIVE_CONFIG] Erro:', error.message);
             res.status(500).json({ error: error.message });
         }
     });
