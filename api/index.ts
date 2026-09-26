@@ -14,6 +14,12 @@ import nodemailer from 'nodemailer';
 import { GoogleAuth } from 'google-auth-library';
 import rateLimit from 'express-rate-limit';
 
+// Mês de referência atual (MM/AAAA) no fuso de Cuiabá
+function getMesAtualBR() {
+    const [y, m] = getDateBR().split('-');
+    return `${m}/${y}`;
+}
+
 function getDateBR() {
     return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
 }
@@ -27,6 +33,8 @@ if (!isVercel) {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'studio-acorde-secret-key-2024';
+// Supabase projeta respostas em no máximo 1000 linhas; usado para paginar consultas grandes
+const PAGE_SIZE = 1000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -48,13 +56,61 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('CRITICAL ERROR: Supabase credentials are missing!');
 }
 
-const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder', {
-  global: {
-    headers: {
-      'x-backend-secret': 'studio-acorde-secret-key-2024'
-    }
-  }
+// O backend usa a service_role (ignora RLS) quando configurada; a anon key fica só como fallback
+// até a variável SUPABASE_SERVICE_ROLE_KEY ser adicionada na Vercel.
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+if (!supabaseServiceKey) {
+  console.warn('[SEGURANÇA] SUPABASE_SERVICE_ROLE_KEY não configurada: backend usando anon key.');
+}
+if (!process.env.JWT_SECRET) {
+  console.warn('[SEGURANÇA] JWT_SECRET não configurado: usando chave padrão do código.');
+}
+
+const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseServiceKey || supabaseAnonKey || 'placeholder', {
+  auth: { persistSession: false, autoRefreshToken: false }
 });
+
+// E-mail do dono (God Mode). Comparação exata, nunca por prefixo.
+const OWNER_EMAIL = 'antonycorp11@gmail.com';
+const isOwner = (req: any) => String(req.user?.email || '').toLowerCase().trim() === OWNER_EMAIL;
+
+// Escapa curingas do ILIKE para comparar e-mails sem diferenciar maiúsculas/minúsculas
+const escapeLike = (value: string) => String(value || '').trim().replace(/[\\%_]/g, (m) => `\\${m}`);
+
+// Soma meses mantendo o dia desejado; se o mês não tiver esse dia, usa o último dia do mês
+// (evita que vencimentos dia 29/30/31 pulem fevereiro).
+function addMonthsKeepDay(base: Date, months: number, day: number): Date {
+    const y = base.getUTCFullYear();
+    const m = base.getUTCMonth() + months;
+    const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(y, m, Math.min(day, lastDay), 12));
+}
+
+// Converte 'YYYY-MM-DD' (ou Date) em Date UTC ao meio-dia, independente do fuso do servidor
+function parseDateOnly(value: any): Date {
+    if (value instanceof Date) return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate(), 12));
+    const s = String(value || '').substring(0, 10);
+    const [y, m, d] = s.split('-').map(Number);
+    if (!y || !m || !d) {
+        const hoje = getDateBR().split('-').map(Number);
+        return new Date(Date.UTC(hoje[0], hoje[1] - 1, hoje[2], 12));
+    }
+    return new Date(Date.UTC(y, m - 1, d, 12));
+}
+
+const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+const toRefMesAno = (d: Date) => `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+
+// Gera as datas de vencimento de N parcelas a partir da primeira data
+function gerarVencimentos(primeira: any, quantidade: number, diaVencimento?: any): Date[] {
+    const inicio = parseDateOnly(primeira);
+    const dia = Number(diaVencimento) || inicio.getUTCDate();
+    const datas: Date[] = [];
+    for (let i = 0; i < Math.max(1, Number(quantidade) || 1); i++) {
+        datas.push(i === 0 ? inicio : addMonthsKeepDay(inicio, i, dia));
+    }
+    return datas;
+}
 
 const fetchAllGamificacaoProgresso = async (supabaseClient: any) => {
     // 1. Obter o total de registros para paginar em paralelo
@@ -87,102 +143,145 @@ const fetchAllGamificacaoProgresso = async (supabaseClient: any) => {
 };
 
 let hasSyncedProvaTrophies = false;
+let syncProvaTrophiesPromise: Promise<void> | null = null;
+
+// Lê todas as linhas de uma consulta paginando (o Supabase limita cada resposta a 1000 linhas)
+const fetchAllRows = async (buildQuery: () => any) => {
+    let all: any[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        all = all.concat(data || []);
+        if (!data || data.length < PAGE_SIZE) break;
+    }
+    return all;
+};
+
+// Garante retroativamente que quem passou numa prova tenha o troféu e a aula concluída.
+// Roda uma vez por instância do servidor e só insere o que falta (nunca altera pontos existentes).
 const syncProvaTrophiesAndScores = async (supabaseClient: any) => {
-    try {
-        const { data: modulos } = await supabaseClient.from('modulos_trilha').select('id, nome, conquista_id');
-        const { data: aulas } = await supabaseClient.from('aulas_trilha').select('id, titulo, conquista_id');
-        const { data: conquistas } = await supabaseClient.from('gamificacao_conquistas').select('*');
+    if (hasSyncedProvaTrophies) return;
+    if (syncProvaTrophiesPromise) return syncProvaTrophiesPromise;
+    syncProvaTrophiesPromise = (async () => {
+        try {
+            const { data: modulos } = await supabaseClient.from('modulos_trilha').select('id, conquista_id');
+            const { data: aulas } = await supabaseClient.from('aulas_trilha').select('id, conquista_id');
 
-        if (!conquistas || conquistas.length === 0) return;
+            const tentativas = await fetchAllRows(() => supabaseClient
+                .from('tentativas_questionario_trilha')
+                .select('id, aluno_id, modulo_trilha_id, aula_trilha_id')
+                .eq('aprovado', true)
+                .order('id', { ascending: true }));
 
-        const modConqIds = new Set((modulos || []).map((m: any) => Number(m.conquista_id)).filter(Boolean));
-        const aulConqIds = new Set((aulas || []).map((a: any) => Number(a.conquista_id)).filter(Boolean));
+            if (tentativas.length > 0) {
+                const currentProgresso = await fetchAllRows(() => supabaseClient
+                    .from('gamificacao_progresso')
+                    .select('id, aluno_id, conquista_id')
+                    .order('id', { ascending: true }));
+                const existingUserConqSet = new Set(currentProgresso.map((p: any) => `${p.aluno_id}_${p.conquista_id}`));
 
-        const provaKeywords = ['prova', 'desafio', 'módulo', 'modulo', 'questionario', 'questionário', 'ead', 'exame', 'teste', 'quiz'];
+                const trilhaProgresso = await fetchAllRows(() => supabaseClient
+                    .from('progresso_trilha')
+                    .select('id, aluno_id, aula_id')
+                    .order('id', { ascending: true }));
+                const existingAulaSet = new Set(trilhaProgresso.map((p: any) => `${p.aluno_id}_${p.aula_id}`));
 
-        const provaConqIdsToUpdate: number[] = [];
+                const trofeuInserts: { aluno_id: number; conquista_id: number }[] = [];
+                const aulaInserts: { aluno_id: number; aula_id: number }[] = [];
 
-        conquistas.forEach((c: any) => {
-            const cid = Number(c.id);
-            const isLinkedToModOrAula = modConqIds.has(cid) || aulConqIds.has(cid);
-            const titleOrDesc = `${c.nome || ''} ${c.descricao || ''}`.toLowerCase();
-            const isMatchKeyword = provaKeywords.some(kw => titleOrDesc.includes(kw));
+                for (const tent of tentativas) {
+                    let targetConqId: number | null = null;
+                    if (tent.modulo_trilha_id) {
+                        const mod = (modulos || []).find((m: any) => Number(m.id) === Number(tent.modulo_trilha_id));
+                        if (mod?.conquista_id) targetConqId = Number(mod.conquista_id);
+                    } else if (tent.aula_trilha_id) {
+                        const aul = (aulas || []).find((a: any) => Number(a.id) === Number(tent.aula_trilha_id));
+                        if (aul?.conquista_id) targetConqId = Number(aul.conquista_id);
+                    }
 
-            if (isLinkedToModOrAula || isMatchKeyword) {
-                if (Number(c.pontos) !== 20000) {
-                    provaConqIdsToUpdate.push(cid);
+                    const conqKey = `${tent.aluno_id}_${targetConqId}`;
+                    if (targetConqId && !existingUserConqSet.has(conqKey)) {
+                        trofeuInserts.push({ aluno_id: tent.aluno_id, conquista_id: targetConqId });
+                        existingUserConqSet.add(conqKey);
+                    }
+
+                    const aulaKey = `${tent.aluno_id}_${tent.aula_trilha_id}`;
+                    if (tent.aula_trilha_id && !existingAulaSet.has(aulaKey)) {
+                        aulaInserts.push({ aluno_id: Number(tent.aluno_id), aula_id: Number(tent.aula_trilha_id) });
+                        existingAulaSet.add(aulaKey);
+                    }
+                }
+
+                if (trofeuInserts.length > 0) {
+                    console.log(`[SYNC PROVA TROPHIES] Concedendo ${trofeuInserts.length} troféus retroativos...`);
+                    await supabaseClient.from('gamificacao_progresso').insert(trofeuInserts);
+                }
+                if (aulaInserts.length > 0) {
+                    await supabaseClient.from('progresso_trilha').insert(aulaInserts);
                 }
             }
+
+            hasSyncedProvaTrophies = true;
+        } catch (err) {
+            console.error('[SYNC PROVA TROPHIES ERROR]:', err);
+        } finally {
+            syncProvaTrophiesPromise = null;
+        }
+    })();
+    return syncProvaTrophiesPromise;
+};
+
+// Ranking da temporada ativa: XP base + troféus da temporada ativa (alunos arquivados ficam de fora)
+const calcularRanking = async (progressoPronto?: any[]) => {
+    const { data: tempAtiva } = await supabase
+        .from('temporadas')
+        .select('id')
+        .eq('status', 'ativa')
+        .maybeSingle();
+    const activeTempId = tempAtiva?.id || 3;
+
+    const { data: alunos, error: alunosError } = await supabase
+        .from('alunos')
+        .select('id, nome, xp, foto_url, avatar_config, acorde_coins')
+        .neq('status', 'arquivado');
+    if (alunosError) console.error('Erro ao buscar alunos para ranking:', alunosError);
+
+    const progresso = progressoPronto || await fetchAllGamificacaoProgresso(supabase);
+    const progPorAluno = new Map<number, any[]>();
+    progresso.forEach((p: any) => {
+        const lista = progPorAluno.get(p.aluno_id) || [];
+        lista.push(p);
+        progPorAluno.set(p.aluno_id, lista);
+    });
+
+    return (alunos || []).map((al: any) => {
+        const prog = progPorAluno.get(al.id) || [];
+        const progTemporada = prog.filter((p: any) => p.conquista?.temporada_id === activeTempId);
+        const xpConquistas = progTemporada.reduce((acc: number, p: any) => acc + (p.conquista?.pontos || 0), 0);
+        const xpTotal = (Number(al.xp) || 0) + xpConquistas;
+
+        const conquistasMap: any = {};
+        prog.forEach((p: any) => {
+            const cid = p.conquista_id;
+            if (!conquistasMap[cid]) {
+                conquistasMap[cid] = { ...p.conquista, count: 0 };
+            }
+            conquistasMap[cid].count++;
         });
 
-        if (provaConqIdsToUpdate.length > 0) {
-            console.log(`[SYNC PROVA TROPHIES] Updating ${provaConqIdsToUpdate.length} test trophies to 20.000 points...`);
-            await supabaseClient
-                .from('gamificacao_conquistas')
-                .update({ pontos: 20000 })
-                .in('id', provaConqIdsToUpdate);
-        }
-
-        // Garantir retroativamente que todo aluno que passou em uma prova (tentativas_questionario_trilha com aprovado = true) tenha o troféu no seu progresso
-        const { data: tentativas } = await supabaseClient
-            .from('tentativas_questionario_trilha')
-            .select('aluno_id, modulo_trilha_id, aula_trilha_id')
-            .eq('aprovado', true);
-
-        if (tentativas && tentativas.length > 0) {
-            const { data: currentProgresso } = await supabaseClient
-                .from('gamificacao_progresso')
-                .select('aluno_id, conquista_id');
-
-            const existingUserConqSet = new Set(
-                (currentProgresso || []).map((p: any) => `${p.aluno_id}_${p.conquista_id}`)
-            );
-
-            const inserts: { aluno_id: number; conquista_id: number }[] = [];
-
-            for (const tent of tentativas) {
-                let targetConqId: number | null = null;
-                if (tent.modulo_trilha_id) {
-                    const mod = (modulos || []).find((m: any) => Number(m.id) === Number(tent.modulo_trilha_id));
-                    if (mod?.conquista_id) targetConqId = Number(mod.conquista_id);
-                } else if (tent.aula_trilha_id) {
-                    const aul = (aulas || []).find((a: any) => Number(a.id) === Number(tent.aula_trilha_id));
-                    if (aul?.conquista_id) targetConqId = Number(aul.conquista_id);
-                }
-
-                if (targetConqId && !existingUserConqSet.has(`${tent.aluno_id}_${targetConqId}`)) {
-                    inserts.push({ aluno_id: tent.aluno_id, conquista_id: targetConqId });
-                    existingUserConqSet.add(`${tent.aluno_id}_${targetConqId}`);
-                }
-            }
-
-            if (inserts.length > 0) {
-                console.log(`[SYNC PROVA TROPHIES] Granting ${inserts.length} missing retroactive test trophies to students...`);
-                await supabaseClient.from('gamificacao_progresso').insert(inserts);
-            }
-        }
-
-        // Garantir retroativamente que todo aluno que passou em uma prova de aula tenha a aula em progresso_trilha
-        const { data: tentativasAprovadas } = await supabaseClient
-            .from('tentativas_questionario_trilha')
-            .select('aluno_id, aula_trilha_id')
-            .eq('aprovado', true)
-            .not('aula_trilha_id', 'is', null);
-
-        if (tentativasAprovadas && tentativasAprovadas.length > 0) {
-            for (const tent of tentativasAprovadas) {
-                try {
-                    await supabaseClient
-                        .from('progresso_trilha')
-                        .insert([{ aluno_id: Number(tent.aluno_id), aula_id: Number(tent.aula_trilha_id) }]);
-                } catch (_) {}
-            }
-        }
-
-        hasSyncedProvaTrophies = true;
-    } catch (err) {
-        console.error('[SYNC PROVA TROPHIES ERROR]:', err);
-    }
+        return {
+            id: al.id,
+            nome: al.nome,
+            foto_url: al.foto_url,
+            avatar_config: al.avatar_config,
+            acorde_coins: al.acorde_coins,
+            xp: xpTotal,
+            xp_aulas: Number(al.xp) || 0,
+            xp_conquistas: xpConquistas,
+            curso_ativo: 'MÚSICA',
+            conquistas: Object.values(conquistasMap)
+        };
+    }).sort((a: any, b: any) => b.xp - a.xp);
 };
 
 const addToFeed = async (aluno_id: number, tipo: string, mensagem: string, icone: string) => {
@@ -207,11 +306,10 @@ const authenticateToken = (req: any, res: any, next: any) => {
     if (!req.path.startsWith('/api/')) return next();
     
     const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos'];
-    const isPublicContrato = req.path.match(/^\/api\/contratos\/[^/]+$/) && req.method === 'GET' && !req.headers.authorization;
-    if (publicRoutes.includes(req.path) || isPublicContrato) return next();
-    
-    // A gamificação/upload pode precisar de token também
-    // O import-pdf é protected
+    // Link de assinatura enviado por e-mail: o contratante não está logado
+    const isPublicContrato = req.method === 'GET' && /^\/api\/contratos\/[0-9a-f-]{36}$/i.test(req.path) && !token;
+    const isPublicAssinatura = req.method === 'POST' && /^\/api\/contratos\/[0-9a-f-]{36}\/assinar$/i.test(req.path) && !token;
+    if (publicRoutes.includes(req.path) || isPublicContrato || isPublicAssinatura) return next();
 
     if (token == null) return res.status(401).json({ error: 'Acesso negado: Token não fornecido.' });
 
@@ -236,6 +334,48 @@ const authenticateToken = (req: any, res: any, next: any) => {
 const requireAdmin = (req: any, res: any, next: any) => {
     if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Acesso negado: Apenas administradores.' });
+    }
+    next();
+};
+
+// Administrador ou professor (equipe da escola)
+const isStaff = (req: any) => req.user?.role === 'admin' || req.user?.role === 'professor';
+const requireStaff = (req: any, res: any, next: any) => {
+    if (!isStaff(req)) {
+        return res.status(403).json({ error: 'Acesso negado: Apenas equipe da escola.' });
+    }
+    next();
+};
+
+// Exclusivo do dono (God Mode)
+const requireOwner = (req: any, res: any, next: any) => {
+    if (!isOwner(req)) {
+        return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
+    }
+    next();
+};
+
+// Id do aluno ligado ao usuário logado (o admin aquilles1213 usa a ficha de teste)
+const getAlunoIdDoUsuario = async (req: any): Promise<number | null> => {
+    if (req._alunoIdCache !== undefined) return req._alunoIdCache;
+    const email = String(req.user?.email || '').toLowerCase().trim();
+    const searchEmail = email === 'aquilles1213@gmail.com' ? 'teste@teste.com' : email;
+    let alunoId: number | null = null;
+    if (searchEmail) {
+        const { data } = await supabase.from('alunos').select('id').ilike('email', escapeLike(searchEmail)).limit(1).maybeSingle();
+        alunoId = data?.id ?? null;
+    }
+    req._alunoIdCache = alunoId;
+    return alunoId;
+};
+
+// Equipe acessa qualquer aluno; aluno só acessa a própria ficha
+const requireSelfOrStaff = (param: string = 'id', source: 'params' | 'body' = 'params') => async (req: any, res: any, next: any) => {
+    if (isStaff(req)) return next();
+    const alvo = Number(req[source]?.[param] ?? req[source]?.alunoId);
+    const meuId = await getAlunoIdDoUsuario(req);
+    if (!meuId || !alvo || Number(meuId) !== alvo) {
+        return res.status(403).json({ error: 'Acesso negado: você só pode acessar seus próprios dados.' });
     }
     next();
 };
@@ -279,8 +419,19 @@ async function startServer() {
     const app = express();
     const port = 3000;
 
+    app.set('trust proxy', 1);
     app.use(cors());
-    app.use(express.json());
+    app.use(express.json({ limit: '5mb' }));
+
+    // Limita tentativas nas rotas de login/cadastro (proteção contra força bruta)
+    const authLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        limit: 30,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }
+    });
+    app.use(['/api/auth/login', '/api/auth/register', '/api/auth/setup-password', '/api/auth/check-student'], authLimiter);
 
     // Middleware to log requests
     app.use((req, res, next) => {
@@ -389,7 +540,7 @@ async function startServer() {
         `.trim();
     };
 
-    app.get('/api/contratos/template', async (req, res) => {
+    app.get('/api/contratos/template', requireStaff, async (req, res) => {
         try {
             const { data, error } = await supabase.from('contrato_templates').select('*').limit(1).single();
             if (error && error.code !== 'PGRST116') throw error; // PGRST116 is not found
@@ -400,7 +551,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/contratos/template', async (req, res) => {
+    app.post('/api/contratos/template', requireAdmin, async (req, res) => {
         try {
             const { clausulas } = req.body;
             // Verifica se ja existe
@@ -419,7 +570,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/contratos/enviar', async (req, res) => {
+    app.post('/api/contratos/enviar', requireAdmin, async (req, res) => {
         try {
             const { aluno_id, dados_dinamicos, conteudo_html, email_aluno } = req.body;
 
@@ -492,7 +643,12 @@ async function startServer() {
     app.post('/api/contratos/:id/assinar', async (req, res) => {
         try {
             const { assinatura_base64 } = req.body;
-            if (!assinatura_base64) return res.status(400).json({ error: 'Assinatura inválida' });
+            if (!assinatura_base64 || !String(assinatura_base64).startsWith('data:image/')) return res.status(400).json({ error: 'Assinatura inválida' });
+
+            const { data: atual, error: errAtual } = await supabase.from('contratos').select('id, status').eq('id', req.params.id).maybeSingle();
+            if (errAtual) throw errAtual;
+            if (!atual) return res.status(404).json({ error: 'Contrato não encontrado' });
+            if (atual.status === 'assinado') return res.status(400).json({ error: 'Este contrato já foi assinado.' });
 
             const { data, error } = await supabase.from('contratos')
                 .update({ 
@@ -540,10 +696,12 @@ async function startServer() {
             
             if (!effectivePassword) return res.status(400).json({ error: 'Senha não fornecida' });
 
-            const { data: user, error } = await supabase.from('usuarios').select('*').eq('email', email).single();
+            if (!email) return res.status(400).json({ error: 'E-mail não fornecido' });
+
+            const { data: user, error } = await supabase.from('usuarios').select('*').ilike('email', escapeLike(email)).limit(1).maybeSingle();
             
-            if (error || !user || !bcrypt.compareSync(effectivePassword, user.senha)) {
-                return res.status(401).json({ message: 'Credenciais inválidas' });
+            if (error || !user || !user.senha || !bcrypt.compareSync(effectivePassword, user.senha)) {
+                return res.status(401).json({ error: 'E-mail ou senha inválidos', message: 'Credenciais inválidas' });
             }
 
             const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '180d' });
@@ -562,7 +720,7 @@ async function startServer() {
                 
                 const { data: user } = await supabase.from('usuarios').select('id, nome, email, role').eq('id', decoded.id).maybeSingle();
                 if (!user) {
-                    const { data: userByEmail } = await supabase.from('usuarios').select('id, nome, email, role').ilike('email', decoded.email).maybeSingle();
+                    const { data: userByEmail } = await supabase.from('usuarios').select('id, nome, email, role').ilike('email', escapeLike(decoded.email)).maybeSingle();
                     if (!userByEmail) return res.status(404).json({ error: 'Usuário não encontrado' });
                     const refreshedToken = jwt.sign({ id: userByEmail.id, email: userByEmail.email, role: userByEmail.role }, JWT_SECRET, { expiresIn: '180d' });
                     return res.json({ valid: true, user: userByEmail, token: refreshedToken });
@@ -583,10 +741,10 @@ async function startServer() {
             
             const cleanEmail = String(email).trim();
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').ilike('email', cleanEmail).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').ilike('email', escapeLike(cleanEmail)).limit(1).maybeSingle();
             if (!aluno) return res.json({ exists: false });
 
-            const { data: usuario } = await supabase.from('usuarios').select('id').ilike('email', cleanEmail).single();
+            const { data: usuario } = await supabase.from('usuarios').select('id').ilike('email', escapeLike(cleanEmail)).limit(1).maybeSingle();
             
             res.json({ 
                 exists: true, 
@@ -602,13 +760,19 @@ async function startServer() {
             const { email, senha } = req.body;
             if (!email || !senha) return res.status(400).json({ error: 'Dados incompletos' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            if (String(senha).length < 6) return res.status(400).json({ error: 'A senha precisa ter pelo menos 6 caracteres.' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, email').ilike('email', escapeLike(email)).limit(1).maybeSingle();
             if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            // O primeiro acesso só pode ser feito uma vez; depois disso a senha é trocada pela escola
+            const { data: jaExiste } = await supabase.from('usuarios').select('id').ilike('email', escapeLike(email)).limit(1).maybeSingle();
+            if (jaExiste) return res.status(400).json({ error: 'Este e-mail já possui acesso. Use a tela de login.' });
 
             const hashed = bcrypt.hashSync(senha, 10);
             const { data: newUser, error: errU } = await supabase.from('usuarios').insert([{
                 nome: aluno.nome,
-                email,
+                email: String(aluno.email || email).trim(),
                 senha: hashed,
                 senha_plana: senha,
                 role: 'aluno'
@@ -626,10 +790,19 @@ async function startServer() {
             const effectivePassword = password || senha;
             if (!effectivePassword) return res.status(400).json({ error: 'Senha não fornecida' });
 
-            // Verificar se o email já existe
-            const { data: existingUsers, error: checkError } = await supabase.from('usuarios').select('id').eq('email', email);
+            if (!email || !String(email).includes('@')) return res.status(400).json({ error: 'E-mail inválido.' });
+            if (String(effectivePassword).length < 6) return res.status(400).json({ error: 'A senha precisa ter pelo menos 6 caracteres.' });
+
+            // Verificar se o email já existe (sem diferenciar maiúsculas/minúsculas)
+            const { data: existingUsers, error: checkError } = await supabase.from('usuarios').select('id').ilike('email', escapeLike(email));
             if (checkError) throw checkError;
             if (existingUsers && existingUsers.length > 0) return res.status(400).json({ error: 'Email já cadastrado.' });
+
+            // E-mails da equipe não podem ser registrados pelo cadastro público
+            const { data: profComEmail } = await supabase.from('professores').select('id').ilike('email', escapeLike(email)).limit(1);
+            if (profComEmail && profComEmail.length > 0 || String(email).toLowerCase().trim() === OWNER_EMAIL) {
+                return res.status(400).json({ error: 'Este e-mail pertence à equipe. Peça o acesso ao administrador.' });
+            }
 
             // Hash da senha
             const salt = bcrypt.genSaltSync(10);
@@ -638,7 +811,7 @@ async function startServer() {
             // Inserir novo usuário
             const { data: user, error } = await supabase.from('usuarios').insert([{
                 nome,
-                email,
+                email: String(email).trim(),
                 senha: hashedPassword,
                 role: 'aluno' // Cadastro público agora define 'aluno' como padrão
             }]).select().single();
@@ -667,7 +840,7 @@ async function startServer() {
             const effectivePassword = password || senha;
             if (!effectivePassword) return res.status(400).json({ error: 'Senha não fornecida' });
 
-            const { data: existingUsers } = await supabase.from('usuarios').select('id').eq('email', email);
+            const { data: existingUsers } = await supabase.from('usuarios').select('id').ilike('email', escapeLike(email));
             if (existingUsers && existingUsers.length > 0) return res.status(400).json({ error: 'Email já cadastrado.' });
 
             const salt = bcrypt.genSaltSync(10);
@@ -711,7 +884,9 @@ async function startServer() {
     app.get('/api/vagas', async (req, res) => {
         console.log('--- CHAMADA API VAGAS ---', req.query);
         try {
-            const { instrumento, dia_semana } = req.query;
+            const { dia_semana } = req.query;
+            // Remove caracteres que alterariam o filtro do PostgREST
+            const instrumento = String(req.query.instrumento || '').replace(/[^\p{L}\p{N} ]/gu, '').trim().substring(0, 60);
             if (!instrumento || !dia_semana) return res.status(400).json({ error: 'Parâmetros ausentes' });
 
             // 1. Buscar professores que ensinam o instrumento
@@ -795,7 +970,7 @@ async function startServer() {
             const { data: aluno, error } = await supabase
                 .from('alunos')
                 .select('*, matriculas(*, cursos(nome), pacotes(*)), contratos(*)')
-                .ilike('email', req.user.email)
+                .ilike('email', escapeLike(req.user.email))
                 .single();
             
             if (error || !aluno) {
@@ -804,18 +979,13 @@ async function startServer() {
             }
 
             // 2. Calcular Ranking e XP real (baseado em conquistas)
-            const { data: allAlunos } = await supabase.from('alunos').select('id, xp');
             const progresso = await fetchAllGamificacaoProgresso(supabase);
             const meuProgresso = progresso.filter((p: any) => p.aluno_id === aluno.id);
-            
-            const rankingList = (allAlunos || []).map(al => {
-                const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
-                const xpCalculado = prog.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
-                // O XP total é a soma do XP base + conquistas
-                return { id: al.id, xp: (al.xp || 0) + xpCalculado };
-            }).sort((a, b) => b.xp - a.xp);
 
-            // Re-calculate my exact XP using meuProgresso to ensure accuracy even if general progresso is truncated
+            // Posição no ranking com a mesma regra da página de Ranking (temporada ativa, sem arquivados)
+            const rankingList = await calcularRanking(progresso);
+
+            // XP exibido na Área do Aluno: XP base + todos os troféus
             const myXpCalculado = (meuProgresso || []).reduce((acc: any, p: any) => acc + (p.conquista?.pontos || 0), 0);
             const exactMyXp = (aluno.xp || 0) + myXpCalculado;
 
@@ -873,7 +1043,7 @@ async function startServer() {
             const { data: aluno, error: selectErr } = await supabase
                 .from('alunos')
                 .select('id, foto_url')
-                .ilike('email', searchEmail)
+                .ilike('email', escapeLike(searchEmail))
                 .single();
 
             if (selectErr || !aluno) throw new Error('Aluno não encontrado');
@@ -895,7 +1065,8 @@ async function startServer() {
                 let { data: conquista } = await supabase
                     .from('gamificacao_conquistas')
                     .select('*')
-                    .ilike('titulo', 'Primeira Foto de Perfil')
+                    .ilike('nome', 'Primeira Foto de Perfil')
+                    .limit(1)
                     .maybeSingle();
 
                 if (!conquista) {
@@ -903,10 +1074,11 @@ async function startServer() {
                     const { data: novaConquista, error: createErr } = await supabase
                         .from('gamificacao_conquistas')
                         .insert([{
-                            titulo: 'Primeira Foto de Perfil',
+                            nome: 'Primeira Foto de Perfil',
                             descricao: 'Subiu sua primeira foto de perfil no Studio Master!',
                             pontos: 150,
-                            icone: '📸'
+                            icone: '📸',
+                            classe: 'Comum'
                         }])
                         .select()
                         .single();
@@ -920,6 +1092,7 @@ async function startServer() {
                         .select('*')
                         .eq('aluno_id', aluno.id)
                         .eq('conquista_id', conquista.id)
+                        .limit(1)
                         .maybeSingle();
 
                     if (!progressoExistente) {
@@ -1120,8 +1293,8 @@ async function startServer() {
         }
     });
 
-    // Teto diário de XP por jogos (máximo 100 XP por dia para o ranking)
-    const dailyGameXpTracker: Record<string, { date: string; xp: number }> = {};
+    // Teto de pontos de uma única partida (o maior valor legítimo já registrado foi 100.000 com Hora Dupla)
+    const MAX_PONTOS_POR_PARTIDA = 100000;
 
     // Endpoint unificado para Adicionar Acorde Coins (XP) após jogar um jogo
     app.post('/api/gamificacao/add-xp', async (req: any, res) => {
@@ -1130,13 +1303,16 @@ async function startServer() {
             if (!email) return res.status(401).json({ error: 'Não autorizado' });
 
             const { pontos, jogo } = req.body;
-            if (!pontos) return res.status(400).json({ error: 'Pontos não informados' });
+            const pontosNum = Math.floor(Number(pontos));
+            // Aceita apenas pontuação positiva e dentro do teto de uma partida
+            if (!Number.isFinite(pontosNum) || pontosNum <= 0) return res.status(400).json({ error: 'Pontos inválidos' });
+            if (pontosNum > MAX_PONTOS_POR_PARTIDA) return res.status(400).json({ error: 'Pontuação acima do permitido para uma partida' });
 
-            let { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', email).maybeSingle();
+            let { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', escapeLike(email)).maybeSingle();
             let isProf = false;
 
             if (!aluno) {
-                const { data: prof } = await supabase.from('professores').select('id, nome, xp, acorde_coins').ilike('email', email).maybeSingle();
+                const { data: prof } = await supabase.from('professores').select('id, nome, xp, acorde_coins').ilike('email', escapeLike(email)).maybeSingle();
                 if (prof) {
                     aluno = prof;
                     isProf = true;
@@ -1144,12 +1320,6 @@ async function startServer() {
             }
 
             if (!aluno) return res.status(404).json({ error: 'Usuário não encontrado' });
-
-            let finalPontos = Number(pontos);
-            const horaDupla = getHoraDuplaInfo();
-            if (horaDupla.isActive || (global as any).doublePointsGame === jogo) {
-                finalPontos *= 2;
-            }
 
             // Verificar no system_config se jogos dão XP (God Mode Config)
             const { data: configXp } = await supabase
@@ -1159,6 +1329,15 @@ async function startServer() {
                 .maybeSingle();
 
             const jogosDaoXp = configXp?.key_value !== 'false';
+            if (!jogosDaoXp) {
+                return res.json({ success: true, novoXp: Number(aluno.xp) || 0, novasMoedas: Number(aluno.acorde_coins) || 0, finalPontos: 0, jogosDaoXp, isHoraDupla: false });
+            }
+
+            let finalPontos = pontosNum;
+            const horaDupla = getHoraDuplaInfo();
+            if (horaDupla.isActive || (global as any).doublePointsGame === jogo) {
+                finalPontos *= 2;
+            }
 
             const novoXp = (Number(aluno.xp) || 0) + finalPontos;
             const novasMoedas = (Number(aluno.acorde_coins) || 0) + finalPontos;
@@ -1188,13 +1367,13 @@ async function startServer() {
             if (!email) return res.status(401).json({ error: 'Não autorizado' });
 
             const { preco, item_id } = req.body;
-            if (!preco) return res.status(400).json({ error: 'Preço não informado' });
+            if (!Number.isFinite(Number(preco)) || Number(preco) <= 0) return res.status(400).json({ error: 'Preço inválido' });
 
-            let { data: aluno } = await supabase.from('alunos').select('id, acorde_coins, avatar_inventory').ilike('email', email).maybeSingle();
+            let { data: aluno } = await supabase.from('alunos').select('id, acorde_coins, avatar_inventory').ilike('email', escapeLike(email)).maybeSingle();
             let isProf = false;
 
             if (!aluno) {
-                const { data: prof } = await supabase.from('professores').select('id, acorde_coins, avatar_inventory').ilike('email', email).maybeSingle();
+                const { data: prof } = await supabase.from('professores').select('id, acorde_coins, avatar_inventory').ilike('email', escapeLike(email)).maybeSingle();
                 if (prof) {
                     aluno = prof;
                     isProf = true;
@@ -1232,7 +1411,7 @@ async function startServer() {
     app.post('/api/gamificacao/resgatar-pontos', async (req: any, res) => {
         try {
             const { pontos, jogo } = req.body;
-            if (!pontos || Number(pontos) <= 0) {
+            if (!Number.isFinite(Number(pontos)) || Number(pontos) <= 0 || Number(pontos) > MAX_PONTOS_POR_PARTIDA) {
                 return res.status(400).json({ error: 'Quantidade de pontos inválida.' });
             }
 
@@ -1243,7 +1422,7 @@ async function startServer() {
             const { data: aluno, error } = await supabase
                 .from('alunos')
                 .select('*')
-                .ilike('email', searchEmail)
+                .ilike('email', escapeLike(searchEmail))
                 .single();
             
             if (error || !aluno) {
@@ -1277,7 +1456,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/upload', upload.single('file'), async (req: any, res) => {
+    app.post('/api/upload', requireStaff, upload.single('file'), async (req: any, res) => {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         try {
             const ext = path.extname(req.file.originalname) || '';
@@ -1314,7 +1493,7 @@ async function startServer() {
         }
     });
 
-    app.get('/api/alunos/:id', async (req, res) => {
+    app.get('/api/alunos/:id', requireSelfOrStaff('id'), async (req, res) => {
         try {
             const { data, error } = await supabase
                 .from('alunos')
@@ -1326,7 +1505,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.post('/api/alunos/:id/adicionar-aulas', async (req: any, res) => {
+    app.post('/api/alunos/:id/adicionar-aulas', requireAdmin, async (req: any, res) => {
         try {
             const alunoId = req.params.id;
             const { quantidade, data_primeira_aula, horario, professor_id, curso_id, sala_id } = req.body;
@@ -1400,7 +1579,7 @@ async function startServer() {
         }
     });
 
-    app.get('/api/alunos/:id/ultima-aula', async (req, res) => {
+    app.get('/api/alunos/:id/ultima-aula', requireSelfOrStaff('id'), async (req, res) => {
         try {
             const { data, error } = await supabase
                 .from('aulas')
@@ -1421,14 +1600,14 @@ async function startServer() {
 
 
 
-    app.get('/api/alunos/:id/materiais', async (req, res) => {
+    app.get('/api/alunos/:id/materiais', requireSelfOrStaff('id'), async (req, res) => {
         const { id } = req.params;
         const { data, error } = await supabase.from('materiais').select('*').eq('aluno_id', id).order('created_at', { ascending: false });
         if (error) return res.status(500).json({ error: error.message });
         res.json(data);
     });
 
-    app.post('/api/alunos/:id/materiais', async (req, res) => {
+    app.post('/api/alunos/:id/materiais', requireStaff, async (req, res) => {
         const { id } = req.params;
         const { titulo, url, tipo } = req.body;
         const { data, error } = await supabase.from('materiais').insert([{ aluno_id: id, titulo, url, tipo }]).select().single();
@@ -1436,14 +1615,14 @@ async function startServer() {
         res.json(data);
     });
 
-    app.delete('/api/materiais/:id', async (req, res) => {
+    app.delete('/api/materiais/:id', requireStaff, async (req, res) => {
         const { id } = req.params;
         const { error } = await supabase.from('materiais').delete().eq('id', id);
         if (error) return res.status(500).json({ error: error.message });
         res.json({ success: true });
     });
 
-    app.get('/api/alunos/:id/agenda', async (req, res) => {
+    app.get('/api/alunos/:id/agenda', requireSelfOrStaff('id'), async (req, res) => {
         try {
             const { data, error } = await supabase.from('aulas')
                 .select(`
@@ -1465,7 +1644,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.get('/api/alunos/:id/financeiro', async (req, res) => {
+    app.get('/api/alunos/:id/financeiro', requireSelfOrStaff('id'), async (req, res) => {
         try {
             const { id } = req.params;
             let { data, error } = await supabase.from('pagamentos')
@@ -1480,26 +1659,24 @@ async function startServer() {
                     .select('*')
                     .eq('aluno_id', id)
                     .eq('status', 'ativa')
-                    .single();
+                    .order('id', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
 
                 if (matricula) {
-                    const pagamentosToInsert = [];
-                    let currentVencimento = new Date(matricula.data_primeira_parcela || matricula.data_inicio || new Date());
-                    
-                    for (let i = 0; i < (matricula.total_parcelas || 1); i++) {
-                        pagamentosToInsert.push({
-                            aluno_id: id,
-                            matricula_id: matricula.id,
-                            valor: matricula.valor_parcela,
-                            data_vencimento: currentVencimento.toISOString().split('T')[0],
-                            status: 'pendente',
-                            tipo_receita: 'mensalidade',
-                            referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
-                        });
-                        
-                        currentVencimento.setMonth(currentVencimento.getMonth() + 1);
-                        currentVencimento.setDate(matricula.dia_vencimento || 10);
-                    }
+                    const pagamentosToInsert = gerarVencimentos(
+                        matricula.data_primeira_parcela || matricula.data_inicio || getDateBR(),
+                        matricula.total_parcelas || 1,
+                        matricula.dia_vencimento || 10
+                    ).map((venc) => ({
+                        aluno_id: id,
+                        matricula_id: matricula.id,
+                        valor: matricula.valor_parcela,
+                        data_vencimento: toDateStr(venc),
+                        status: 'pendente',
+                        tipo_receita: 'mensalidade',
+                        referencia_mes_ano: toRefMesAno(venc)
+                    }));
 
                     if (pagamentosToInsert.length > 0) {
                         const { data: inserted, error: insertError } = await supabase.from('pagamentos').insert(pagamentosToInsert).select();
@@ -1514,7 +1691,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.get('/api/alunos/:id/contrato', async (req, res) => {
+    app.get('/api/alunos/:id/contrato', requireSelfOrStaff('id'), async (req, res) => {
         try {
             const { id } = req.params;
             let { data: contrato, error } = await supabase.from('contratos')
@@ -1537,7 +1714,7 @@ async function startServer() {
             if (alunoError || !aluno) {
                 return res.status(404).json({ error: 'Aluno não encontrado' });
             }
-            const matricula = aluno.matriculas?.[0];
+            const matricula = [...(aluno.matriculas || [])].sort((a: any, b: any) => Number(b.id) - Number(a.id))[0];
             const { data: template } = await supabase.from('contrato_templates').select('*').limit(1).maybeSingle();
             const clausulas = (template && template.clausulas && template.clausulas.length > 0)
                 ? template.clausulas
@@ -1588,7 +1765,7 @@ async function startServer() {
         }
     });
 
-    app.get('/api/alunos/:id/ead-progresso', async (req, res) => {
+    app.get('/api/alunos/:id/ead-progresso', requireSelfOrStaff('id'), async (req, res) => {
         try {
             const { id } = req.params;
             const { data: progresso, error: progError } = await supabase
@@ -1769,13 +1946,16 @@ async function startServer() {
                                 if (matUpdate.dia_vencimento !== undefined && pg.data_vencimento) {
                                     const parts = pg.data_vencimento.split('-');
                                     if (parts.length === 3) {
-                                        parts[2] = matUpdate.dia_vencimento.toString().padStart(2, '0');
-                                        updatePg.data_vencimento = parts.join('-');
+                                        // Mantém o mês; se o mês não tiver o dia escolhido, usa o último dia
+                                        const novaData = addMonthsKeepDay(parseDateOnly(`${parts[0]}-${parts[1]}-01`), 0, Number(matUpdate.dia_vencimento));
+                                        updatePg.data_vencimento = toDateStr(novaData);
                                     }
                                 }
                                 return supabase.from('pagamentos').update(updatePg).eq('id', pg.id);
                             });
-                            await Promise.all(pgPromises);
+                            const pgResults = await Promise.all(pgPromises);
+                            const pgErro = pgResults.find((r: any) => r.error);
+                            if (pgErro) console.error('[PAGAMENTOS_UPDATE_ERROR]:', pgErro.error);
                             console.log('[PAGAMENTOS_UPDATE] Pagamentos pendentes atualizados em paralelo.');
                         }
                     }
@@ -1805,10 +1985,12 @@ async function startServer() {
 
             // 3. Sincronizar dados do contrato (se houver contrato cadastrado)
             try {
+                // Contratos assinados são documentos finais: nunca são reescritos
                 const { data: contratosExistentes } = await supabase
                     .from('contratos')
                     .select('*')
-                    .eq('aluno_id', studentId);
+                    .eq('aluno_id', studentId)
+                    .neq('status', 'assinado');
 
                 if (contratosExistentes && contratosExistentes.length > 0) {
                     const { data: fullAluno } = await supabase
@@ -1823,7 +2005,7 @@ async function startServer() {
                             ? template.clausulas
                             : CLAUSULAS_PADRAO_CONTRATO;
 
-                        const m = fullAluno.matriculas?.[0];
+                        const m = [...(fullAluno.matriculas || [])].sort((a: any, b: any) => Number(b.id) - Number(a.id))[0];
                         const responsavel = fullAluno.responsavel_nome || fullAluno.nome;
                         const cpfFinal = fullAluno.responsavel_cpf || fullAluno.cpf || '';
                         const enderecoFinal = fullAluno.endereco || '';
@@ -1877,7 +2059,7 @@ async function startServer() {
         }
     });
 
-    app.delete('/api/cursos/:id', async (req, res) => {
+    app.delete('/api/cursos/:id', requireAdmin, async (req, res) => {
         try {
             const { error } = await supabase.from('cursos').delete().eq('id', req.params.id);
             if (error) throw error;
@@ -1885,7 +2067,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.get('/api/aulas', async (req: any, res) => {
+    app.get('/api/aulas', requireStaff, async (req: any, res) => {
         try {
             const { professor_id, start, end } = req.query;
             let query = supabase.from('aulas').select('id, data, horario, status, professor_id, aluno_id, alunos(nome)');
@@ -1903,7 +2085,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/aulas', async (req: any, res) => {
+    app.post('/api/aulas', requireStaff, async (req: any, res) => {
         try {
             const { aluno_id, data, horario, horario_fim, curso_nome, status, conteudo, tarefa_casa, midias, xp_ganho, professor_id } = req.body;
             
@@ -1921,7 +2103,7 @@ async function startServer() {
             } else {
                 const { data: prof, error: profErr } = await supabase.from('professores')
                     .select('*')
-                    .ilike('email', req.user.email)
+                    .ilike('email', escapeLike(req.user.email))
                     .maybeSingle();
                     
                 if (profErr || !prof) {
@@ -2005,7 +2187,7 @@ async function startServer() {
         }
     });
 
-    app.patch('/api/aulas/:id/status', async (req, res) => {
+    app.patch('/api/aulas/:id/status', requireStaff, async (req, res) => {
         try {
             const { status, type, conteudo, tarefa_casa, midias, xp_ganho } = req.body;
             const table = type === 'experimental' ? 'aulas_experimentais' : 'aulas';
@@ -2055,11 +2237,10 @@ async function startServer() {
         res.json(data || []);
     });
 
-    app.get('/api/dashboard/stats', async (req, res) => {
+    app.get('/api/dashboard/stats', requireAdmin, async (req, res) => {
         try {
             const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
-            const now = new Date();
-            const mesAtual = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+            const mesAtual = getMesAtualBR();
 
             const { count: totalAlunos } = await supabase.from('alunos').select('*', { count: 'exact', head: true }).eq('status', 'ativo');
             
@@ -2106,7 +2287,7 @@ async function startServer() {
     });
 
     // Alunos + Matrícula
-    app.get('/api/alunos', async (req, res) => {
+    app.get('/api/alunos', requireStaff, async (req, res) => {
         const { status } = req.query;
         let query = supabase.from('alunos').select('*, matriculas(*, cursos(nome)), aulas(status)').order('nome');
         
@@ -2116,7 +2297,11 @@ async function startServer() {
             query = query.neq('status', 'arquivado');
         }
 
-        const { data } = await query;
+        const { data, error } = await query;
+        if (error) {
+            console.error('[GET /api/alunos] Erro:', error);
+            return res.status(500).json({ error: error.message });
+        }
         const formatted = data?.map((aluno: any) => {
             const aulasPendentes = aluno.aulas?.filter((a: any) => a.status?.toLowerCase() === 'pendente').length || 0;
             const alunoFormatado = { ...aluno, aulas_restantes: aulasPendentes };
@@ -2157,12 +2342,13 @@ async function startServer() {
             }
 
             // 3. Criar Matrícula
-            const parsedDiaSemana = dia_semana ? new Date(dia_semana) : new Date();
+            // Datas 'YYYY-MM-DD' interpretadas ao meio-dia UTC: o dia da semana não muda com o fuso do servidor
+            const parsedDiaSemana = parseDateOnly(dia_semana || getDateBR());
             const { data: matricula, error: errM } = await supabase.from('matriculas').insert([{
                 aluno_id: aluno.id, 
                 curso_id, 
                 professor_id, 
-                dia_semana: !isNaN(parsedDiaSemana.getTime()) ? parsedDiaSemana.getDay() : null,
+                dia_semana: !isNaN(parsedDiaSemana.getTime()) ? parsedDiaSemana.getUTCDay() : null,
                 horario, 
                 sala_id: sala_id || null, 
                 pacote_id,
@@ -2182,8 +2368,7 @@ async function startServer() {
             const totalAulas = pacote?.total_aulas || 1;
             
             const aulasToInsert = [];
-            let currentAulaDate = new Date(dia_semana || new Date());
-            if (isNaN(currentAulaDate.getTime())) currentAulaDate = new Date();
+            let currentAulaDate = parseDateOnly(dia_semana || getDateBR());
             
             for (let i = 0; i < totalAulas; i++) {
                 // Pular feriados
@@ -2215,29 +2400,21 @@ async function startServer() {
             }
 
             // 5. Geração de Pagamentos (Parcelas)
-            const pagamentosToInsert = [];
-            let currentVencimento = new Date(data_primeira_parcela || new Date());
-            if (isNaN(currentVencimento.getTime())) currentVencimento = new Date();
-
-            for (let i = 0; i < (total_parcelas || 1); i++) {
-                pagamentosToInsert.push({
-                    aluno_id: aluno.id,
-                    matricula_id: matricula.id,
-                    valor: valor_parcela,
-                    valor_com_desconto: effectiveValorDesconto,
-                    data_vencimento: currentVencimento.toISOString().split('T')[0],
-                    status: 'pendente',
-                    tipo_receita: 'mensalidade',
-                    referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
-                });
-                
-                // Próximo mês
-                currentVencimento.setMonth(currentVencimento.getMonth() + 1);
-                // Ajustar para o dia de vencimento escolhido (caso o mês tenha menos dias, o JS cuida disso ou vira o mês)
-                if (dia_vencimento) {
-                    currentVencimento.setDate(parseInt(dia_vencimento, 10) || 10);
-                }
-            }
+            // Parcelas mensais; se o mês não tiver o dia escolhido, vence no último dia do mês
+            const pagamentosToInsert = gerarVencimentos(
+                data_primeira_parcela || getDateBR(),
+                total_parcelas || 1,
+                dia_vencimento ? (parseInt(dia_vencimento, 10) || 10) : undefined
+            ).map((venc) => ({
+                aluno_id: aluno.id,
+                matricula_id: matricula.id,
+                valor: valor_parcela,
+                valor_com_desconto: effectiveValorDesconto,
+                data_vencimento: toDateStr(venc),
+                status: 'pendente',
+                tipo_receita: 'mensalidade',
+                referencia_mes_ano: toRefMesAno(venc)
+            }));
             if (pagamentosToInsert.length > 0) {
                 const { error: errPagamentos } = await supabase.from('pagamentos').insert(pagamentosToInsert);
                 if (errPagamentos) {
@@ -2278,7 +2455,7 @@ async function startServer() {
     });
 
     // Migração (Sala de Espera)
-    app.get('/api/migracao/alunos', async (req, res) => {
+    app.get('/api/migracao/alunos', requireAdmin, async (req, res) => {
         try {
             const { data, error } = await supabase
                 .from('migracao_alunos')
@@ -2293,7 +2470,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/migracao/batch', async (req, res) => {
+    app.post('/api/migracao/batch', requireAdmin, async (req, res) => {
         try {
             const { students } = req.body;
             const { error } = await supabase.from('migracao_alunos').insert(students);
@@ -2304,7 +2481,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/alunos/migracao', async (req, res) => {
+    app.post('/api/alunos/migracao', requireAdmin, async (req, res) => {
         const { migracao_id, ...studentData } = req.body;
         try {
             const { 
@@ -2399,30 +2576,32 @@ async function startServer() {
 
             // 5. Criar Faturas
             const pagamentosToInsert = [];
-            const now = new Date();
+            const diaVenc = Number(dia_vencimento) || 10;
+            const hojeBR = parseDateOnly(getDateBR());
+            const vencMesAtual = addMonthsKeepDay(hojeBR, 0, diaVenc);
             
             // Fatura do mês atual
             pagamentosToInsert.push({
                 aluno_id: aluno.id,
                 matricula_id: matricula.id,
                 valor: valor_parcela,
-                data_vencimento: new Date(now.getFullYear(), now.getMonth(), dia_vencimento || 10).toISOString().split('T')[0],
+                data_vencimento: toDateStr(vencMesAtual),
                 status: fatura_mes_atraso ? 'atrasado' : 'pendente',
                 tipo_receita: 'mensalidade',
-                referencia_mes_ano: `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`
+                referencia_mes_ano: toRefMesAno(vencMesAtual)
             });
 
             // Faturas pendentes
             for (let i = 1; i <= faturas_pendentes; i++) {
-                const prevDate = new Date(now.getFullYear(), now.getMonth() - i, dia_vencimento || 10);
+                const prevDate = addMonthsKeepDay(hojeBR, -i, diaVenc);
                 pagamentosToInsert.push({
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
                     valor: valor_parcela,
-                    data_vencimento: prevDate.toISOString().split('T')[0],
+                    data_vencimento: toDateStr(prevDate),
                     status: 'atrasado',
                     tipo_receita: 'mensalidade',
-                    referencia_mes_ano: `${(prevDate.getMonth() + 1).toString().padStart(2, '0')}/${prevDate.getFullYear()}`
+                    referencia_mes_ano: toRefMesAno(prevDate)
                 });
             }
 
@@ -2448,7 +2627,7 @@ async function startServer() {
         res.json(data || []);
     });
 
-    app.post('/api/cursos', async (req, res) => {
+    app.post('/api/cursos', requireAdmin, async (req, res) => {
         try {
             const { data, error } = await supabase.from('cursos').insert([req.body]).select().single();
             if (error) throw error;
@@ -2464,7 +2643,7 @@ async function startServer() {
             }
             const { data: prof, error } = await supabase.from('professores')
                 .select('*')
-                .ilike('email', req.user.email)
+                .ilike('email', escapeLike(req.user.email))
                 .maybeSingle();
             
             if (error) throw error;
@@ -2537,14 +2716,16 @@ async function startServer() {
         res.json(data);
     });
 
-    app.get('/api/professores', async (req, res) => {
-        const { data } = await supabase.from('professores').select('*').order('nome');
+    app.get('/api/professores', requireStaff, async (req, res) => {
+        let profQuery = supabase.from('professores').select('*').order('nome');
+        if (req.query.incluir_inativos !== '1') profQuery = profQuery.neq('status', 'inativo');
+        const { data } = await profQuery;
         // Filter out duplicates by nome
         const uniqueData = data ? Array.from(new Map(data.map(item => [item.nome.trim().toLowerCase(), item])).values()) : [];
         res.json(uniqueData);
     });
 
-    app.post('/api/professores', async (req, res) => {
+    app.post('/api/professores', requireAdmin, async (req, res) => {
         try {
             const { data, error } = await supabase.from('professores').insert([req.body]).select().single();
             if (error) throw error;
@@ -2552,7 +2733,21 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.post('/api/professores/:id/disponibilidade', async (req, res) => {
+    // Admin edita qualquer professor; professor só edita o próprio cadastro (sem mexer em valor/status/email)
+    const requireAdminOrOwnProfessor = async (req: any, res: any, next: any) => {
+        if (req.user?.role === 'admin') return next();
+        if (req.user?.role !== 'professor') return res.status(403).json({ error: 'Acesso negado.' });
+        const { data: prof } = await supabase.from('professores').select('id').ilike('email', escapeLike(req.user.email)).maybeSingle();
+        if (!prof || Number(prof.id) !== Number(req.params.id)) {
+            return res.status(403).json({ error: 'Acesso negado: você só pode editar seu próprio cadastro.' });
+        }
+        if (req.body && typeof req.body === 'object') {
+            for (const campo of ['id', 'valor_aula', 'status', 'email', 'xp', 'acorde_coins', 'saldo']) delete req.body[campo];
+        }
+        next();
+    };
+
+    app.post('/api/professores/:id/disponibilidade', requireAdminOrOwnProfessor, async (req, res) => {
         try {
             const { disponibilidade } = req.body;
             const { data, error } = await supabase.from('professores').update({ disponibilidade }).eq('id', req.params.id).select().single();
@@ -2561,7 +2756,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.put('/api/professores/:id', async (req, res) => {
+    app.put('/api/professores/:id', requireAdminOrOwnProfessor, async (req, res) => {
         try {
             const { data, error } = await supabase.from('professores')
                 .update(req.body)
@@ -2573,7 +2768,7 @@ async function startServer() {
         } catch (error) { res.status(500).json({ error: 'Erro ao atualizar professor' }); }
     });
 
-    app.patch('/api/professores/:id', async (req, res) => {
+    app.patch('/api/professores/:id', requireAdminOrOwnProfessor, async (req, res) => {
         try {
             const { data, error } = await supabase.from('professores')
                 .update(req.body)
@@ -2585,25 +2780,22 @@ async function startServer() {
         } catch (error) { res.status(500).json({ error: 'Erro ao atualizar professor' }); }
     });
 
-    app.delete('/api/professores/:id', async (req, res) => {
+    app.delete('/api/professores/:id', requireAdmin, async (req, res) => {
         try {
             const profId = req.params.id;
 
-            // 1. Buscar matrículas desse professor
-            const { data: matriculas } = await supabase
-                .from('matriculas').select('id').eq('professor_id', profId);
+            // Com histórico (matrículas ou aulas), o professor é arquivado: matrículas, aulas e pagamentos
+            // dos alunos ficam preservados. Sem histórico, o cadastro é excluído.
+            const { count: qtdMatriculas } = await supabase.from('matriculas').select('id', { count: 'exact', head: true }).eq('professor_id', profId);
+            const { count: qtdAulas } = await supabase.from('aulas').select('id', { count: 'exact', head: true }).eq('professor_id', profId);
+            const { count: qtdExp } = await supabase.from('aulas_experimentais').select('id', { count: 'exact', head: true }).eq('professor_id', profId);
 
-            if (matriculas && matriculas.length > 0) {
-                const mIds = matriculas.map((m: any) => m.id);
-                await supabase.from('pagamentos').delete().in('matricula_id', mIds);
-                await supabase.from('matriculas').delete().in('id', mIds);
+            if ((qtdMatriculas || 0) + (qtdAulas || 0) + (qtdExp || 0) > 0) {
+                const { error } = await supabase.from('professores').update({ status: 'inativo' }).eq('id', profId);
+                if (error) throw error;
+                return res.json({ success: true, arquivado: true, message: 'Professor possui histórico e foi arquivado (dados preservados).' });
             }
 
-            // 2. Excluir aulas e aulas experimentais do professor
-            await supabase.from('aulas').delete().eq('professor_id', profId);
-            await supabase.from('aulas_experimentais').delete().eq('professor_id', profId);
-
-            // 3. Excluir o professor
             const { error } = await supabase.from('professores').delete().eq('id', profId);
             if (error) throw error;
             res.json({ success: true });
@@ -2611,7 +2803,7 @@ async function startServer() {
     });
 
     // Leads (Atendimento)
-    app.get('/api/leads', async (req, res) => {
+    app.get('/api/leads', requireAdmin, async (req, res) => {
         try {
             const { data, error } = await supabase.from('leads').select('*, cursos(nome)').order('data_criacao', { ascending: false });
             if (error) {
@@ -2627,7 +2819,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/leads', async (req, res) => {
+    app.post('/api/leads', requireAdmin, async (req, res) => {
         try {
             const { nome, telefone, interesse_curso_id, status, observacoes, origem } = req.body;
             if (!telefone) {
@@ -2652,7 +2844,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao salvar lead' }); }
     });
 
-    app.patch('/api/leads/:id/status', async (req, res) => {
+    app.patch('/api/leads/:id/status', requireAdmin, async (req, res) => {
         try {
             const { status } = req.body;
             const { id } = req.params;
@@ -2667,7 +2859,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao atualizar status do lead' }); }
     });
 
-    app.patch('/api/leads/:id', async (req, res) => {
+    app.patch('/api/leads/:id', requireAdmin, async (req, res) => {
         try {
             const { nome, telefone, interesse_curso_id, status, observacoes, origem } = req.body;
             const { id } = req.params;
@@ -2700,7 +2892,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao atualizar lead' }); }
     });
 
-    app.post('/api/leads/verificar-followup', async (req, res) => {
+    app.post('/api/leads/verificar-followup', requireAdmin, async (req, res) => {
         try {
             const todayStr = new Date().toISOString().split('T')[0];
             const { data: leadsPendentes, error: errL } = await supabase
@@ -2811,7 +3003,7 @@ async function startServer() {
     });
 
     // Agendamento de Aula Experimental
-    app.post('/api/leads/experimental', async (req, res) => {
+    app.post('/api/leads/experimental', requireAdmin, async (req, res) => {
         try {
             const { lead_id, professor_id, curso_id, data, horario, sala_id } = req.body;
             const { data: exp, error: errE } = await supabase.from('aulas_experimentais').insert([{
@@ -2826,7 +3018,7 @@ async function startServer() {
         } catch (error) { res.status(500).json({ error: 'Erro ao agendar aula experimental' }); }
     });
 
-    app.get('/api/leads/experimentais-pendentes', async (req, res) => {
+    app.get('/api/leads/experimentais-pendentes', requireAdmin, async (req, res) => {
         try {
             const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
             const { data, error } = await supabase
@@ -2841,7 +3033,7 @@ async function startServer() {
     });
 
     // Locações
-    app.post('/api/locacoes', async (req, res) => {
+    app.post('/api/locacoes', requireAdmin, async (req, res) => {
         try {
             const { data, error } = await supabase.from('locacoes').insert([req.body]).select().single();
             if (error) throw error;
@@ -2926,7 +3118,7 @@ async function startServer() {
     });
 
     // Baixar (marcar como pago) um pagamento
-    app.patch('/api/pagamentos/:id/baixa', async (req, res) => {
+    app.patch('/api/pagamentos/:id/baixa', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { metodo_pagamento } = req.body;
@@ -2940,7 +3132,7 @@ async function startServer() {
     });
 
     // Registrar cobrança enviada por WhatsApp
-    app.post('/api/pagamentos/:id/registrar-cobranca', async (req, res) => {
+    app.post('/api/pagamentos/:id/registrar-cobranca', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { data: pg, error: getError } = await supabase
@@ -2965,7 +3157,7 @@ async function startServer() {
     });
 
     // Alterar data de vencimento de um pagamento
-    app.patch('/api/pagamentos/:id', async (req, res) => {
+    app.patch('/api/pagamentos/:id', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const updates = req.body; // { data_vencimento, referencia_mes_ano, etc }
@@ -2977,7 +3169,7 @@ async function startServer() {
     });
 
     // Excluir um pagamento
-    app.delete('/api/pagamentos/:id', async (req, res) => {
+    app.delete('/api/pagamentos/:id', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { error } = await supabase.from('pagamentos').delete().eq('id', id);
@@ -3012,8 +3204,7 @@ async function startServer() {
     app.get('/api/despesas', requireAdmin, async (req, res) => {
         try {
             const { mes } = req.query;
-            const now = new Date();
-            const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+            const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : getMesAtualBR();
             
             const [m, y] = mesRef.split('/');
             const startDate = `${y}-${m}-01`;
@@ -3042,9 +3233,10 @@ async function startServer() {
             if (numParcelas > 1) {
                 // Gerar múltiplas faturas (uma por mês)
                 const faturas = [];
-                let currentDate = new Date(data_vencimento + 'T12:00:00');
+                const vencimentos = gerarVencimentos(data_vencimento, numParcelas);
                 
                 for (let i = 1; i <= numParcelas; i++) {
+                    const currentDate = vencimentos[i - 1];
                     const descSuffix = categoria === 'fixa' ? '' : ` (${i}/${numParcelas})`;
                     faturas.push({
                         descricao: `${descricao}${descSuffix}`,
@@ -3057,7 +3249,6 @@ async function startServer() {
                         professor_id: professor_id || null,
                         status: 'pendente'
                     });
-                    currentDate.setMonth(currentDate.getMonth() + 1);
                 }
                 
                 const { data, error } = await supabase.from('despesas').insert(faturas).select();
@@ -3080,7 +3271,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.patch('/api/despesas/:id/baixa', async (req, res) => {
+    app.patch('/api/despesas/:id/baixa', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const now = new Date();
@@ -3092,7 +3283,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.delete('/api/despesas/:id', async (req, res) => {
+    app.delete('/api/despesas/:id', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { error } = await supabase.from('despesas').delete().eq('id', id);
@@ -3108,7 +3299,7 @@ async function startServer() {
     };
 
     // Configurações de Mensagem de Cobrança
-    app.get('/api/financeiro/mensagem-cobranca', async (req, res) => {
+    app.get('/api/financeiro/mensagem-cobranca', requireAdmin, async (req, res) => {
         try {
             const { data, error } = await supabase
                 .from('system_config')
@@ -3177,8 +3368,7 @@ async function startServer() {
         try {
             const { mes, desconto_dia_10 } = req.query;
             const applyDiscount = desconto_dia_10 === 'true';
-            const now = new Date();
-            const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+            const mesRef = (mes && mes !== 'undefined' && mes !== '') ? String(mes).trim() : getMesAtualBR();
             
             // Só somar pagamentos de alunos ativos, trazendo matrículas para considerar desconto
             const { data: rawPags, error } = await supabase.from('pagamentos')
@@ -3393,7 +3583,7 @@ async function startServer() {
         res.json(data || []);
     });
 
-    app.post('/api/pacotes', async (req, res) => {
+    app.post('/api/pacotes', requireAdmin, async (req, res) => {
         try {
             const { data, error } = await supabase.from('pacotes').insert([req.body]).select().single();
             if (error) throw error;
@@ -3414,7 +3604,7 @@ async function startServer() {
             let filterAlunoId: string | null = null;
 
             if (req.user && req.user.role === 'professor') {
-                const { data: prof } = await supabase.from('professores').select('id, nome').ilike('email', req.user.email).single();
+                const { data: prof } = await supabase.from('professores').select('id, nome').ilike('email', escapeLike(req.user.email)).single();
                 if (prof) {
                     const nome = prof.nome.toLowerCase();
                     // Se não for o Aquilles (dono), restringe a visão. Se for ele, permite ver tudo/outros.
@@ -3426,7 +3616,7 @@ async function startServer() {
                 }
             } else if (req.user && req.user.role === 'aluno') {
                 // ALUNO: filtrar somente as aulas do aluno logado
-                const { data: aluno } = await supabase.from('alunos').select('id').ilike('email', req.user.email).maybeSingle();
+                const { data: aluno } = await supabase.from('alunos').select('id').ilike('email', escapeLike(req.user.email)).maybeSingle();
                 if (aluno) {
                     filterAlunoId = String(aluno.id);
                     console.log(`[AGENDA] Aluno logado: id=${filterAlunoId}, email=${req.user.email}`);
@@ -3472,7 +3662,10 @@ async function startServer() {
             if (filterProfId) expQuery = expQuery.eq('professor_id', filterProfId);
             if (statusFilter) expQuery = expQuery.eq('status', statusFilter);
 
-            const { data: experimentais, error: errE } = await expQuery;
+            // Aluno não vê aulas experimentais (contêm nome e telefone de leads)
+            const { data: experimentais, error: errE } = filterAlunoId
+                ? { data: [], error: null }
+                : await expQuery;
             if (errE) console.error('[AGENDA] Erro aulas experimentais:', errE);
 
             const combined = [
@@ -3519,7 +3712,7 @@ async function startServer() {
     });
 
     // Módulo de Confirmação de Aula: Solicitar confirmação (Admin/Professor -> Aluno)
-    app.post('/api/agenda/:id/solicitar-confirmacao', async (req: any, res) => {
+    app.post('/api/agenda/:id/solicitar-confirmacao', requireStaff, async (req: any, res) => {
         try {
             const { id } = req.params;
             const originalId = id.replace('reg-', '').replace('exp-', ''); 
@@ -3548,10 +3741,20 @@ async function startServer() {
             const { id } = req.params;
             const originalId = id.replace('reg-', '').replace('exp-', '');
 
-            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).single();
-            // Trava de 24 horas para confirmação pelo aluno
+            const { data: aula, error: errA } = await supabase.from('aulas').select('*, alunos(nome), professores(id, nome)').eq('id', originalId).maybeSingle();
+            if (errA || !aula) return res.status(404).json({ error: 'Aula não encontrada' });
+
+            if (!isStaff(req)) {
+                const meuAlunoId = await getAlunoIdDoUsuario(req);
+                if (!meuAlunoId || Number(aula.aluno_id) !== Number(meuAlunoId)) {
+                    return res.status(403).json({ error: 'Você só pode confirmar as suas próprias aulas.' });
+                }
+            }
+
+            // Trava de 24 horas para confirmação pelo aluno (horário de Cuiabá, UTC-4)
             if (req.user?.role === 'aluno' && aula.data) {
-                const aulaTime = new Date(`${aula.data}T${aula.horario || '00:00:00'}`).getTime();
+                const horaAula = String(aula.horario || '00:00:00').substring(0, 8).padEnd(8, ':00');
+                const aulaTime = new Date(`${aula.data}T${horaAula}-04:00`).getTime();
                 const diffHoras = (aulaTime - Date.now()) / (1000 * 3600);
                 if (diffHoras > 24) {
                     return res.status(400).json({ error: 'A confirmação só pode ser realizada com até 24 horas de antecedência.' });
@@ -3568,7 +3771,7 @@ async function startServer() {
                 const msg = `O aluno ${aula.alunos?.nome || 'seu aluno'} confirmou a presença na próxima aula!`;
                 
                 await supabase.from('notificacoes').insert([{
-                    titulo, mensagem: msg, tipo: 'agenda', professor_id: aula.professores.id
+                    titulo, mensagem: msg, tipo: 'agenda', aluno_id: aula.aluno_id
                 }]);
 
                 await sendPushNotification(titulo, msg, String(aula.professores.id), profData?.email);
@@ -3579,7 +3782,7 @@ async function startServer() {
     });
 
 
-    app.patch('/api/aulas/:id/reschedule', async (req, res) => {
+    app.patch('/api/aulas/:id/reschedule', requireStaff, async (req, res) => {
         try {
             const { data, horario } = req.body;
             const { error } = await supabase.from('aulas').update({ data, horario }).eq('id', req.params.id);
@@ -3588,7 +3791,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.post('/api/agenda/:id/pagar', async (req, res) => {
+    app.post('/api/agenda/:id/pagar', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             let type = 'reg';
@@ -3601,34 +3804,30 @@ async function startServer() {
             const { data: aula } = await supabase.from('aulas').select('aluno_id, valor_aula').eq('id', originalId).single();
             if (!aula) throw new Error('Aula não encontrada');
 
-            const now = new Date();
-            const ref = `${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+            const hoje = getDateBR();
+            const ref = toRefMesAno(parseDateOnly(hoje));
 
-            // Buscar se já existe pagamento para este mês
-            const { data: existing } = await supabase.from('pagamentos')
-                .select('*')
+            // Dá baixa na mensalidade em aberto do mês atual (não cria cobrança nova)
+            const { data: abertas } = await supabase.from('pagamentos')
+                .select('id, status')
                 .eq('aluno_id', aula.aluno_id)
                 .eq('referencia_mes_ano', ref)
-                .single();
+                .eq('tipo_receita', 'mensalidade')
+                .neq('status', 'pago')
+                .order('data_vencimento', { ascending: true })
+                .limit(1);
 
-            if (existing) {
-                await supabase.from('pagamentos').update({ status: 'pago', data_pagamento: now.toISOString().split('T')[0] }).eq('id', existing.id);
-            } else {
-                await supabase.from('pagamentos').insert([{
-                    aluno_id: aula.aluno_id,
-                    valor: 0, // Valor simbólico ou buscar do plano
-                    status: 'pago',
-                    data_vencimento: now.toISOString().split('T')[0],
-                    data_pagamento: now.toISOString().split('T')[0],
-                    referencia_mes_ano: ref,
-                    tipo_receita: 'mensalidade'
-                }]);
+            const existing = abertas?.[0];
+            if (!existing) {
+                return res.status(404).json({ error: `Nenhuma mensalidade em aberto em ${ref} para este aluno.` });
             }
-            res.json({ success: true });
+            const { error: errPag } = await supabase.from('pagamentos').update({ status: 'pago', data_pagamento: hoje }).eq('id', existing.id);
+            if (errPag) throw errPag;
+            res.json({ success: true, pagamento_id: existing.id });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.patch('/api/agenda/:id', async (req, res) => {
+    app.patch('/api/agenda/:id', requireStaff, async (req, res) => {
         const { id } = req.params;
         const { data, horario, sala_id, professor_id } = req.body;
         let type = 'reg';
@@ -3650,7 +3849,7 @@ async function startServer() {
     });
 
     
-    app.patch('/api/agenda/:id/cancelar', async (req, res) => {
+    app.patch('/api/agenda/:id/cancelar', requireStaff, async (req, res) => {
         try {
             const { id } = req.params;
             const { reposicao } = req.body;
@@ -3682,7 +3881,7 @@ async function startServer() {
         }
     });
 
-    app.delete('/api/agenda/:id', async (req, res) => {
+    app.delete('/api/agenda/:id', requireAdmin, async (req, res) => {
         const { id } = req.params;
         let type = 'reg';
         let originalId = id;
@@ -3695,35 +3894,42 @@ async function startServer() {
     });
 
 
-    app.post('/api/alunos/:id/gerar-financeiro', async (req, res) => {
+    app.post('/api/alunos/:id/gerar-financeiro', requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             // Buscar matrícula ativa
-            const { data: matricula } = await supabase.from('matriculas').select('*').eq('aluno_id', id).eq('status', 'ativa').single();
+            const { data: matricula } = await supabase.from('matriculas').select('*').eq('aluno_id', id).eq('status', 'ativa').order('id', { ascending: false }).limit(1).maybeSingle();
             if (!matricula) throw new Error('Nenhuma matrícula ativa encontrada');
 
-            const pagamentosToInsert = [];
-            let currentVencimento = new Date(matricula.data_primeira_parcela || matricula.data_inicio);
-
-            for (let i = 0; i < (matricula.total_parcelas || 1); i++) {
-                pagamentosToInsert.push({
-                    aluno_id: id,
-                    matricula_id: matricula.id,
-                    valor: matricula.valor_parcela,
-                    data_vencimento: currentVencimento.toISOString().split('T')[0],
-                    status: 'pendente',
-                    tipo_receita: 'mensalidade',
-                    referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
-                });
-                currentVencimento.setMonth(currentVencimento.getMonth() + 1);
-                currentVencimento.setDate(matricula.dia_vencimento || 10);
+            // Evita gerar as parcelas duas vezes para a mesma matrícula
+            const { count: jaGeradas } = await supabase.from('pagamentos')
+                .select('id', { count: 'exact', head: true })
+                .eq('matricula_id', matricula.id)
+                .eq('tipo_receita', 'mensalidade');
+            if ((jaGeradas || 0) > 0) {
+                return res.status(400).json({ error: 'As mensalidades desta matrícula já foram geradas.' });
             }
-            await supabase.from('pagamentos').insert(pagamentosToInsert);
+
+            const pagamentosToInsert = gerarVencimentos(
+                matricula.data_primeira_parcela || matricula.data_inicio || getDateBR(),
+                matricula.total_parcelas || 1,
+                matricula.dia_vencimento || 10
+            ).map((venc) => ({
+                aluno_id: id,
+                matricula_id: matricula.id,
+                valor: matricula.valor_parcela,
+                data_vencimento: toDateStr(venc),
+                status: 'pendente',
+                tipo_receita: 'mensalidade',
+                referencia_mes_ano: toRefMesAno(venc)
+            }));
+            const { error: errIns } = await supabase.from('pagamentos').insert(pagamentosToInsert);
+            if (errIns) throw errIns;
             res.json({ success: true });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.post('/api/financeiro/importar-pdf', upload.single('pdf'), async (req: any, res) => {
+    app.post('/api/financeiro/importar-pdf', requireAdmin, upload.single('pdf'), async (req: any, res) => {
         if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
 
         try {
@@ -3740,19 +3946,34 @@ async function startServer() {
             
             let currentStudentId: string | null = null;
 
+            // Normaliza nomes (sem acento, espaços simples, maiúsculas) para comparar com segurança
+            const normNome = (n: string) => String(n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+            const alunosNorm = (allAlunos || [])
+                .map((a: any) => ({ ...a, nomeNorm: normNome(a.nome) }))
+                .filter((a: any) => a.nomeNorm.length > 3);
+
+            // Nome completo contido no texto; se houver mais de um candidato, fica o nome mais longo (mais específico)
+            const encontrarAlunoNoTexto = (texto: string) => {
+                const alvo = normNome(texto);
+                const candidatos = alunosNorm.filter((a: any) => alvo.includes(a.nomeNorm));
+                if (candidatos.length === 0) return null;
+                candidatos.sort((a: any, b: any) => b.nomeNorm.length - a.nomeNorm.length);
+                if (candidatos.length > 1 && candidatos[0].nomeNorm.length === candidatos[1].nomeNorm.length) return null;
+                return candidatos[0];
+            };
+
             // Pré-detectar se é uma Ficha Financeira (nome no rodapé ou cabeçalho)
             const fichaMatch = text.match(/Ficha Financeira - ([^-]+)/i);
             if (fichaMatch) {
-                const potentialName = fichaMatch[1].trim().toUpperCase();
+                const potentialName = normNome(fichaMatch[1]);
                 console.log('Buscando aluno para:', potentialName);
-                const student = allAlunos?.find(a => 
-                    potentialName.includes(a.nome.toUpperCase()) || 
-                    a.nome.toUpperCase().includes(potentialName) ||
-                    potentialName.split(' ').some(part => part.length > 3 && a.nome.toUpperCase().includes(part))
-                );
+                const exato = alunosNorm.filter((a: any) => a.nomeNorm === potentialName);
+                const student = exato.length === 1 ? exato[0] : encontrarAlunoNoTexto(potentialName);
                 if (student) {
                     currentStudentId = student.id;
                     console.log('Aluno identificado:', student.nome);
+                } else {
+                    console.warn('Nenhum aluno identificado com segurança para:', potentialName);
                 }
             }
             
@@ -3760,7 +3981,7 @@ async function startServer() {
                 const line = lines[i];
                 
                 // Em relatórios gerais, o nome aparece na linha acima ou na própria linha
-                const studentInLine = allAlunos?.find(a => line.toUpperCase().includes(a.nome.toUpperCase()) && a.nome.length > 3);
+                const studentInLine = encontrarAlunoNoTexto(line);
                 if (studentInLine && (!fichaMatch || line.includes('Contas a Receber'))) {
                     currentStudentId = studentInLine.id;
                 }
@@ -3787,20 +4008,44 @@ async function startServer() {
                     if (parcelaMatch) {
                         const ref = parcelaMatch[1];
                         
-                        // Tentar atualizar
-                        const { data: updated, error: updateError } = await supabase
+                        // Nunca volta uma parcela já paga para pendente
+                        const { data: existentes } = await supabase
                             .from('pagamentos')
-                            .update({ 
-                                status: isPaid ? 'pago' : 'pendente',
-                                data_pagamento: isPaid ? (dates && dates[1] ? dates[1].split('/').reverse().join('-') : getDateBR()) : null,
-                                valor: valor > 0 ? valor : undefined
-                            })
+                            .select('id, status')
                             .eq('aluno_id', currentStudentId)
                             .eq('referencia_mes_ano', ref)
-                            .select();
-                        
+                            .eq('tipo_receita', 'mensalidade');
+                        const idsAtualizaveis = (existentes || [])
+                            .filter((p: any) => isPaid || p.status !== 'pago')
+                            .map((p: any) => p.id);
+
+                        let updated: any[] | null = [];
+                        let updateError: any = null;
+                        if (idsAtualizaveis.length > 0) {
+                            const r = await supabase
+                                .from('pagamentos')
+                                .update({ 
+                                    status: isPaid ? 'pago' : 'pendente',
+                                    data_pagamento: isPaid ? (dates && dates[1] ? dates[1].split('/').reverse().join('-') : getDateBR()) : null,
+                                    valor: valor > 0 ? valor : undefined
+                                })
+                                .in('id', idsAtualizaveis)
+                                .select();
+                            updated = r.data;
+                            updateError = r.error;
+                        }
+
+                        if ((existentes || []).length > 0 && idsAtualizaveis.length === 0) {
+                            // Parcela já estava paga no sistema: mantém como está
+                            stats.atualizados++;
+                            continue;
+                        }
+
                         if (!updateError && updated && updated.length > 0) {
                             stats.atualizados++;
+                        } else if ((existentes || []).length > 0) {
+                            // A parcela existe mas a atualização falhou: não cria duplicada
+                            stats.erros++;
                         } else {
                             // Se não existe, vamos criar (histórico missing)
                             const { error: insertError } = await supabase.from('pagamentos').insert([{
@@ -3875,7 +4120,7 @@ async function startServer() {
     });
 
     // Endpoint de Reset de Ranking (zerar XP e Coins ao virar a temporada)
-    app.post('/api/gamificacao/reset-ranking', async (req, res) => {
+    app.post('/api/gamificacao/reset-ranking', requireAdmin, async (req, res) => {
         try {
             // Zera o xp e os acorde_coins dos alunos ativos para iniciar a nova temporada
             const { data, error } = await supabase
@@ -3928,7 +4173,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/gamificacao/conquistas', async (req, res) => {
+    app.post('/api/gamificacao/conquistas', requireStaff, async (req, res) => {
         try {
             const { nome, descricao, pontos, regra_automatica, icone_url, classe } = req.body;
             const payload: any = { nome, descricao };
@@ -3947,7 +4192,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao salvar conquista' }); }
     });
 
-    app.put('/api/gamificacao/conquistas/:id', async (req, res) => {
+    app.put('/api/gamificacao/conquistas/:id', requireStaff, async (req, res) => {
         try {
             const { nome, descricao, pontos, regra_automatica, icone_url, classe } = req.body;
             const payload: any = {};
@@ -3969,7 +4214,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao atualizar conquista' }); }
     });
 
-    app.delete('/api/gamificacao/conquistas/:id', async (req, res) => {
+    app.delete('/api/gamificacao/conquistas/:id', requireStaff, async (req, res) => {
         try {
             const { error } = await supabase.from('gamificacao_conquistas').delete().eq('id', req.params.id);
             if (error) throw error;
@@ -3977,7 +4222,7 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao excluir conquista' }); }
     });
 
-    app.post('/api/gamificacao/upload', upload.single('icon'), async (req: any, res) => {
+    app.post('/api/gamificacao/upload', requireStaff, upload.single('icon'), async (req: any, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'Nenhum arquivo enviado' });
         }
@@ -4011,58 +4256,21 @@ async function startServer() {
         try {
             await syncProvaTrophiesAndScores(supabase);
 
-            // Buscar temporada ativa
-            const { data: tempAtiva } = await supabase
-                .from('temporadas')
-                .select('id')
-                .eq('status', 'ativa')
-                .maybeSingle();
-            const activeTempId = tempAtiva?.id || 3;
-
-            // Buscar alunos ativos (exclui arquivados e testes)
-            const { data: alunos, error: alunosError } = await supabase
-                .from('alunos')
-                .select('id, nome, xp, foto_url, avatar_config, acorde_coins')
-                .neq('status', 'arquivado');
-            if (alunosError) console.error('Erro ao buscar alunos para ranking:', alunosError);
-
-            const progresso = await fetchAllGamificacaoProgresso(supabase);
-            
-            const ranking = (alunos || []).map(al => {
-                const prog = progresso?.filter(p => p.aluno_id === al.id) || [];
-                // XP unificado: XP da temporada ativa (al.xp) + Troféus da temporada ativa
-                const progTemporada = prog.filter(p => p.conquista?.temporada_id === activeTempId);
-                const xpConquistas = progTemporada.reduce((acc, p) => acc + (p.conquista?.pontos || 0), 0);
-                const xpTotal = (Number(al.xp) || 0) + xpConquistas;
-                
-                const conquistasMap: any = {};
-                prog.forEach(p => {
-                    const cid = p.conquista_id;
-                    if (!conquistasMap[cid]) {
-                        conquistasMap[cid] = { ...p.conquista, count: 0 };
-                    }
-                    conquistasMap[cid].count++;
-                });
-
-                return {
-                    id: al.id,
-                    nome: al.nome,
-                    foto_url: al.foto_url,
-                    avatar_config: al.avatar_config,
-                    acorde_coins: al.acorde_coins,
-                    xp: xpTotal,
-                    xp_aulas: Number(al.xp) || 0,
-                    xp_conquistas: xpConquistas,
-                    curso_ativo: 'MÚSICA',
-                    conquistas: Object.values(conquistasMap)
-                };
-            }).sort((a: any, b: any) => b.xp - a.xp);
+            const ranking = await calcularRanking();
 
             res.json(ranking);
         } catch (error) { console.error('Erro no ranking:', error); res.status(500).json({ error: 'Erro ao gerar ranking' }); }
     });
 
-    app.post('/api/gamificacao/atribuir', async (req, res) => {
+    // Troféus não cumulativos (classe diferente de "Especial") só podem ser concedidos uma vez por aluno
+    const podeReceberTrofeu = async (alunoId: number, conquistaId: number) => {
+        const { data: conq } = await supabase.from('gamificacao_conquistas').select('classe').eq('id', conquistaId).maybeSingle();
+        if (conq?.classe === 'Especial') return true;
+        const { data: ja } = await supabase.from('gamificacao_progresso').select('id').eq('aluno_id', alunoId).eq('conquista_id', conquistaId).limit(1);
+        return !ja || ja.length === 0;
+    };
+
+    app.post('/api/gamificacao/atribuir', requireStaff, async (req, res) => {
         try {
             const { aluno_id, conquista_id } = req.body;
             if (!aluno_id || !conquista_id) {
@@ -4072,6 +4280,10 @@ async function startServer() {
             const conquistaIdNum = Number(conquista_id);
             if (isNaN(alunoIdNum) || isNaN(conquistaIdNum)) {
                 return res.status(400).json({ error: 'Parâmetros de ID devem ser numéricos.' });
+            }
+
+            if (!(await podeReceberTrofeu(alunoIdNum, conquistaIdNum))) {
+                return res.status(400).json({ error: 'O aluno já possui este troféu.' });
             }
 
             const { error } = await supabase
@@ -4096,8 +4308,16 @@ async function startServer() {
     // ==========================================
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
-    async function sendPushNotification(titulo: string, mensagem: string, targetUserId?: string | string[], emailTo?: string) {
-        // Agora busca a chave inviolável no Supabase via MCP para não depender da Vercel
+    // O app registra no OneSignal o id da tabela usuarios; aqui convertemos o e-mail do destinatário nesse id.
+    // Sem destinatário identificado, o push não é enviado (nunca vira envio para todos).
+    async function sendPushNotification(titulo: string, mensagem: string, _targetId?: string | string[], emailTo?: string, enviarEmail: boolean = true) {
+        if (!emailTo) {
+            console.warn('[PUSH_NOTIFICATION] Destinatário sem e-mail; push não enviado.');
+            return;
+        }
+        const { data: usuarioDestino } = await supabase.from('usuarios').select('id').ilike('email', escapeLike(emailTo)).limit(1).maybeSingle();
+        const targetUserId = usuarioDestino?.id ? String(usuarioDestino.id) : null;
+
         const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'ONESIGNAL_REST_API_KEY').maybeSingle();
         const appKey = config?.key_value || process.env.ONESIGNAL_REST_API_KEY;
         const appId = process.env.VITE_ONESIGNAL_APP_ID || "e5e38375-5fd8-4e92-bf0d-29996ba9426d";
@@ -4114,27 +4334,24 @@ async function startServer() {
                 contents: { en: mensagem, pt: mensagem }
             };
 
+            let response: any = null;
             if (targetUserId) {
-                bodyPayload.include_aliases = { external_id: [String(targetUserId)] };
+                bodyPayload.include_aliases = { external_id: [targetUserId] };
                 bodyPayload.target_channel = "push";
-            } else {
-                bodyPayload.included_segments = ['Subscribed Users'];
-            }
-
-            const response = await fetch('https://onesignal.com/api/v1/notifications', {
+                response = await fetch('https://onesignal.com/api/v1/notifications', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json; charset=utf-8',
                     'Authorization': `Key ${appKey}`
                 },
                 body: JSON.stringify(bodyPayload)
-            });
-
-                        const data = await response.json();
-            console.log('[PUSH_NOTIFICATION] OneSignal Push enviado com sucesso:', data);
+                });
+                const data = await response.json();
+                console.log('[PUSH_NOTIFICATION] OneSignal Push enviado:', data);
+            }
             
             // Disparo de E-MAIL via Nodemailer (Gmail)
-            if (emailTo) {
+            if (emailTo && enviarEmail) {
                 try {
                     const { data: smtpConfig } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['SMTP_EMAIL', 'SMTP_PASSWORD']);
                     let smtpEmail = process.env.SMTP_EMAIL;
@@ -4191,6 +4408,22 @@ async function startServer() {
         }
     };
 
+    // Notificação interna + push/e-mail para o professor da matrícula mais recente do aluno
+    async function notificarProfessorDoAluno(alunoId: number, titulo: string, mensagem: string) {
+        try {
+            const { data: mat } = await supabase.from('matriculas')
+                .select('professor_id, professores(id, email)')
+                .eq('aluno_id', alunoId)
+                .order('id', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            const prof: any = Array.isArray(mat?.professores) ? mat?.professores[0] : mat?.professores;
+            if (prof?.email) await sendPushNotification(titulo, mensagem, String(prof.id), prof.email, false);
+        } catch (e) {
+            console.error('[NOTIFICAR_PROFESSOR] Erro:', e);
+        }
+    }
+
     // 1. Obter treinos do aluno autenticado
     app.get('/api/treinos/me', async (req, res) => {
         try {
@@ -4198,7 +4431,7 @@ async function startServer() {
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
             const cleanEmail = email.toLowerCase().trim();
 
-            const { data: aluno } = await supabase.from('alunos').select('id').ilike('email', cleanEmail).maybeSingle();
+            const { data: aluno } = await supabase.from('alunos').select('id').ilike('email', escapeLike(cleanEmail)).maybeSingle();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
 
             const { data: treinos, error } = await supabase
@@ -4221,7 +4454,7 @@ async function startServer() {
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
             const cleanEmail = email.toLowerCase().trim();
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', cleanEmail).maybeSingle();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', escapeLike(cleanEmail)).maybeSingle();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
 
             const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
@@ -4250,7 +4483,7 @@ async function startServer() {
                 const titulo = 'Treino registrado! 🔥';
                 const mensagem = `${aluno.nome} marcou seu check-in de treino diário!`;
                 await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
-                sendPushNotification(titulo, mensagem);
+                notificarProfessorDoAluno(aluno.id, titulo, mensagem);
             } catch (e) {
                 console.error('[TREINO] Erro notificação:', e);
             }
@@ -4354,7 +4587,7 @@ async function startServer() {
         }
     }
 
-    app.get('/api/drive/status', async (req, res) => {
+    app.get('/api/drive/status', requireAdmin, async (req, res) => {
         try {
             const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
             const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
@@ -4383,7 +4616,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/drive/config', async (req, res) => {
+    app.post('/api/drive/config', requireAdmin, async (req, res) => {
         try {
             const { credentialsJson, folderId } = req.body;
             if (!credentialsJson && !folderId) {
@@ -4424,7 +4657,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/drive/test', async (req, res) => {
+    app.post('/api/drive/test', requireAdmin, async (req, res) => {
         try {
             const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_CREDENTIALS').maybeSingle();
             const { data: folderConfig } = await supabase.from('system_config').select('key_value').eq('key_name', 'GOOGLE_DRIVE_FOLDER_ID').maybeSingle();
@@ -4547,7 +4780,7 @@ async function startServer() {
             const email = (req.user?.email || '').toLowerCase().trim();
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', email).maybeSingle();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, acorde_coins').ilike('email', escapeLike(email)).maybeSingle();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado para este email.' });
 
             const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
@@ -4570,20 +4803,6 @@ async function startServer() {
                     .single();
                 if (createError) throw createError;
                 treino = novoTreino;
-            }
-
-            // Se ainda não tinha vídeo hoje, concede os 100.000 pontos do vídeo!
-            if (!jaTinhaVideo) {
-                try {
-                    const pontosAdicionais = jaTinhaTreino ? 50000 : 100000;
-                    const novoXp = (Number(aluno.xp) || 0) + pontosAdicionais;
-                    const novasMoedas = (Number(aluno.acorde_coins) || 0) + pontosAdicionais;
-                    await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
-                    await recordPontos(aluno.id, 'treino_video', 'Vídeo de Treino', 100000);
-                    await addToFeed(aluno.id, 'treino', `${aluno.nome} enviou um vídeo de treino (+100.000 pts)! 📹`, '📹');
-                } catch (e) {
-                    console.error('[TREINO_VIDEO] Erro ao pontuar:', e);
-                }
             }
 
             let url = req.body.video_url || '';
@@ -4654,12 +4873,26 @@ async function startServer() {
 
             if (updateError) throw updateError;
 
+            // Pontos do vídeo só depois do upload salvo (se ainda não tinha vídeo hoje)
+            if (!jaTinhaVideo) {
+                try {
+                    const pontosAdicionais = jaTinhaTreino ? 50000 : 100000;
+                    const novoXp = (Number(aluno.xp) || 0) + pontosAdicionais;
+                    const novasMoedas = (Number(aluno.acorde_coins) || 0) + pontosAdicionais;
+                    await supabase.from('alunos').update({ xp: novoXp, acorde_coins: novasMoedas }).eq('id', aluno.id);
+                    await recordPontos(aluno.id, 'treino_video', 'Vídeo de Treino', pontosAdicionais);
+                    await addToFeed(aluno.id, 'treino', `${aluno.nome} enviou um vídeo de treino (+${pontosAdicionais.toLocaleString('pt-BR')} pts)! 📹`, '📹');
+                } catch (e) {
+                    console.error('[TREINO_VIDEO] Erro ao pontuar:', e);
+                }
+            }
+
             // Criar notificação para o professor
             try {
                 const titulo = 'Vídeo de treino enviado! 📹';
                 const mensagem = `${aluno.nome} gravou um vídeo estudando hoje!`;
                 await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
-                sendPushNotification(titulo, mensagem);
+                notificarProfessorDoAluno(aluno.id, titulo, mensagem);
             } catch (e) {
                 console.error('[TREINO_VIDEO] Erro ao notificar professor:', e);
             }
@@ -4672,7 +4905,7 @@ async function startServer() {
     });
 
     // 4. Obter treinos de todos os alunos (Professor) com limpeza expirada integrada
-    app.get('/api/treinos/prof', async (req, res) => {
+    app.get('/api/treinos/prof', requireStaff, async (req, res) => {
         try {
             // Rotina de limpeza automática de vídeos antigos (> 24 horas)
             const limitDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -4716,6 +4949,10 @@ async function startServer() {
     // Endpoint Cron do Vercel para limpeza diária de vídeos expirados
     app.get('/api/cron/cleanup-videos', async (req, res) => {
         try {
+            const cronSecret = process.env.CRON_SECRET;
+            if (cronSecret && req.headers['authorization'] !== `Bearer ${cronSecret}`) {
+                return res.status(401).json({ error: 'Não autorizado' });
+            }
             console.log('[CRON] Iniciando limpeza automática de vídeos de treino...');
             const limitDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
@@ -4783,7 +5020,7 @@ async function startServer() {
     });
 
     // 5. Histórico de Aulas Concluídas de um aluno
-    app.get('/api/alunos/:id/historico-aulas', async (req, res) => {
+    app.get('/api/alunos/:id/historico-aulas', requireSelfOrStaff('id'), async (req, res) => {
         try {
             const { id } = req.params;
             const alunoIdNum = Number(id);
@@ -4811,7 +5048,7 @@ async function startServer() {
             const email = (req as any).user?.email;
             if (!email) return res.status(401).json({ error: 'Não autorizado.' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            const { data: aluno } = await supabase.from('alunos').select('id, nome').ilike('email', escapeLike(email)).limit(1).maybeSingle();
             if (!aluno) return res.status(404).json({ error: 'Estudante não encontrado.' });
 
             const { data: aula, error } = await supabase
@@ -4831,7 +5068,7 @@ async function startServer() {
 
             await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'confirmacao', aluno_id: aluno.id }]);
 
-            sendPushNotification(titulo, mensagem);
+            notificarProfessorDoAluno(aluno.id, titulo, mensagem);
 
             res.json({ success: true, data: aula });
         } catch (error: any) {
@@ -4840,7 +5077,7 @@ async function startServer() {
     });
 
     // 7. Listar notificações do feed do professor
-    app.get('/api/notificacoes', async (req, res) => {
+    app.get('/api/notificacoes', requireStaff, async (req, res) => {
         try {
             const { data, error } = await supabase
                 .from('notificacoes')
@@ -4856,7 +5093,7 @@ async function startServer() {
     });
 
     // 8. Marcar notificação como lida
-    app.post('/api/notificacoes/:id/lida', async (req, res) => {
+    app.post('/api/notificacoes/:id/lida', requireStaff, async (req, res) => {
         try {
             const { id } = req.params;
             const { data, error } = await supabase
@@ -4874,7 +5111,7 @@ async function startServer() {
     });
 
     // 9. Limpar todas as notificações
-    app.post('/api/notificacoes/limpar', async (req, res) => {
+    app.post('/api/notificacoes/limpar', requireStaff, async (req, res) => {
         try {
             const { error } = await supabase
                 .from('notificacoes')
@@ -4888,7 +5125,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/gamificacao/remover', async (req, res) => {
+    app.post('/api/gamificacao/remover', requireStaff, async (req, res) => {
         try {
             const { aluno_id, conquista_id } = req.body;
             if (!aluno_id || !conquista_id) {
@@ -4931,7 +5168,7 @@ async function startServer() {
         }
     });
 
-    app.get('/api/gamificacao/solicitacoes', async (req, res) => {
+    app.get('/api/gamificacao/solicitacoes', requireStaff, async (req, res) => {
         try {
             const { data, error } = await supabase
                 .from('gamificacao_solicitacoes')
@@ -4946,7 +5183,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/gamificacao/solicitar', async (req, res) => {
+    app.post('/api/gamificacao/solicitar', requireSelfOrStaff('aluno_id', 'body'), async (req, res) => {
         try {
             const { aluno_id, conquista_id } = req.body;
             if (!aluno_id || !conquista_id) {
@@ -5010,7 +5247,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/gamificacao/solicitacoes/:id/revisar', async (req, res) => {
+    app.post('/api/gamificacao/solicitacoes/:id/revisar', requireStaff, async (req, res) => {
         try {
             const { id } = req.params;
             const { status } = req.body; // 'aprovada' | 'rejeitada'
@@ -5043,7 +5280,7 @@ async function startServer() {
             if (errorUpdate) throw errorUpdate;
 
             // 3. Se aprovada, creditar na tabela de progresso
-            if (status === 'aprovada') {
+            if (status === 'aprovada' && solicitacao.status !== 'aprovada' && await podeReceberTrofeu(solicitacao.aluno_id, solicitacao.conquista_id)) {
                 const { error: errorProg } = await supabase
                     .from('gamificacao_progresso')
                     .insert([{ aluno_id: solicitacao.aluno_id, conquista_id: solicitacao.conquista_id }]);
@@ -5082,7 +5319,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/feed', async (req, res) => {
+    app.post('/api/feed', requireStaff, async (req, res) => {
         try {
             const { mensagem, tipo, icone, aluno_id } = req.body;
             const { error } = await supabase.from('feed_atividades').insert([{
@@ -5097,24 +5334,16 @@ async function startServer() {
     });
 
     // --- GOD MODE ENDPOINTS (EXCLUSIVO ANTONY) ---
-    app.get('/api/godmode/status', async (req: any, res) => {
+    app.get('/api/godmode/status', requireOwner, async (req: any, res) => {
         try {
-            const email = req.user?.email || '';
-            if (!email.toLowerCase().startsWith('antonycorp11')) {
-                return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
-            }
             const { data, error } = await supabase.from('system_config').select('key_value').eq('key_name', 'JOGOS_DAO_XP').maybeSingle();
             if (error) throw error;
-            res.json({ jogos_dao_xp: data?.key_value === 'true' });
+            res.json({ jogos_dao_xp: data?.key_value !== 'false' });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.post('/api/godmode/config-xp', async (req: any, res) => {
+    app.post('/api/godmode/config-xp', requireOwner, async (req: any, res) => {
         try {
-            const email = req.user?.email || '';
-            if (!email.toLowerCase().startsWith('antonycorp11')) {
-                return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
-            }
             const { enabled } = req.body;
             const strVal = enabled ? 'true' : 'false';
             
@@ -5132,12 +5361,8 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
-    app.post('/api/godmode/creditar', async (req: any, res) => {
+    app.post('/api/godmode/creditar', requireOwner, async (req: any, res) => {
         try {
-            const email = req.user?.email || '';
-            if (!email.toLowerCase().startsWith('antonycorp11')) {
-                return res.status(403).json({ error: 'Acesso negado: God Mode exclusivo.' });
-            }
             const { aluno_id, tipo, valor } = req.body;
             if (!aluno_id || !tipo || isNaN(Number(valor))) {
                 return res.status(400).json({ error: 'Parâmetros inválidos.' });
@@ -5169,7 +5394,7 @@ async function startServer() {
     });
 
     // 2. Avatar
-    app.put('/api/alunos/:id/avatar', async (req, res) => {
+    app.put('/api/alunos/:id/avatar', requireSelfOrStaff('id'), async (req, res) => {
         try {
             const { avatar_config } = req.body;
             const { error } = await supabase
@@ -5195,7 +5420,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/aulas-video', async (req, res) => {
+    app.post('/api/aulas-video', requireStaff, async (req, res) => {
         try {
             const { youtube_url, youtube_id, titulo, descricao, questoes } = req.body;
             const { data, error } = await supabase.from('aulas_video').insert([{
@@ -5265,7 +5490,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/trilha/modulos', async (req, res) => {
+    app.post('/api/trilha/modulos', requireStaff, async (req, res) => {
         try {
             const { id, nome, descricao, ordem, arte_index, prova_final, conquista_id } = req.body;
             const parsedProvaFinal = parseTrilhaQuestions(prova_final);
@@ -5303,7 +5528,7 @@ async function startServer() {
         }
     });
 
-    app.delete('/api/trilha/modulos/:id', async (req, res) => {
+    app.delete('/api/trilha/modulos/:id', requireStaff, async (req, res) => {
         try {
             const { error } = await supabase
                 .from('modulos_trilha')
@@ -5329,7 +5554,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/trilha/aulas', async (req, res) => {
+    app.post('/api/trilha/aulas', requireStaff, async (req, res) => {
         try {
             const { id, modulo_id, titulo, youtube_url, ordem, questionario, conquista_id } = req.body;
             const parsedQuestionario = parseTrilhaQuestions(questionario);
@@ -5367,7 +5592,7 @@ async function startServer() {
         }
     });
 
-    app.delete('/api/trilha/aulas/:id', async (req, res) => {
+    app.delete('/api/trilha/aulas/:id', requireStaff, async (req, res) => {
         try {
             const { error } = await supabase
                 .from('aulas_trilha')
@@ -5380,7 +5605,7 @@ async function startServer() {
         }
     });
 
-    app.get('/api/trilha/progresso/:alunoId', async (req, res) => {
+    app.get('/api/trilha/progresso/:alunoId', requireSelfOrStaff('alunoId'), async (req, res) => {
         try {
             const alunoId = req.params.alunoId;
             const { data: prog, error } = await supabase
@@ -5425,7 +5650,7 @@ async function startServer() {
         }
     });
 
-    app.post('/api/trilha/progresso', async (req, res) => {
+    app.post('/api/trilha/progresso', requireSelfOrStaff('aluno_id', 'body'), async (req, res) => {
         try {
             const { aluno_id, aula_id } = req.body;
             const targetAlunoId = aluno_id || req.body.alunoId;
@@ -5489,7 +5714,7 @@ async function startServer() {
          }
     });
 
-    app.post('/api/trilha/gerar-questionario-ia', async (req, res) => {
+    app.post('/api/trilha/gerar-questionario-ia', requireStaff, async (req, res) => {
         try {
             const { textoBruto } = req.body;
             if (!textoBruto) {
@@ -5553,7 +5778,7 @@ ${textoBruto}
         }
     });
 
-    app.post('/api/trilha/responder-questionario', async (req, res) => {
+    app.post('/api/trilha/responder-questionario', requireSelfOrStaff('aluno_id', 'body'), async (req, res) => {
         try {
             const { aluno_id, aula_trilha_id, modulo_trilha_id, respostas, perguntas_sorteadas } = req.body;
             if (!aluno_id || (!aula_trilha_id && !modulo_trilha_id) || !respostas) {
@@ -5620,9 +5845,14 @@ ${textoBruto}
             // Determina as perguntas avaliadas (caso haja perguntas sorteadas pelo frontend)
             let questionsToEvaluate: any[] = [];
             if (Array.isArray(perguntas_sorteadas) && perguntas_sorteadas.length > 0) {
-                questionsToEvaluate = perguntas_sorteadas
-                    .map((idx: number) => ({ q: gabaQuestions[idx], origIdx: idx }))
-                    .filter((item: any) => item.q !== undefined);
+                const indicesUnicos = Array.from(new Set(perguntas_sorteadas.map((idx: any) => Number(idx))))
+                    .filter((idx: number) => Number.isInteger(idx) && gabaQuestions[idx] !== undefined);
+                // O frontend sorteia 15 perguntas (ou todas, se houver menos); menos que isso não vale
+                const minimoPerguntas = Math.min(15, gabaQuestions.length);
+                if (indicesUnicos.length < minimoPerguntas) {
+                    return res.status(400).json({ error: `O questionário precisa ter pelo menos ${minimoPerguntas} perguntas respondidas.` });
+                }
+                questionsToEvaluate = indicesUnicos.map((idx: number) => ({ q: gabaQuestions[idx], origIdx: idx }));
             }
 
             if (questionsToEvaluate.length === 0) {
@@ -5713,16 +5943,12 @@ ${textoBruto}
 
                     let alreadyDone = false;
                     if (conquistaId) {
-                        await supabase
-                            .from('gamificacao_conquistas')
-                            .update({ pontos: pontosPadrao })
-                            .eq('id', conquistaId);
-
                         const { data: found } = await supabase
                             .from('gamificacao_progresso')
-                            .select('*')
+                            .select('id')
                             .eq('aluno_id', aluno.id)
                             .eq('conquista_id', conquistaId)
+                            .limit(1)
                             .maybeSingle();
                         if (found) alreadyDone = true;
                     }
@@ -5733,6 +5959,7 @@ ${textoBruto}
                             .select('*')
                             .eq('aluno_id', aluno.id)
                             .eq('aula_id', aulaId)
+                            .limit(1)
                             .maybeSingle();
                         if (pTrilha) alreadyDone = true;
                     }
@@ -5832,7 +6059,7 @@ ${textoBruto}
         }
     });
 
-    app.post('/api/alunos/abrir-ficha-premio', async (req, res) => {
+    app.post('/api/alunos/abrir-ficha-premio', requireSelfOrStaff('aluno_id', 'body'), async (req, res) => {
          try {
              const { aluno_id } = req.body;
              const dateStr = getDateBR();
@@ -5842,8 +6069,9 @@ ${textoBruto}
                  .select('*')
                  .eq('aluno_id', aluno_id)
                  .eq('tipo', 'ficha_estudo_diaria')
-                 .gte('created_at', `${dateStr}T00:00:00.000Z`)
-                 .lte('created_at', `${dateStr}T23:59:59.999Z`);
+                 // Dia de Cuiabá (UTC-4)
+                 .gte('created_at', new Date(`${dateStr}T00:00:00-04:00`).toISOString())
+                 .lte('created_at', new Date(`${dateStr}T23:59:59.999-04:00`).toISOString());
                  
              if (claimErr) throw claimErr;
              
@@ -5857,7 +6085,7 @@ ${textoBruto}
                  .eq('id', aluno_id)
                  .single();
                  
-             if (getErr) throw getErr;
+             if (getErr || !aluno) return res.status(404).json({ error: 'Aluno não encontrado.' });
              
              const novoXp = (Number(aluno.xp) || 0) + 500;
              const novasMoedas = (Number(aluno.acorde_coins) || 0) + 500;
@@ -5882,6 +6110,184 @@ ${textoBruto}
     });
 
     // --- END GAMIFICACAO 2.0 ---
+
+    // --- MATERIAIS SALVOS DO PROFESSOR (Tablaturas, Melodias) ---
+    const getProfessorDoUsuario = async (req: any) => {
+        const { data: prof } = await supabase.from('professores').select('id').ilike('email', escapeLike(req.user?.email)).limit(1).maybeSingle();
+        return prof;
+    };
+
+    app.get('/api/materiais-salvos', requireStaff, async (req: any, res) => {
+        try {
+            const prof = await getProfessorDoUsuario(req);
+            if (!prof) return res.status(404).json({ error: 'Professor não encontrado' });
+
+            let query = supabase.from('materiais_salvos').select('*').eq('professor_id', prof.id).order('created_at', { ascending: false });
+            if (req.query.tipo) query = query.eq('tipo', String(req.query.tipo));
+
+            const { data, error } = await query;
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error) { res.status(500).json({ error: 'Erro ao buscar materiais salvos' }); }
+    });
+
+    app.post('/api/materiais-salvos', requireStaff, async (req: any, res) => {
+        try {
+            const prof = await getProfessorDoUsuario(req);
+            if (!prof) return res.status(404).json({ error: 'Professor não encontrado' });
+
+            const { tipo, titulo, conteudo } = req.body;
+            if (!tipo || !titulo || !conteudo) return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+
+            const { data, error } = await supabase.from('materiais_salvos').insert([{
+                professor_id: prof.id, tipo, titulo, conteudo
+            }]).select().single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error) { res.status(500).json({ error: 'Erro ao salvar material' }); }
+    });
+
+    app.delete('/api/materiais-salvos/:id', requireStaff, async (req: any, res) => {
+        try {
+            const prof = await getProfessorDoUsuario(req);
+            if (!prof) return res.status(404).json({ error: 'Professor não encontrado' });
+
+            const { data: mat } = await supabase.from('materiais_salvos').select('professor_id').eq('id', req.params.id).maybeSingle();
+            if (!mat || mat.professor_id !== prof.id) return res.status(403).json({ error: 'Sem permissão' });
+
+            const { error } = await supabase.from('materiais_salvos').delete().eq('id', req.params.id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error) { res.status(500).json({ error: 'Erro ao deletar material' }); }
+    });
+
+    // --- REMANEJAMENTO (atualiza datas dos registros existentes; nada é apagado ou recriado) ---
+    app.post('/api/alunos/:id/remanejar-pagamentos', requireAdmin, async (req, res) => {
+        try {
+            const { nova_data_inicio } = req.body;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(nova_data_inicio || ''))) return res.status(400).json({ error: 'Data inválida' });
+            const alunoId = req.params.id;
+
+            const { data: pendentes, error } = await supabase.from('pagamentos')
+                .select('id, data_vencimento')
+                .eq('aluno_id', alunoId)
+                .eq('status', 'pendente')
+                .eq('tipo_receita', 'mensalidade')
+                .order('data_vencimento', { ascending: true });
+            if (error) throw error;
+            if (!pendentes || pendentes.length === 0) return res.json({ success: true, message: 'Nenhum pagamento pendente para remanejar.' });
+
+            const novoDia = parseDateOnly(nova_data_inicio).getUTCDate();
+            const datas = gerarVencimentos(nova_data_inicio, pendentes.length, novoDia);
+            const resultados = await Promise.all(pendentes.map((pg: any, i: number) =>
+                supabase.from('pagamentos').update({
+                    data_vencimento: toDateStr(datas[i]),
+                    referencia_mes_ano: toRefMesAno(datas[i])
+                }).eq('id', pg.id)
+            ));
+            const falha = resultados.find((r: any) => r.error);
+            if (falha) throw falha.error;
+
+            const { data: matricula } = await supabase.from('matriculas').select('id').eq('aluno_id', alunoId).order('id', { ascending: false }).limit(1).maybeSingle();
+            if (matricula) await supabase.from('matriculas').update({ dia_vencimento: novoDia }).eq('id', matricula.id);
+
+            res.json({ success: true, atualizados: pendentes.length });
+        } catch (error: any) {
+            console.error('[REMANEJAR_PAGAMENTOS]', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/alunos/:id/remanejar-aulas', requireAdmin, async (req, res) => {
+        try {
+            const { nova_data_inicio } = req.body;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(nova_data_inicio || ''))) return res.status(400).json({ error: 'Data inválida' });
+            const alunoId = req.params.id;
+
+            const { data: aulasPendentes, error } = await supabase.from('aulas')
+                .select('id, data')
+                .eq('aluno_id', alunoId)
+                .eq('status', 'pendente')
+                .eq('tipo', 'regular')
+                .order('data', { ascending: true });
+            if (error) throw error;
+            if (!aulasPendentes || aulasPendentes.length === 0) return res.json({ success: true, message: 'Nenhuma aula pendente para remanejar.' });
+
+            const inicio = parseDateOnly(nova_data_inicio);
+            const resultados = await Promise.all(aulasPendentes.map((aula: any, i: number) => {
+                const d = new Date(inicio.getTime() + i * 7 * 86400000);
+                return supabase.from('aulas').update({ data: toDateStr(d) }).eq('id', aula.id);
+            }));
+            const falha = resultados.find((r: any) => r.error);
+            if (falha) throw falha.error;
+
+            const { data: matricula } = await supabase.from('matriculas').select('id').eq('aluno_id', alunoId).order('id', { ascending: false }).limit(1).maybeSingle();
+            if (matricula) await supabase.from('matriculas').update({ dia_semana: inicio.getUTCDay() }).eq('id', matricula.id);
+
+            res.json({ success: true, atualizadas: aulasPendentes.length });
+        } catch (error: any) {
+            console.error('[REMANEJAR_AULAS]', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // --- ALERTAS DO DASHBOARD ---
+    app.get('/api/agenda/pendentes-passado', requireAdmin, async (req, res) => {
+        try {
+            const hoje = getDateBR();
+            const { data, error } = await supabase.from('aulas')
+                .select('id, data, horario, status, aluno_id, alunos(nome, status), professores(nome)')
+                .lt('data', hoje)
+                .in('status', ['pendente', 'confirmada', 'aguardando_confirmacao'])
+                .order('data', { ascending: false });
+            if (error) throw error;
+            res.json((data || []).filter((a: any) => a.alunos?.status !== 'arquivado'));
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.get('/api/dashboard/faturas-pendentes', requireAdmin, async (req, res) => {
+        try {
+            const hoje = getDateBR();
+            const { data, error } = await supabase.from('pagamentos')
+                .select('id, valor, data_vencimento, status, tipo_receita, aluno_id, alunos:aluno_id(nome, status)')
+                .neq('status', 'pago')
+                .lt('data_vencimento', hoje)
+                .order('data_vencimento', { ascending: true });
+            if (error) throw error;
+            res.json((data || []).filter((p: any) => p.alunos?.status !== 'arquivado'));
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // --- RECOMPENSA POR ATIVAR NOTIFICAÇÕES (500 XP, uma única vez) ---
+    app.post('/api/alunos/recompensa-push', async (req: any, res) => {
+        try {
+            const alunoId = await getAlunoIdDoUsuario(req);
+            if (!alunoId) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            const { data: aluno } = await supabase.from('alunos').select('id, nome, xp, push_recompensado').eq('id', alunoId).single();
+            if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            if (aluno.push_recompensado) {
+                await supabase.from('alunos').update({ push_ativo: true }).eq('id', alunoId);
+                return res.json({ success: true, xpGanho: 0 });
+            }
+
+            const XP_PUSH = 500;
+            const { data: atualizado, error } = await supabase.from('alunos')
+                .update({ push_ativo: true, push_recompensado: true, xp: (Number(aluno.xp) || 0) + XP_PUSH })
+                .eq('id', alunoId)
+                .or('push_recompensado.is.null,push_recompensado.eq.false')
+                .select('id');
+            if (error) throw error;
+
+            const ganhou = Boolean(atualizado && atualizado.length > 0);
+            if (ganhou) {
+                await recordPontos(alunoId, 'bonus', 'Ativou notificações', XP_PUSH);
+                await addToFeed(alunoId, 'bonus', `${aluno.nome} ativou as notificações e ganhou +${XP_PUSH} XP! 🔔`, '🔔');
+            }
+            res.json({ success: true, xpGanho: ganhou ? XP_PUSH : 0 });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
 
     // 4. Temporada Atual
     app.get('/api/temporada-atual', async (req, res) => {
@@ -5908,6 +6314,53 @@ ${textoBruto}
                 data_fim: '2026-09-22T23:59:59-04:00',
                 status: 'ativa'
             });
+        }
+    });
+
+    // MURAL DA VERGONHA
+    app.get('/api/mural', requireAdmin, async (req: any, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('mural_vergonha')
+                .select('id, aluno_id, nome_cliente, valor_divida, tipo_divida, created_at')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/mural', requireAdmin, async (req: any, res) => {
+        try {
+            const { aluno_id, nome_cliente, valor_divida, tipo_divida } = req.body;
+            if (!nome_cliente || valor_divida === undefined || !tipo_divida) {
+                return res.status(400).json({ error: 'Campos obrigatórios faltando.' });
+            }
+
+            const { error } = await supabase.from('mural_vergonha').insert([{
+                aluno_id: aluno_id || null,
+                nome_cliente,
+                valor_divida,
+                tipo_divida
+            }]);
+
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.delete('/api/mural/:id', requireAdmin, async (req: any, res) => {
+        try {
+            const { id } = req.params;
+            const { error } = await supabase.from('mural_vergonha').delete().eq('id', id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) {
+            res.status(500).json({ error: error.message });
         }
     });
 
@@ -5943,53 +6396,6 @@ ${textoBruto}
     app.use((err: any, req: any, res: any, next: any) => {
         console.error('[GLOBAL_ERROR]', err);
         res.status(500).json({ error: 'Erro Interno do Servidor (Global Handler)' });
-    });
-
-    // MURAL DA VERGONHA
-    app.get('/api/mural', async (req: any, res) => {
-        try {
-            const { data, error } = await supabase
-                .from('mural_vergonha')
-                .select('id, aluno_id, nome_cliente, valor_divida, tipo_divida, created_at')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            res.json(data);
-        } catch (error: any) {
-            res.status(500).json({ error: error.message });
-        }
-    });
-
-    app.post('/api/mural', async (req: any, res) => {
-        try {
-            const { aluno_id, nome_cliente, valor_divida, tipo_divida } = req.body;
-            if (!nome_cliente || valor_divida === undefined || !tipo_divida) {
-                return res.status(400).json({ error: 'Campos obrigatórios faltando.' });
-            }
-
-            const { error } = await supabase.from('mural_vergonha').insert([{
-                aluno_id: aluno_id || null,
-                nome_cliente,
-                valor_divida,
-                tipo_divida
-            }]);
-
-            if (error) throw error;
-            res.json({ success: true });
-        } catch (error: any) {
-            res.status(500).json({ error: error.message });
-        }
-    });
-
-    app.delete('/api/mural/:id', async (req: any, res) => {
-        try {
-            const { id } = req.params;
-            const { error } = await supabase.from('mural_vergonha').delete().eq('id', id);
-            if (error) throw error;
-            res.json({ success: true });
-        } catch (error: any) {
-            res.status(500).json({ error: error.message });
-        }
     });
 
     return app;
