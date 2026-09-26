@@ -2786,17 +2786,18 @@ async function startServer() {
                 referencia_mes_ano: toRefMesAno(vencMesAtual)
             });
 
-            // Faturas pendentes
-            for (let i = 1; i <= faturas_pendentes; i++) {
-                const prevDate = addMonthsKeepDay(hojeBR, -i, diaVenc);
+            // Parcelas restantes: a partir do mês que vem (é o que a tela de Migração pede).
+            // Antes eram criadas para trás como "atrasado", gerando dívidas falsas.
+            for (let i = 1; i <= (Number(faturas_pendentes) || 0); i++) {
+                const nextDate = addMonthsKeepDay(hojeBR, i, diaVenc);
                 pagamentosToInsert.push({
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
                     valor: valor_parcela,
-                    data_vencimento: toDateStr(prevDate),
-                    status: 'atrasado',
+                    data_vencimento: toDateStr(nextDate),
+                    status: 'pendente',
                     tipo_receita: 'mensalidade',
-                    referencia_mes_ano: toRefMesAno(prevDate)
+                    referencia_mes_ano: toRefMesAno(nextDate)
                 });
             }
 
@@ -3650,9 +3651,10 @@ async function startServer() {
             const prevStartDate = `${yNumPrev}-${prevMStr}-01`;
             const prevEndDate = new Date(yNumPrev, mNumPrev, 0).toISOString().split('T')[0];
 
-            // Salários pagos neste mês = aulas do mês anterior (dadas + ainda agendadas, com reposições)
+            // Tela Financeiro: salário REAL = só aulas já dadas (realizadas/falta do aluno) do mês anterior.
+            // A previsão com aulas ainda agendadas fica apenas nos Relatórios.
             const folhaPrev = await calcularFolhaProfessores(`${prevMStr}/${yNumPrev}`);
-            const salariosPrevistos = folhaPrev.total_previsto;
+            const salariosPrevistos = folhaPrev.total_realizado;
             const custoOperacional = salariosPrevistos;
 
             const lucroMes = receitaMes - despesasPagas; // Lucro Real (recebido - pago sem salários automáticos, a não ser que lance manual)
@@ -3708,7 +3710,8 @@ async function startServer() {
 
             const folha = await calcularFolhaProfessores(`${prevMStr}/${yNum}`);
             const finalRemun = folha.professores
-                .filter((p: any) => p.aulas_realizadas > 0 || p.aulas_previstas > 0)
+                // Financeiro mostra o real: só professores com aulas já dadas
+                .filter((p: any) => p.aulas_realizadas > 0)
                 .map((p: any) => ({
                     professor_id: p.professor_id,
                     professor_nome: p.professor_nome,
