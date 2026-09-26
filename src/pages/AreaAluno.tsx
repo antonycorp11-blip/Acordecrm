@@ -892,15 +892,6 @@ export default function AreaAluno() {
       .finally(() => setLoading(false));
     };
 
-    const fetchTodasConquistas = (tempId?: number) => {
-      const targetTemp = tempId !== undefined ? tempId : selectedTemporada;
-      const url = targetTemp ? `/api/gamificacao/conquistas?temporada_id=${targetTemp}` : '/api/gamificacao/conquistas';
-      apiFetch(url)
-        .then(r => r.ok ? r.json() : [])
-        .then(data => setTodasConquistas(Array.isArray(data) ? data : []))
-        .catch(console.error);
-    };
-
     fetchAll();
     fetchTodasConquistas();
     fetchTrilha();
@@ -1042,7 +1033,8 @@ export default function AreaAluno() {
       let options: any = null;
       for (const tipo of tiposParaTestar) {
         if (safeIsTypeSupported(tipo)) {
-          options = { mimeType: tipo };
+          // ~1 Mbps: qualidade suficiente para avaliar o treino sem lotar o Storage (~7 MB por minuto)
+          options = { mimeType: tipo, videoBitsPerSecond: 900_000, audioBitsPerSecond: 96_000 };
           break;
         }
       }
@@ -1153,9 +1145,9 @@ export default function AreaAluno() {
   const uploadVideo = async () => {
     if (!videoBlob) return;
     
-      const MAX_SIZE = 2000 * 1024 * 1024; // 2GB
+    const MAX_SIZE = 150 * 1024 * 1024; // 150MB (o plano do Supabase tem 1GB de armazenamento no total)
     if (videoBlob.size > MAX_SIZE) {
-      toast.error('O vídeo ficou muito pesado (acima de 2GB)! Grave mais curto.');
+      toast.error('O vídeo ficou muito pesado (acima de 150MB)! Grave mais curto.');
       setVideoBlob(null);
       setVideoPreviewUrl('');
       return;
@@ -1437,6 +1429,16 @@ export default function AreaAluno() {
       toast.error('Erro ao conectar com o servidor.');
       playRetroSound(220, 'sawtooth', 0.3);
     }
+  };
+
+  // Fica fora do useEffect para poder ser usada também pelo ranking e pelos botões de temporada
+  const fetchTodasConquistas = (tempId?: number) => {
+    const targetTemp = tempId !== undefined ? tempId : selectedTemporada;
+    const url = targetTemp ? `/api/gamificacao/conquistas?temporada_id=${targetTemp}` : '/api/gamificacao/conquistas';
+    apiFetch(url)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setTodasConquistas(Array.isArray(data) ? data : []))
+      .catch(console.error);
   };
 
   const fetchRanking = async () => {

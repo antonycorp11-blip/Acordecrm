@@ -39,7 +39,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Setup multer for local uploads
-const uploadDir = isVercel ? '/tmp/uploads' : join(__dirname, 'public', 'uploads');
+const ROOT_DIR = process.cwd();
+const uploadDir = isVercel ? '/tmp/uploads' : join(ROOT_DIR, 'public', 'uploads');
 try {
   if (!isVercel && !fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -72,6 +73,7 @@ const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', 
 
 // E-mail do dono (God Mode). Comparação exata, nunca por prefixo.
 const OWNER_EMAIL = 'antonycorp11@gmail.com';
+const ONESIGNAL_APP_ID = 'e5e38375-5fd8-4e92-bf0d-29996ba9426d';
 const isOwner = (req: any) => String(req.user?.email || '').toLowerCase().trim() === OWNER_EMAIL;
 
 // Escapa curingas do ILIKE para comparar e-mails sem diferenciar maiúsculas/minúsculas
@@ -283,6 +285,31 @@ const calcularRanking = async (progressoPronto?: any[]) => {
         };
     }).sort((a: any, b: any) => b.xp - a.xp);
 };
+
+// Valor da aula do professor: menos de 10 alunos ativos = R$ 35; 10 ou mais = R$ 30
+const VALOR_AULA_POUCOS_ALUNOS = 35;
+const VALOR_AULA_MUITOS_ALUNOS = 30;
+const LIMITE_ALUNOS_VALOR_AULA = 10;
+
+// Conta alunos ativos distintos por professor (matrícula ativa, aluno não arquivado)
+const contarAlunosAtivosPorProfessor = async (): Promise<Record<number, number>> => {
+    const { data } = await supabase.from('matriculas')
+        .select('professor_id, aluno_id, alunos(status)')
+        .eq('status', 'ativa')
+        .not('professor_id', 'is', null);
+    const porProf: Record<number, Set<number>> = {};
+    (data || []).forEach((m: any) => {
+        const aluno: any = Array.isArray(m.alunos) ? m.alunos[0] : m.alunos;
+        if (aluno?.status === 'arquivado') return;
+        (porProf[m.professor_id] ||= new Set()).add(m.aluno_id);
+    });
+    const contagem: Record<number, number> = {};
+    Object.entries(porProf).forEach(([pid, set]) => { contagem[Number(pid)] = set.size; });
+    return contagem;
+};
+
+const valorAulaPorQtdAlunos = (qtdAlunos: number) =>
+    qtdAlunos >= LIMITE_ALUNOS_VALOR_AULA ? VALOR_AULA_MUITOS_ALUNOS : VALOR_AULA_POUCOS_ALUNOS;
 
 const addToFeed = async (aluno_id: number, tipo: string, mensagem: string, icone: string) => {
     try {
@@ -672,7 +699,13 @@ async function startServer() {
     app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
     
     app.get('/api/sistema/versao', (req, res) => {
-        res.json({ versao: 'SYNC_V4.3.1' });
+        try {
+            const versionPath = path.join(ROOT_DIR, 'version.json');
+            if (fs.existsSync(versionPath)) {
+                return res.json(JSON.parse(fs.readFileSync(versionPath, 'utf8')));
+            }
+        } catch (_) {}
+        res.json({ versao: 'SYNC_V4.3.1', changelog: '' });
     });
     
     app.get('/api/health', (req, res) => {
@@ -2282,7 +2315,16 @@ async function startServer() {
                 })) || [])
             ].sort((a, b) => a.horario.localeCompare(b.horario));
 
-            res.json({ totalAlunos: totalAlunos || 0, aulasHoje, receitaMensal, proximasAulas });
+            // Alunos ativos e se já ativaram o app/notificações (card "Status de instalação do App")
+            const { data: alunosPush } = await supabase.from('alunos')
+                .select('id, nome, push_ativo')
+                .eq('status', 'ativo')
+                .order('nome');
+            const alunosAppStatus = (alunosPush || [])
+                .map((a: any) => ({ id: a.id, nome: a.nome, ativo: Boolean(a.push_ativo) }))
+                .sort((a: any, b: any) => Number(a.ativo) - Number(b.ativo));
+
+            res.json({ totalAlunos: totalAlunos || 0, aulasHoje, receitaMensal, proximasAulas, alunosAppStatus });
         } catch (error) { res.status(500).json({ error: 'Erro ao carregar estatísticas' }); }
     });
 
@@ -2681,17 +2723,23 @@ async function startServer() {
                 });
             }
 
+            const alunosPorProf = await contarAlunosAtivosPorProfessor();
+            const alunosAtivos = alunosPorProf[prof.id] || 0;
+            const valorAula = valorAulaPorQtdAlunos(alunosAtivos);
+
             const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
             const historico = Object.keys(history).sort().reverse().map(k => {
                 const [y, m] = k.split('-');
                 return {
                     mes_ano: `${monthNames[Number(m)-1]} ${y}`,
                     aulas: history[k],
-                    valor: history[k] * (Number(prof.valor_aula) || 0)
+                    valor: history[k] * valorAula
                 };
             });
 
-            prof.saldo = (history[currentMonthKey] || 0) * (Number(prof.valor_aula) || 0);
+            prof.saldo = (history[currentMonthKey] || 0) * valorAula;
+            prof.valor_aula_calculado = valorAula;
+            prof.alunos_ativos = alunosAtivos;
             prof.historico_financeiro = historico;
 
             res.json(prof);
@@ -3476,7 +3524,9 @@ async function startServer() {
                     const nome = nomeStr.toLowerCase();
                     return !nome.includes('aquilles') && !nome.includes('áquilles');
                 });
-                salariosPrevistos = aulasValidas.length * 35;
+                const alunosPorProf = await contarAlunosAtivosPorProfessor();
+                salariosPrevistos = aulasValidas.reduce((acc: number, a: any) =>
+                    acc + valorAulaPorQtdAlunos(alunosPorProf[a.professor_id] || 0), 0);
             }
             const custoOperacional = salariosPrevistos;
 
@@ -3552,6 +3602,12 @@ async function startServer() {
 
             if (error) throw error;
 
+            const alunosPorProf = await contarAlunosAtivosPorProfessor();
+            Object.values(remunByProf).forEach((r: any) => {
+                r.alunos_ativos = alunosPorProf[r.professor_id] || 0;
+                r.valor_aula = valorAulaPorQtdAlunos(r.alunos_ativos);
+            });
+
             (aulas || []).forEach(aula => {
                 if (!aula.professor_id) return;
                 
@@ -3563,7 +3619,7 @@ async function startServer() {
                 
                 if (remunByProf[aula.professor_id]) {
                     remunByProf[aula.professor_id].total_aulas++;
-                    remunByProf[aula.professor_id].valor_estimado += 35; // Valor padrão arbitrário por aula
+                    remunByProf[aula.professor_id].valor_estimado += remunByProf[aula.professor_id].valor_aula;
                 }
             });
 
@@ -4308,105 +4364,105 @@ async function startServer() {
     // ==========================================
     // NOTIFICAÇÕES PUSH ONESIGNAL & LOCAL FEED
     // ==========================================
+    const escapeHtml = (t: any) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
+
+    // Credenciais do Gmail: system_config tem prioridade sobre as variáveis de ambiente
+    async function getSmtpConfig() {
+        const { data: smtpConfig } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['SMTP_EMAIL', 'SMTP_PASSWORD', 'SMTP_PASS']);
+        const pick = (k: string) => smtpConfig?.find((c: any) => c.key_name === k)?.key_value;
+        return {
+            smtpEmail: pick('SMTP_EMAIL') || process.env.SMTP_EMAIL,
+            smtpPass: pick('SMTP_PASSWORD') || pick('SMTP_PASS') || process.env.SMTP_PASSWORD || process.env.SMTP_PASS
+        };
+    }
+
+    // E-mail de aviso (independente do OneSignal: se o push falhar, o e-mail ainda sai)
+    async function enviarEmailAviso(titulo: string, mensagem: string, emailTo: string) {
+        try {
+            const { smtpEmail, smtpPass } = await getSmtpConfig();
+            if (!smtpEmail || !smtpPass) {
+                console.warn('[EMAIL_AVISO] SMTP_EMAIL/SMTP_PASSWORD não configurados. E-mail ignorado.');
+                return false;
+            }
+            const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpEmail, pass: smtpPass } });
+            const emailHtml = `
+                <div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812;">
+                    <h2 style="color: #ff6b00; text-transform: uppercase;">STUDIO ACORDE - AVISO DA ESCOLA</h2>
+                    <p style="font-size: 16px; font-weight: bold;">${escapeHtml(titulo)}</p>
+                    <p>${escapeHtml(mensagem)}</p>
+                    <br/>
+                    <a href="https://acordecrm.vercel.app" style="display: inline-block; padding: 15px 30px; background: #ff6b00; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px; border: 2px solid #261812; box-shadow: 4px 4px 0 #261812;">ACESSAR MEU APLICATIVO</a>
+                    <br/><br/>
+                    <hr style="border: 1px dashed #7b5647;" />
+                    <small style="color: #8e7164;">Esta é uma mensagem automática do Studio Acorde CRM. Não responda este e-mail.</small>
+                </div>
+            `;
+            // Na Vercel a função é congelada após a resposta: o envio precisa terminar antes dela
+            await Promise.race([
+                transporter.sendMail({ from: `"Studio Acorde" <${smtpEmail}>`, to: emailTo, subject: titulo, html: emailHtml }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP Timeout (10s)')), 10000))
+            ]);
+            console.log('[EMAIL_AVISO] E-mail enviado para', emailTo);
+            return true;
+        } catch (e: any) {
+            console.error('[EMAIL_AVISO] Falha ao enviar e-mail:', e?.message || e);
+            return false;
+        }
+    }
+
     // O app registra no OneSignal o id da tabela usuarios; aqui convertemos o e-mail do destinatário nesse id.
     // Sem destinatário identificado, o push não é enviado (nunca vira envio para todos).
     async function sendPushNotification(titulo: string, mensagem: string, _targetId?: string | string[], emailTo?: string, enviarEmail: boolean = true) {
         if (!emailTo) {
-            console.warn('[PUSH_NOTIFICATION] Destinatário sem e-mail; push não enviado.');
-            return;
-        }
-        const { data: usuarioDestino } = await supabase.from('usuarios').select('id').ilike('email', escapeLike(emailTo)).limit(1).maybeSingle();
-        const targetUserId = usuarioDestino?.id ? String(usuarioDestino.id) : null;
-
-        const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'ONESIGNAL_REST_API_KEY').maybeSingle();
-        const appKey = config?.key_value || process.env.ONESIGNAL_REST_API_KEY;
-        const appId = process.env.VITE_ONESIGNAL_APP_ID || "e5e38375-5fd8-4e92-bf0d-29996ba9426d";
-
-        if (!appKey || !appId) {
-            console.error('[OneSignal] Chaves não configuradas no ambiente (env). Ignorando envio.');
+            console.warn('[PUSH_NOTIFICATION] Destinatário sem e-mail; aviso não enviado.');
             return;
         }
 
-        try {
-            const bodyPayload: any = {
-                app_id: appId,
-                headings: { en: titulo, pt: titulo },
-                contents: { en: mensagem, pt: mensagem }
-            };
+        const envioEmail = enviarEmail ? enviarEmailAviso(titulo, mensagem, emailTo) : Promise.resolve(false);
 
-            let response: any = null;
-            if (targetUserId) {
-                bodyPayload.include_aliases = { external_id: [targetUserId] };
-                bodyPayload.target_channel = "push";
-                response = await fetch('https://onesignal.com/api/v1/notifications', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json; charset=utf-8',
-                    'Authorization': `Key ${appKey}`
-                },
-                body: JSON.stringify(bodyPayload)
-                });
-                const data = await response.json();
-                console.log('[PUSH_NOTIFICATION] OneSignal Push enviado:', data);
-            }
-            
-            // Disparo de E-MAIL via Nodemailer (Gmail)
-            if (emailTo && enviarEmail) {
-                try {
-                    const { data: smtpConfig } = await supabase.from('system_config').select('key_name, key_value').in('key_name', ['SMTP_EMAIL', 'SMTP_PASSWORD']);
-                    let smtpEmail = process.env.SMTP_EMAIL;
-                    let smtpPass = process.env.SMTP_PASSWORD;
-
-                    if (smtpConfig) {
-                        const dbEmail = smtpConfig.find(c => c.key_name === 'SMTP_EMAIL')?.key_value;
-                        const dbPass = smtpConfig.find(c => c.key_name === 'SMTP_PASSWORD')?.key_value;
-                        if (dbEmail) smtpEmail = dbEmail;
-                        if (dbPass) smtpPass = dbPass;
-                    }
-
-                    if (smtpEmail && smtpPass) {
-                        const transporter = nodemailer.createTransport({
-                            service: 'gmail',
-                            auth: {
-                                user: smtpEmail,
-                                pass: smtpPass
-                            }
-                        });
-
-                        const emailHtml = `
-                            <div style="font-family: sans-serif; padding: 20px; background: #fff8f6; border: 4px solid #261812; color: #261812;">
-                                <h2 style="color: #ff6b00; text-transform: uppercase;">STUDIO ACORDE - AVISO DA ESCOLA</h2>
-                                <p style="font-size: 16px; font-weight: bold;">${titulo}</p>
-                                <p>${mensagem}</p>
-                                <br/>
-                                <a href="https://acordecrm.vercel.app" style="display: inline-block; padding: 15px 30px; background: #ff6b00; color: #fff; text-decoration: none; font-weight: bold; border-radius: 4px; border: 2px solid #261812; box-shadow: 4px 4px 0 #261812;">ACESSAR MEU APLICATIVO</a>
-                                <br/><br/>
-                                <hr style="border: 1px dashed #7b5647;" />
-                                <small style="color: #8e7164;">Esta é uma mensagem automática do Studio Acorde CRM. Não responda este e-mail.</small>
-                            </div>
-                        `;
-
-                        await Promise.race([
-                            transporter.sendMail({
-                                from: `"Studio Acorde" <${smtpEmail}>`,
-                                to: emailTo,
-                                subject: titulo,
-                                html: emailHtml
-                            }),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP Timeout - Email cancelado mas API continua')), 5000))
-                        ]).catch(e => console.error('[SMTP_TIMEOUT_HANDLED]', e.message));
-                        console.log('[PUSH_NOTIFICATION] E-mail do Gmail disparado para', emailTo);
-                    } else {
-                        console.log('[PUSH_NOTIFICATION] SMTP_EMAIL ou SMTP_PASSWORD não configurado no env ou BD. E-mail ignorado.');
-                    }
-                } catch (emailErr) {
-                    console.error('[PUSH_NOTIFICATION] Erro ao enviar E-mail via Nodemailer:', emailErr);
+        const envioPush = (async () => {
+            try {
+                const { data: usuarioDestino } = await supabase.from('usuarios').select('id').ilike('email', escapeLike(emailTo)).limit(1).maybeSingle();
+                if (!usuarioDestino?.id) {
+                    console.warn('[PUSH_NOTIFICATION] Nenhum usuário com o e-mail', emailTo, '- push não enviado.');
+                    return;
                 }
+                const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'ONESIGNAL_REST_API_KEY').maybeSingle();
+                const appKey = config?.key_value || process.env.ONESIGNAL_REST_API_KEY;
+                const appId = process.env.VITE_ONESIGNAL_APP_ID || ONESIGNAL_APP_ID;
+                if (!appKey) {
+                    console.error('[OneSignal] ONESIGNAL_REST_API_KEY não configurada. Push ignorado.');
+                    return;
+                }
+                const response = await fetch('https://api.onesignal.com/notifications?c=push', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        // Chaves novas (os_v2_...) usam "Key"; chaves antigas usam "Basic"
+                        'Authorization': String(appKey).startsWith('os_v2_') ? `Key ${appKey}` : `Basic ${appKey}`
+                    },
+                    body: JSON.stringify({
+                        app_id: appId,
+                        target_channel: 'push',
+                        include_aliases: { external_id: [String(usuarioDestino.id)] },
+                        headings: { en: titulo, pt: titulo },
+                        contents: { en: mensagem, pt: mensagem },
+                        url: 'https://acordecrm.vercel.app'
+                    })
+                });
+                const data: any = await response.json().catch(() => ({}));
+                if (!response.ok || data?.errors) {
+                    console.error('[PUSH_NOTIFICATION] OneSignal recusou:', response.status, JSON.stringify(data));
+                } else {
+                    console.log('[PUSH_NOTIFICATION] Push enviado para usuário', usuarioDestino.id, 'id:', data?.id);
+                }
+            } catch (err) {
+                console.error('[PUSH_NOTIFICATION] Erro ao enviar push OneSignal:', err);
             }
-        } catch (err) {
-            console.error('[PUSH_NOTIFICATION] Erro ao enviar push OneSignal:', err);
-        }
-    };
+        })();
+
+        await Promise.all([envioEmail, envioPush]);
+    }
 
     // Notificação interna + push/e-mail para o professor da matrícula mais recente do aluno
     async function notificarProfessorDoAluno(alunoId: number, titulo: string, mensagem: string) {
@@ -4483,7 +4539,7 @@ async function startServer() {
                 const titulo = 'Treino registrado! 🔥';
                 const mensagem = `${aluno.nome} marcou seu check-in de treino diário!`;
                 await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
-                notificarProfessorDoAluno(aluno.id, titulo, mensagem);
+                await notificarProfessorDoAluno(aluno.id, titulo, mensagem);
             } catch (e) {
                 console.error('[TREINO] Erro notificação:', e);
             }
@@ -4892,7 +4948,7 @@ async function startServer() {
                 const titulo = 'Vídeo de treino enviado! 📹';
                 const mensagem = `${aluno.nome} gravou um vídeo estudando hoje!`;
                 await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'treino', aluno_id: aluno.id }]);
-                notificarProfessorDoAluno(aluno.id, titulo, mensagem);
+                await notificarProfessorDoAluno(aluno.id, titulo, mensagem);
             } catch (e) {
                 console.error('[TREINO_VIDEO] Erro ao notificar professor:', e);
             }
@@ -5068,7 +5124,7 @@ async function startServer() {
 
             await supabase.from('notificacoes').insert([{ titulo, mensagem, tipo: 'confirmacao', aluno_id: aluno.id }]);
 
-            notificarProfessorDoAluno(aluno.id, titulo, mensagem);
+            await notificarProfessorDoAluno(aluno.id, titulo, mensagem);
 
             res.json({ success: true, data: aula });
         } catch (error: any) {
@@ -5312,7 +5368,15 @@ async function startServer() {
                 .order('created_at', { ascending: false })
                 .limit(50);
             if (error && error.code !== '42P01') throw error;
-            res.json(data || []);
+
+            // Anexa o nome do aluno de cada atividade (várias mensagens não citam o nome)
+            const ids = Array.from(new Set((data || []).map((f: any) => f.aluno_id).filter(Boolean)));
+            const nomes: Record<number, string> = {};
+            if (ids.length > 0) {
+                const { data: alunosFeed } = await supabase.from('alunos').select('id, nome').in('id', ids);
+                (alunosFeed || []).forEach((a: any) => { nomes[a.id] = a.nome; });
+            }
+            res.json((data || []).map((f: any) => ({ ...f, aluno_nome: f.aluno_id ? (nomes[f.aluno_id] || null) : null })));
         } catch (error) {
             console.error('Error fetching feed:', error);
             res.json([]); // Fail gracefully until table exists
@@ -6258,6 +6322,99 @@ ${textoBruto}
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
+    // Alunos com mensalidades vencidas e não pagas, agrupadas por aluno (mais antigas primeiro)
+    app.get('/api/dashboard/alunos-em-atraso', requireAdmin, async (req, res) => {
+        try {
+            const hoje = getDateBR();
+            const pags = await fetchAllRows(() => supabase.from('pagamentos')
+                .select('id, valor, data_vencimento, status, tipo_receita, aluno_id, alunos:aluno_id(nome, status, telefone, responsavel_telefone)')
+                .neq('status', 'pago')
+                .lt('data_vencimento', hoje)
+                .not('aluno_id', 'is', null)
+                .order('id', { ascending: true }));
+
+            const hojeMs = parseDateOnly(hoje).getTime();
+            const porAluno: Record<number, any> = {};
+            pags.forEach((p: any) => {
+                const aluno: any = Array.isArray(p.alunos) ? p.alunos[0] : p.alunos;
+                if (!aluno || aluno.status === 'arquivado') return;
+                const item = porAluno[p.aluno_id] ||= {
+                    aluno_id: p.aluno_id,
+                    nome: aluno.nome,
+                    telefone: aluno.telefone || aluno.responsavel_telefone || null,
+                    parcelas: 0,
+                    total: 0,
+                    vencimento_mais_antigo: p.data_vencimento
+                };
+                item.parcelas++;
+                item.total += Number(p.valor) || 0;
+                if (p.data_vencimento < item.vencimento_mais_antigo) item.vencimento_mais_antigo = p.data_vencimento;
+            });
+
+            const lista = Object.values(porAluno).map((a: any) => ({
+                ...a,
+                total: Math.round(a.total * 100) / 100,
+                dias_atraso: Math.floor((hojeMs - parseDateOnly(a.vencimento_mais_antigo).getTime()) / 86400000)
+            })).sort((a: any, b: any) => b.dias_atraso - a.dias_atraso);
+
+            res.json(lista);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Alunos com aulas agendadas depois da última mensalidade gerada (aula sem cobrança correspondente)
+    app.get('/api/dashboard/aulas-sem-mensalidade', requireAdmin, async (req, res) => {
+        try {
+            const hoje = getDateBR();
+            const aulasFuturas = await fetchAllRows(() => supabase.from('aulas')
+                .select('id, aluno_id, data')
+                .eq('status', 'pendente')
+                .gte('data', hoje)
+                .lt('data', '2099-01-01')
+                .not('aluno_id', 'is', null)
+                .order('id', { ascending: true }));
+
+            const mensalidades = await fetchAllRows(() => supabase.from('pagamentos')
+                .select('id, aluno_id, data_vencimento')
+                .eq('tipo_receita', 'mensalidade')
+                .not('aluno_id', 'is', null)
+                .order('id', { ascending: true }));
+
+            const ultimaMensalidade: Record<number, string> = {};
+            mensalidades.forEach((m: any) => {
+                if (!ultimaMensalidade[m.aluno_id] || m.data_vencimento > ultimaMensalidade[m.aluno_id]) {
+                    ultimaMensalidade[m.aluno_id] = m.data_vencimento;
+                }
+            });
+
+            const porAluno: Record<number, { aulas: number; ultima_aula: string }> = {};
+            aulasFuturas.forEach((a: any) => {
+                const ultima = ultimaMensalidade[a.aluno_id];
+                // Sem nenhuma mensalidade, ou aula num mês posterior ao da última mensalidade
+                if (ultima && a.data.substring(0, 7) <= ultima.substring(0, 7)) return;
+                const item = porAluno[a.aluno_id] ||= { aulas: 0, ultima_aula: a.data };
+                item.aulas++;
+                if (a.data > item.ultima_aula) item.ultima_aula = a.data;
+            });
+
+            const ids = Object.keys(porAluno).map(Number);
+            if (ids.length === 0) return res.json([]);
+            const { data: alunos } = await supabase.from('alunos').select('id, nome, status').in('id', ids);
+
+            const lista = (alunos || [])
+                .filter((a: any) => a.status !== 'arquivado')
+                .map((a: any) => ({
+                    aluno_id: a.id,
+                    nome: a.nome,
+                    aulas_sem_mensalidade: porAluno[a.id].aulas,
+                    ultima_mensalidade: ultimaMensalidade[a.id] || null,
+                    ultima_aula: porAluno[a.id].ultima_aula
+                }))
+                .sort((a: any, b: any) => b.aulas_sem_mensalidade - a.aulas_sem_mensalidade);
+
+            res.json(lista);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
     // --- RECOMPENSA POR ATIVAR NOTIFICAÇÕES (500 XP, uma única vez) ---
     app.post('/api/alunos/recompensa-push', async (req: any, res) => {
         try {
@@ -6365,7 +6522,7 @@ ${textoBruto}
     });
 
     // Serve static files from public folder
-    app.use(express.static(join(__dirname, 'public')));
+    app.use(express.static(join(ROOT_DIR, 'public')));
 
     // Vite Integration for local development
     if (process.env.NODE_ENV !== 'production' && !isVercel) {
@@ -6380,7 +6537,7 @@ ${textoBruto}
             console.error('Failed to start Vite middleware', e);
         }
     } else if (!isVercel) {
-        const distPath = path.join(__dirname, 'dist');
+        const distPath = path.join(ROOT_DIR, 'dist');
         if (fs.existsSync(distPath)) {
             app.use(express.static(distPath));
             app.get('*', (req, res) => {

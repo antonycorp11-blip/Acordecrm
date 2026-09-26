@@ -49,8 +49,8 @@ export default function Login() {
 
     try {
       if (step === 'setup') {
-        if (!senha || senha.length < 4) {
-          toast.error('A senha deve ter pelo menos 4 caracteres');
+        if (!senha || senha.length < 6) {
+          toast.error('A senha deve ter pelo menos 6 caracteres');
           setIsLoading(false);
           return;
         }

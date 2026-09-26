@@ -187,6 +187,14 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// Painel administrativo: aluno e professor são enviados para a própria área
+const AdminOnly = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
+  if (user?.role === 'professor') return <Navigate to="/area-professor" replace />;
+  if (user?.role === 'aluno') return <Navigate to="/area-aluno" replace />;
+  return <>{children}</>;
+};
+
 // Componente para redirecionamento baseado em Role
 const RoleRedirect = ({ children, defaultPath }: { children: React.ReactNode, defaultPath: string }) => {
   const { user } = useAuth();
@@ -230,6 +238,7 @@ export default function App() {
                 <Route path="/area-professor" element={<AreaProfessor />} />
                 <Route path="/area-aluno" element={<AreaAluno />} />
                 <Route path="*" element={
+                  <AdminOnly>
                   <MainLayout>
                     <Routes>
                       <Route path="/" element={
@@ -253,6 +262,7 @@ export default function App() {
                 <Route path="/reposicoes" element={<Reposicoes />} />
                     </Routes>
                   </MainLayout>
+                  </AdminOnly>
                 } />
               </Routes>
             </PrivateRoute>

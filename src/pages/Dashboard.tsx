@@ -18,6 +18,8 @@ export default function Dashboard() {
   const [faturasPendentes, setFaturasPendentes] = useState<any[]>(() => getStoredCache('dashboard_faturas_pendentes', []));
   const [temporada, setTemporada] = useState<{nome: string}>(() => getStoredCache('dashboard_temporada', { nome: 'Temporada 3' }));
   const [feed, setFeed] = useState<any[]>(() => getStoredCache('dashboard_feed', []));
+  const [alunosEmAtraso, setAlunosEmAtraso] = useState<any[]>(() => getStoredCache('dashboard_alunos_em_atraso', []));
+  const [aulasSemMensalidade, setAulasSemMensalidade] = useState<any[]>(() => getStoredCache('dashboard_aulas_sem_mensalidade', []));
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [showModalAulas, setShowModalAulas] = useState(false);
   const [showModalFaturas, setShowModalFaturas] = useState(false);
@@ -45,8 +47,18 @@ export default function Dashboard() {
       apiFetch('/api/dashboard/faturas-pendentes').then(r => r.ok ? r.json() : null).catch(() => null),
       apiFetch('/api/feed').then(r => r.ok ? r.json() : null).catch(() => null),
       apiFetch('/api/temporada-atual').then(r => r.ok ? r.json() : null).catch(() => null),
-      apiFetch('/api/leads').then(r => r.ok ? r.json() : null).catch(() => null)
-    ]).then(([aulas, faturas, feedData, temp, leadsList]) => {
+      apiFetch('/api/leads').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch('/api/dashboard/alunos-em-atraso').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch('/api/dashboard/aulas-sem-mensalidade').then(r => r.ok ? r.json() : null).catch(() => null)
+    ]).then(([aulas, faturas, feedData, temp, leadsList, emAtraso, semMensalidade]) => {
+      if (emAtraso && Array.isArray(emAtraso)) {
+        setAlunosEmAtraso(emAtraso);
+        setStoredCache('dashboard_alunos_em_atraso', emAtraso);
+      }
+      if (semMensalidade && Array.isArray(semMensalidade)) {
+        setAulasSemMensalidade(semMensalidade);
+        setStoredCache('dashboard_aulas_sem_mensalidade', semMensalidade);
+      }
       if (aulas && Array.isArray(aulas)) {
         setAulasSemStatus(aulas);
         setStoredCache('dashboard_aulas_sem_status', aulas);
@@ -203,6 +215,77 @@ export default function Dashboard() {
                 </div>
               )) : (
                 <div className="text-white/80 text-xs font-black uppercase text-center mt-5">Sem alunos cadastrados</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* DESTAQUES FINANCEIROS: ATRASOS E AULAS SEM MENSALIDADE */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="sticker-card rounded-lg flex flex-col overflow-hidden" style={{ background: '#fff8f6', border: '3px solid #261812', maxHeight: '360px' }}>
+            <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#dc2626', borderBottom: '3px solid #261812' }}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-white" />
+                <p className="text-white text-[11px] font-black uppercase tracking-widest">Alunos em atraso ({alunosEmAtraso.length})</p>
+              </div>
+              <span className="text-white font-black text-sm">
+                R$ {alunosEmAtraso.reduce((acc, a) => acc + Number(a.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+              {alunosEmAtraso.length > 0 ? alunosEmAtraso.map((a) => (
+                <button
+                  key={a.aluno_id}
+                  onClick={() => navigate(`/alunos/${a.aluno_id}`)}
+                  className="w-full text-left flex items-center justify-between bg-white p-3 border-2 border-black rounded shadow-[2px_2px_0_#000] hover:bg-red-50 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-black uppercase text-xs truncate">{a.nome}</p>
+                    <p className="text-[9px] font-bold text-[#8e7164] uppercase">
+                      {a.parcelas} {a.parcelas === 1 ? 'parcela' : 'parcelas'} • desde {String(a.vencimento_mais_antigo).split('-').reverse().join('/')}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right ml-2">
+                    <p className="font-black text-red-600 text-sm">R$ {Number(a.total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className={`text-[8px] font-black uppercase px-1 rounded border inline-block ${a.dias_atraso > 30 ? 'bg-red-600 text-white border-red-800' : 'bg-red-100 text-red-800 border-red-300'}`}>
+                      {a.dias_atraso} dias
+                    </p>
+                  </div>
+                </button>
+              )) : (
+                <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center py-6">Nenhum aluno em atraso. 🎉</div>
+              )}
+            </div>
+          </div>
+
+          <div className="sticker-card rounded-lg flex flex-col overflow-hidden" style={{ background: '#fff8f6', border: '3px solid #261812', maxHeight: '360px' }}>
+            <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#7c3aed', borderBottom: '3px solid #261812' }}>
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-white" />
+                <p className="text-white text-[11px] font-black uppercase tracking-widest">Aulas sem mensalidade ({aulasSemMensalidade.length})</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+              <p className="text-[9px] font-bold text-[#8e7164] uppercase">Aulas agendadas depois da última mensalidade gerada. Renove o plano ou gere as parcelas.</p>
+              {aulasSemMensalidade.length > 0 ? aulasSemMensalidade.map((a) => (
+                <button
+                  key={a.aluno_id}
+                  onClick={() => navigate(`/alunos/${a.aluno_id}`)}
+                  className="w-full text-left flex items-center justify-between bg-white p-3 border-2 border-black rounded shadow-[2px_2px_0_#000] hover:bg-violet-50 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-black uppercase text-xs truncate">{a.nome}</p>
+                    <p className="text-[9px] font-bold text-[#8e7164] uppercase">
+                      {a.ultima_mensalidade ? `Última mensalidade: ${String(a.ultima_mensalidade).split('-').reverse().join('/')}` : 'Nenhuma mensalidade gerada'}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right ml-2">
+                    <p className="font-black text-violet-700 text-sm">{a.aulas_sem_mensalidade} aulas</p>
+                    <p className="text-[8px] font-black uppercase text-[#8e7164]">até {String(a.ultima_aula).split('-').reverse().join('/')}</p>
+                  </div>
+                </button>
+              )) : (
+                <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center py-6">Todas as aulas têm mensalidade. ✅</div>
               )}
             </div>
           </div>

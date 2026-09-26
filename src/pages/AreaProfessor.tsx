@@ -314,7 +314,7 @@ export default function AreaProfessor() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Estados de navegação e Modo Apresentação do Professor
-  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos'>('home');
+  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos' | 'fichas'>('home');
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
 
   const [doublePointsGame, setDoublePointsGame] = useState<string | null>(null);
@@ -443,6 +443,7 @@ export default function AreaProfessor() {
   const [selectedTreinoVideo, setSelectedTreinoVideo] = useState<string | null>(null);
   const [isTreinoVideoModalOpen, setIsTreinoVideoModalOpen] = useState(false);
   const [searchTreino, setSearchTreino] = useState('');
+  const [buscaFichas, setBuscaFichas] = useState('');
   const [isCheckinConfirmModalOpen, setIsCheckinConfirmModalOpen] = useState(false);
   const [checkinConfirmData, setCheckinConfirmData] = useState<any>(null);
   // Estados Ricos do Musiclass compartilhados
@@ -4264,6 +4265,72 @@ export default function AreaProfessor() {
               </div>
             )}
 
+            {activeProfessorTab === 'fichas' && (() => {
+              // Resumo das aulas realizadas de cada aluno, a partir da agenda do professor
+              const resumoPorAluno: Record<string, { total: number; ultima: string | null }> = {};
+              agendaCompleta.forEach((a: any) => {
+                if (a.status !== 'realizada' || !a.aluno_id) return;
+                const r = resumoPorAluno[a.aluno_id] ||= { total: 0, ultima: null };
+                r.total++;
+                if (!r.ultima || a.data > r.ultima) r.ultima = a.data;
+              });
+              const termo = buscaFichas.trim().toLowerCase();
+              const alunosFiltrados = alunosList
+                .filter((a: any) => !termo || (a.nome || '').toLowerCase().includes(termo))
+                .map((a: any) => ({ ...a, resumo: resumoPorAluno[a.id] || { total: 0, ultima: null } }))
+                .sort((a: any, b: any) => (b.resumo.ultima || '').localeCompare(a.resumo.ultima || ''));
+
+              return (
+                <div className="space-y-4 animate-fade-in pb-24">
+                  <div className="bg-[#fff8f6] border-8 border-black p-5 relative shadow-[8px_8px_0_#000]">
+                    <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-600 text-white font-black text-[8px] uppercase border-l-4 border-b-4 border-black">
+                      FICHAS
+                    </div>
+                    <h3 className="text-black font-black text-lg uppercase italic tracking-tighter mt-1 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-emerald-600" /> FICHAS DOS MEUS ALUNOS
+                    </h3>
+                    <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider mt-1">
+                      Toque em um aluno para ver todas as fichas de aula dele
+                    </p>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="PESQUISAR ALUNO..."
+                    className="w-full bg-white border-4 border-black p-3 font-black text-xs uppercase outline-none focus:bg-[#ffeae1] shadow-[4px_4px_0_#000]"
+                    value={buscaFichas}
+                    onChange={(e) => setBuscaFichas(e.target.value)}
+                  />
+
+                  <div className="space-y-2">
+                    {alunosFiltrados.map((aluno: any) => (
+                      <button
+                        key={aluno.id}
+                        onClick={() => handleAbrirHistoricoAluno(aluno.id, aluno.nome)}
+                        className="w-full text-left bg-white border-4 border-black p-3 flex items-center justify-between gap-3 shadow-[4px_4px_0_#000] active:translate-y-[2px] active:shadow-none transition-all"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <h5 className="font-black text-xs uppercase truncate">{aluno.nome}</h5>
+                          <p className="text-[8px] font-bold text-black/60 uppercase">
+                            {aluno.resumo.total} {aluno.resumo.total === 1 ? 'ficha' : 'fichas'}
+                            {aluno.resumo.ultima ? ` • última aula ${format(new Date(aluno.resumo.ultima + 'T12:00:00'), 'dd/MM/yyyy')}` : ' • nenhuma aula realizada'}
+                          </p>
+                        </div>
+                        <span className="bg-black text-white px-3 py-1.5 font-black text-[9px] uppercase flex items-center gap-1 shrink-0">
+                          <FileText className="w-3 h-3" /> VER FICHAS
+                        </span>
+                      </button>
+                    ))}
+                    {alunosFiltrados.length === 0 && (
+                      <div className="py-6 text-center opacity-50 font-black text-[10px] uppercase border-4 border-dashed border-black/20 bg-white">
+                        NENHUM ALUNO ENCONTRADO.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {activeProfessorTab === 'treinos' && (
               <div className="space-y-4 animate-fade-in pb-10">
                 {/* Cabeçalho da aba Treinos */}
@@ -4699,6 +4766,7 @@ export default function AreaProfessor() {
             { id: 'home', icon: Home, label: 'HOME' },
             { id: 'jogos', icon: Gamepad2, label: 'JOGOS' },
             { id: 'agenda', icon: Calendar, label: 'AGENDA' },
+            { id: 'fichas', icon: FileText, label: 'FICHAS' },
             { id: 'treinos', icon: Flame, label: 'TREINOS' },
             { id: 'ranking', icon: Trophy, label: 'RANKING' },
             { id: 'perfil', icon: User, label: 'PERFIL' },
@@ -5470,9 +5538,28 @@ export default function AreaProfessor() {
                         </div>
                       )}
 
-                      {/* Professor */}
-                      <div className="flex justify-end text-[7px] font-black text-black/30 uppercase">
-                        Instrutor: {aula.professores?.nome || 'HUB'}
+                      {/* Professor + ficha completa */}
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => {
+                            setIsHistoricoModalOpen(false);
+                            openPreviewModal({
+                              ...aula,
+                              originalId: aula.id,
+                              type: 'regular',
+                              nome: selectedAlunoHistorico.nome,
+                              aluno_nome: selectedAlunoHistorico.nome,
+                              curso_nome: aula.cursos?.nome,
+                              professor_nome: aula.professores?.nome
+                            });
+                          }}
+                          className="bg-black text-white px-3 py-1.5 border-2 border-black font-black text-[8px] uppercase shadow-[2px_2px_0_#ff6b00] active:translate-y-[1px] active:shadow-none flex items-center gap-1"
+                        >
+                          <FileText className="w-3 h-3" /> ABRIR FICHA COMPLETA
+                        </button>
+                        <span className="text-[7px] font-black text-black/30 uppercase">
+                          Instrutor: {aula.professores?.nome || 'HUB'}
+                        </span>
                       </div>
                     </div>
                   );
