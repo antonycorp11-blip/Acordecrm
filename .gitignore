@@ -12,3 +12,4 @@ google-credentials.json
 
 # Dados pessoais de alunos: nunca versionar
 _arquivo/dados_pessoais/
+.vercel

@@ -1,4 +1,4 @@
 {
-  "versao": "1.0.2",
-  "changelog": "Correção no filtro de aulas do professor e sistema de atualização automática adicionado."
+  "versao": "2.0.0",
+  "changelog": "Nova versão: aba Relatórios, fichas dos alunos no app do professor, vídeos de treino no Google Drive, alertas de atraso no início e mais segurança."
 }
