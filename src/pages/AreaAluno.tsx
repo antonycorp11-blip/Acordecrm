@@ -2229,25 +2229,22 @@ export default function AreaAluno() {
                                 return (
                                   <div className="mt-2 pt-4 border-t-2 border-dashed border-[#261812] flex flex-col items-center gap-2">
                                     <button
-                                      disabled={!isProvaDesbloqueada || isProvaConcluida}
+                                      disabled={!isProvaDesbloqueada}
                                       onClick={() => { 
-                                        if (isProvaConcluida) {
-                                          toast.info('A Prova Final do Módulo vale 100.000 PTS e só pode ser realizada uma única vez (100K já garantidos).');
-                                          return;
-                                        }
+                                        // A prova pode ser refeita quantas vezes o aluno quiser (cada aprovação vale pontos)
                                         setSelectedTrilhaModulo(modulo); 
                                         handleStartQuestionario(true, modulo); 
                                       }}
                                       className={`w-full py-3 px-4 rounded-lg border-4 border-[#261812] shadow-[4px_4px_0px_0px_#261812] font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer ${
                                         isProvaConcluida 
-                                          ? 'bg-yellow-400/90 text-black cursor-not-allowed opacity-90' 
+                                          ? 'bg-yellow-400 text-black hover:bg-yellow-300' 
                                           : isProvaDesbloqueada 
                                             ? 'bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 text-white animate-bounce' 
                                             : 'bg-[#e2bfb0] text-[#5a4136] opacity-60 cursor-not-allowed'
                                       }`}
                                     >
                                       <span className="material-symbols-outlined text-xl">workspace_premium</span>
-                                      {isProvaConcluida ? 'PROVA FINAL CONCLUÍDA ✨ (100K GARANTIDOS)' : '👑 PROVA FINAL DO MÓDULO (100.000 PTS - ÚNICA TENTATIVA) 🏆'}
+                                      {isProvaConcluida ? '🔁 REFAZER PROVA FINAL (+100.000 PTS POR APROVAÇÃO)' : '👑 PROVA FINAL DO MÓDULO (100.000 PTS) 🏆'}
                                     </button>
                                   </div>
                                 );

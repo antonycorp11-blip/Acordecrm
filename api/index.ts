@@ -6151,7 +6151,6 @@ ${textoBruto}
                 gabaQuestions = parseTrilhaQuestions(modulo.prova_final);
             }
 
-            // Se for a prova final de um Módulo, verificar se já passou (única tentativa permitida)
             // Envio repetido em sequência (duplo clique): ignora a mesma prova enviada há menos de 15s
             {
                 let recente = supabase.from('tentativas_questionario_trilha')
@@ -6166,25 +6165,8 @@ ${textoBruto}
                 }
             }
 
-            if (moduloId && !aulaId) {
-                // limit(1): com mais de uma aprovação registrada, o maybeSingle() dava erro e a prova
-                // podia ser refeita infinitas vezes (100.000 pontos a cada vez)
-                const { data: aprovacoes } = await supabase
-                    .from('tentativas_questionario_trilha')
-                    .select('id')
-                    .eq('aluno_id', aluno_id)
-                    .eq('modulo_trilha_id', moduloId)
-                    .is('aula_trilha_id', null)
-                    .eq('aprovado', true)
-                    .limit(1);
-                const jaPassou = aprovacoes && aprovacoes.length > 0;
-
-                if (jaPassou) {
-                    return res.status(400).json({ 
-                        error: 'A Prova Final do Módulo vale 100.000 PTS e só pode ser realizada uma única vez (100K já garantidos).' 
-                    });
-                }
-            }
+            // A prova final do módulo pode ser refeita à vontade: a escola quer estimular o estudo
+            // (cada aprovação vale 100.000 pontos; o troféu é concedido só na primeira).
 
             if (gabaQuestions.length === 0) {
                 return res.status(400).json({ error: 'Nenhum questionário cadastrado para esta referência.' });
