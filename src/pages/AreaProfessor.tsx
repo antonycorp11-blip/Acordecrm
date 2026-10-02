@@ -37,7 +37,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musicEngine';
 import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordVisualizers';
@@ -553,7 +553,8 @@ export default function AreaProfessor() {
   const loadData = () => {
     Promise.all([
       apiFetch('/api/professores/me').then(r => r.ok ? r.json() : null).catch(() => null),
-      apiFetch(`/api/agenda?start=2020-01-01&end=2030-01-01`).then(r => r.ok ? r.json() : []).catch(() => []),
+      // 12 meses para trás (fichas) e 12 para frente (agenda); antes pedia 2020-2030 e estourava o limite
+      apiFetch(`/api/agenda?start=${format(subMonths(new Date(), 12), 'yyyy-MM-dd')}&end=${format(addMonths(new Date(), 12), 'yyyy-MM-dd')}`).then(r => r.ok ? r.json() : []).catch(() => []),
       apiFetch('/api/alunos').then(r => r.ok ? r.json() : []).catch(() => []),
       apiFetch('/api/gamificacao/config-dobro').then(r => r.ok ? r.json() : { success: false }).catch(() => ({ success: false }))
     ]).then(([me, agenda, alunos, configDobro]) => {

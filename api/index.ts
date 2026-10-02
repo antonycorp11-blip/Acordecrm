@@ -3777,24 +3777,33 @@ async function startServer() {
                 }
             }
 
-            let query = supabase.from('aulas')
-                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, tipo, alunos(nome, status, telefone, responsavel_telefone), professores(nome), cursos(nome), matriculas(status)')
-                .order('data', { ascending: true });
-            
-            if (start) query = query.gte('data', start);
-            if (end) query = query.lte('data', end);
-            if (filterProfId) query = query.eq('professor_id', filterProfId);
-            if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
-            if (statusFilter) {
-                if (statusFilter === 'reposicao') {
-                    query = query.or('status.eq.reposicao,status.eq.a_repor');
-                } else {
-                    query = query.eq('status', statusFilter);
+            // Busca paginada: o Supabase devolve no máximo 1000 linhas por consulta
+            // (antes as aulas mais recentes eram cortadas da agenda do professor)
+            const montarConsulta = () => {
+                let query = supabase.from('aulas')
+                    .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, tipo, alunos(nome, status, telefone, responsavel_telefone), professores(nome), cursos(nome), matriculas(status)')
+                    .order('data', { ascending: true })
+                    .order('id', { ascending: true });
+                if (start) query = query.gte('data', start);
+                if (end) query = query.lte('data', end);
+                if (filterProfId) query = query.eq('professor_id', filterProfId);
+                if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
+                if (statusFilter) {
+                    if (statusFilter === 'reposicao') {
+                        query = query.or('status.eq.reposicao,status.eq.a_repor');
+                    } else {
+                        query = query.eq('status', statusFilter);
+                    }
                 }
-            }
+                return query;
+            };
 
-            const { data: rawAulas, error: errA } = await query;
-            if (errA) console.error('[AGENDA] Erro aulas:', errA);
+            let rawAulas: any[] = [];
+            try {
+                rawAulas = await fetchAllRows(montarConsulta);
+            } catch (errA) {
+                console.error('[AGENDA] Erro aulas:', errA);
+            }
             
             const aulas = (rawAulas || []).filter((a: any) => {
                 const aluno = Array.isArray(a.alunos) ? a.alunos[0] : a.alunos;
