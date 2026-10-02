@@ -6132,14 +6132,32 @@ ${textoBruto}
             }
 
             // Se for a prova final de um Módulo, verificar se já passou (única tentativa permitida)
+            // Envio repetido em sequência (duplo clique): ignora a mesma prova enviada há menos de 15s
+            {
+                let recente = supabase.from('tentativas_questionario_trilha')
+                    .select('id')
+                    .eq('aluno_id', aluno_id)
+                    .gte('created_at', new Date(Date.now() - 15000).toISOString())
+                    .limit(1);
+                recente = aulaId ? recente.eq('aula_trilha_id', aulaId) : recente.eq('modulo_trilha_id', moduloId).is('aula_trilha_id', null);
+                const { data: envioRecente } = await recente;
+                if (envioRecente && envioRecente.length > 0) {
+                    return res.status(429).json({ error: 'Esta prova acabou de ser enviada. Aguarde alguns segundos.' });
+                }
+            }
+
             if (moduloId && !aulaId) {
-                const { data: jaPassou } = await supabase
+                // limit(1): com mais de uma aprovação registrada, o maybeSingle() dava erro e a prova
+                // podia ser refeita infinitas vezes (100.000 pontos a cada vez)
+                const { data: aprovacoes } = await supabase
                     .from('tentativas_questionario_trilha')
                     .select('id')
                     .eq('aluno_id', aluno_id)
                     .eq('modulo_trilha_id', moduloId)
+                    .is('aula_trilha_id', null)
                     .eq('aprovado', true)
-                    .maybeSingle();
+                    .limit(1);
+                const jaPassou = aprovacoes && aprovacoes.length > 0;
 
                 if (jaPassou) {
                     return res.status(400).json({ 
