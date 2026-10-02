@@ -1991,11 +1991,24 @@ async function startServer() {
         }
     });
 
+    // Aluno arquivado não tem mais aulas: remove as aulas futuras ainda não dadas (histórico fica)
+    const removerAulasFuturasDoAluno = async (alunoId: any) => {
+        const { data, error } = await supabase.from('aulas')
+            .delete()
+            .eq('aluno_id', alunoId)
+            .gte('data', getDateBR())
+            .in('status', ['pendente', 'confirmada', 'aguardando_confirmacao', 'reposicao', 'a_repor'])
+            .select('id');
+        if (error) console.error('[ARQUIVAR] Erro ao remover aulas futuras:', error);
+        return data?.length || 0;
+    };
+
     app.delete('/api/alunos/:id', requireAdmin, async (req, res) => {
         try {
             const { error } = await supabase.from('alunos').update({ status: 'arquivado' }).eq('id', req.params.id);
             if (error) throw error;
-            res.json({ success: true });
+            const aulasRemovidas = await removerAulasFuturasDoAluno(req.params.id);
+            res.json({ success: true, aulasRemovidas });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
@@ -2033,6 +2046,7 @@ async function startServer() {
                     console.error('[ALUNO_UPDATE_ERROR]:', aluError);
                     return res.status(500).json({ error: aluError.message, stage: 'aluno' });
                 }
+                if (alunoUpdate.status === 'arquivado') await removerAulasFuturasDoAluno(studentId);
             }
 
             // 2. Atualizar Matrícula e Aulas
@@ -5086,6 +5100,12 @@ async function startServer() {
     });
 
     // --- Vídeos de treino ---
+    // O app do aluno consulta se o envio de vídeo está disponível (Drive conectado)
+    app.get('/api/treinos/video-disponivel', async (req, res) => {
+        try { res.json({ disponivel: Boolean(await getDriveAccessToken()) }); }
+        catch { res.json({ disponivel: false }); }
+    });
+
     // 1) O app do aluno pede uma sessão de upload: o vídeo vai do celular direto para o Drive
     app.post('/api/treinos/drive-upload-session', async (req: any, res) => {
         try {

@@ -200,7 +200,7 @@ export default function Dashboard() {
       {/* MAIN CONTENT */}
       <div className="flex-1 overflow-auto p-6 space-y-5">
 
-        {driveStatus && (!driveStatus.conectado || driveStatus.alerta) && (
+        {driveStatus && driveStatus.conectado && driveStatus.alerta && (
           <button
             onClick={() => setShowDriveModal(true)}
             className={`w-full text-left flex items-center gap-3 p-4 border-4 border-black shadow-[4px_4px_0_#000] ${driveStatus.alerta ? 'bg-red-600 text-white' : 'bg-yellow-300 text-black'}`}

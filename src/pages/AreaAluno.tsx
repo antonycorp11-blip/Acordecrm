@@ -524,6 +524,11 @@ export default function AreaAluno() {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [recordingTimer, setRecordingTimer] = useState(0);
   const [recordingIntervalId, setRecordingIntervalId] = useState<any>(null);
+  // Envio de vídeo só aparece quando o Google Drive da escola está conectado
+  const [videoDisponivel, setVideoDisponivel] = useState(false);
+  useEffect(() => {
+    apiFetch('/api/treinos/video-disponivel').then(r => r.ok ? r.json() : null).then(d => setVideoDisponivel(Boolean(d?.disponivel))).catch(() => {});
+  }, []);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -2702,6 +2707,7 @@ export default function AreaAluno() {
                 )}
 
                 {/* Upload / Gravação de Vídeo */}
+                {videoDisponivel && (
                 <div className="border-t-4 border-dashed border-black pt-4 space-y-4">
                   <h3 className="text-black font-black text-[10px] uppercase tracking-wider flex items-center justify-between gap-2">
                     <span>📹 COMPROVAR COM VÍDEO (MAX 45 SEGUNDOS)</span>
@@ -2786,6 +2792,7 @@ export default function AreaAluno() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
 
 
