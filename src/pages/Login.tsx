@@ -21,7 +21,7 @@ export default function Login() {
     
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/auth/check-student?email=${email}`);
+      const res = await fetch(`/api/auth/check-student?email=${encodeURIComponent(email.trim())}`);
       const data = await res.json();
       
       if (data.exists) {
@@ -63,9 +63,17 @@ export default function Login() {
         const setupRes = await fetch('/api/auth/setup-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, senha })
+          body: JSON.stringify({ email: email.trim(), senha })
         });
         
+        if (setupRes.status === 409) {
+          const err = await setupRes.json();
+          setStep('password');
+          setConfirmarSenha('');
+          toast.info(err.error);
+          return;
+        }
+
         if (!setupRes.ok) {
           const err = await setupRes.json();
           throw new Error(err.error || 'Erro ao criar senha');
@@ -74,7 +82,7 @@ export default function Login() {
         toast.success('Senha criada com sucesso!');
       }
 
-      await login(email, senha);
+      await login(email.trim(), senha);
       
       // Redirect based on role
       const storedUser = localStorage.getItem('acorde_user');

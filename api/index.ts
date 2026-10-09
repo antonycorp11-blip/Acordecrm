@@ -532,6 +532,10 @@ async function startServer() {
         });
     });
 
+    // E-mails são comparados sem diferenciar maiúsculas/espaços; '%' e '_' são escapados para o ILIKE ser exato
+    const normalizarEmail = (email: any) => String(email || '').trim().toLowerCase();
+    const likeExato = (valor: string) => valor.replace(/[\\%_]/g, (c) => '\\' + c);
+
     // Auth (Login)
     app.post('/api/auth/login', async (req, res) => {
         try {
@@ -540,9 +544,10 @@ async function startServer() {
             
             if (!effectivePassword) return res.status(400).json({ error: 'Senha não fornecida' });
 
-            const { data: user, error } = await supabase.from('usuarios').select('*').eq('email', email).single();
+            const { data: candidatos, error } = await supabase.from('usuarios').select('*').ilike('email', likeExato(normalizarEmail(email)));
+            const user = (candidatos || []).find((u: any) => u.senha && bcrypt.compareSync(effectivePassword, u.senha));
             
-            if (error || !user || !bcrypt.compareSync(effectivePassword, user.senha)) {
+            if (error || !user) {
                 return res.status(401).json({ message: 'Credenciais inválidas' });
             }
 
@@ -581,16 +586,19 @@ async function startServer() {
             const { email } = req.query;
             if (!email) return res.status(400).json({ error: 'Email não fornecido' });
             
-            const cleanEmail = String(email).trim();
+            const cleanEmail = normalizarEmail(email);
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').ilike('email', cleanEmail).single();
+            const { data: alunos, error: errA } = await supabase.from('alunos').select('id, nome').ilike('email', likeExato(cleanEmail)).order('id', { ascending: false }).limit(1);
+            if (errA) throw errA;
+            const aluno = alunos?.[0];
             if (!aluno) return res.json({ exists: false });
 
-            const { data: usuario } = await supabase.from('usuarios').select('id').ilike('email', cleanEmail).single();
+            const { data: usuarios, error: errU } = await supabase.from('usuarios').select('id').ilike('email', likeExato(cleanEmail)).limit(1);
+            if (errU) throw errU;
             
             res.json({ 
                 exists: true, 
-                needsSetup: !usuario,
+                needsSetup: !usuarios?.length,
                 alunoId: aluno.id,
                 nome: aluno.nome
             });
@@ -599,11 +607,19 @@ async function startServer() {
 
     app.post('/api/auth/setup-password', async (req, res) => {
         try {
-            const { email, senha } = req.body;
+            const { senha } = req.body;
+            const email = normalizarEmail(req.body.email);
             if (!email || !senha) return res.status(400).json({ error: 'Dados incompletos' });
 
-            const { data: aluno } = await supabase.from('alunos').select('id, nome').eq('email', email).single();
+            const { data: alunos, error: errA } = await supabase.from('alunos').select('id, nome').ilike('email', likeExato(email)).order('id', { ascending: false }).limit(1);
+            if (errA) throw errA;
+            const aluno = alunos?.[0];
             if (!aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            // Evita criar um segundo acesso para o mesmo e-mail (ex.: duplo clique)
+            const { data: existentes, error: errE } = await supabase.from('usuarios').select('id').ilike('email', likeExato(email)).limit(1);
+            if (errE) throw errE;
+            if (existentes?.length) return res.status(409).json({ error: 'Este e-mail já possui senha cadastrada. Volte e entre com sua senha.' });
 
             const hashed = bcrypt.hashSync(senha, 10);
             const { data: newUser, error: errU } = await supabase.from('usuarios').insert([{
