@@ -56,6 +56,17 @@ const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', 
   }
 });
 
+// Executa uma consulta do Supabase página por página (limite de 1000 linhas por resposta) e junta tudo
+const fetchAllPages = async (buildQuery: () => any, pageSize = 1000) => {
+    const rows: any[] = [];
+    for (let from = 0; ; from += pageSize) {
+        const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+        if (error) return { data: rows.length ? rows : null, error };
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) return { data: rows, error: null };
+    }
+};
+
 const fetchAllGamificacaoProgresso = async (supabaseClient: any) => {
     // 1. Obter o total de registros para paginar em paralelo
     const { count, error: countError } = await supabaseClient
@@ -3452,23 +3463,28 @@ async function startServer() {
                 }
             }
 
-            let query = supabase.from('aulas')
-                .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, tipo, alunos(nome, status, telefone, responsavel_telefone), professores(nome), cursos(nome), matriculas(status)')
-                .order('data', { ascending: true });
-            
-            if (start) query = query.gte('data', start);
-            if (end) query = query.lte('data', end);
-            if (filterProfId) query = query.eq('professor_id', filterProfId);
-            if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
-            if (statusFilter) {
-                if (statusFilter === 'reposicao') {
-                    query = query.or('status.eq.reposicao,status.eq.a_repor');
-                } else {
-                    query = query.eq('status', statusFilter);
+            const buildAulasQuery = () => {
+                let query = supabase.from('aulas')
+                    .select('id, data, horario, status, professor_id, aluno_id, conteudo, tarefa_casa, midias, xp_ganho, data_original, motivo_cancelamento, tipo, alunos(nome, status, telefone, responsavel_telefone), professores(nome), cursos(nome), matriculas(status)')
+                    .order('data', { ascending: true })
+                    .order('id', { ascending: true });
+                
+                if (start) query = query.gte('data', start);
+                if (end) query = query.lte('data', end);
+                if (filterProfId) query = query.eq('professor_id', filterProfId);
+                if (filterAlunoId) query = query.eq('aluno_id', filterAlunoId);
+                if (statusFilter) {
+                    if (statusFilter === 'reposicao') {
+                        query = query.or('status.eq.reposicao,status.eq.a_repor');
+                    } else {
+                        query = query.eq('status', statusFilter);
+                    }
                 }
-            }
+                return query;
+            };
 
-            const { data: rawAulas, error: errA } = await query;
+            // O Supabase devolve no máximo 1000 linhas por consulta: busca em páginas para não cortar as aulas mais recentes
+            const { data: rawAulas, error: errA } = await fetchAllPages(buildAulasQuery);
             if (errA) console.error('[AGENDA] Erro aulas:', errA);
             
             const aulas = (rawAulas || []).filter((a: any) => {
@@ -3480,15 +3496,19 @@ async function startServer() {
             });
             console.log(`[AGENDA] Retornadas ${aulas.length} aulas regulares`);
 
-            let expQuery = supabase.from('aulas_experimentais')
-                .select('id, data, horario, status, professor_id, lead_id, leads(id, nome, telefone), professores(nome)');
-                
-            if (start) expQuery = expQuery.gte('data', start);
-            if (end) expQuery = expQuery.lte('data', end);
-            if (filterProfId) expQuery = expQuery.eq('professor_id', filterProfId);
-            if (statusFilter) expQuery = expQuery.eq('status', statusFilter);
+            const buildExpQuery = () => {
+                let expQuery = supabase.from('aulas_experimentais')
+                    .select('id, data, horario, status, professor_id, lead_id, leads(id, nome, telefone), professores(nome)')
+                    .order('id', { ascending: true });
+                    
+                if (start) expQuery = expQuery.gte('data', start);
+                if (end) expQuery = expQuery.lte('data', end);
+                if (filterProfId) expQuery = expQuery.eq('professor_id', filterProfId);
+                if (statusFilter) expQuery = expQuery.eq('status', statusFilter);
+                return expQuery;
+            };
 
-            const { data: experimentais, error: errE } = await expQuery;
+            const { data: experimentais, error: errE } = await fetchAllPages(buildExpQuery);
             if (errE) console.error('[AGENDA] Erro aulas experimentais:', errE);
 
             const combined = [
