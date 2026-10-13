@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Printer, Plus, Trash2, Edit2, Check, Save, Send } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 import { toast } from 'sonner';
@@ -14,16 +12,16 @@ interface GeradorContratoProps {
 }
 
 const CLAUSULAS_FALLBACK = [
-  "REPOSIÇÕES E REAGENDAMENTOS: A reposição de faltas será concedida exclusivamente mediante apresentação de atestado ou receita médica. Fica permitido o reagendamento de aulas o limite de apenas 1 (uma) vez ao mês.",
+  "REPOSIÇÕES E REAGENDAMENTOS: A reposição de faltas será concedida exclusivamente mediante apresentação de atestado ou receita médica. Fica permitido o reagendamento de aulas no limite de apenas 1 (uma) vez ao mês.",
   "DA ADESÃO: A assinatura implica ciência e aceitação integral das condições vigentes. Solicitação de cancelamento posterior não afasta as obrigações assumidas.",
   "DA INADIMPLÊNCIA: Atrasos geram multa de 2% e juros de 1% a.m. Após 30 dias inadimplente, as aulas poderão ser suspensas até regularização, sem direito à reposição.",
   "FALTAS PELA ESCOLA: Cancelamentos motivados pela escola ou professor terão reposição integral em data a combinar.",
-  "FERIADOS: Feriados e recessos já compõem o calendário acadêmico anual, não gerando reposição ou desconto.",
+  "FERIADOS: As aulas que coincidirem com feriados não serão realizadas na data e serão remarcadas para a semana seguinte, prorrogando-se o término do contrato, de forma que o(a) CONTRATANTE receba a totalidade das aulas contratadas.",
   "PORTAL DO ALUNO: Acesso pessoal, intransferível e gratuito a materiais complementares. Sujeito a manutenções técnicas.",
   "CERTIFICADO: A emissão exige conclusão do curso, adimplência financeira e realização das atividades no Portal.",
   "ABANDONO: A ausência injustificada não cancela o contrato. As parcelas seguem devidas até a solicitação formal de cancelamento.",
   "TOLERÂNCIA: Limite de 15 minutos de atraso, sem reposição do tempo perdido, encerrando-se a aula no horário previsto original.",
-  "DADOS E IMAGEM: Dados tratados conforme LGPD. Autoriza-se o uso de imagem do aluno para fins institucionais da escola, salvo oposição formal por escrito.",
+  "DADOS E IMAGEM: Os dados pessoais são tratados conforme a LGPD (Lei nº 13.709/2018). O uso da imagem e voz do aluno para fins institucionais e de divulgação da escola depende da opção do(a) CONTRATANTE registrada no Termo de Uso de Imagem ao final deste contrato, podendo ser revogada a qualquer tempo por escrito.",
   "EQUIPAMENTOS: O contratante responsabiliza-se pelo ressarcimento de danos aos equipamentos da escola causados por mau uso. Exclui-se o desgaste natural.",
   "RESCISÃO PELO ALUNO: Vigência pelo período contratado. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
   "NORMAS E RESCISÃO PELA ESCOLA: Exige-se respeito às normas. Inadimplência, mau comportamento ou danos ao patrimônio podem gerar advertência ou rescisão imediata do contrato pela escola.",
@@ -51,8 +49,14 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   const [qtdParcelas, setQtdParcelas] = useState(matricula?.total_parcelas?.toString() || "6");
   const [diaVencimento, setDiaVencimento] = useState(matricula?.dia_vencimento?.toString() || "10");
   const [cursoNome, setCursoNome] = useState(matricula?.cursos?.nome || "Música");
-  const [duracaoAula, setDuracaoAula] = useState("50 minutos");
+  const [duracaoAula, setDuracaoAula] = useState(matricula?.pacotes?.duracao_aula_minutos ? `${matricula.pacotes.duracao_aula_minutos} minutos` : "50 minutos");
   const [qtdAulas, setQtdAulas] = useState("1 aula por semana");
+  const [formaPagamento, setFormaPagamento] = useState<string>(matricula?.forma_pagamento || "mensal");
+  const [parcelasCartao, setParcelasCartao] = useState(matricula?.parcelas_cartao?.toString() || "12");
+  const [vigenciaMeses, setVigenciaMeses] = useState(matricula?.vigencia_meses?.toString() || (matricula?.forma_pagamento && matricula.forma_pagamento !== 'mensal' ? "12" : (matricula?.total_parcelas?.toString() || "6")));
+  const [totalAulas, setTotalAulas] = useState((matricula?.aulas_total_contrato || matricula?.pacotes?.total_aulas || "").toString());
+  const [previewHtml, setPreviewHtml] = useState("");
+  const aVista = formaPagamento !== 'mensal';
 
   const [loading, setLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -74,8 +78,52 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
       setQtdParcelas(matricula?.total_parcelas?.toString() || "6");
       setDiaVencimento(matricula?.dia_vencimento?.toString() || "10");
       setCursoNome(matricula?.cursos?.nome || "Música");
+      setFormaPagamento(matricula?.forma_pagamento || "mensal");
+      setParcelasCartao(matricula?.parcelas_cartao?.toString() || "12");
+      setVigenciaMeses(matricula?.vigencia_meses?.toString() || (matricula?.forma_pagamento && matricula.forma_pagamento !== 'mensal' ? "12" : (matricula?.total_parcelas?.toString() || "6")));
+      setTotalAulas((matricula?.aulas_total_contrato || matricula?.pacotes?.total_aulas || "").toString());
     }
   }, [isOpen, aluno]);
+
+  // Texto do contrato vem do servidor (mesmo gerador usado na Área do Aluno), evitando divergências
+  useEffect(() => {
+    if (clausulas.length === 0) return;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/contratos/preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
+          },
+          body: JSON.stringify({
+            alunoNome: aluno.nome,
+            responsavelNome: novoResponsavel,
+            cpf: novoCpf,
+            endereco: novoEndereco,
+            cursoNome,
+            duracaoAula,
+            qtdAulas,
+            valorPlano,
+            diaVencimento,
+            qtdParcelas: aVista ? 1 : qtdParcelas,
+            formaPagamento,
+            parcelasCartao,
+            totalAulas,
+            vigenciaMeses,
+            clausulas
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPreviewHtml(data.html || "");
+        }
+      } catch (e) {
+        console.warn('[GeradorContrato] Erro ao gerar prévia:', e);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [clausulas, novoResponsavel, novoCpf, novoEndereco, cursoNome, duracaoAula, qtdAulas, valorPlano, diaVencimento, qtdParcelas, formaPagamento, parcelasCartao, totalAulas, vigenciaMeses]);
 
 
   const fetchTemplate = async () => {
@@ -133,27 +181,23 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   const handleSendEmail = async () => {
     if (!novoEmail) return toast.error("Preencha o e-mail do aluno para enviar.");
     
-    // Clona e força renderização do HTML para capturar na íntegra
-    if (!printRef.current) return;
-    const clone = printRef.current.cloneNode(true) as HTMLElement;
-    clone.style.display = 'block';
-    clone.style.padding = '20px';
-    clone.style.fontFamily = 'serif';
-    clone.style.fontSize = '12px';
-    clone.style.color = 'black';
-    const conteudo_html = clone.outerHTML;
+    if (!previewHtml) return toast.error("Aguarde a prévia do contrato ser gerada.");
+    const conteudo_html = previewHtml;
 
     const dados_dinamicos = {
       responsavel: novoResponsavel,
       cpf: novoCpf,
-      
       endereco: novoEndereco,
-      curso: cursoNome,
-      valor_plano: valorPlano,
-      parcelas: qtdParcelas,
-      vencimento: diaVencimento,
-      duracao_aula: duracaoAula,
-      qtd_aulas: qtdAulas
+      cursoNome,
+      valorPlano,
+      qtdParcelas: aVista ? 1 : qtdParcelas,
+      diaVencimento,
+      duracaoAula,
+      qtdAulas,
+      formaPagamento,
+      parcelasCartao: formaPagamento === 'cartao_credito' ? parcelasCartao : null,
+      totalAulas,
+      vigenciaMeses
     };
 
     try {
@@ -271,6 +315,39 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-[#8e7164] uppercase block mb-1">Total de Aulas</label>
+                    <input type="number" value={totalAulas} onChange={e => setTotalAulas(e.target.value)} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-[#8e7164] uppercase block mb-1">Vigência (Meses)</label>
+                    <input type="number" value={vigenciaMeses} onChange={e => setVigenciaMeses(e.target.value)} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-[#8e7164] uppercase block mb-1">Forma de Pagamento</label>
+                  <select value={formaPagamento} onChange={e => setFormaPagamento(e.target.value)} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]">
+                    <option value="mensal">Mensalidades</option>
+                    <option value="cartao_credito">À vista – Cartão de crédito (parcelado na fatura)</option>
+                    <option value="pix">À vista – PIX</option>
+                    <option value="dinheiro">À vista – Dinheiro</option>
+                  </select>
+                </div>
+                {aVista ? (
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-[#8e7164] uppercase block mb-1">Valor Total</label>
+                    <input type="text" value={valorPlano} onChange={e => setValorPlano(e.target.value)} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
+                  </div>
+                  {formaPagamento === 'cartao_credito' && (
+                    <div className="flex-1">
+                      <label className="text-[10px] font-black text-[#8e7164] uppercase block mb-1">Parcelas no Cartão</label>
+                      <input type="number" min={1} value={parcelasCartao} onChange={e => setParcelasCartao(e.target.value)} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
+                    </div>
+                  )}
+                </div>
+                ) : (
+                <div className="flex gap-2">
                   <div className="w-1/3">
                     <label className="text-[10px] font-black text-[#8e7164] uppercase block mb-1">Mensalidade</label>
                     <input type="text" value={valorPlano} onChange={e => setValorPlano(e.target.value)} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
@@ -284,6 +361,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
                     <input type="text" value={diaVencimento} onChange={e => setDiaVencimento(e.target.value)} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                   </div>
                 </div>
+                )}
               </div>
             </div>
           </div>
@@ -335,58 +413,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
 
       {/* Conteúdo Oculto para Geração de PDF e Captura HTML */}
       <div className="fixed opacity-0 pointer-events-none z-[-1]">
-        <div ref={printRef} className="bg-white p-4" style={{ width: '800px', fontFamily: 'serif', fontSize: '12px', lineHeight: '1.2', color: '#000', backgroundColor: '#fff' }}>
-          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-            <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 5px 0' }}>STUDIO ACORDE ESCOLA DE MÚSICA</h1>
-            <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>CONTRATO DE PRESTAÇÃO DE SERVIÇOS MUSICAIS</h2>
-          </div>
-
-          <div style={{ textAlign: 'justify', marginBottom: '20px' }}>
-            <p style={{ marginBottom: '10px' }}>
-              <strong>CONTRATADA:</strong> STUDIO ACORDE ESCOLA DE MUSICA LTDA, inscrita no CNPJ/MF sob o nº 55.273.720/0001-12, com sede à AV NEWTON RABELLO, nº 26, Pedra 90, Cuiabá - MT.
-            </p>
-            <p style={{ marginBottom: '10px' }}>
-              <strong>CONTRATANTE:</strong> {novoResponsavel && novoResponsavel.trim() !== '' && novoResponsavel.trim().toLowerCase() !== (aluno.nome || '').trim().toLowerCase() ? (
-                <>
-                  {aluno.nome}, representado(a) neste ato por seu Responsável Legal, <strong>{novoResponsavel}</strong>, inscrito(a) no CPF/MF sob o nº <strong>{novoCpf || '_________________'}</strong>, residente e domiciliado à <strong>{novoEndereco || '_____________________________________'}</strong>.
-                </>
-              ) : (
-                <>
-                  {aluno.nome}, inscrito(a) no CPF/MF sob o nº <strong>{novoCpf || '_________________'}</strong>, residente e domiciliado à <strong>{novoEndereco || '_____________________________________'}</strong>.
-                </>
-              )}
-            </p>
-            <p style={{ marginBottom: '10px' }}>
-              <strong>CURSO CONTRATADO:</strong> O objeto deste instrumento é o ensino de <strong>{cursoNome}</strong>, sendo <strong>{qtdAulas}</strong>, com duração de <strong>{duracaoAula}</strong> cada.
-            </p>
-          </div>
-
-          <div style={{ textAlign: 'justify', marginBottom: '20px' }}>
-            {clausulas.map((c, i) => {
-              const cFormatted = c.replace(/Vigência de 12 \(doze\) meses/gi, `Vigência de ${qtdParcelas} meses`).replace(/Vigência de 12 meses/gi, `Vigência de ${qtdParcelas} meses`);
-              return <p key={i} style={{ marginBottom: '10px' }}><strong>Cláusula {i + 1}ª.</strong> {cFormatted}</p>;
-            })}
-            <p style={{ marginBottom: '10px' }}>
-              <strong>Cláusula {clausulas.length + 1}ª.</strong> Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor certo e ajustado de <strong>R$ {valorPlano}</strong> por mensalidade, com vencimento todo dia <strong>{diaVencimento}</strong> de cada mês, durante o plano de <strong>{qtdParcelas} meses</strong>.
-            </p>
-          </div>
-
-          <div style={{ textAlign: 'justify', marginBottom: '40px' }}>
-            <p>E por estarem justas e contratadas, as partes assinam o presente contrato eletronicamente e/ou fisicamente.</p>
-            <p style={{ textAlign: 'right', marginTop: '10px' }}>Cuiabá - MT, {format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '60px', textAlign: 'center' }}>
-            <div style={{ width: '45%', borderTop: '1px solid black', paddingTop: '5px' }}>
-              <p style={{ fontWeight: 'bold', margin: '0' }}>STUDIO ACORDE</p>
-              <p style={{ fontSize: '10px', margin: '0' }}>CONTRATADA</p>
-            </div>
-            <div style={{ width: '45%', borderTop: '1px solid black', paddingTop: '5px' }}>
-              <p style={{ fontWeight: 'bold', margin: '0' }}>{novoResponsavel || aluno.nome || "CONTRATANTE"}</p>
-              <p style={{ fontSize: '10px', margin: '0' }}>CONTRATANTE</p>
-            </div>
-          </div>
-        </div>
+        <div ref={printRef} className="bg-white" style={{ width: '800px', color: '#000', backgroundColor: '#fff' }} dangerouslySetInnerHTML={{ __html: previewHtml }} />
       </div>
 
     </div>

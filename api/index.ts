@@ -218,7 +218,10 @@ const authenticateToken = (req: any, res: any, next: any) => {
     if (!req.path.startsWith('/api/')) return next();
     
     const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos'];
-    const isPublicContrato = req.path.match(/^\/api\/contratos\/[^/]+$/) && req.method === 'GET' && !req.headers.authorization;
+    const isPublicContrato = !req.headers.authorization && (
+        (req.method === 'GET' && /^\/api\/contratos\/[0-9a-f-]{36}$/i.test(req.path)) ||
+        (req.method === 'POST' && /^\/api\/contratos\/[0-9a-f-]{36}\/assinar$/i.test(req.path))
+    );
     if (publicRoutes.includes(req.path) || isPublicContrato) return next();
     
     // A gamificação/upload pode precisar de token também
@@ -310,18 +313,62 @@ async function startServer() {
         "DA ADESÃO: A assinatura implica ciência e aceitação integral das condições vigentes. Solicitação de cancelamento posterior não afasta as obrigações assumidas.",
         "DA INADIMPLÊNCIA: Atrasos geram multa de 2% e juros de 1% a.m. Após 30 dias inadimplente, as aulas poderão ser suspensas até regularização, sem direito à reposição.",
         "FALTAS PELA ESCOLA: Cancelamentos motivados pela escola ou professor terão reposição integral em data a combinar.",
-        "FERIADOS: Feriados e recessos já compõem o calendário acadêmico anual, não gerando reposição ou desconto.",
+        "FERIADOS: As aulas que coincidirem com feriados não serão realizadas na data e serão remarcadas para a semana seguinte, prorrogando-se o término do contrato, de forma que o(a) CONTRATANTE receba a totalidade das aulas contratadas.",
         "PORTAL DO ALUNO: Acesso pessoal, intransferível e gratuito a materiais complementares. Sujeito a manutenções técnicas.",
-        "CERTIFICADO: A execução exige conclusão do curso, adimplência financeira e realização das atividades no Portal.",
+        "CERTIFICADO: A emissão exige conclusão do curso, adimplência financeira e realização das atividades no Portal.",
         "ABANDONO: A ausência injustificada não cancela o contrato. As parcelas seguem devidas até a solicitação formal de cancelamento.",
         "TOLERÂNCIA: Limite de 15 minutos de atraso, sem reposição do tempo perdido, encerrando-se a aula no horário previsto original.",
-        "DADOS E IMAGEM: Dados tratados conforme LGPD. Autoriza-se o uso de imagem do aluno para fins institucionais da escola, salvo oposição formal por escrito.",
+        "DADOS E IMAGEM: Os dados pessoais são tratados conforme a LGPD (Lei nº 13.709/2018). O uso da imagem e voz do aluno para fins institucionais e de divulgação da escola depende da opção do(a) CONTRATANTE registrada no Termo de Uso de Imagem ao final deste contrato, podendo ser revogada a qualquer tempo por escrito.",
         "EQUIPAMENTOS: O contratante responsabiliza-se pelo ressarcimento de danos aos equipamentos da escola causados por mau uso. Exclui-se o desgaste natural.",
         "RESCISÃO PELO ALUNO: Vigência pelo período contratado. O cancelamento antecipado gera multa rescisória de 20% sobre o saldo das mensalidades restantes, pagável em até 3 dias úteis.",
         "NORMAS E RESCISÃO PELA ESCOLA: Exige-se respeito às normas. Inadimplência, mau comportamento ou danos ao patrimônio podem gerar advertência ou rescisão imediata do contrato pela escola.",
         "PROFESSORES: A escola reserva-se o direito de substituir professores, horários ou alterar metodologias, não justificando cancelamento isento de multa.",
         "FORO: Eleito o foro da Comarca de Cuiabá-MT para dirimir controvérsias judiciais decorrentes deste contrato."
     ];
+
+    // 'mensal' = mensalidades com vencimento mensal; demais = pagamento À VISTA (quitado no ato da matrícula)
+    const FORMAS_PAGAMENTO_AVISTA = ['cartao_credito', 'pix', 'dinheiro'];
+
+    const parseValorBR = (v: any): number => {
+        if (v === null || v === undefined || v === '') return 0;
+        if (typeof v === 'number') return v;
+        const s = String(v).replace(/[^\d.,-]/g, '');
+        const n = s.includes(',') ? Number(s.replace(/\./g, '').replace(',', '.')) : Number(s);
+        return isNaN(n) ? 0 : n;
+    };
+    const formatBRL = (v: any) => parseValorBR(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const plural = (n: number, sing: string, plur: string) => `${n} ${n === 1 ? sing : plur}`;
+
+    const IMG_OPCAO_INICIO = '<!--IMG_OPCAO-->';
+    const IMG_OPCAO_FIM = '<!--/IMG_OPCAO-->';
+    const renderOpcaoImagem = (autoriza: boolean | null | undefined) => {
+        if (autoriza === true) return '<strong>[ X ] AUTORIZO</strong> &nbsp; [&nbsp;&nbsp;&nbsp;] NÃO AUTORIZO';
+        if (autoriza === false) return '[&nbsp;&nbsp;&nbsp;] AUTORIZO &nbsp; <strong>[ X ] NÃO AUTORIZO</strong>';
+        return '[&nbsp;&nbsp;&nbsp;] AUTORIZO &nbsp; [&nbsp;&nbsp;&nbsp;] NÃO AUTORIZO <em>(opção a ser marcada pelo(a) CONTRATANTE no ato da assinatura)</em>';
+    };
+    const aplicarOpcaoImagemNoHtml = (html: string, autoriza: boolean) => {
+        const re = new RegExp(`${IMG_OPCAO_INICIO}[\\s\\S]*?${IMG_OPCAO_FIM}`);
+        return re.test(html)
+            ? html.replace(re, `${IMG_OPCAO_INICIO}${renderOpcaoImagem(autoriza)}${IMG_OPCAO_FIM}`)
+            : html;
+    };
+
+    // Ajusta cláusulas (inclusive de templates salvos antigos) às regras atuais e à forma de pagamento
+    const adaptarClausula = (texto: string, ctx: { aVista: boolean; vigenciaMeses: number }) => {
+        const t = (texto || '').trim();
+        const up = t.toUpperCase();
+        if (up.startsWith('FERIADOS')) return CLAUSULAS_PADRAO_CONTRATO.find(c => c.startsWith('FERIADOS'))!;
+        if (up.startsWith('DADOS E IMAGEM')) return CLAUSULAS_PADRAO_CONTRATO.find(c => c.startsWith('DADOS E IMAGEM'))!;
+        if (ctx.aVista && up.startsWith('ABANDONO')) {
+            return "ABANDONO: A ausência injustificada não cancela o contrato nem gera devolução proporcional dos valores pagos.";
+        }
+        if (ctx.aVista && up.startsWith('RESCISÃO PELO ALUNO')) {
+            return "RESCISÃO PELO ALUNO: Vigência pelo período contratado. O cancelamento antecipado gera multa rescisória de 20% sobre o valor correspondente às aulas ainda não utilizadas, pagável em até 3 dias úteis.";
+        }
+        return t
+            .replace(/Vigência de 12 \(doze\) meses/gi, `Vigência de ${ctx.vigenciaMeses} meses`)
+            .replace(/Vigência de 12 meses/gi, `Vigência de ${ctx.vigenciaMeses} meses`);
+    };
 
     const generateContratoHtml = (params: {
         alunoNome: string;
@@ -334,6 +381,11 @@ async function startServer() {
         valorPlano?: string | number | null;
         diaVencimento?: string | number | null;
         qtdParcelas?: string | number | null;
+        formaPagamento?: string | null;
+        parcelasCartao?: string | number | null;
+        totalAulas?: string | number | null;
+        vigenciaMeses?: string | number | null;
+        autorizaImagem?: boolean | null;
         clausulas?: string[];
         dataAssinatura?: Date;
     }) => {
@@ -352,6 +404,14 @@ async function startServer() {
             dataAssinatura = new Date()
         } = params;
 
+        const formaPagamento = FORMAS_PAGAMENTO_AVISTA.includes(String(params.formaPagamento)) ? String(params.formaPagamento) : 'mensal';
+        const aVista = formaPagamento !== 'mensal';
+        const nParcelas = Math.max(1, parseInt(String(qtdParcelas), 10) || 1);
+        const vigenciaMeses = Math.max(1, parseInt(String(params.vigenciaMeses ?? ''), 10) || (aVista ? 12 : nParcelas));
+        const totalAulas = parseInt(String(params.totalAulas ?? ''), 10) || 0;
+        const parcelasCartao = Math.max(1, parseInt(String(params.parcelasCartao ?? ''), 10) || 1);
+        const valor = parseValorBR(valorPlano);
+
         const mesesStr = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
         const dataFormatada = `${dataAssinatura.getDate()} de ${mesesStr[dataAssinatura.getMonth()]} de ${dataAssinatura.getFullYear()}`;
 
@@ -362,9 +422,29 @@ async function startServer() {
 
         const assinanteNome = isMenorComResp ? responsavelNome : alunoNome;
 
+        const objetoTxt = `O objeto deste instrumento é o ensino de <strong>${cursoNome}</strong>, sendo <strong>${qtdAulas}</strong>, com duração de <strong>${duracaoAula}</strong> cada`
+            + (totalAulas > 0 ? `, totalizando <strong>${plural(totalAulas, 'aula', 'aulas')}</strong>` : '')
+            + `, com vigência de <strong>${plural(vigenciaMeses, 'mês', 'meses')}</strong>`
+            + (totalAulas > 0 ? `. Aulas que coincidirem com feriados não contam como realizadas e são remarcadas, preservando a quantidade total contratada.` : '.');
+
+        let pagamentoTxt: string;
+        if (formaPagamento === 'cartao_credito') {
+            const valorParcelaCartao = valor / parcelasCartao;
+            pagamentoTxt = `Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor total de <strong>R$ ${formatBRL(valor)}</strong>, <strong>À VISTA</strong>, por meio de <strong>CARTÃO DE CRÉDITO</strong> de sua titularidade`
+                + (parcelasCartao > 1
+                    ? `, parcelado em <strong>${parcelasCartao}x de R$ ${formatBRL(valorParcelaCartao)}</strong> lançadas diretamente na fatura do cartão pela administradora`
+                    : '')
+                + `. O valor é integralmente quitado perante a CONTRATADA no ato da matrícula, não havendo mensalidades, boletos ou vencimentos mensais a pagar à escola. O parcelamento e eventuais encargos da fatura são de responsabilidade da relação entre o(a) CONTRATANTE e a administradora do cartão. Em caso de contestação ou estorno (chargeback) do pagamento, o valor estornado passa a ser devido diretamente à CONTRATADA.`;
+        } else if (aVista) {
+            const meio = formaPagamento === 'pix' ? 'PIX' : 'DINHEIRO';
+            pagamentoTxt = `Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor total de <strong>R$ ${formatBRL(valor)}</strong>, <strong>À VISTA</strong>, via <strong>${meio}</strong>, no ato da matrícula, não havendo mensalidades ou vencimentos mensais a pagar à escola.`;
+        } else {
+            pagamentoTxt = `Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor certo e ajustado de <strong>R$ ${formatBRL(valor)}</strong> por mensalidade, com vencimento todo dia <strong>${diaVencimento}</strong> de cada mês, em <strong>${plural(nParcelas, 'parcela', 'parcelas')}</strong>, totalizando <strong>R$ ${formatBRL(valor * nParcelas)}</strong>.`;
+        }
+
+        const ctx = { aVista, vigenciaMeses };
         const clausulasHtml = clausulas.map((c: string, idx: number) => {
-            let text = c.replace(/Vigência de 12 \(doze\) meses/gi, `Vigência de ${qtdParcelas} meses`).replace(/Vigência de 12 meses/gi, `Vigência de ${qtdParcelas} meses`);
-            return `<p style="margin-bottom: 10px;"><strong>Cláusula ${idx + 1}ª.</strong> ${text}</p>`;
+            return `<p style="margin-bottom: 10px;"><strong>Cláusula ${idx + 1}ª.</strong> ${adaptarClausula(c, ctx)}</p>`;
         }).join('');
 
         return `
@@ -376,11 +456,15 @@ async function startServer() {
     <div style="text-align: justify; margin-bottom: 20px;">
         <p style="margin-bottom: 10px;"><strong>CONTRATADA:</strong> STUDIO ACORDE ESCOLA DE MUSICA LTDA, inscrita no CNPJ/MF sob o nº 55.273.720/0001-12, com sede à AV NEWTON RABELLO, nº 26, Pedra 90, Cuiabá - MT.</p>
         <p style="margin-bottom: 10px;"><strong>CONTRATANTE:</strong> ${contratanteTxt}</p>
-        <p style="margin-bottom: 10px;"><strong>CURSO CONTRATADO:</strong> O objeto deste instrumento é o ensino de <strong>${cursoNome}</strong>, sendo <strong>${qtdAulas}</strong>, com duração de <strong>${duracaoAula}</strong> cada.</p>
+        <p style="margin-bottom: 10px;"><strong>CURSO CONTRATADO:</strong> ${objetoTxt}</p>
     </div>
     <div style="text-align: justify; margin-bottom: 20px;">
         ${clausulasHtml}
-        <p style="margin-bottom: 10px;"><strong>Cláusula ${clausulas.length + 1}ª.</strong> Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor certo e ajustado de <strong>R$ ${valorPlano}</strong> por mensalidade, com vencimento todo dia <strong>${diaVencimento}</strong> de cada mês, durante o plano de <strong>${qtdParcelas} meses</strong>.</p>
+        <p style="margin-bottom: 10px;"><strong>Cláusula ${clausulas.length + 1}ª.</strong> ${pagamentoTxt}</p>
+    </div>
+    <div style="text-align: justify; margin-bottom: 20px; border: 1px solid black; padding: 10px;">
+        <p style="margin: 0 0 6px 0;"><strong>TERMO DE USO DE IMAGEM:</strong> Quanto ao uso da imagem e voz do aluno em fotos e vídeos para fins institucionais e de divulgação da escola, o(a) CONTRATANTE declara que:</p>
+        <p style="margin: 0;">${IMG_OPCAO_INICIO}${renderOpcaoImagem(params.autorizaImagem)}${IMG_OPCAO_FIM}</p>
     </div>
     <div style="text-align: justify; margin-bottom: 40px;">
         <p>E por estarem justas e contratadas, as partes assinam o presente contrato eletronicamente.</p>
@@ -399,6 +483,75 @@ async function startServer() {
 </div>
         `.trim();
     };
+
+    // Monta os dados do contrato a partir do aluno + matrícula (fonte única para geração e sincronização)
+    const buildContratoDados = (aluno: any, matricula: any) => {
+        const pacote = matricula?.pacotes || null;
+        const formaPagamento = matricula?.forma_pagamento || 'mensal';
+        const aulasSemana = Number(pacote?.aulas_por_semana) || 1;
+        return {
+            responsavel: aluno.responsavel_nome || aluno.nome,
+            cpf: aluno.responsavel_cpf || aluno.cpf || '',
+            endereco: aluno.endereco || '',
+            cursoNome: matricula?.cursos?.nome || 'Música',
+            duracaoAula: pacote?.duracao_aula_minutos ? `${pacote.duracao_aula_minutos} minutos` : '50 minutos',
+            qtdAulas: aulasSemana === 1 ? '1 aula por semana' : `${aulasSemana} aulas por semana`,
+            valorPlano: matricula?.valor_parcela || '370',
+            diaVencimento: matricula?.dia_vencimento || '10',
+            qtdParcelas: matricula?.total_parcelas || '6',
+            formaPagamento,
+            parcelasCartao: matricula?.parcelas_cartao || null,
+            totalAulas: matricula?.aulas_total_contrato || pacote?.total_aulas || null,
+            vigenciaMeses: matricula?.vigencia_meses || null
+        };
+    };
+
+    const gerarHtmlDoAluno = (aluno: any, dados: ReturnType<typeof buildContratoDados>, clausulas: string[], extra: { dataAssinatura?: Date; autorizaImagem?: boolean | null } = {}) =>
+        generateContratoHtml({
+            alunoNome: aluno.nome,
+            responsavelNome: aluno.responsavel_nome,
+            cpf: dados.cpf,
+            endereco: dados.endereco,
+            cursoNome: dados.cursoNome,
+            duracaoAula: dados.duracaoAula,
+            qtdAulas: dados.qtdAulas,
+            valorPlano: dados.valorPlano,
+            diaVencimento: dados.diaVencimento,
+            qtdParcelas: dados.qtdParcelas,
+            formaPagamento: dados.formaPagamento,
+            parcelasCartao: dados.parcelasCartao,
+            totalAulas: dados.totalAulas,
+            vigenciaMeses: dados.vigenciaMeses,
+            clausulas,
+            ...extra
+        });
+
+    app.post('/api/contratos/preview', async (req, res) => {
+        try {
+            const b = req.body || {};
+            const html = generateContratoHtml({
+                alunoNome: b.alunoNome || '',
+                responsavelNome: b.responsavelNome,
+                cpf: b.cpf,
+                endereco: b.endereco,
+                cursoNome: b.cursoNome,
+                duracaoAula: b.duracaoAula,
+                qtdAulas: b.qtdAulas,
+                valorPlano: b.valorPlano,
+                diaVencimento: b.diaVencimento,
+                qtdParcelas: b.qtdParcelas,
+                formaPagamento: b.formaPagamento,
+                parcelasCartao: b.parcelasCartao,
+                totalAulas: b.totalAulas,
+                vigenciaMeses: b.vigenciaMeses,
+                clausulas: Array.isArray(b.clausulas) && b.clausulas.length > 0 ? b.clausulas : CLAUSULAS_PADRAO_CONTRATO
+            });
+            res.json({ html });
+        } catch (error: any) {
+            console.error('Erro preview contrato:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
 
     app.get('/api/contratos/template', async (req, res) => {
         try {
@@ -435,9 +588,10 @@ async function startServer() {
             const { aluno_id, dados_dinamicos, conteudo_html, email_aluno } = req.body;
 
             // 1. Criar registro do contrato no banco
+            // manual: emitido pelo Gerador de Contrato -> não é regenerado automaticamente a partir da matrícula
             const { data: contrato, error } = await supabase.from('contratos').insert([{
                 aluno_id,
-                dados_dinamicos,
+                dados_dinamicos: { ...(dados_dinamicos || {}), manual: true },
                 conteudo_html,
                 status: 'pendente'
             }]).select().single();
@@ -502,16 +656,31 @@ async function startServer() {
 
     app.post('/api/contratos/:id/assinar', async (req, res) => {
         try {
-            const { assinatura_base64 } = req.body;
+            const { assinatura_base64, autoriza_uso_imagem } = req.body;
             if (!assinatura_base64) return res.status(400).json({ error: 'Assinatura inválida' });
+            if (typeof autoriza_uso_imagem !== 'boolean') {
+                return res.status(400).json({ error: 'Informe se autoriza ou não o uso de imagem antes de assinar.' });
+            }
+
+            const { data: atual, error: errAtual } = await supabase.from('contratos')
+                .select('id, status, conteudo_html, dados_dinamicos')
+                .eq('id', req.params.id)
+                .maybeSingle();
+            if (errAtual) throw errAtual;
+            if (!atual) return res.status(404).json({ error: 'Contrato não encontrado' });
+            if (atual.status === 'assinado') return res.status(409).json({ error: 'Este contrato já foi assinado.' });
 
             const { data, error } = await supabase.from('contratos')
                 .update({ 
                     assinatura_base64, 
+                    autoriza_uso_imagem,
+                    conteudo_html: aplicarOpcaoImagemNoHtml(atual.conteudo_html || '', autoriza_uso_imagem),
+                    dados_dinamicos: { ...(atual.dados_dinamicos || {}), autorizaImagem: autoriza_uso_imagem },
                     status: 'assinado', 
                     data_assinatura: new Date().toISOString() 
                 })
                 .eq('id', req.params.id)
+                .eq('status', 'pendente')
                 .select()
                 .single();
                 
@@ -1556,43 +1725,31 @@ async function startServer() {
                 return res.json(contrato);
             }
             
+            // Contrato emitido manualmente pelo Gerador: mantém o texto enviado ao aluno
+            if (contrato && contrato.status === 'pendente' && contrato.dados_dinamicos?.manual) {
+                return res.json(contrato);
+            }
+
             const { data: aluno, error: alunoError } = await supabase.from('alunos')
-                .select('*, matriculas(*, cursos(nome))')
+                .select('*, matriculas(*, cursos(nome), pacotes(*))')
                 .eq('id', id)
                 .single();
                 
             if (alunoError || !aluno) {
                 return res.status(404).json({ error: 'Aluno não encontrado' });
             }
-            const matricula = aluno.matriculas?.[0];
+            const matricula = [...(aluno.matriculas || [])].sort((a: any, b: any) => b.id - a.id)[0];
             const { data: template } = await supabase.from('contrato_templates').select('*').limit(1).maybeSingle();
             const clausulas = (template && template.clausulas && template.clausulas.length > 0)
                 ? template.clausulas
                 : CLAUSULAS_PADRAO_CONTRATO;
                 
-            const responsavel = aluno.responsavel_nome || aluno.nome;
-            const cpf = aluno.responsavel_cpf || aluno.cpf || '';
-            const endereco = aluno.endereco || '';
-            const cursoNome = matricula?.cursos?.nome || 'Música';
-            const valorPlano = matricula?.valor_parcela || '370';
-            const diaVencimento = matricula?.dia_vencimento || '10';
-            const qtdParcelas = matricula?.total_parcelas || '6';
-
-            const conteudo_html = generateContratoHtml({
-                alunoNome: aluno.nome,
-                responsavelNome: aluno.responsavel_nome,
-                cpf,
-                endereco,
-                cursoNome,
-                valorPlano,
-                diaVencimento,
-                qtdParcelas,
-                clausulas
-            });
+            const dados = buildContratoDados(aluno, matricula);
+            const conteudo_html = gerarHtmlDoAluno(aluno, dados, clausulas);
             
             if (contrato && contrato.status === 'pendente') {
                 const { data: updatedContrato, error: updateError } = await supabase.from('contratos').update({
-                    dados_dinamicos: { responsavel, cpf, endereco, cursoNome, valorPlano, diaVencimento, qtdParcelas },
+                    dados_dinamicos: dados,
                     conteudo_html
                 }).eq('id', contrato.id).select().single();
                 
@@ -1602,7 +1759,7 @@ async function startServer() {
 
             const { data: newContrato, error: insertError } = await supabase.from('contratos').insert([{
                 aluno_id: id,
-                dados_dinamicos: { responsavel, cpf, endereco, cursoNome, valorPlano, diaVencimento, qtdParcelas },
+                dados_dinamicos: dados,
                 conteudo_html,
                 status: 'pendente'
             }]).select().single();
@@ -1671,6 +1828,7 @@ async function startServer() {
                 responsavel_nome, responsavel_cpf, responsavel_telefone, 
                 curso_id, professor_id, dia_semana, horario,
                 valor_parcela, valor_com_desconto, dia_vencimento, total_parcelas,
+                forma_pagamento, parcelas_cartao, vigencia_meses,
                 status
             } = req.body;
             
@@ -1711,6 +1869,9 @@ async function startServer() {
             if (valor_com_desconto !== undefined && valor_com_desconto !== '') matUpdate.valor_com_desconto = Number(valor_com_desconto);
             if (dia_vencimento !== undefined && dia_vencimento !== '') matUpdate.dia_vencimento = Number(dia_vencimento);
             if (total_parcelas !== undefined && total_parcelas !== '' && !isNaN(Number(total_parcelas))) matUpdate.total_parcelas = Number(total_parcelas);
+            if (forma_pagamento !== undefined && forma_pagamento !== '') matUpdate.forma_pagamento = FORMAS_PAGAMENTO_AVISTA.includes(forma_pagamento) ? forma_pagamento : 'mensal';
+            if (parcelas_cartao !== undefined) matUpdate.parcelas_cartao = parcelas_cartao === '' || parcelas_cartao === null ? null : Number(parcelas_cartao);
+            if (vigencia_meses !== undefined) matUpdate.vigencia_meses = vigencia_meses === '' || vigencia_meses === null ? null : Number(vigencia_meses);
 
             console.log(`[MATRICULA_UPDATE] Aluno ${studentId}, payload:`, matUpdate);
 
@@ -1830,17 +1991,20 @@ async function startServer() {
                 }
             }
 
-            // 3. Sincronizar dados do contrato (se houver contrato cadastrado)
+            // 3. Sincronizar dados do contrato (somente contratos pendentes gerados automaticamente;
+            //    contratos assinados ficam imutáveis e os emitidos pelo Gerador mantêm o texto enviado)
             try {
                 const { data: contratosExistentes } = await supabase
                     .from('contratos')
                     .select('*')
-                    .eq('aluno_id', studentId);
+                    .eq('aluno_id', studentId)
+                    .eq('status', 'pendente');
 
-                if (contratosExistentes && contratosExistentes.length > 0) {
+                const contratosSync = (contratosExistentes || []).filter((c: any) => !c.dados_dinamicos?.manual);
+                if (contratosSync.length > 0) {
                     const { data: fullAluno } = await supabase
                         .from('alunos')
-                        .select('*, matriculas(*, cursos(nome))')
+                        .select('*, matriculas(*, cursos(nome), pacotes(*))')
                         .eq('id', studentId)
                         .single();
 
@@ -1850,47 +2014,21 @@ async function startServer() {
                             ? template.clausulas
                             : CLAUSULAS_PADRAO_CONTRATO;
 
-                        const m = fullAluno.matriculas?.[0];
-                        const responsavel = fullAluno.responsavel_nome || fullAluno.nome;
-                        const cpfFinal = fullAluno.responsavel_cpf || fullAluno.cpf || '';
-                        const enderecoFinal = fullAluno.endereco || '';
-                        const cursoFinal = m?.cursos?.nome || 'Música';
-                        const valorFinal = m?.valor_parcela || '370';
-                        const vencimentoFinal = m?.dia_vencimento || '10';
-                        const parcelasFinal = m?.total_parcelas || '6';
+                        const m = [...(fullAluno.matriculas || [])].sort((a: any, b: any) => b.id - a.id)[0];
+                        const dados = buildContratoDados(fullAluno, m);
 
-                        const syncPromises = contratosExistentes.map((cont: any) => {
-                            const newHtml = generateContratoHtml({
-                                alunoNome: fullAluno.nome,
-                                responsavelNome: fullAluno.responsavel_nome,
-                                cpf: cpfFinal,
-                                endereco: enderecoFinal,
-                                cursoNome: cursoFinal,
-                                valorPlano: valorFinal,
-                                diaVencimento: vencimentoFinal,
-                                qtdParcelas: parcelasFinal,
-                                clausulas: clausulasBase,
-                                dataAssinatura: cont.data_assinatura ? new Date(cont.data_assinatura) : new Date(cont.created_at || Date.now())
+                        const syncPromises = contratosSync.map((cont: any) => {
+                            const newHtml = gerarHtmlDoAluno(fullAluno, dados, clausulasBase, {
+                                dataAssinatura: new Date(cont.created_at || Date.now())
                             });
-
-                            const newDados = {
-                                responsavel,
-                                cpf: cpfFinal,
-                                endereco: enderecoFinal,
-                                cursoNome: cursoFinal,
-                                valorPlano: valorFinal,
-                                diaVencimento: vencimentoFinal,
-                                qtdParcelas: parcelasFinal
-                            };
-
                             return supabase.from('contratos').update({
                                 conteudo_html: newHtml,
-                                dados_dinamicos: newDados
+                                dados_dinamicos: dados
                             }).eq('id', cont.id);
                         });
 
                         await Promise.all(syncPromises);
-                        console.log(`[CONTRATO_SYNC] ${contratosExistentes.length} contratos sincronizados para aluno ${studentId}.`);
+                        console.log(`[CONTRATO_SYNC] ${contratosSync.length} contratos sincronizados para aluno ${studentId}.`);
                     }
                 }
             } catch (conErr) {
@@ -2158,8 +2296,17 @@ async function startServer() {
             const { 
                 nome, email, telefone, cpf, endereco, curso_id, professor_id, 
                 dia_semana, horario, sala_id, pacote_id, 
-                data_primeira_parcela, dia_vencimento, valor_parcela, total_parcelas 
+                data_primeira_parcela, dia_vencimento, valor_parcela 
             } = req.body;
+            let { total_parcelas } = req.body;
+
+            // Pagamento à vista (cartão de crédito / PIX / dinheiro): uma única cobrança com o valor total.
+            // O parcelamento no cartão (ex.: 12x) fica na fatura do aluno, não gera mensalidades na escola.
+            const forma_pagamento = FORMAS_PAGAMENTO_AVISTA.includes(req.body.forma_pagamento) ? req.body.forma_pagamento : 'mensal';
+            const aVista = forma_pagamento !== 'mensal';
+            if (aVista) total_parcelas = 1;
+            const parcelas_cartao = forma_pagamento === 'cartao_credito' ? (Number(req.body.parcelas_cartao) || 1) : null;
+            const vigencia_meses = Number(req.body.vigencia_meses) || null;
 
             // 1. Criar Aluno
             const { data: aluno, error: errA } = await supabase.from('alunos').insert([{ 
@@ -2182,6 +2329,8 @@ async function startServer() {
                 const descAuto = Number(pacote?.desconto_automatico || 0);
                 effectiveValorDesconto = descAuto > 0 ? Math.max(0, Number(valor_parcela) - descAuto) : Number(valor_parcela);
             }
+            // À vista não tem desconto de pontualidade: o valor combinado é o valor final
+            if (aVista) effectiveValorDesconto = Number(valor_parcela);
 
             // 3. Criar Matrícula
             const parsedDiaSemana = dia_semana ? new Date(dia_semana) : new Date();
@@ -2198,6 +2347,10 @@ async function startServer() {
                 valor_parcela,
                 valor_com_desconto: effectiveValorDesconto,
                 total_parcelas,
+                forma_pagamento,
+                parcelas_cartao,
+                vigencia_meses,
+                aulas_total_contrato: pacote?.total_aulas || null,
                 data_inicio: dia_semana || null
             }]).select().single();
             if (errM) {
@@ -2255,6 +2408,11 @@ async function startServer() {
                     data_vencimento: currentVencimento.toISOString().split('T')[0],
                     status: 'pendente',
                     tipo_receita: 'mensalidade',
+                    ...(aVista ? {
+                        descricao: forma_pagamento === 'cartao_credito'
+                            ? `Pagamento à vista no cartão de crédito${parcelas_cartao && parcelas_cartao > 1 ? ` (${parcelas_cartao}x na fatura do cartão)` : ''}`
+                            : `Pagamento à vista via ${forma_pagamento === 'pix' ? 'PIX' : 'dinheiro'}`
+                    } : {}),
                     referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
                 });
                 

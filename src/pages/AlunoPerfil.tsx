@@ -980,6 +980,9 @@ export default function AlunoPerfil() {
                 valor_com_desconto: m?.valor_com_desconto || '',
                 dia_vencimento: m?.dia_vencimento || '',
                 total_parcelas: m?.total_parcelas || 6,
+                forma_pagamento: m?.forma_pagamento || 'mensal',
+                parcelas_cartao: m?.parcelas_cartao ?? '',
+                vigencia_meses: m?.vigencia_meses ?? '',
                 dia_semana: m?.dia_semana !== undefined && m?.dia_semana !== null ? m.dia_semana : '',
                 horario: m?.horario ? m.horario.substring(0, 5) : ''
               });
@@ -1345,6 +1348,45 @@ export default function AlunoPerfil() {
                         />
                      </div>
                    ))}
+
+                   <div>
+                      <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">FORMA_PAGAMENTO</label>
+                      <select
+                        className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none"
+                        value={editFormData.forma_pagamento || 'mensal'}
+                        onChange={e => setEditFormData({ ...editFormData, forma_pagamento: e.target.value })}
+                      >
+                        <option value="mensal">MENSALIDADES</option>
+                        <option value="cartao_credito">À VISTA – CARTÃO DE CRÉDITO</option>
+                        <option value="pix">À VISTA – PIX</option>
+                        <option value="dinheiro">À VISTA – DINHEIRO</option>
+                      </select>
+                      {editFormData.forma_pagamento && editFormData.forma_pagamento !== 'mensal' && (
+                        <p className="text-[9px] font-bold text-[#8e7164] uppercase mt-1">À vista: VALOR_MENSALIDADE = valor total do contrato.</p>
+                      )}
+                   </div>
+                   {editFormData.forma_pagamento && editFormData.forma_pagamento !== 'mensal' && (
+                     <div className="grid grid-cols-2 gap-2">
+                       {editFormData.forma_pagamento === 'cartao_credito' && (
+                         <div>
+                           <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">PARCELAS_CARTÃO</label>
+                           <input type="number" min={1} max={24}
+                             className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none"
+                             value={editFormData.parcelas_cartao ?? ''}
+                             onChange={e => setEditFormData({ ...editFormData, parcelas_cartao: e.target.value })}
+                           />
+                         </div>
+                       )}
+                       <div>
+                         <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">VIGÊNCIA_MESES</label>
+                         <input type="number" min={1}
+                           className="w-full bg-white border-4 border-black p-3 font-black text-sm text-black focus:bg-[#ffeae1] outline-none"
+                           value={editFormData.vigencia_meses ?? ''}
+                           onChange={e => setEditFormData({ ...editFormData, vigencia_meses: e.target.value })}
+                         />
+                       </div>
+                     </div>
+                   )}
                    
                    <div className="md:col-span-2">
                       <label className="text-[9px] font-black text-black uppercase block mb-1 tracking-widest">PROFESSOR</label>

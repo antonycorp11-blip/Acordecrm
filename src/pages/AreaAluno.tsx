@@ -487,6 +487,7 @@ export default function AreaAluno() {
 
   const [showContratoModal, setShowContratoModal] = useState(false);
   const [contratoAtivo, setContratoAtivo] = useState<any>(null);
+  const [autorizaImagemContrato, setAutorizaImagemContrato] = useState<boolean | null>(null);
 
   // Modal de Demonstração da Hora Dupla (2x Pontos)
   const [horaDuplaModal, setHoraDuplaModal] = useState<{
@@ -1594,6 +1595,9 @@ export default function AreaAluno() {
   // ASSINATURA DE CONTRATO
   // --------------------------------------------------------------------------------
   const handleSaveContrato = async () => {
+    if (autorizaImagemContrato === null) {
+      return toast.error("Marque se autoriza ou não o uso de imagem.");
+    }
     if (sigPad.current?.isEmpty()) {
       return toast.error("Por favor, assine antes de confirmar.");
     }
@@ -1603,10 +1607,11 @@ export default function AreaAluno() {
       const res = await fetch(`/api/contratos/${contratoAtivo.id}/assinar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` },
-        body: JSON.stringify({ assinatura_base64: assinaturaBase64 })
+        body: JSON.stringify({ assinatura_base64: assinaturaBase64, autoriza_uso_imagem: autorizaImagemContrato })
       });
       if (res.ok) {
         toast.success("✅ Contrato assinado com sucesso! Obrigado.");
+        fetchFinanceiroEContrato(alunoData?.id);
         setAlunoContrato((prev: any) => ({ ...prev, status: 'assinado', assinatura_base64: assinaturaBase64 }));
         setAlunoData((prev: any) => {
             if (!prev) return prev;
@@ -4079,6 +4084,7 @@ export default function AreaAluno() {
           onClose={() => setIsAlunoModalOpen(false)}
           onOpenContrato={(contrato) => {
              setContratoAtivo(contrato);
+             setAutorizaImagemContrato(null);
              setShowContratoModal(true);
           }}
         />
@@ -4139,6 +4145,25 @@ export default function AreaAluno() {
                   </div>
               ) : (
                   <>
+                      <div className="border-4 border-black bg-white p-3">
+                          <p className="text-[10px] font-black uppercase mb-2">Uso de imagem (fotos e vídeos para divulgação da escola)</p>
+                          <div className="flex gap-2">
+                              <button
+                                  type="button"
+                                  onClick={() => setAutorizaImagemContrato(true)}
+                                  className={`flex-1 py-2 border-2 border-black font-black text-[10px] uppercase ${autorizaImagemContrato === true ? 'bg-black text-white' : 'bg-white text-black'}`}
+                              >
+                                  Autorizo
+                              </button>
+                              <button
+                                  type="button"
+                                  onClick={() => setAutorizaImagemContrato(false)}
+                                  className={`flex-1 py-2 border-2 border-black font-black text-[10px] uppercase ${autorizaImagemContrato === false ? 'bg-black text-white' : 'bg-white text-black'}`}
+                              >
+                                  Não autorizo
+                              </button>
+                          </div>
+                      </div>
                       <div
                           ref={sigCanvasContainer}
                           className="flex-1 border-4 border-black bg-white relative cursor-crosshair overflow-hidden"

@@ -10,6 +10,7 @@ export default function Assinatura() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [signed, setSigned] = useState(false);
+  const [autorizaImagem, setAutorizaImagem] = useState<boolean | null>(null);
   
   const sigPad = useRef<any>(null);
 
@@ -39,6 +40,9 @@ export default function Assinatura() {
   };
 
   const handleSave = async () => {
+    if (autorizaImagem === null) {
+      return toast.error("Marque se autoriza ou não o uso de imagem.");
+    }
     if (sigPad.current?.isEmpty()) {
       return toast.error("Por favor, assine antes de enviar.");
     }
@@ -50,14 +54,15 @@ export default function Assinatura() {
       const res = await fetch(`/api/contratos/${id}/assinar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assinatura_base64: assinaturaBase64 })
+        body: JSON.stringify({ assinatura_base64: assinaturaBase64, autoriza_uso_imagem: autorizaImagem })
       });
 
       if (res.ok) {
         setSigned(true);
         toast.success("Assinatura enviada com sucesso!");
       } else {
-        toast.error("Erro ao salvar assinatura.");
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData?.error || "Erro ao salvar assinatura.");
       }
     } catch (e) {
       toast.error("Erro de conexão ao enviar assinatura.");
@@ -127,6 +132,26 @@ export default function Assinatura() {
           <p className="text-xs font-bold text-[#8e7164]">
             Leia o contrato ao lado e assine no quadro abaixo usando o mouse ou o dedo.
           </p>
+        </div>
+
+        <div className="mb-4 bg-white border-4 border-black shadow-[4px_4px_0_#000] p-3 shrink-0">
+          <p className="text-[10px] font-black text-black uppercase mb-2">Uso de imagem (fotos e vídeos para divulgação da escola)</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAutorizaImagem(true)}
+              className={`flex-1 px-2 py-2 border-2 border-black font-black uppercase text-[10px] ${autorizaImagem === true ? 'bg-black text-white' : 'bg-white text-black'}`}
+            >
+              Autorizo
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutorizaImagem(false)}
+              className={`flex-1 px-2 py-2 border-2 border-black font-black uppercase text-[10px] ${autorizaImagem === false ? 'bg-black text-white' : 'bg-white text-black'}`}
+            >
+              Não autorizo
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 flex flex-col min-h-0">

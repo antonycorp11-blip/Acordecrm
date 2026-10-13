@@ -41,6 +41,9 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     data_primeira_parcela: new Date().toLocaleDateString('en-CA'),
     dia_vencimento: '10' as string | number,
     total_parcelas: '6' as string | number,
+    forma_pagamento: 'mensal' as 'mensal' | 'cartao_credito' | 'pix' | 'dinheiro',
+    parcelas_cartao: '12' as string | number,
+    vigencia_meses: '12' as string | number,
     is_emusys_legacy: false,
     emusys_original_aulas: 48,
     emusys_aulas_feitas: 0,
@@ -118,7 +121,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
         const descAuto = Number(selectedPacote.desconto_automatico || 0);
         const valorComDesc = descAuto > 0 ? Math.max(0, valorCheio - descAuto) : valorCheio;
 
-        setFormData(prev => ({ 
+        setFormData(prev => prev.forma_pagamento !== 'mensal' ? { ...prev, is_emusys_legacy: isLegacy } : ({ 
           ...prev, 
           is_emusys_legacy: isLegacy,
           valor_parcela: valorCheio,
@@ -146,6 +149,10 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
 
     if (!formData.curso_id || !formData.professor_id || !formData.horario || !formData.pacote_id || missingCpfAdult || missingResponsavel) {
       alert(`Por favor, preencha todos os campos obrigatórios (Curso, Professor, Horário, Plano${isAdult ? ', CPF do Aluno' : ', CPF do Responsável'})`);
+      return;
+    }
+    if (formData.forma_pagamento !== 'mensal' && !(Number(formData.valor_parcela) > 0)) {
+      alert('Informe o valor total do pagamento à vista.');
       return;
     }
 
@@ -357,6 +364,76 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                 </div>
                 {formData.pacote_id && (
                     <div className="mt-4 space-y-2">
+                      <div className="bg-white border border-black p-2">
+                          <label className="block text-[7px] font-bold uppercase">Forma de Pagamento</label>
+                          <select
+                              className="w-full bg-transparent border-none text-[10px] font-black outline-none cursor-pointer"
+                              value={formData.forma_pagamento}
+                              onChange={(e) => {
+                                  const forma = e.target.value as typeof formData.forma_pagamento;
+                                  if (forma === 'mensal') {
+                                      setFormData({ ...formData, forma_pagamento: forma, total_parcelas: '6' });
+                                  } else {
+                                      // À vista: valor total = valor combinado (ex.: 2700); uma única cobrança na escola
+                                      setFormData({ ...formData, forma_pagamento: forma, total_parcelas: '1', valor_parcela: '', valor_com_desconto: '' });
+                                  }
+                              }}
+                          >
+                              <option value="mensal">Mensalidades (boleto / PIX mensal)</option>
+                              <option value="cartao_credito">À vista – Cartão de crédito (parcelado na fatura)</option>
+                              <option value="pix">À vista – PIX</option>
+                              <option value="dinheiro">À vista – Dinheiro</option>
+                          </select>
+                      </div>
+                      {formData.forma_pagamento !== 'mensal' ? (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-white border border-black p-2">
+                              <label className="block text-[7px] font-bold uppercase">Valor Total (R$)</label>
+                              <input
+                                  type="number"
+                                  className="w-full bg-transparent border-none text-[10px] font-black outline-none"
+                                  value={formData.valor_parcela}
+                                  onChange={(e) => setFormData({...formData, valor_parcela: e.target.value, valor_com_desconto: e.target.value})}
+                                  placeholder="Ex: 2700"
+                              />
+                          </div>
+                          {formData.forma_pagamento === 'cartao_credito' && (
+                            <div className="bg-white border border-black p-2">
+                                <label className="block text-[7px] font-bold uppercase">Parcelas no Cartão</label>
+                                <select
+                                    className="w-full bg-transparent border-none text-[10px] font-black outline-none cursor-pointer"
+                                    value={formData.parcelas_cartao}
+                                    onChange={(e) => setFormData({...formData, parcelas_cartao: e.target.value})}
+                                >
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                                        <option key={n} value={n}>{n}x</option>
+                                    ))}
+                                </select>
+                            </div>
+                          )}
+                        </div>
+                        <div className="bg-white border border-black p-2">
+                            <label className="block text-[7px] font-bold uppercase text-purple-700">Vigência do Contrato (Meses)</label>
+                            <input
+                                type="number"
+                                min={1}
+                                className="w-full bg-transparent border-none text-[10px] font-black outline-none"
+                                value={formData.vigencia_meses}
+                                onChange={(e) => setFormData({...formData, vigencia_meses: e.target.value})}
+                            />
+                        </div>
+                        {formData.forma_pagamento === 'cartao_credito' && Number(formData.valor_parcela) > 0 && (
+                          <p className="text-[8px] font-bold uppercase bg-black text-white p-2">
+                            Contrato: R$ {Number(formData.valor_parcela).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} à vista no cartão
+                            {Number(formData.parcelas_cartao) > 1 && ` em ${formData.parcelas_cartao}x de R$ ${(Number(formData.valor_parcela) / Number(formData.parcelas_cartao)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} na fatura`}
+                            {pacotes.find(p => String(p.id) === String(formData.pacote_id))?.total_aulas ? ` · ${pacotes.find(p => String(p.id) === String(formData.pacote_id))?.total_aulas} aulas` : ''}
+                            . Gera 1 cobrança (valor total) no financeiro.
+                          </p>
+                        )}
+                      </div>
+                      ) : (
+                      <>
                       <div className="grid grid-cols-2 gap-2">
                           <div className="bg-white border border-black p-2">
                               <label className="block text-[7px] font-bold uppercase">Valor Cheio (R$)</label>
@@ -392,6 +469,8 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                               <option value="24">24 Meses (24 Parcelas)</option>
                           </select>
                       </div>
+                      </>
+                      )}
                     </div>
                 )}
                 <div className="mt-2 bg-white border border-black p-2">
