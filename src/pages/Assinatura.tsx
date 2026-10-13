@@ -124,45 +124,54 @@ export default function Assinatura() {
       </div>
 
       {/* Direita: Área de Assinatura */}
-      <div className="w-full md:w-1/3 h-[50vh] md:h-screen bg-[#feccba] p-6 flex flex-col border-t-8 md:border-t-0 md:border-l-8 border-black">
+      {/* No celular a área de assinatura tem altura própria (página rola); no desktop ocupa a coluna inteira */}
+      <div className="w-full md:w-1/3 md:h-screen md:overflow-auto bg-[#feccba] p-6 flex flex-col border-t-8 md:border-t-0 md:border-l-8 border-black">
         <div className="mb-6">
           <h2 className="text-2xl font-black text-black uppercase tracking-tighter flex items-center gap-2 mb-2">
             <Edit3 className="w-6 h-6" /> Assinatura Digital
           </h2>
           <p className="text-xs font-bold text-[#8e7164]">
-            Leia o contrato ao lado e assine no quadro abaixo usando o mouse ou o dedo.
+            Leia o contrato, marque a opção de uso de imagem e assine no quadro abaixo usando o mouse ou o dedo.
           </p>
         </div>
 
         <div className="mb-4 bg-white border-4 border-black shadow-[4px_4px_0_#000] p-3 shrink-0">
-          <p className="text-[10px] font-black text-black uppercase mb-2">Uso de imagem (fotos e vídeos para divulgação da escola)</p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setAutorizaImagem(true)}
-              className={`flex-1 px-2 py-2 border-2 border-black font-black uppercase text-[10px] ${autorizaImagem === true ? 'bg-black text-white' : 'bg-white text-black'}`}
-            >
-              Autorizo
-            </button>
-            <button
-              type="button"
-              onClick={() => setAutorizaImagem(false)}
-              className={`flex-1 px-2 py-2 border-2 border-black font-black uppercase text-[10px] ${autorizaImagem === false ? 'bg-black text-white' : 'bg-white text-black'}`}
-            >
-              Não autorizo
-            </button>
+          <p className="text-[11px] font-black text-black uppercase mb-1">Termo de uso de imagem <span className="text-red-600">*</span></p>
+          <p className="text-[10px] font-bold text-[#8e7164] mb-3">Uso de fotos e vídeos do aluno para divulgação da escola. Escolha uma opção (obrigatório):</p>
+          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Uso de imagem">
+            {[
+              { valor: true, label: 'Autorizo o uso de imagem' },
+              { valor: false, label: 'Não autorizo o uso de imagem' }
+            ].map(op => {
+              const marcado = autorizaImagem === op.valor;
+              return (
+                <button
+                  key={String(op.valor)}
+                  type="button"
+                  role="radio"
+                  aria-checked={marcado}
+                  onClick={() => setAutorizaImagem(op.valor)}
+                  className={`w-full flex items-center gap-3 px-3 py-3 border-2 border-black text-left font-black uppercase text-xs ${marcado ? 'bg-[#ffeae1]' : 'bg-white'}`}
+                >
+                  <span className={`w-6 h-6 shrink-0 border-2 border-black flex items-center justify-center ${marcado ? 'bg-black' : 'bg-white'}`}>
+                    {marcado && <Check className="w-4 h-4 text-white" />}
+                  </span>
+                  {op.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-white border-4 border-black shadow-[4px_4px_0_#000] flex-1 mb-4 rounded-xl overflow-hidden relative">
+        <div className="flex-1 flex flex-col md:min-h-0">
+          <div className="bg-white border-4 border-black shadow-[4px_4px_0_#000] h-[220px] md:h-auto md:flex-1 md:min-h-[200px] mb-4 rounded-xl overflow-hidden relative shrink-0">
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-10">
               <FileText className="w-24 h-24" />
             </div>
             <SignatureCanvas 
               ref={sigPad}
               penColor="black"
-              canvasProps={{ className: 'w-full h-full cursor-crosshair' }}
+              canvasProps={{ className: 'w-full h-full cursor-crosshair', style: { touchAction: 'none' } }}
             />
           </div>
 

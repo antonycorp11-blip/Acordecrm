@@ -4146,22 +4146,30 @@ export default function AreaAluno() {
               ) : (
                   <>
                       <div className="border-4 border-black bg-white p-3">
-                          <p className="text-[10px] font-black uppercase mb-2">Uso de imagem (fotos e vídeos para divulgação da escola)</p>
-                          <div className="flex gap-2">
-                              <button
-                                  type="button"
-                                  onClick={() => setAutorizaImagemContrato(true)}
-                                  className={`flex-1 py-2 border-2 border-black font-black text-[10px] uppercase ${autorizaImagemContrato === true ? 'bg-black text-white' : 'bg-white text-black'}`}
-                              >
-                                  Autorizo
-                              </button>
-                              <button
-                                  type="button"
-                                  onClick={() => setAutorizaImagemContrato(false)}
-                                  className={`flex-1 py-2 border-2 border-black font-black text-[10px] uppercase ${autorizaImagemContrato === false ? 'bg-black text-white' : 'bg-white text-black'}`}
-                              >
-                                  Não autorizo
-                              </button>
+                          <p className="text-[10px] font-black uppercase mb-1">Termo de uso de imagem <span className="text-red-600">*</span></p>
+                          <p className="text-[9px] font-bold text-stone-500 mb-2">Uso de fotos e vídeos do aluno para divulgação da escola. Escolha uma opção (obrigatório):</p>
+                          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Uso de imagem">
+                              {[
+                                  { valor: true, label: 'Autorizo o uso de imagem' },
+                                  { valor: false, label: 'Não autorizo o uso de imagem' }
+                              ].map(op => {
+                                  const marcado = autorizaImagemContrato === op.valor;
+                                  return (
+                                      <button
+                                          key={String(op.valor)}
+                                          type="button"
+                                          role="radio"
+                                          aria-checked={marcado}
+                                          onClick={() => setAutorizaImagemContrato(op.valor)}
+                                          className={`w-full flex items-center gap-2 px-2 py-2 border-2 border-black text-left font-black text-[10px] uppercase ${marcado ? 'bg-[#ffeae1]' : 'bg-white'}`}
+                                      >
+                                          <span className={`w-5 h-5 shrink-0 border-2 border-black flex items-center justify-center ${marcado ? 'bg-black text-white' : 'bg-white'}`}>
+                                              {marcado ? '✓' : ''}
+                                          </span>
+                                          {op.label}
+                                      </button>
+                                  );
+                              })}
                           </div>
                       </div>
                       <div
