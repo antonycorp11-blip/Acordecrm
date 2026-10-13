@@ -202,6 +202,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   const printContrato = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Contrato_${aluno.nome.replace(/\s+/g, '_')}`,
+    pageStyle: `@page { size: A4; margin: 12mm; } @media print { body { visibility: visible !important; background: #fff !important; } .print-area { position: static !important; width: 100% !important; } }`,
   });
 
   const handlePrintPdf = async () => {
@@ -481,7 +482,8 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
 
       {/* Conteúdo Oculto para Geração de PDF e Captura HTML */}
       <div className="fixed opacity-0 pointer-events-none z-[-1]">
-        <div ref={printRef} className="bg-white" style={{ width: '800px', color: '#000', backgroundColor: '#fff' }} dangerouslySetInnerHTML={{ __html: previewHtml }} />
+        {/* print-area: o CSS global de impressão (index.css) esconde tudo que não tiver essa classe */}
+        <div ref={printRef} className="print-area bg-white" style={{ width: '800px', color: '#000', backgroundColor: '#fff' }} dangerouslySetInnerHTML={{ __html: previewHtml }} />
       </div>
 
     </div>
