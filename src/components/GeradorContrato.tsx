@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Printer, Plus, Trash2, Edit2, Check, Save, Send } from 'lucide-react';
+import { flushSync } from 'react-dom';
+import { X, Printer, Plus, Trash2, Edit2, Check, Save, Send, Eye } from 'lucide-react';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 import { toast } from 'sonner';
@@ -56,6 +57,8 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   const [vigenciaMeses, setVigenciaMeses] = useState(matricula?.vigencia_meses?.toString() || (matricula?.forma_pagamento && matricula.forma_pagamento !== 'mensal' ? "12" : (matricula?.total_parcelas?.toString() || "6")));
   const [totalAulas, setTotalAulas] = useState((matricula?.aulas_total_contrato || matricula?.pacotes?.total_aulas || "").toString());
   const [previewHtml, setPreviewHtml] = useState("");
+  const [previewError, setPreviewError] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
   const aVista = formaPagamento !== 'mensal';
 
   const [loading, setLoading] = useState(false);
@@ -86,45 +89,68 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   }, [isOpen, aluno]);
 
   // Texto do contrato vem do servidor (mesmo gerador usado na Área do Aluno), evitando divergências
+  const fetchPreview = async (): Promise<string> => {
+    const res = await fetch('/api/contratos/preview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
+      },
+      body: JSON.stringify({
+        alunoNome: aluno.nome,
+        responsavelNome: novoResponsavel,
+        cpf: novoCpf,
+        endereco: novoEndereco,
+        cursoNome,
+        duracaoAula,
+        qtdAulas,
+        valorPlano,
+        diaVencimento,
+        qtdParcelas: aVista ? 1 : qtdParcelas,
+        formaPagamento,
+        parcelasCartao,
+        totalAulas,
+        vigenciaMeses,
+        clausulas: clausulas.length > 0 ? clausulas : CLAUSULAS_FALLBACK
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.html) {
+      throw new Error(data.error || (res.status === 404 ? 'Servidor desatualizado (rota de prévia não encontrada).' : `Erro ${res.status} ao gerar o contrato.`));
+    }
+    return data.html;
+  };
+
   useEffect(() => {
     if (clausulas.length === 0) return;
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/contratos/preview', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('acorde_token')}`
-          },
-          body: JSON.stringify({
-            alunoNome: aluno.nome,
-            responsavelNome: novoResponsavel,
-            cpf: novoCpf,
-            endereco: novoEndereco,
-            cursoNome,
-            duracaoAula,
-            qtdAulas,
-            valorPlano,
-            diaVencimento,
-            qtdParcelas: aVista ? 1 : qtdParcelas,
-            formaPagamento,
-            parcelasCartao,
-            totalAulas,
-            vigenciaMeses,
-            clausulas
-          })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setPreviewHtml(data.html || "");
-        }
-      } catch (e) {
+        setPreviewHtml(await fetchPreview());
+        setPreviewError("");
+      } catch (e: any) {
         console.warn('[GeradorContrato] Erro ao gerar prévia:', e);
+        setPreviewError(e?.message || 'Erro ao gerar o contrato.');
       }
     }, 400);
     return () => clearTimeout(timer);
   }, [clausulas, novoResponsavel, novoCpf, novoEndereco, cursoNome, duracaoAula, qtdAulas, valorPlano, diaVencimento, qtdParcelas, formaPagamento, parcelasCartao, totalAulas, vigenciaMeses]);
 
+  // Garante o texto atualizado antes de imprimir/visualizar/enviar
+  const ensurePreview = async (): Promise<string | null> => {
+    try {
+      const html = await fetchPreview();
+      flushSync(() => {
+        setPreviewHtml(html);
+        setPreviewError("");
+      });
+      return html;
+    } catch (e: any) {
+      const msg = e?.message || 'Erro ao gerar o contrato.';
+      setPreviewError(msg);
+      toast.error(`Não foi possível gerar o contrato: ${msg}`);
+      return null;
+    }
+  };
 
   const fetchTemplate = async () => {
     try {
@@ -173,16 +199,26 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
     return tempDiv.innerHTML;
   };
 
-  const handlePrintPdf = useReactToPrint({
+  const printContrato = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Contrato_${aluno.nome.replace(/\s+/g, '_')}`,
   });
 
+  const handlePrintPdf = async () => {
+    const html = await ensurePreview();
+    if (html) printContrato();
+  };
+
+  const handleVerContrato = async () => {
+    const html = await ensurePreview();
+    if (html) setShowPreview(true);
+  };
+
   const handleSendEmail = async () => {
     if (!novoEmail) return toast.error("Preencha o e-mail do aluno para enviar.");
     
-    if (!previewHtml) return toast.error("Aguarde a prévia do contrato ser gerada.");
-    const conteudo_html = previewHtml;
+    const conteudo_html = await ensurePreview();
+    if (!conteudo_html) return;
 
     const dados_dinamicos = {
       responsavel: novoResponsavel,
@@ -254,6 +290,12 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
             <p className="text-[10px] font-black text-[#8e7164] uppercase tracking-widest">Personalize e emita o contrato para {aluno.nome}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={handleVerContrato}
+              className="bg-white text-black px-4 py-2 border-2 border-black font-black uppercase text-[10px] shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2"
+            >
+              <Eye className="w-3 h-3" /> VER CONTRATO
+            </button>
             <button 
               onClick={handlePrintPdf}
               className="bg-[#261812] text-white px-4 py-2 border-2 border-black font-black uppercase text-[10px] shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none flex items-center gap-2"
@@ -410,6 +452,32 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
           </div>
         </div>
       </div>
+
+      {previewError && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white border-2 border-black px-4 py-2 text-[10px] font-black uppercase shadow-[4px_4px_0_#000] z-[101]">
+          Erro ao gerar contrato: {previewError}
+        </div>
+      )}
+
+      {/* Visualização do contrato completo */}
+      {showPreview && (
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4" onClick={() => setShowPreview(false)}>
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] border-4 border-black shadow-[8px_8px_0_#000] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-3 border-b-4 border-black bg-[#feccba] shrink-0">
+              <h3 className="text-sm font-black text-black uppercase">Contrato completo – {aluno.nome}</h3>
+              <div className="flex gap-2">
+                <button onClick={handlePrintPdf} className="bg-[#261812] text-white px-3 py-1.5 border-2 border-black font-black uppercase text-[10px] flex items-center gap-1">
+                  <Printer className="w-3 h-3" /> GERAR PDF
+                </button>
+                <button onClick={() => setShowPreview(false)} className="bg-white border-2 border-black p-1.5">
+                  <X className="w-4 h-4 text-black" />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-auto custom-scrollbar" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+          </div>
+        </div>
+      )}
 
       {/* Conteúdo Oculto para Geração de PDF e Captura HTML */}
       <div className="fixed opacity-0 pointer-events-none z-[-1]">
