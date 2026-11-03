@@ -221,3 +221,28 @@
     print-color-adjust: exact !important;
   }
 }
+
+/* Legibilidade dos campos de digitação.
+   Os campos usavam fontes minúsculas (8-11px), peso 900 (Space Mono só tem 400/700, o navegador "engorda" o texto
+   e as letras se misturam), itálico e espaçamento negativo. Aqui o texto digitado fica nítido e legível. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+textarea,
+select {
+  font-style: normal !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+input[class*="text-[8px]"], input[class*="text-[9px]"], input[class*="text-[10px]"], input[class*="text-[11px]"], input[class*="text-xs"],
+textarea[class*="text-[8px]"], textarea[class*="text-[9px]"], textarea[class*="text-[10px]"], textarea[class*="text-[11px]"], textarea[class*="text-xs"],
+select[class*="text-[8px]"], select[class*="text-[9px]"], select[class*="text-[10px]"], select[class*="text-[11px]"], select[class*="text-xs"] {
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+}
+input::placeholder, textarea::placeholder {
+  font-weight: 500;
+  opacity: 0.55;
+}

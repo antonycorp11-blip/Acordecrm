@@ -44,6 +44,11 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     forma_pagamento: 'mensal' as 'mensal' | 'cartao_credito' | 'pix' | 'dinheiro',
     parcelas_cartao: '12' as string | number,
     vigencia_meses: '12' as string | number,
+    tipo_contrato: 'padrao' as 'padrao' | 'avulso',
+    total_aulas: '4' as string | number,
+    intervalo_dias: '7' as string | number,
+    duracao_aula_minutos: '50' as string | number,
+    observacoes_contrato: '',
     is_emusys_legacy: false,
     emusys_original_aulas: 48,
     emusys_aulas_feitas: 0,
@@ -150,6 +155,10 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
     if (!formData.curso_id || !formData.professor_id || !formData.horario || !formData.pacote_id || missingCpfAdult || missingResponsavel) {
       alert(`Por favor, preencha todos os campos obrigatórios (Curso, Professor, Horário, Plano${isAdult ? ', CPF do Aluno' : ', CPF do Responsável'})`);
       return;
+    }
+    if (formData.tipo_contrato === 'avulso') {
+      if (!(Number(formData.total_aulas) >= 1)) { alert('Informe a quantidade de aulas do contrato avulso.'); return; }
+      if (!(Number(formData.valor_parcela) > 0)) { alert('Informe o valor do contrato avulso.'); return; }
     }
     if (formData.forma_pagamento !== 'mensal' && !(Number(formData.valor_parcela) > 0)) {
       alert('Informe o valor total do pagamento à vista.');
@@ -338,8 +347,71 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                 <h2 className="text-[11px] font-bold uppercase mb-3 border-b border-black pb-1 flex items-center gap-2">
                   <span>💰</span> Plano
                 </h2>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, tipo_contrato: 'padrao', pacote_id: '', forma_pagamento: 'mensal', total_parcelas: '6', valor_parcela: '', valor_com_desconto: '' })}
+                    className={`p-2 border-2 border-black text-[10px] font-black uppercase ${formData.tipo_contrato === 'padrao' ? 'bg-black text-white' : 'bg-white'}`}
+                  >
+                    Plano padrão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, tipo_contrato: 'avulso', pacote_id: 'avulso', forma_pagamento: 'mensal', total_parcelas: '1', valor_parcela: '', valor_com_desconto: '', is_emusys_legacy: false })}
+                    className={`p-2 border-2 border-black text-[10px] font-black uppercase ${formData.tipo_contrato === 'avulso' ? 'bg-black text-white' : 'bg-white'}`}
+                  >
+                    Contrato avulso
+                  </button>
+                </div>
+                {formData.tipo_contrato === 'avulso' && (
+                  <div className="mb-3 bg-white border-2 border-black p-3 space-y-3">
+                    <p className="text-[10px] font-black uppercase">Contrato avulso: você define tudo</p>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase mb-1">Quantidade de aulas</label>
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {[1, 4, 8, 12, 24, 48].map(n => (
+                          <button key={n} type="button" onClick={() => setFormData({ ...formData, total_aulas: n })}
+                            className={`px-2 py-1 border-2 border-black text-[10px] font-black ${Number(formData.total_aulas) === n ? 'bg-black text-white' : 'bg-white'}`}>{n}</button>
+                        ))}
+                      </div>
+                      <input type="number" min={1} className="w-full bg-white border-2 border-black px-2 py-2 text-sm" value={formData.total_aulas}
+                        onChange={(e) => setFormData({ ...formData, total_aulas: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase mb-1">Intervalo entre aulas</label>
+                        <select className="w-full bg-white border-2 border-black px-2 py-2 text-sm" value={formData.intervalo_dias}
+                          onChange={(e) => setFormData({ ...formData, intervalo_dias: e.target.value })}>
+                          <option value="7">Semanal</option>
+                          <option value="14">Quinzenal</option>
+                          <option value="21">A cada 21 dias</option>
+                          <option value="28">A cada 28 dias</option>
+                          <option value="1">Todo dia</option>
+                          <option value="2">A cada 2 dias</option>
+                          <option value="3">A cada 3 dias</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase mb-1">Duração da aula (min)</label>
+                        <input type="number" min={10} className="w-full bg-white border-2 border-black px-2 py-2 text-sm" value={formData.duracao_aula_minutos}
+                          onChange={(e) => setFormData({ ...formData, duracao_aula_minutos: e.target.value })} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase mb-1">Vigência do contrato (meses)</label>
+                      <input type="number" min={1} className="w-full bg-white border-2 border-black px-2 py-2 text-sm" value={formData.vigencia_meses}
+                        onChange={(e) => setFormData({ ...formData, vigencia_meses: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase mb-1">Observações do contrato (entram no texto)</label>
+                      <textarea rows={3} className="w-full bg-white border-2 border-black px-2 py-2 text-sm" placeholder="Ex.: Aulas combinadas às quintas, 18h. Valor sem desconto de pontualidade."
+                        value={formData.observacoes_contrato}
+                        onChange={(e) => setFormData({ ...formData, observacoes_contrato: e.target.value })} />
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  {pacotes.map(pacote => (
+                  {formData.tipo_contrato === 'padrao' && pacotes.filter(p => String(p.nome).trim().toLowerCase() !== 'avulso').map(pacote => (
                     <button
                       key={pacote.id}
                       type="button"
@@ -372,7 +444,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                               onChange={(e) => {
                                   const forma = e.target.value as typeof formData.forma_pagamento;
                                   if (forma === 'mensal') {
-                                      setFormData({ ...formData, forma_pagamento: forma, total_parcelas: '6' });
+                                      setFormData({ ...formData, forma_pagamento: forma, total_parcelas: formData.tipo_contrato === 'avulso' ? '1' : '6' });
                                   } else {
                                       // À vista: valor total = valor combinado (ex.: 2700); uma única cobrança na escola
                                       setFormData({ ...formData, forma_pagamento: forma, total_parcelas: '1', valor_parcela: '', valor_com_desconto: '' });
@@ -413,7 +485,7 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                             </div>
                           )}
                         </div>
-                        <div className="bg-white border border-black p-2">
+                        <div className={`bg-white border border-black p-2 ${formData.tipo_contrato === 'avulso' ? 'hidden' : ''}`}>
                             <label className="block text-[7px] font-bold uppercase text-purple-700">Vigência do Contrato (Meses)</label>
                             <input
                                 type="number"
@@ -455,7 +527,15 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
                               />
                           </div>
                       </div>
+                      {formData.tipo_contrato === 'avulso' && (
                       <div className="bg-white border border-black p-2">
+                          <label className="block text-[7px] font-bold uppercase text-purple-700">Número de parcelas (mensalidades)</label>
+                          <input type="number" min={1} max={60} className="w-full bg-transparent border-none text-[10px] font-black outline-none"
+                              value={formData.total_parcelas}
+                              onChange={(e) => setFormData({...formData, total_parcelas: e.target.value})} />
+                      </div>
+                      )}
+                      <div className={`bg-white border border-black p-2 ${formData.tipo_contrato === 'avulso' ? 'hidden' : ''}`}>
                           <label className="block text-[7px] font-bold uppercase text-purple-700">Duração do Contrato (Parcelas)</label>
                           <select 
                               className="w-full bg-transparent border-none text-[10px] font-black outline-none cursor-pointer"

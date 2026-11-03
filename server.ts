@@ -307,6 +307,481 @@ async function startServer() {
     app.use(authenticateToken);
 
     // --- API ROUTES ---
+    // ==========================================
+    // DATAS, AGENDA E FINANCEIRO: utilitários compartilhados
+    // ==========================================
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const parseISO = (s: string) => { const [y, m, d] = String(s).slice(0, 10).split('-').map(Number); return { y, m, d }; };
+    const diasNoMes = (ano: number, mes: number) => new Date(Date.UTC(ano, mes, 0)).getUTCDate(); // mes: 1-12
+    const dateFromISO = (s: string) => { const { y, m, d } = parseISO(s); return new Date(y, m - 1, d, 12, 0, 0); };
+    const addDiasISO = (s: string, dias: number) => { const { y, m, d } = parseISO(s); return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().split('T')[0]; };
+    const diaDaSemanaISO = (s: string) => { const { y, m, d } = parseISO(s); return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); };
+    const diffDiasISO = (a: string, b: string) => {
+        const A = parseISO(a), B = parseISO(b);
+        return Math.round((Date.UTC(A.y, A.m - 1, A.d) - Date.UTC(B.y, B.m - 1, B.d)) / 86400000);
+    };
+    const hhmm = (h: any) => String(h || '').slice(0, 5);
+    const hhmmss = (h: any) => { const t = hhmm(h); return t ? `${t}:00` : ''; };
+
+    // Vencimentos de N parcelas mensais. A 1ª fica na data informada; as demais no dia de vencimento do contrato
+    // (ajustado ao último dia quando o mês é mais curto). Nunca pula nem repete mês (ex.: 31/10 -> 30/11 -> 31/12).
+    const gerarVencimentos = (primeira: any, total: any, diaVenc?: any) => {
+        let base = typeof primeira === 'string'
+            ? primeira.slice(0, 10)
+            : (primeira instanceof Date && !isNaN(primeira.getTime()) ? primeira.toISOString().split('T')[0] : getDateBR());
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(base)) base = getDateBR();
+        const { y, m, d } = parseISO(base);
+        const diaFixo = parseInt(String(diaVenc ?? ''), 10) || d;
+        const out: { data: string; referencia: string }[] = [];
+        for (let i = 0; i < Math.max(1, Number(total) || 1); i++) {
+            const idx = (m - 1) + i;
+            const ano = y + Math.floor(idx / 12);
+            const mes = (idx % 12) + 1;
+            const dia = i === 0 ? d : Math.min(diaFixo, diasNoMes(ano, mes));
+            out.push({ data: `${ano}-${pad2(mes)}-${pad2(dia)}`, referencia: `${pad2(mes)}/${ano}` });
+        }
+        return out;
+    };
+
+    const STATUS_AULA_ABERTA = ['pendente', 'confirmada', 'aguardando_confirmacao'];
+    const DATA_SEM_AGENDA = '2099-01-01'; // aulas de reposição "a agendar" ficam em 2099-12-31
+
+    const matriculaAtual = (matriculas: any[] | null | undefined) => {
+        const lista = [...(matriculas || [])].sort((a: any, b: any) => b.id - a.id);
+        return lista.find((m: any) => m.status === 'ativa') || lista[0] || null;
+    };
+
+    // Ao arquivar (excluir) um aluno: libera horários e tira o aluno das listas de aulas e cobranças futuras.
+    // Nada é apagado: aulas viram "cancelada", matrículas "cancelada" e parcelas ainda não vencidas "cancelado".
+    // Parcelas JÁ vencidas e não pagas continuam como estão (são dívida, não são apagadas).
+    const limparAgendaFinanceiroDeAluno = async (alunoId: any) => {
+        const hoje = getDateBR();
+        const { data: aulas } = await supabase.from('aulas')
+            .update({ status: 'cancelada', motivo_cancelamento: 'Aluno arquivado' })
+            .eq('aluno_id', alunoId)
+            .gte('data', hoje)
+            .in('status', [...STATUS_AULA_ABERTA, 'reposicao', 'a_repor'])
+            .select('id');
+        const { data: mats } = await supabase.from('matriculas')
+            .update({ status: 'cancelada' })
+            .eq('aluno_id', alunoId)
+            .eq('status', 'ativa')
+            .select('id');
+        const { data: pags } = await supabase.from('pagamentos')
+            .update({ status: 'cancelado' })
+            .eq('aluno_id', alunoId)
+            .eq('status', 'pendente')
+            .gte('data_vencimento', hoje)
+            .select('id');
+        return { aulas_canceladas: aulas?.length || 0, matriculas_canceladas: mats?.length || 0, parcelas_canceladas: pags?.length || 0 };
+    };
+
+    // Alinha as aulas em aberto (futuras) com o dia/horário/professor da matrícula.
+    // Cobre pendente/confirmada/aguardando, confere erro de cada atualização e faz uma verificação final (trava).
+    const sincronizarAgendaComMatricula = async (
+        alunoId: any,
+        mat: { dia_semana?: any; horario?: any; professor_id?: any },
+        opts: { mudarDia: boolean; mudarHorario: boolean; mudarProfessor: boolean }
+    ) => {
+        const hoje = getDateBR();
+        const buscar = () => supabase.from('aulas')
+            .select('id, data, horario, professor_id, status')
+            .eq('aluno_id', alunoId)
+            .gte('data', hoje).lt('data', DATA_SEM_AGENDA)
+            .in('status', STATUS_AULA_ABERTA)
+            .is('data_original', null) // aulas movidas de propósito (reposição/remarcação) ficam como estão
+            .order('data', { ascending: true }).order('id', { ascending: true });
+
+        const { data: abertas, error } = await buscar();
+        if (error) throw error;
+        const lista = abertas || [];
+        const erros: string[] = [];
+        let atualizadas = 0;
+        let origAnterior: string | null = null;
+        let novaAnterior: string | null = null;
+
+        for (const a of lista) {
+            const payload: any = {};
+            if (opts.mudarDia && mat.dia_semana !== undefined && mat.dia_semana !== null && mat.dia_semana !== '') {
+                let nova: string;
+                if (novaAnterior === null) {
+                    // 1ª aula: mesmo "semana" (seg-dom) da aula atual, no novo dia da semana
+                    const dow0 = diaDaSemanaISO(a.data);
+                    const segunda = addDiasISO(a.data, -((dow0 + 6) % 7));
+                    nova = addDiasISO(segunda, (Number(mat.dia_semana) + 6) % 7);
+                    if (nova < hoje) nova = addDiasISO(nova, 7);
+                } else {
+                    // demais aulas: mantém o intervalo original entre elas
+                    nova = addDiasISO(novaAnterior, Math.max(1, diffDiasISO(a.data, origAnterior as string)));
+                }
+                while (isHoliday(dateFromISO(nova))) nova = addDiasISO(nova, 7);
+                origAnterior = a.data;
+                novaAnterior = nova;
+                if (nova !== a.data) payload.data = nova;
+            }
+            if (opts.mudarHorario && mat.horario && hhmm(a.horario) !== hhmm(mat.horario)) payload.horario = hhmmss(mat.horario);
+            if (opts.mudarProfessor && mat.professor_id && Number(a.professor_id) !== Number(mat.professor_id)) payload.professor_id = Number(mat.professor_id);
+            if (Object.keys(payload).length === 0) continue;
+            const { error: errU } = await supabase.from('aulas').update(payload).eq('id', a.id);
+            if (errU) erros.push(`aula ${a.id}: ${errU.message}`); else atualizadas++;
+        }
+
+        // Trava: confere se sobrou alguma aula em aberto fora do padrão pedido
+        const { data: depois } = await buscar();
+        const divergentes = (depois || []).filter((a: any) =>
+            (opts.mudarDia && mat.dia_semana !== undefined && mat.dia_semana !== null && mat.dia_semana !== '' && diaDaSemanaISO(a.data) !== Number(mat.dia_semana)) ||
+            (opts.mudarHorario && mat.horario && hhmm(a.horario) !== hhmm(mat.horario)) ||
+            (opts.mudarProfessor && mat.professor_id && Number(a.professor_id) !== Number(mat.professor_id))
+        ).map((a: any) => a.id);
+
+        return { total: lista.length, atualizadas, erros, divergentes };
+    };
+
+    // Auditoria: alunos ativos cuja matrícula (dia/horário/professor) não bate com as próximas aulas em aberto
+    app.get('/api/agenda/auditoria', requireAdmin, async (req: any, res) => {
+        try {
+            const hoje = getDateBR();
+            const { data: alunos, error } = await supabase.from('alunos')
+                .select('id, nome, matriculas(id, status, dia_semana, horario, professor_id)')
+                .neq('status', 'arquivado');
+            if (error) throw error;
+            const { data: aulas, error: errA } = await fetchAllPages(() => supabase.from('aulas')
+                .select('id, aluno_id, data, horario, professor_id')
+                .gte('data', hoje).lt('data', DATA_SEM_AGENDA)
+                .in('status', STATUS_AULA_ABERTA)
+                .is('data_original', null)
+                .order('data', { ascending: true }));
+            if (errA) throw errA;
+            const porAluno = new Map<number, any[]>();
+            (aulas || []).forEach((a: any) => { const l = porAluno.get(a.aluno_id) || []; l.push(a); porAluno.set(a.aluno_id, l); });
+            const resultado: any[] = [];
+            for (const al of (alunos || []) as any[]) {
+                const m = matriculaAtual(al.matriculas);
+                if (!m || m.status !== 'ativa') continue;
+                const futuras = porAluno.get(al.id) || [];
+                const divergentes = futuras.filter((a: any) =>
+                    (m.dia_semana !== null && m.dia_semana !== undefined && diaDaSemanaISO(a.data) !== Number(m.dia_semana)) ||
+                    (m.horario && hhmm(a.horario) !== hhmm(m.horario)) ||
+                    (m.professor_id && Number(a.professor_id) !== Number(m.professor_id)));
+                if (divergentes.length === 0) continue;
+                resultado.push({
+                    aluno_id: al.id,
+                    nome: al.nome,
+                    matricula: { dia_semana: m.dia_semana, horario: hhmm(m.horario), professor_id: m.professor_id },
+                    proximas_aulas: futuras.slice(0, 4).map((a: any) => ({ id: a.id, data: a.data, horario: hhmm(a.horario), professor_id: a.professor_id })),
+                    divergentes: divergentes.length,
+                    total_futuras: futuras.length
+                });
+            }
+            res.json(resultado.sort((x, y) => String(x.nome).localeCompare(String(y.nome))));
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Resolve a divergência de UM aluno: 'aulas_para_matricula' (as aulas estão certas) ou 'matricula_para_aulas' (a matrícula está certa)
+    app.post('/api/alunos/:id/sincronizar-agenda', requireAdmin, async (req: any, res) => {
+        try {
+            const alunoId = req.params.id;
+            const modo = req.body?.modo;
+            const { data: mats } = await supabase.from('matriculas').select('*').eq('aluno_id', alunoId);
+            const mat = matriculaAtual(mats);
+            if (!mat) return res.status(404).json({ error: 'Matrícula não encontrada' });
+
+            if (modo === 'aulas_para_matricula') {
+                const hoje = getDateBR();
+                const { data: prox } = await supabase.from('aulas')
+                    .select('data, horario, professor_id')
+                    .eq('aluno_id', alunoId).gte('data', hoje).lt('data', DATA_SEM_AGENDA)
+                    .in('status', STATUS_AULA_ABERTA).is('data_original', null)
+                    .order('data', { ascending: true }).limit(1).maybeSingle();
+                if (!prox) return res.status(404).json({ error: 'Nenhuma aula futura em aberto para usar como referência.' });
+                const { error } = await supabase.from('matriculas').update({
+                    dia_semana: diaDaSemanaISO(prox.data),
+                    horario: hhmmss(prox.horario),
+                    professor_id: prox.professor_id
+                }).eq('id', mat.id);
+                if (error) throw error;
+                return res.json({ success: true, modo, dia_semana: diaDaSemanaISO(prox.data), horario: hhmm(prox.horario) });
+            }
+            if (modo === 'matricula_para_aulas') {
+                const r = await sincronizarAgendaComMatricula(alunoId, mat, { mudarDia: true, mudarHorario: true, mudarProfessor: true });
+                return res.json({ success: r.erros.length === 0 && r.divergentes.length === 0, modo, ...r });
+            }
+            res.status(400).json({ error: "Informe modo: 'aulas_para_matricula' ou 'matricula_para_aulas'." });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // --- REMANEJAMENTO ---
+    app.post('/api/alunos/:id/remanejar-pagamentos', requireAdmin, async (req: any, res) => {
+        try {
+            const { nova_data_inicio } = req.body || {};
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(nova_data_inicio || ''))) return res.status(400).json({ error: 'Informe a nova data de início (AAAA-MM-DD).' });
+            const alunoId = req.params.id;
+            const { data: mats } = await supabase.from('matriculas').select('*').eq('aluno_id', alunoId);
+            const mat = matriculaAtual(mats);
+            if (!mat) return res.status(404).json({ error: 'Matrícula não encontrada' });
+
+            const { data: pendentes, error: errP } = await supabase.from('pagamentos')
+                .select('id, data_vencimento')
+                .eq('aluno_id', alunoId)
+                .eq('matricula_id', mat.id)
+                .eq('tipo_receita', 'mensalidade')
+                .eq('status', 'pendente')
+                .order('data_vencimento', { ascending: true });
+            if (errP) throw errP;
+            if (!pendentes || pendentes.length === 0) return res.json({ success: true, atualizados: 0, message: 'Nenhuma parcela pendente para remanejar.' });
+
+            const novoDia = parseISO(nova_data_inicio).d;
+            const datas = gerarVencimentos(nova_data_inicio, pendentes.length, novoDia);
+            const erros: string[] = [];
+            for (let i = 0; i < pendentes.length; i++) {
+                const { error } = await supabase.from('pagamentos')
+                    .update({ data_vencimento: datas[i].data, referencia_mes_ano: datas[i].referencia })
+                    .eq('id', pendentes[i].id);
+                if (error) erros.push(`parcela ${pendentes[i].id}: ${error.message}`);
+            }
+            if (erros.length) return res.status(500).json({ error: erros.join('; ') });
+
+            await supabase.from('matriculas').update({ dia_vencimento: novoDia }).eq('id', mat.id);
+            res.json({ success: true, atualizados: pendentes.length, primeira: datas[0].data, ultima: datas[datas.length - 1].data });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/alunos/:id/remanejar-aulas', requireAdmin, async (req: any, res) => {
+        try {
+            const { nova_data_inicio } = req.body || {};
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(nova_data_inicio || ''))) return res.status(400).json({ error: 'Informe a nova data de início (AAAA-MM-DD).' });
+            const alunoId = req.params.id;
+            const { data: mats } = await supabase.from('matriculas').select('*').eq('aluno_id', alunoId);
+            const mat = matriculaAtual(mats);
+            if (!mat) return res.status(404).json({ error: 'Matrícula não encontrada' });
+
+            const hoje = getDateBR();
+            const { data: pendentes, error: errA } = await supabase.from('aulas')
+                .select('id, data')
+                .eq('aluno_id', alunoId)
+                .eq('status', 'pendente')
+                .eq('tipo', 'regular')
+                .gte('data', hoje).lt('data', DATA_SEM_AGENDA)
+                .order('data', { ascending: true }).order('id', { ascending: true });
+            if (errA) throw errA;
+            if (!pendentes || pendentes.length === 0) return res.json({ success: true, atualizadas: 0, message: 'Nenhuma aula futura pendente para remanejar.' });
+
+            const intervalo = Number(mat.intervalo_dias) || 7;
+            let data = nova_data_inicio as string;
+            const erros: string[] = [];
+            for (const a of pendentes) {
+                while (isHoliday(dateFromISO(data))) data = addDiasISO(data, 7);
+                const { error } = await supabase.from('aulas').update({ data }).eq('id', a.id);
+                if (error) erros.push(`aula ${a.id}: ${error.message}`);
+                data = addDiasISO(data, intervalo);
+            }
+            if (erros.length) return res.status(500).json({ error: erros.join('; ') });
+
+            await supabase.from('matriculas').update({ dia_semana: diaDaSemanaISO(nova_data_inicio) }).eq('id', mat.id);
+            res.json({ success: true, atualizadas: pendentes.length });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // --- ADICIONAR MENSALIDADES (ex.: contrato avulso mês a mês) ---
+    app.post('/api/alunos/:id/adicionar-mensalidades', requireAdmin, async (req: any, res) => {
+        try {
+            const alunoId = req.params.id;
+            const { primeira_data } = req.body || {};
+            const qtd = Math.min(24, Math.max(1, Number(req.body?.quantidade) || 1));
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(primeira_data || ''))) return res.status(400).json({ error: 'Informe a data de vencimento da primeira mensalidade.' });
+            const { data: mats } = await supabase.from('matriculas').select('*').eq('aluno_id', alunoId);
+            const mat = matriculaAtual(mats);
+            if (!mat) return res.status(404).json({ error: 'Matrícula não encontrada' });
+            if (mat.forma_pagamento && mat.forma_pagamento !== 'mensal') {
+                return res.status(400).json({ error: 'Este contrato é pago à vista: não tem mensalidades.' });
+            }
+            const valor = Number(req.body?.valor) > 0 ? Number(req.body.valor) : Number(mat.valor_parcela);
+            if (!(valor > 0)) return res.status(400).json({ error: 'Informe o valor da mensalidade.' });
+            const valorDesconto = Number(req.body?.valor_com_desconto) > 0 ? Number(req.body.valor_com_desconto) : null;
+
+            const { data: existentes } = await supabase.from('pagamentos')
+                .select('referencia_mes_ano')
+                .eq('aluno_id', alunoId).eq('tipo_receita', 'mensalidade').neq('status', 'cancelado');
+            const jaTem = new Set((existentes || []).map((p: any) => p.referencia_mes_ano));
+
+            const venc = gerarVencimentos(primeira_data, qtd, parseISO(primeira_data).d);
+            const novas = venc.filter(v => !jaTem.has(v.referencia));
+            const puladas = venc.filter(v => jaTem.has(v.referencia)).map(v => v.referencia);
+            if (novas.length === 0) return res.status(409).json({ error: `Já existe mensalidade para ${puladas.join(', ')}.` });
+
+            const { error } = await supabase.from('pagamentos').insert(novas.map(v => ({
+                aluno_id: Number(alunoId),
+                matricula_id: mat.id,
+                valor,
+                valor_com_desconto: valorDesconto ?? valor,
+                data_vencimento: v.data,
+                status: 'pendente',
+                tipo_receita: 'mensalidade',
+                referencia_mes_ano: v.referencia
+            })));
+            if (error) throw error;
+
+            const totalAtual = (existentes?.length || 0) + novas.length;
+            if (totalAtual > (Number(mat.total_parcelas) || 0)) {
+                await supabase.from('matriculas').update({ total_parcelas: totalAtual }).eq('id', mat.id);
+            }
+            res.json({ success: true, criadas: novas.length, puladas, referencias: novas.map(v => v.referencia) });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // --- PAGAMENTO À VISTA (sem mensalidades) ---
+    app.post('/api/alunos/:id/pagamento-a-vista', requireAdmin, async (req: any, res) => {
+        try {
+            const alunoId = req.params.id;
+            const forma = req.body?.forma_pagamento;
+            if (!FORMAS_PAGAMENTO_AVISTA.includes(forma)) return res.status(400).json({ error: 'Forma de pagamento à vista inválida.' });
+            const { data: mats } = await supabase.from('matriculas').select('*').eq('aluno_id', alunoId);
+            const mat = matriculaAtual(mats);
+            if (!mat) return res.status(404).json({ error: 'Matrícula não encontrada' });
+
+            const valorTotal = Number(req.body?.valor_total);
+            const registrarPagamento = req.body?.registrar_pagamento !== false;
+            if (registrarPagamento && !(valorTotal > 0)) return res.status(400).json({ error: 'Informe o valor total pago.' });
+            const parcelasCartao = forma === 'cartao_credito' ? (Number(req.body?.parcelas_cartao) || 1) : null;
+            const dataPagamento = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.data_pagamento || '')) ? req.body.data_pagamento : getDateBR();
+
+            // 1. Cancela as mensalidades ainda não pagas (as já pagas ficam como estão)
+            const { data: canceladas, error: errC } = await supabase.from('pagamentos')
+                .update({ status: 'cancelado' })
+                .eq('aluno_id', alunoId)
+                .eq('tipo_receita', 'mensalidade')
+                .in('status', ['pendente', 'atrasado'])
+                .select('id');
+            if (errC) throw errC;
+
+            // 2. Registra a cobrança única (já paga, por padrão)
+            const meio = forma === 'cartao_credito' ? 'cartão de crédito' : (forma === 'pix' ? 'PIX' : 'dinheiro');
+            if (valorTotal > 0 && registrarPagamento) {
+                const { error: errI } = await supabase.from('pagamentos').insert([{
+                    aluno_id: Number(alunoId),
+                    matricula_id: mat.id,
+                    valor: valorTotal,
+                    valor_com_desconto: valorTotal,
+                    valor_pago: valorTotal,
+                    data_vencimento: dataPagamento,
+                    data_pagamento: dataPagamento,
+                    status: 'pago',
+                    metodo_pagamento: forma,
+                    tipo_receita: 'mensalidade',
+                    descricao: `Pagamento à vista no ${meio}${parcelasCartao && parcelasCartao > 1 ? ` (${parcelasCartao}x na fatura do cartão)` : ''}`,
+                    referencia_mes_ano: `${dataPagamento.slice(5, 7)}/${dataPagamento.slice(0, 4)}`
+                }]);
+                if (errI) throw errI;
+            }
+
+            // 3. Matrícula passa a ser à vista (1 cobrança)
+            const upd: any = { forma_pagamento: forma, parcelas_cartao: parcelasCartao, total_parcelas: 1 };
+            if (valorTotal > 0) { upd.valor_parcela = valorTotal; upd.valor_com_desconto = valorTotal; }
+            const { error: errM } = await supabase.from('matriculas').update(upd).eq('id', mat.id);
+            if (errM) throw errM;
+
+            res.json({ success: true, mensalidades_canceladas: canceladas?.length || 0 });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // ==========================================
+    // REVISÃO DE AULAS (aulas passadas sem presença marcada)
+    // ==========================================
+    app.get('/api/aulas/revisao', requireAdmin, async (req: any, res) => {
+        try {
+            const hoje = getDateBR();
+            const { data: rows, error } = await fetchAllPages(() => supabase.from('aulas')
+                .select('id, data, horario, status, tipo, aluno_id, professor_id, data_original, motivo_cancelamento, alunos(nome, status, telefone, responsavel_telefone), professores(nome), cursos(nome), matriculas(status)')
+                .lt('data', hoje)
+                .in('status', STATUS_AULA_ABERTA)
+                .order('data', { ascending: true })
+                .order('id', { ascending: true }));
+            if (error) throw error;
+            const um = (x: any) => Array.isArray(x) ? x[0] : x;
+            const lista = (rows || []).filter((a: any) => {
+                const aluno = um(a.alunos);
+                const mat = um(a.matriculas);
+                if (!aluno || aluno.status === 'arquivado') return false;
+                if (mat && ['cancelada', 'arquivada'].includes(mat.status)) return false;
+                return true;
+            }).map((a: any) => {
+                const aluno = um(a.alunos);
+                return {
+                    id: a.id,
+                    data: a.data,
+                    horario: hhmm(a.horario),
+                    status: a.status,
+                    tipo: a.tipo,
+                    aluno_id: a.aluno_id,
+                    aluno_nome: aluno?.nome,
+                    telefone: aluno?.telefone || aluno?.responsavel_telefone || null,
+                    professor_id: a.professor_id,
+                    professor_nome: um(a.professores)?.nome || null,
+                    curso_nome: um(a.cursos)?.nome || null,
+                    data_original: a.data_original,
+                    motivo_cancelamento: a.motivo_cancelamento
+                };
+            }).sort((x: any, y: any) => String(x.aluno_nome).localeCompare(String(y.aluno_nome)) || x.data.localeCompare(y.data));
+            res.json(lista);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Manda a aula para a fila de reposição (guarda a data original e os dados anteriores para poder desfazer)
+    app.post('/api/aulas/:id/enviar-reposicao', requireAdmin, async (req: any, res) => {
+        try {
+            const { data: aula, error } = await supabase.from('aulas')
+                .select('id, data, horario, status, data_original, motivo_cancelamento')
+                .eq('id', req.params.id).single();
+            if (error || !aula) return res.status(404).json({ error: 'Aula não encontrada' });
+            const motivo = String(req.body?.motivo || '').trim() || 'Enviada para reposição na revisão de aulas';
+            const { error: errU } = await supabase.from('aulas').update({
+                status: 'reposicao',
+                data_original: aula.data,
+                motivo_cancelamento: motivo,
+                data: '2099-12-31',
+                horario: '00:00'
+            }).eq('id', aula.id);
+            if (errU) throw errU;
+            res.json({ success: true, anterior: aula });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Desfaz a decisão da revisão (volta para um dos estados "em aberto")
+    app.post('/api/aulas/:id/restaurar-revisao', requireAdmin, async (req: any, res) => {
+        try {
+            const a = req.body || {};
+            if (!STATUS_AULA_ABERTA.includes(a.status)) return res.status(400).json({ error: 'Status inválido para restaurar.' });
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(a.data || ''))) return res.status(400).json({ error: 'Data inválida para restaurar.' });
+            const { error } = await supabase.from('aulas').update({
+                status: a.status,
+                data: a.data,
+                horario: hhmmss(a.horario) || '00:00:00',
+                data_original: a.data_original || null,
+                motivo_cancelamento: a.motivo_cancelamento || null
+            }).eq('id', req.params.id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // Pacote técnico usado pelos contratos avulsos (os valores/aulas ficam configurados na própria matrícula)
+    const obterPacoteAvulso = async () => {
+        const { data: existente } = await supabase.from('pacotes').select('*').ilike('nome', 'avulso').limit(1).maybeSingle();
+        if (existente) return existente;
+        const { data: criado, error } = await supabase.from('pacotes')
+            .insert([{ nome: 'Avulso', aulas_por_semana: 1, duracao_aula_minutos: 50, valor_mensal: 0, total_aulas: 0, desconto_automatico: 0 }])
+            .select().single();
+        if (error) throw error;
+        return criado;
+    };
+
+    // A matrícula "atual" (ativa de maior id) vai primeiro, pois o front usa matriculas[0]
+    const ordenarMatriculas = (lista: any[] | null | undefined) => {
+        const atual = matriculaAtual(lista);
+        if (!atual) return [];
+        return [atual, ...(lista || []).filter((m: any) => m.id !== atual.id).sort((a: any, b: any) => b.id - a.id)];
+    };
+
     // --- CONTRATOS ---
     const CLAUSULAS_PADRAO_CONTRATO = [
         "REPOSIÇÕES E REAGENDAMENTOS: A reposição de faltas será concedida exclusivamente mediante apresentação de atestado ou receita médica. Fica permitido o reagendamento de aulas no limite de apenas 1 (uma) vez ao mês.",
@@ -385,6 +860,7 @@ async function startServer() {
         parcelasCartao?: string | number | null;
         totalAulas?: string | number | null;
         vigenciaMeses?: string | number | null;
+        observacoes?: string | null;
         autorizaImagem?: boolean | null;
         clausulas?: string[];
         dataAssinatura?: Date;
@@ -442,6 +918,8 @@ async function startServer() {
             pagamentoTxt = `Em contrapartida aos serviços prestados, o(a) CONTRATANTE pagará o valor certo e ajustado de <strong>R$ ${formatBRL(valor)}</strong> por mensalidade, com vencimento todo dia <strong>${diaVencimento}</strong> de cada mês, em <strong>${plural(nParcelas, 'parcela', 'parcelas')}</strong>, totalizando <strong>R$ ${formatBRL(valor * nParcelas)}</strong>.`;
         }
 
+        const obsTxt = String(params.observacoes || '').trim()
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>');
         const ctx = { aVista, vigenciaMeses };
         const clausulasHtml = clausulas.map((c: string, idx: number) => {
             return `<p style="margin-bottom: 10px;"><strong>Cláusula ${idx + 1}ª.</strong> ${adaptarClausula(c, ctx)}</p>`;
@@ -460,7 +938,8 @@ async function startServer() {
     </div>
     <div style="text-align: justify; margin-bottom: 20px;">
         ${clausulasHtml}
-        <p style="margin-bottom: 10px;"><strong>Cláusula ${clausulas.length + 1}ª.</strong> ${pagamentoTxt}</p>
+        <p style="margin-bottom: 10px;"><strong>Cláusula ${clausulas.length + 1}ª.</strong> ${pagamentoTxt}</p>${obsTxt ? `
+        <p style="margin-bottom: 10px;"><strong>Cláusula ${clausulas.length + 2}ª.</strong> OBSERVAÇÕES ESPECÍFICAS DESTE CONTRATO: ${obsTxt}</p>` : ''}
     </div>
     <div style="text-align: justify; margin-bottom: 20px; border: 1px solid black; padding: 10px;">
         <p style="margin: 0 0 6px 0;"><strong>TERMO DE USO DE IMAGEM:</strong> Quanto ao uso da imagem e voz do aluno em fotos e vídeos para fins institucionais e de divulgação da escola, o(a) CONTRATANTE declara que:</p>
@@ -487,22 +966,29 @@ async function startServer() {
     // Monta os dados do contrato a partir do aluno + matrícula (fonte única para geração e sincronização)
     const buildContratoDados = (aluno: any, matricula: any) => {
         const pacote = matricula?.pacotes || null;
+        const avulso = matricula?.tipo_contrato === 'avulso';
         const formaPagamento = matricula?.forma_pagamento || 'mensal';
         const aulasSemana = Number(pacote?.aulas_por_semana) || 1;
+        const intervalo = Number(matricula?.intervalo_dias) || 7;
+        const duracaoMin = Number(matricula?.duracao_aula_minutos) || Number(pacote?.duracao_aula_minutos) || 50;
+        const qtdAulas = avulso
+            ? (intervalo === 7 ? '1 aula por semana' : `1 aula a cada ${intervalo} dias`)
+            : (aulasSemana === 1 ? '1 aula por semana' : `${aulasSemana} aulas por semana`);
         return {
             responsavel: aluno.responsavel_nome || aluno.nome,
             cpf: aluno.responsavel_cpf || aluno.cpf || '',
             endereco: aluno.endereco || '',
             cursoNome: matricula?.cursos?.nome || 'Música',
-            duracaoAula: pacote?.duracao_aula_minutos ? `${pacote.duracao_aula_minutos} minutos` : '50 minutos',
-            qtdAulas: aulasSemana === 1 ? '1 aula por semana' : `${aulasSemana} aulas por semana`,
+            duracaoAula: `${duracaoMin} minutos`,
+            qtdAulas,
             valorPlano: matricula?.valor_parcela || '370',
             diaVencimento: matricula?.dia_vencimento || '10',
             qtdParcelas: matricula?.total_parcelas || '6',
             formaPagamento,
             parcelasCartao: matricula?.parcelas_cartao || null,
             totalAulas: matricula?.aulas_total_contrato || pacote?.total_aulas || null,
-            vigenciaMeses: matricula?.vigencia_meses || null
+            vigenciaMeses: matricula?.vigencia_meses || null,
+            observacoes: matricula?.observacoes_contrato || null
         };
     };
 
@@ -522,6 +1008,7 @@ async function startServer() {
             parcelasCartao: dados.parcelasCartao,
             totalAulas: dados.totalAulas,
             vigenciaMeses: dados.vigenciaMeses,
+            observacoes: dados.observacoes,
             clausulas,
             ...extra
         });
@@ -544,6 +1031,7 @@ async function startServer() {
                 parcelasCartao: b.parcelasCartao,
                 totalAulas: b.totalAulas,
                 vigenciaMeses: b.vigenciaMeses,
+                observacoes: b.observacoes,
                 clausulas: Array.isArray(b.clausulas) && b.clausulas.length > 0 ? b.clausulas : CLAUSULAS_PADRAO_CONTRATO
             });
             res.json({ html });
@@ -1571,6 +2059,7 @@ async function startServer() {
                 .eq('id', req.params.id)
                 .single();
             if (error) throw error;
+            if (data) data.matriculas = ordenarMatriculas(data.matriculas);
             res.json(data);
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
@@ -1579,10 +2068,11 @@ async function startServer() {
         try {
             const alunoId = req.params.id;
             const { quantidade, data_primeira_aula, horario, professor_id, curso_id, sala_id } = req.body;
-            
+            const atualizarMatricula = req.body.atualizar_matricula !== false;
+
             const qtd = Number(quantidade) || 1;
             if (qtd <= 0) return res.status(400).json({ error: 'Quantidade de aulas deve ser maior que zero.' });
-            if (!data_primeira_aula) return res.status(400).json({ error: 'Data da primeira aula é obrigatória.' });
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data_primeira_aula || ''))) return res.status(400).json({ error: 'Data da primeira aula é obrigatória.' });
 
             // Buscar dados e matrícula do aluno
             const { data: aluno, error: errA } = await supabase
@@ -1590,30 +2080,38 @@ async function startServer() {
                 .select('*, matriculas(*)')
                 .eq('id', alunoId)
                 .single();
-                
-            if (errA || !aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
-            
-            const matricula = aluno.matriculas?.[0] || {};
-            const profId = professor_id || matricula.professor_id || 1;
-            const cId = curso_id || matricula.curso_id || 1;
-            const sId = sala_id || matricula.sala_id || null;
-            const hora = horario || matricula.horario || '14:00:00';
-            const matId = matricula.id || null;
 
-            const newAulas = [];
-            const [year, month, day] = data_primeira_aula.split('-').map(Number);
-            
+            if (errA || !aluno) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+            const matricula: any = matriculaAtual(aluno.matriculas) || {};
+
+            // O padrão é a ÚLTIMA aula real do aluno (a matrícula pode estar desatualizada)
+            const { data: ultimaAula } = await supabase.from('aulas')
+                .select('professor_id, curso_id, sala_id, horario')
+                .eq('aluno_id', alunoId)
+                .lt('data', DATA_SEM_AGENDA)
+                .not('status', 'in', '("cancelada")')
+                .order('data', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            const profId = professor_id || ultimaAula?.professor_id || matricula.professor_id;
+            const cId = curso_id || ultimaAula?.curso_id || matricula.curso_id;
+            const sId = sala_id || ultimaAula?.sala_id || matricula.sala_id || null;
+            const hora = hhmmss(horario || ultimaAula?.horario || matricula.horario);
+            const matId = matricula.id || null;
+            if (!profId || !cId || !hora) return res.status(400).json({ error: 'Informe professor, curso e horário da aula.' });
+            const intervalo = Math.min(60, Math.max(1, Number(req.body.intervalo_dias) || Number(matricula.intervalo_dias) || 7));
+
+            const newAulas: any[] = [];
             for (let i = 0; i < qtd; i++) {
-                const targetDate = new Date(Date.UTC(year, month - 1, day + (i * 7)));
-                const dateStr = targetDate.toISOString().split('T')[0];
-                
                 newAulas.push({
                     matricula_id: matId,
                     aluno_id: Number(alunoId),
                     professor_id: Number(profId),
                     curso_id: Number(cId),
                     sala_id: sId ? Number(sId) : null,
-                    data: dateStr,
+                    data: addDiasISO(data_primeira_aula, i * intervalo),
                     horario: hora,
                     status: 'pendente',
                     tipo: 'regular',
@@ -1621,6 +2119,19 @@ async function startServer() {
                     xp_ganho: 50
                 });
             }
+
+            // Aviso (não bloqueia): outro aluno já está no mesmo professor/dia/horário
+            const { data: choques } = await supabase.from('aulas')
+                .select('data, alunos(nome)')
+                .eq('professor_id', Number(profId))
+                .eq('horario', hora)
+                .in('data', newAulas.map(a => a.data))
+                .neq('aluno_id', Number(alunoId))
+                .not('status', 'in', '("cancelada")');
+            const avisos = (choques || []).map((c: any) => {
+                const nomeOutro = (Array.isArray(c.alunos) ? c.alunos[0] : c.alunos)?.nome || 'outro aluno';
+                return `${c.data.split('-').reverse().join('/')} ${hhmm(hora)} já tem aula de ${nomeOutro}`;
+            });
 
             const { data: inserted, error: errIns } = await supabase
                 .from('aulas')
@@ -1631,18 +2142,21 @@ async function startServer() {
 
             // Atualizar matrícula
             if (matId) {
-                const aulasRestantes = (matricula.aulas_restantes || 0) + qtd;
-                const aulasTotal = (matricula.aulas_total_contrato || 0) + qtd;
-                await supabase
-                    .from('matriculas')
-                    .update({ 
-                        aulas_restantes: aulasRestantes,
-                        aulas_total_contrato: aulasTotal
-                    })
-                    .eq('id', matId);
+                const upd: any = {
+                    aulas_restantes: (matricula.aulas_restantes || 0) + qtd,
+                    aulas_total_contrato: (matricula.aulas_total_contrato || 0) + qtd
+                };
+                // Novo horário fixo: a matrícula passa a refletir onde o aluno realmente tem aula
+                if (atualizarMatricula) {
+                    upd.dia_semana = diaDaSemanaISO(data_primeira_aula);
+                    upd.horario = hora;
+                    upd.professor_id = Number(profId);
+                    if (sId) upd.sala_id = Number(sId);
+                }
+                await supabase.from('matriculas').update(upd).eq('id', matId);
             }
 
-            res.json({ success: true, count: inserted.length, aulas: inserted });
+            res.json({ success: true, count: inserted.length, aulas: inserted, avisos, matricula_atualizada: !!(matId && atualizarMatricula) });
         } catch (e: any) {
             console.error('Erro ao adicionar aulas:', e);
             res.status(500).json({ error: e.message });
@@ -1733,21 +2247,17 @@ async function startServer() {
 
                 if (matricula) {
                     const pagamentosToInsert = [];
-                    let currentVencimento = new Date(matricula.data_primeira_parcela || matricula.data_inicio || new Date());
-                    
-                    for (let i = 0; i < (matricula.total_parcelas || 1); i++) {
+                    const totalAuto = (matricula.forma_pagamento && matricula.forma_pagamento !== 'mensal') ? 1 : (matricula.total_parcelas || 1);
+                    for (const v of gerarVencimentos(matricula.data_primeira_parcela || matricula.data_inicio, totalAuto, matricula.dia_vencimento)) {
                         pagamentosToInsert.push({
                             aluno_id: id,
                             matricula_id: matricula.id,
                             valor: matricula.valor_parcela,
-                            data_vencimento: currentVencimento.toISOString().split('T')[0],
+                            data_vencimento: v.data,
                             status: 'pendente',
                             tipo_receita: 'mensalidade',
-                            referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
+                            referencia_mes_ano: v.referencia
                         });
-                        
-                        currentVencimento.setMonth(currentVencimento.getMonth() + 1);
-                        currentVencimento.setDate(matricula.dia_vencimento || 10);
                     }
 
                     if (pagamentosToInsert.length > 0) {
@@ -1869,13 +2379,17 @@ async function startServer() {
         try {
             const { error } = await supabase.from('alunos').update({ status: 'arquivado' }).eq('id', req.params.id);
             if (error) throw error;
-            res.json({ success: true });
+            // Libera horários e remove o aluno das aulas/cobranças futuras (nada é apagado)
+            const resumo = await limparAgendaFinanceiroDeAluno(req.params.id);
+            res.json({ success: true, ...resumo });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
     app.patch('/api/alunos/:id', requireAdmin, async (req, res) => {
         try {
             const studentId = req.params.id;
+            const avisosAgenda: string[] = [];
+            let agendaSync: any = null;
             const { 
                 nome, email, telefone, cpf, endereco, 
                 responsavel_nome, responsavel_cpf, responsavel_telefone, 
@@ -1938,6 +2452,10 @@ async function startServer() {
                     .maybeSingle();
 
                 if (currentMat) {
+                    // Pagamento à vista nunca tem mensalidades: mantém 1 única cobrança
+                    const formaEfetiva = matUpdate.forma_pagamento ?? currentMat.forma_pagamento ?? 'mensal';
+                    if (formaEfetiva !== 'mensal') matUpdate.total_parcelas = 1;
+
                     const { error: matError } = await supabase
                         .from('matriculas')
                         .update(matUpdate)
@@ -1949,49 +2467,30 @@ async function startServer() {
                     }
                     console.log(`[MATRICULA_UPDATE] Sucesso! Matrícula ${currentMat.id} atualizada com:`, matUpdate);
 
-                    const hoje = getDateBR();
                     const diaSemanaChanged = matUpdate.dia_semana !== undefined && Number(matUpdate.dia_semana) !== Number(currentMat.dia_semana);
-                    const horarioChanged = matUpdate.horario !== undefined && matUpdate.horario !== currentMat.horario;
+                    const horarioChanged = matUpdate.horario !== undefined && hhmm(matUpdate.horario) !== hhmm(currentMat.horario);
                     const professorChanged = matUpdate.professor_id !== undefined && Number(matUpdate.professor_id) !== Number(currentMat.professor_id);
 
-                    // Reagendar/Atualizar Aulas Pendentes
-                    if (diaSemanaChanged) {
-                        const { data: aulasFuturas } = await supabase.from('aulas')
-                            .select('id, data')
-                            .eq('aluno_id', studentId)
-                            .eq('status', 'pendente')
-                            .gt('data', hoje)
-                            .order('data', { ascending: true });
-
-                        if (aulasFuturas && aulasFuturas.length > 0) {
-                            let currentNextDay = new Date();
-                            currentNextDay.setHours(12, 0, 0, 0);
-                            currentNextDay.setDate(currentNextDay.getDate() + 1);
-                            while (currentNextDay.getDay() !== Number(matUpdate.dia_semana)) {
-                                currentNextDay.setDate(currentNextDay.getDate() + 1);
-                            }
-
-                            const updatePromises = aulasFuturas.map((af: any) => {
-                                const payload: any = { data: currentNextDay.toISOString().split('T')[0] };
-                                if (matUpdate.horario) payload.horario = matUpdate.horario;
-                                if (matUpdate.professor_id) payload.professor_id = matUpdate.professor_id;
-                                currentNextDay.setDate(currentNextDay.getDate() + 7);
-                                return supabase.from('aulas').update(payload).eq('id', af.id);
-                            });
-                            await Promise.all(updatePromises);
-                            console.log(`[AULAS_UPDATE] ${aulasFuturas.length} aulas reagendadas em paralelo para novo dia da semana.`);
+                    // Reagendar as aulas em aberto (pendente/confirmada/aguardando) conforme o que mudou
+                    if (diaSemanaChanged || horarioChanged || professorChanged) {
+                        const sync = await sincronizarAgendaComMatricula(
+                            studentId,
+                            {
+                                dia_semana: matUpdate.dia_semana ?? currentMat.dia_semana,
+                                horario: matUpdate.horario ?? currentMat.horario,
+                                professor_id: matUpdate.professor_id ?? currentMat.professor_id
+                            },
+                            { mudarDia: diaSemanaChanged, mudarHorario: horarioChanged, mudarProfessor: professorChanged }
+                        );
+                        agendaSync = sync;
+                        if (sync.erros.length) {
+                            console.error('[AULAS_UPDATE_ERRO]', sync.erros);
+                            avisosAgenda.push(`Algumas aulas não puderam ser atualizadas (${sync.erros.length}). Confira a agenda.`);
                         }
-                    } else if (horarioChanged || professorChanged) {
-                        const aulaPayload: any = {};
-                        if (matUpdate.horario) aulaPayload.horario = matUpdate.horario;
-                        if (matUpdate.professor_id) aulaPayload.professor_id = matUpdate.professor_id;
-
-                        await supabase.from('aulas')
-                            .update(aulaPayload)
-                            .eq('aluno_id', studentId)
-                            .eq('status', 'pendente')
-                            .gte('data', hoje);
-                        console.log(`[AULAS_UPDATE] Horário/Professor atualizado em lote para aulas futuras do aluno ${studentId}.`);
+                        if (sync.divergentes.length) {
+                            avisosAgenda.push(`${sync.divergentes.length} aula(s) continuam fora do novo dia/horário. Use "Sincronizar agenda" no perfil do aluno.`);
+                        }
+                        console.log(`[AULAS_UPDATE] ${sync.atualizadas}/${sync.total} aulas em aberto atualizadas para o aluno ${studentId}.`);
                     }
 
                     // Atualizar pagamentos pendentes
@@ -2028,6 +2527,7 @@ async function startServer() {
                             .select('*')
                             .eq('aluno_id', studentId)
                             .eq('tipo_receita', 'mensalidade')
+                            .neq('status', 'cancelado')
                             .order('data_vencimento', { ascending: true });
 
                         if (todasParc && todasParc.length > newTotal) {
@@ -2088,7 +2588,7 @@ async function startServer() {
                 console.error('[CONTRATO_SYNC_ERROR]:', conErr);
             }
 
-            res.json({ success: true });
+            res.json({ success: true, avisos: avisosAgenda, agenda: agendaSync });
         } catch (error: any) {
             console.error('[FATAL_ALUNO_UPDATE]:', error);
             res.status(500).json({ error: error.message, stack: error.stack });
@@ -2287,7 +2787,7 @@ async function startServer() {
             const { count: totalAlunos } = await supabase.from('alunos').select('*', { count: 'exact', head: true }).eq('status', 'ativo');
             
             // Contar aulas regulares + experimentais de hoje
-            const { count: aulasRegHoje } = await supabase.from('aulas').select('*', { count: 'exact', head: true }).eq('data', today);
+            const { count: aulasRegHoje } = await supabase.from('aulas').select('*', { count: 'exact', head: true }).eq('data', today).neq('status', 'cancelada');
             const { count: aulasExpHoje } = await supabase.from('aulas_experimentais').select('*', { count: 'exact', head: true }).eq('data', today);
             const aulasHoje = (aulasRegHoje || 0) + (aulasExpHoje || 0);
 
@@ -2331,7 +2831,7 @@ async function startServer() {
     // Alunos + Matrícula
     app.get('/api/alunos', async (req, res) => {
         const { status } = req.query;
-        let query = supabase.from('alunos').select('*, matriculas(*, cursos(nome)), aulas(status)').order('nome');
+        let query = supabase.from('alunos').select('*, matriculas(*, cursos(nome)), aulas(status, data)').order('nome');
         
         if (status === 'arquivado') {
             query = query.eq('status', 'arquivado');
@@ -2340,9 +2840,11 @@ async function startServer() {
         }
 
         const { data } = await query;
+        const hojeLista = getDateBR();
         const formatted = data?.map((aluno: any) => {
-            const aulasPendentes = aluno.aulas?.filter((a: any) => a.status?.toLowerCase() === 'pendente').length || 0;
-            const alunoFormatado = { ...aluno, aulas_restantes: aulasPendentes };
+            // Aulas restantes = pendentes de hoje em diante (as passadas sem presença ficam na Revisão de aulas)
+            const aulasPendentes = aluno.aulas?.filter((a: any) => a.status?.toLowerCase() === 'pendente' && a.data >= hojeLista && a.data < DATA_SEM_AGENDA).length || 0;
+            const alunoFormatado = { ...aluno, matriculas: ordenarMatriculas(aluno.matriculas), aulas_restantes: aulasPendentes };
             delete alunoFormatado.aulas; // Remover as aulas para não pesar a resposta
             return alunoFormatado;
         });
@@ -2357,6 +2859,14 @@ async function startServer() {
                 data_primeira_parcela, dia_vencimento, valor_parcela 
             } = req.body;
             let { total_parcelas } = req.body;
+
+            // Contrato avulso: totalmente configurável (aulas, intervalo, duração, valores, vigência, observações)
+            const avulso = req.body.tipo_contrato === 'avulso';
+            const totalAulasAvulso = Number(req.body.total_aulas) || 0;
+            const intervaloDias = avulso ? Math.min(60, Math.max(1, Number(req.body.intervalo_dias) || 7)) : 7;
+            if (avulso && totalAulasAvulso < 1) return res.status(400).json({ error: 'Informe a quantidade de aulas do contrato avulso.' });
+            if (avulso && totalAulasAvulso > 300) return res.status(400).json({ error: 'Quantidade de aulas muito alta (máximo 300).' });
+            if (avulso && !(Number(valor_parcela) > 0)) return res.status(400).json({ error: 'Informe o valor do contrato avulso.' });
 
             // Pagamento à vista (cartão de crédito / PIX / dinheiro): uma única cobrança com o valor total.
             // O parcelamento no cartão (ex.: 12x) fica na fatura do aluno, não gera mensalidades na escola.
@@ -2381,7 +2891,8 @@ async function startServer() {
             if (errA) throw errA;
 
             // 2. Buscar Pacote e Calcular Valor com Desconto
-            const { data: pacote } = await supabase.from('pacotes').select('*').eq('id', pacote_id).single();
+            const pacote: any = avulso ? await obterPacoteAvulso() : (await supabase.from('pacotes').select('*').eq('id', pacote_id).single()).data;
+            const pacoteIdFinal = pacote?.id ?? pacote_id;
             let effectiveValorDesconto = (req.body.valor_com_desconto != null && req.body.valor_com_desconto !== '') ? Number(req.body.valor_com_desconto) : null;
             if (effectiveValorDesconto === null) {
                 const descAuto = Number(pacote?.desconto_automatico || 0);
@@ -2399,7 +2910,7 @@ async function startServer() {
                 dia_semana: !isNaN(parsedDiaSemana.getTime()) ? parsedDiaSemana.getDay() : null,
                 horario, 
                 sala_id: sala_id || null, 
-                pacote_id,
+                pacote_id: pacoteIdFinal,
                 data_primeira_parcela: data_primeira_parcela || null,
                 dia_vencimento,
                 valor_parcela,
@@ -2408,7 +2919,11 @@ async function startServer() {
                 forma_pagamento,
                 parcelas_cartao,
                 vigencia_meses,
-                aulas_total_contrato: pacote?.total_aulas || null,
+                aulas_total_contrato: avulso ? totalAulasAvulso : (pacote?.total_aulas || null),
+                tipo_contrato: avulso ? 'avulso' : 'padrao',
+                duracao_aula_minutos: avulso ? (Number(req.body.duracao_aula_minutos) || 50) : null,
+                intervalo_dias: avulso ? intervaloDias : null,
+                observacoes_contrato: avulso ? (String(req.body.observacoes_contrato || '').trim() || null) : null,
                 data_inicio: dia_semana || null
             }]).select().single();
             if (errM) {
@@ -2417,7 +2932,7 @@ async function startServer() {
             }
 
             // 4. Automação de Aulas (Reserva na Agenda)
-            const totalAulas = pacote?.total_aulas || 1;
+            const totalAulas = avulso ? totalAulasAvulso : (pacote?.total_aulas || 1);
             
             const aulasToInsert = [];
             let currentAulaDate = new Date(dia_semana || new Date());
@@ -2440,8 +2955,8 @@ async function startServer() {
                     status: 'pendente',
                     tipo: 'regular'
                 });
-                // Próxima semana
-                currentAulaDate.setDate(currentAulaDate.getDate() + 7);
+                // Próxima aula (semanal por padrão; no contrato avulso o intervalo é configurável)
+                currentAulaDate.setDate(currentAulaDate.getDate() + intervaloDias);
             }
             if (aulasToInsert.length > 0) {
                 const { error: errAulas } = await supabase.from('aulas').insert(aulasToInsert);
@@ -2454,16 +2969,13 @@ async function startServer() {
 
             // 5. Geração de Pagamentos (Parcelas)
             const pagamentosToInsert = [];
-            let currentVencimento = new Date(data_primeira_parcela || new Date());
-            if (isNaN(currentVencimento.getTime())) currentVencimento = new Date();
-
-            for (let i = 0; i < (total_parcelas || 1); i++) {
+            for (const v of gerarVencimentos(data_primeira_parcela, total_parcelas || 1, dia_vencimento)) {
                 pagamentosToInsert.push({
                     aluno_id: aluno.id,
                     matricula_id: matricula.id,
                     valor: valor_parcela,
                     valor_com_desconto: effectiveValorDesconto,
-                    data_vencimento: currentVencimento.toISOString().split('T')[0],
+                    data_vencimento: v.data,
                     status: 'pendente',
                     tipo_receita: 'mensalidade',
                     ...(aVista ? {
@@ -2471,15 +2983,8 @@ async function startServer() {
                             ? `Pagamento à vista no cartão de crédito${parcelas_cartao && parcelas_cartao > 1 ? ` (${parcelas_cartao}x na fatura do cartão)` : ''}`
                             : `Pagamento à vista via ${forma_pagamento === 'pix' ? 'PIX' : 'dinheiro'}`
                     } : {}),
-                    referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
+                    referencia_mes_ano: v.referencia
                 });
-                
-                // Próximo mês
-                currentVencimento.setMonth(currentVencimento.getMonth() + 1);
-                // Ajustar para o dia de vencimento escolhido (caso o mês tenha menos dias, o JS cuida disso ou vira o mês)
-                if (dia_vencimento) {
-                    currentVencimento.setDate(parseInt(dia_vencimento, 10) || 10);
-                }
             }
             if (pagamentosToInsert.length > 0) {
                 const { error: errPagamentos } = await supabase.from('pagamentos').insert(pagamentosToInsert);
@@ -3173,6 +3678,7 @@ async function startServer() {
             
             let filteredData = data?.filter((p: any) => {
                 if (p.aluno && p.aluno.status === 'arquivado') return false;
+                if (p.status === 'cancelado') return false; // cobranças canceladas não entram em listas nem somas
                 return true;
             }) || [];
 
@@ -3338,14 +3844,14 @@ async function startServer() {
             if (numParcelas > 1) {
                 // Gerar múltiplas faturas (uma por mês)
                 const faturas = [];
-                let currentDate = new Date(data_vencimento + 'T12:00:00');
+                const vencimentosDesp = gerarVencimentos(data_vencimento, numParcelas);
                 
                 for (let i = 1; i <= numParcelas; i++) {
                     const descSuffix = categoria === 'fixa' ? '' : ` (${i}/${numParcelas})`;
                     faturas.push({
                         descricao: `${descricao}${descSuffix}`,
                         valor: Number(valor),
-                        data_vencimento: currentDate.toISOString().split('T')[0],
+                        data_vencimento: vencimentosDesp[i - 1].data,
                         categoria,
                         tipo_recorrencia: categoria === 'fixa' ? 'mensal' : 'unica',
                         parcela_atual: categoria === 'fixa' ? null : i,
@@ -3353,7 +3859,6 @@ async function startServer() {
                         professor_id: professor_id || null,
                         status: 'pendente'
                     });
-                    currentDate.setMonth(currentDate.getMonth() + 1);
                 }
                 
                 const { data, error } = await supabase.from('despesas').insert(faturas).select();
@@ -3485,6 +3990,7 @@ async function startServer() {
             
             const pags = rawPags?.filter((p: any) => {
                 if (p.aluno && p.aluno.status === 'arquivado') return false;
+                if (p.status === 'cancelado') return false; // cobranças canceladas não entram nas somas
                 return true;
             });
 
@@ -4011,20 +4517,17 @@ async function startServer() {
             if (!matricula) throw new Error('Nenhuma matrícula ativa encontrada');
 
             const pagamentosToInsert = [];
-            let currentVencimento = new Date(matricula.data_primeira_parcela || matricula.data_inicio);
-
-            for (let i = 0; i < (matricula.total_parcelas || 1); i++) {
+            const totalGerar = (matricula.forma_pagamento && matricula.forma_pagamento !== 'mensal') ? 1 : (matricula.total_parcelas || 1);
+            for (const v of gerarVencimentos(matricula.data_primeira_parcela || matricula.data_inicio, totalGerar, matricula.dia_vencimento)) {
                 pagamentosToInsert.push({
                     aluno_id: id,
                     matricula_id: matricula.id,
                     valor: matricula.valor_parcela,
-                    data_vencimento: currentVencimento.toISOString().split('T')[0],
+                    data_vencimento: v.data,
                     status: 'pendente',
                     tipo_receita: 'mensalidade',
-                    referencia_mes_ano: `${(currentVencimento.getMonth() + 1).toString().padStart(2, '0')}/${currentVencimento.getFullYear()}`
+                    referencia_mes_ano: v.referencia
                 });
-                currentVencimento.setMonth(currentVencimento.getMonth() + 1);
-                currentVencimento.setDate(matricula.dia_vencimento || 10);
             }
             await supabase.from('pagamentos').insert(pagamentosToInsert);
             res.json({ success: true });

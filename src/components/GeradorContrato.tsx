@@ -50,8 +50,11 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   const [qtdParcelas, setQtdParcelas] = useState(matricula?.total_parcelas?.toString() || "6");
   const [diaVencimento, setDiaVencimento] = useState(matricula?.dia_vencimento?.toString() || "10");
   const [cursoNome, setCursoNome] = useState(matricula?.cursos?.nome || "Música");
-  const [duracaoAula, setDuracaoAula] = useState(matricula?.pacotes?.duracao_aula_minutos ? `${matricula.pacotes.duracao_aula_minutos} minutos` : "50 minutos");
-  const [qtdAulas, setQtdAulas] = useState("1 aula por semana");
+  const duracaoInicial = (m: any) => `${m?.duracao_aula_minutos || m?.pacotes?.duracao_aula_minutos || 50} minutos`;
+  const qtdAulasInicial = (m: any) => m?.tipo_contrato === 'avulso' && Number(m?.intervalo_dias) > 0 && Number(m.intervalo_dias) !== 7 ? `1 aula a cada ${m.intervalo_dias} dias` : '1 aula por semana';
+  const [duracaoAula, setDuracaoAula] = useState(duracaoInicial(matricula));
+  const [qtdAulas, setQtdAulas] = useState(qtdAulasInicial(matricula));
+  const [observacoes, setObservacoes] = useState<string>(matricula?.observacoes_contrato || "");
   const [formaPagamento, setFormaPagamento] = useState<string>(matricula?.forma_pagamento || "mensal");
   const [parcelasCartao, setParcelasCartao] = useState(matricula?.parcelas_cartao?.toString() || "12");
   const [vigenciaMeses, setVigenciaMeses] = useState(matricula?.vigencia_meses?.toString() || (matricula?.forma_pagamento && matricula.forma_pagamento !== 'mensal' ? "12" : (matricula?.total_parcelas?.toString() || "6")));
@@ -81,6 +84,9 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
       setQtdParcelas(matricula?.total_parcelas?.toString() || "6");
       setDiaVencimento(matricula?.dia_vencimento?.toString() || "10");
       setCursoNome(matricula?.cursos?.nome || "Música");
+      setDuracaoAula(duracaoInicial(matricula));
+      setQtdAulas(qtdAulasInicial(matricula));
+      setObservacoes(matricula?.observacoes_contrato || "");
       setFormaPagamento(matricula?.forma_pagamento || "mensal");
       setParcelasCartao(matricula?.parcelas_cartao?.toString() || "12");
       setVigenciaMeses(matricula?.vigencia_meses?.toString() || (matricula?.forma_pagamento && matricula.forma_pagamento !== 'mensal' ? "12" : (matricula?.total_parcelas?.toString() || "6")));
@@ -111,6 +117,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
         parcelasCartao,
         totalAulas,
         vigenciaMeses,
+        observacoes,
         clausulas: clausulas.length > 0 ? clausulas : CLAUSULAS_FALLBACK
       })
     });
@@ -133,7 +140,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [clausulas, novoResponsavel, novoCpf, novoEndereco, cursoNome, duracaoAula, qtdAulas, valorPlano, diaVencimento, qtdParcelas, formaPagamento, parcelasCartao, totalAulas, vigenciaMeses]);
+  }, [clausulas, novoResponsavel, novoCpf, novoEndereco, cursoNome, duracaoAula, qtdAulas, valorPlano, diaVencimento, qtdParcelas, formaPagamento, parcelasCartao, totalAulas, vigenciaMeses, observacoes]);
 
   // Garante o texto atualizado antes de imprimir/visualizar/enviar
   const ensurePreview = async (): Promise<string | null> => {
@@ -234,7 +241,8 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
       formaPagamento,
       parcelasCartao: formaPagamento === 'cartao_credito' ? parcelasCartao : null,
       totalAulas,
-      vigenciaMeses
+      vigenciaMeses,
+      observacoes
     };
 
     try {
@@ -375,6 +383,10 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
                     <option value="pix">À vista – PIX</option>
                     <option value="dinheiro">À vista – Dinheiro</option>
                   </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-[#8e7164] uppercase block mb-1">Observações específicas (entram no contrato)</label>
+                  <textarea rows={3} value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="Ex.: Aulas combinadas às quintas, 18h." className="w-full px-2 py-1.5 bg-white border-2 border-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                 </div>
                 {aVista ? (
                 <div className="flex gap-2">

@@ -330,6 +330,69 @@ function FinanceiroTab({ financeiro, alunoId, aluno, onRefresh, total_parcelas, 
   const [baixaMetodo, setBaixaMetodo] = useState('pix');
   const [valorFinal, setValorFinal] = useState(0);
 
+  // Pagamento à vista: cancela as mensalidades não pagas e registra uma única cobrança
+  const [vistaModal, setVistaModal] = useState(false);
+  const [vistaForm, setVistaForm] = useState({ forma_pagamento: 'cartao_credito', valor_total: '', parcelas_cartao: '12', data_pagamento: format(new Date(), 'yyyy-MM-dd'), registrar_pagamento: true });
+
+  const handlePagoAVista = async () => {
+    if (vistaForm.registrar_pagamento && !(Number(vistaForm.valor_total) > 0)) return toast.error('Informe o valor total pago.');
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/alunos/${alunoId}/pagamento-a-vista`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ...vistaForm, valor_total: Number(vistaForm.valor_total), parcelas_cartao: Number(vistaForm.parcelas_cartao) })
+      });
+      const resp = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resp.error || 'Erro ao registrar pagamento à vista');
+      setVistaModal(false);
+      onRefresh();
+      toast.success(`Pago à vista registrado. ${resp.mensalidades_canceladas || 0} mensalidade(s) pendente(s) cancelada(s).`);
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao registrar pagamento à vista');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Adicionar mensalidade(s) (ex.: contrato avulso mês a mês)
+  const [mensModal, setMensModal] = useState(false);
+  const [mensForm, setMensForm] = useState({ quantidade: '1', primeira_data: '', valor: '' });
+
+  const abrirAdicionarMensalidade = () => {
+    const m = aluno?.matriculas?.[0];
+    const ultimas = financeiro.filter(f => f.status !== 'cancelado' && f.data_vencimento).map(f => f.data_vencimento as string).sort();
+    const base = ultimas.length ? new Date(ultimas[ultimas.length - 1] + 'T12:00:00') : new Date();
+    const dia = Number(m?.dia_vencimento) || base.getDate();
+    const prox = new Date(base.getFullYear(), base.getMonth() + 1, 1, 12);
+    prox.setDate(Math.min(dia, new Date(prox.getFullYear(), prox.getMonth() + 1, 0).getDate()));
+    setMensForm({ quantidade: '1', primeira_data: format(prox, 'yyyy-MM-dd'), valor: String(m?.valor_parcela || '') });
+    setMensModal(true);
+  };
+
+  const handleAdicionarMensalidade = async () => {
+    if (!mensForm.primeira_data) return toast.error('Informe o vencimento.');
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/alunos/${alunoId}/adicionar-mensalidades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ quantidade: Number(mensForm.quantidade), primeira_data: mensForm.primeira_data, valor: Number(mensForm.valor) })
+      });
+      const resp = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resp.error || 'Erro ao adicionar mensalidade');
+      setMensModal(false);
+      onRefresh();
+      toast.success(`${resp.criadas} mensalidade(s) criada(s): ${(resp.referencias || []).join(', ')}.`);
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao adicionar mensalidade');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Mural da Vergonha
   const [muralModalOpen, setMuralModalOpen] = useState(false);
   const [muralInput, setMuralInput] = useState({ valor_divida: '', tipo_divida: '' });
@@ -400,13 +463,85 @@ function FinanceiroTab({ financeiro, alunoId, aluno, onRefresh, total_parcelas, 
     toast.success('Data de vencimento atualizada!');
   };
 
-  const pendentes = financeiro.filter(f => f.status !== 'pago').sort((a, b) => new Date((a.data_vencimento || '2099-12-31') + 'T12:00:00').getTime() - new Date((b.data_vencimento || '2099-12-31') + 'T12:00:00').getTime());
+  const pendentes = financeiro.filter(f => f.status !== 'pago' && f.status !== 'cancelado').sort((a, b) => new Date((a.data_vencimento || '2099-12-31') + 'T12:00:00').getTime() - new Date((b.data_vencimento || '2099-12-31') + 'T12:00:00').getTime());
   const pagos = financeiro.filter(f => f.status === 'pago').sort((a, b) => new Date((b.data_vencimento || '2099-12-31') + 'T12:00:00').getTime() - new Date((a.data_vencimento || '2099-12-31') + 'T12:00:00').getTime());
   const sorted = [...pendentes, ...pagos];
 
   return (
     <div className="space-y-6">
-      <FinanceiroTracker financeiro={financeiro} total={total_parcelas || financeiro.length} />
+      {mensModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between border-b-2 border-black pb-3">
+              <h2 className="text-lg font-black text-black uppercase italic">ADICIONAR MENSALIDADE</h2>
+              <button onClick={() => setMensModal(false)}><X className="w-6 h-6" /></button>
+            </div>
+            <p className="text-[11px] font-bold text-[#8e7164] uppercase">Cria a cobrança no financeiro (previsibilidade). Se informar mais de uma, as seguintes vencem nos meses seguintes, sem pular mês.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black text-black uppercase block mb-1">Vencimento da 1ª</label>
+                <input type="date" value={mensForm.primeira_data} onChange={e => setMensForm({ ...mensForm, primeira_data: e.target.value })} className="w-full bg-white border-4 border-black p-3 text-sm outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-black uppercase block mb-1">Valor (R$)</label>
+                <input type="number" value={mensForm.valor} onChange={e => setMensForm({ ...mensForm, valor: e.target.value })} className="w-full bg-white border-4 border-black p-3 text-sm outline-none" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-black uppercase block mb-1">Quantidade de mensalidades</label>
+              <input type="number" min={1} max={24} value={mensForm.quantidade} onChange={e => setMensForm({ ...mensForm, quantidade: e.target.value })} className="w-full bg-white border-4 border-black p-3 text-sm outline-none" />
+            </div>
+            <Button onClick={handleAdicionarMensalidade} disabled={saving} className="w-full">
+              {saving ? 'SALVANDO...' : 'CRIAR MENSALIDADE'}
+            </Button>
+          </Card>
+        </div>
+      )}
+      {vistaModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b-2 border-black pb-3">
+              <h2 className="text-lg font-black text-black uppercase italic">PAGO À VISTA</h2>
+              <button onClick={() => setVistaModal(false)}><X className="w-6 h-6" /></button>
+            </div>
+            <p className="text-[11px] font-bold text-[#8e7164] uppercase">As mensalidades ainda não pagas serão canceladas e este aluno passa a ter uma única cobrança (o valor total). As já pagas continuam como estão.</p>
+            <div>
+              <label className="text-[10px] font-black text-black uppercase block mb-1">Forma de pagamento</label>
+              <select value={vistaForm.forma_pagamento} onChange={e => setVistaForm({ ...vistaForm, forma_pagamento: e.target.value })} className="w-full bg-white border-4 border-black p-3 text-sm outline-none">
+                <option value="cartao_credito">Cartão de crédito (parcelado na fatura)</option>
+                <option value="pix">PIX</option>
+                <option value="dinheiro">Dinheiro</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-[11px] font-black uppercase text-black">
+              <input type="checkbox" checked={vistaForm.registrar_pagamento} onChange={e => setVistaForm({ ...vistaForm, registrar_pagamento: e.target.checked })} className="w-4 h-4" />
+              Registrar também o pagamento total (como pago)
+            </label>
+            {vistaForm.registrar_pagamento && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black text-black uppercase block mb-1">Valor total (R$)</label>
+                  <input type="number" value={vistaForm.valor_total} onChange={e => setVistaForm({ ...vistaForm, valor_total: e.target.value })} className="w-full bg-white border-4 border-black p-3 text-sm outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-black uppercase block mb-1">Data do pagamento</label>
+                  <input type="date" value={vistaForm.data_pagamento} onChange={e => setVistaForm({ ...vistaForm, data_pagamento: e.target.value })} className="w-full bg-white border-4 border-black p-3 text-sm outline-none" />
+                </div>
+              </div>
+            )}
+            {vistaForm.forma_pagamento === 'cartao_credito' && (
+              <div>
+                <label className="text-[10px] font-black text-black uppercase block mb-1">Parcelas no cartão</label>
+                <input type="number" min={1} max={24} value={vistaForm.parcelas_cartao} onChange={e => setVistaForm({ ...vistaForm, parcelas_cartao: e.target.value })} className="w-full bg-white border-4 border-black p-3 text-sm outline-none" />
+              </div>
+            )}
+            <Button onClick={handlePagoAVista} disabled={saving} className="w-full">
+              {saving ? 'SALVANDO...' : 'CONFIRMAR PAGAMENTO À VISTA'}
+            </Button>
+          </Card>
+        </div>
+      )}
+      <FinanceiroTracker financeiro={financeiro.filter(f => f.status !== 'cancelado')} total={total_parcelas || financeiro.filter(f => f.status !== 'cancelado').length} />
       
       <Card className="overflow-hidden p-0">
         <div className="p-4 border-b-4 border-black bg-black flex flex-col md:flex-row items-center justify-between gap-4">
@@ -414,12 +549,26 @@ function FinanceiroTab({ financeiro, alunoId, aluno, onRefresh, total_parcelas, 
             <h3 className="font-black text-white uppercase text-[10px] tracking-widest">Extrato de Faturas</h3>
             <Badge color="bege">{pendentes.length} PENDENTES</Badge>
           </div>
-          <button 
-            onClick={() => onOpenRemanejar()}
-            className="bg-[#ff6b00] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-white shadow-[2px_2px_0_#fff] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
-          >
-            Remanejar Pagamentos Pendentes
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={abrirAdicionarMensalidade}
+              className="bg-white text-black px-4 py-2 text-[10px] font-black uppercase border-2 border-white shadow-[2px_2px_0_#fff] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+            >
+              + Adicionar mensalidade
+            </button>
+            <button
+              onClick={() => { setVistaForm(f => ({ ...f, valor_total: String(aluno?.matriculas?.[0]?.valor_parcela || '') })); setVistaModal(true); }}
+              className="bg-[#22c55e] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-white shadow-[2px_2px_0_#fff] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+            >
+              Pago à vista (sem mensalidades)
+            </button>
+            <button 
+              onClick={() => onOpenRemanejar()}
+              className="bg-[#ff6b00] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-white shadow-[2px_2px_0_#fff] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+            >
+              Remanejar Pagamentos Pendentes
+            </button>
+          </div>
         </div>
         
         <div className="overflow-x-auto">
@@ -605,16 +754,18 @@ export default function AlunoPerfil() {
     setSaving(true);
     try {
         const token = localStorage.getItem('acorde_token');
-        await fetch(`/api/alunos/${id}/remanejar-pagamentos`, {
+        const res = await fetch(`/api/alunos/${id}/remanejar-pagamentos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ nova_data_inicio: novaDataInicio })
         });
+        const resp = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(resp.error || 'Erro ao remanejar pagamentos');
         setRemanejarModal(false);
-        fetchData();
-        toast.success('Pagamentos remanejados com sucesso!');
-    } catch (e) {
-        toast.error('Erro ao remanejar');
+        await fetchData();
+        toast.success(resp.atualizados ? `${resp.atualizados} parcela(s) remanejada(s): de ${resp.primeira.split('-').reverse().join('/')} até ${resp.ultima.split('-').reverse().join('/')}` : (resp.message || 'Nada para remanejar.'));
+    } catch (e: any) {
+        toast.error(e?.message || 'Erro ao remanejar');
     } finally {
         setSaving(false);
     }
@@ -628,8 +779,36 @@ export default function AlunoPerfil() {
     data_primeira_aula: format(new Date(), 'yyyy-MM-dd'),
     horario: '',
     professor_id: '',
-    curso_id: ''
+    curso_id: '',
+    atualizar_matricula: true
   });
+
+  // Abre o modal já preenchido com a ÚLTIMA aula real do aluno (a matrícula pode estar desatualizada)
+  const abrirAdicionarAulas = () => {
+    const reais = agenda
+      .filter((a: any) => a.status !== 'cancelada' && (a.data || '2099-12-31') < '2099-01-01')
+      .sort((a: any, b: any) => String(a.data).localeCompare(String(b.data)));
+    const ultima: any = reais[reais.length - 1];
+    const m = aluno?.matriculas?.[0];
+    let inicio = new Date();
+    inicio.setHours(12, 0, 0, 0);
+    if (ultima?.data) {
+      const d = new Date(ultima.data + 'T12:00:00');
+      d.setDate(d.getDate() + 7);
+      const hojeMeioDia = new Date(); hojeMeioDia.setHours(12, 0, 0, 0);
+      while (d < hojeMeioDia) d.setDate(d.getDate() + 7);
+      inicio = d;
+    }
+    setAddAulasForm({
+      quantidade: 4,
+      data_primeira_aula: format(inicio, 'yyyy-MM-dd'),
+      horario: String(ultima?.horario || m?.horario || '').slice(0, 5),
+      professor_id: String(ultima?.professor_id || m?.professor_id || professores[0]?.id || ''),
+      curso_id: String(ultima?.curso_id || m?.curso_id || cursos[0]?.id || ''),
+      atualizar_matricula: true
+    });
+    setAdicionarAulasModal(true);
+  };
 
   const handleAdicionarAulas = async () => {
     if (!addAulasForm.data_primeira_aula) {
@@ -639,23 +818,20 @@ export default function AlunoPerfil() {
     if (!qtd || qtd <= 0) {
       return toast.error('Informe uma quantidade válida de aulas');
     }
+    if (!addAulasForm.horario) return toast.error('Informe o horário da aula');
+    if (!addAulasForm.professor_id) return toast.error('Escolha o professor');
     setSaving(true);
     try {
       const token = localStorage.getItem('acorde_token');
       const res = await fetch(`/api/alunos/${id}/adicionar-aulas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          ...addAulasForm,
-          quantidade: qtd,
-          horario: addAulasForm.horario || aluno?.matriculas?.[0]?.horario || '14:00:00',
-          professor_id: addAulasForm.professor_id || aluno?.matriculas?.[0]?.professor_id || 1,
-          curso_id: addAulasForm.curso_id || aluno?.matriculas?.[0]?.curso_id || 1
-        })
+        body: JSON.stringify({ ...addAulasForm, quantidade: qtd })
       });
       if (res.ok) {
         const data = await res.json();
-        toast.success(`🎉 ${data.count} aulas adicionadas com sucesso na agenda!`);
+        toast.success(`🎉 ${data.count} aulas adicionadas${data.matricula_atualizada ? ' e horário fixo do aluno atualizado' : ''}!`);
+        (data.avisos || []).forEach((a: string) => toast.warning(`Conflito de horário: ${a}`, { duration: 12000 }));
         setAdicionarAulasModal(false);
         await fetchData();
       } else {
@@ -674,16 +850,18 @@ export default function AlunoPerfil() {
     setSaving(true);
     try {
         const token = localStorage.getItem('acorde_token');
-        await fetch(`/api/alunos/${id}/remanejar-aulas`, {
+        const res = await fetch(`/api/alunos/${id}/remanejar-aulas`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ nova_data_inicio: novaDataAulas })
         });
+        const resp = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(resp.error || 'Erro ao remanejar aulas');
         setRemanejarAulasModal(false);
-        fetchData();
-        toast.success('Aulas remanejadas com sucesso!');
-    } catch (e) {
-        toast.error('Erro ao remanejar');
+        await fetchData();
+        toast.success(resp.atualizadas ? `${resp.atualizadas} aula(s) remanejada(s).` : (resp.message || 'Nada para remanejar.'));
+    } catch (e: any) {
+        toast.error(e?.message || 'Erro ao remanejar');
     } finally {
         setSaving(false);
     }
@@ -785,8 +963,10 @@ export default function AlunoPerfil() {
       });
 
       if (res.ok) {
+        const resp = await res.json().catch(() => ({}));
         setIsEditModalOpen(false);
         toast.success('Perfil e agenda atualizados com sucesso!');
+        (resp.avisos || []).forEach((a: string) => toast.warning(a, { duration: 10000 }));
         await fetchData();
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -797,6 +977,52 @@ export default function AlunoPerfil() {
       toast.error('Erro de conexão ao salvar alterações.');
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  const DIAS_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
+
+  // Compara a matrícula com a próxima aula em aberto; se não bater, o sistema avisa (e deixa corrigir)
+  const divergenciaAgenda = (() => {
+    const m = aluno?.matriculas?.[0];
+    if (!m || m.status !== 'ativa') return null;
+    const hoje = format(new Date(), 'yyyy-MM-dd');
+    const futuras = agenda
+      .filter((a: any) => ['pendente', 'confirmada', 'aguardando_confirmacao'].includes(a.status) && a.data >= hoje && a.data < '2099-01-01' && !a.data_original)
+      .sort((a: any, b: any) => String(a.data).localeCompare(String(b.data)));
+    const prox: any = futuras[0];
+    if (!prox) return null;
+    const dow = new Date(prox.data + 'T12:00:00').getDay();
+    const mesmoDia = dow === Number(m.dia_semana);
+    const mesmaHora = String(prox.horario).slice(0, 5) === String(m.horario).slice(0, 5);
+    const mesmoProf = !m.professor_id || Number(prox.professor_id) === Number(m.professor_id);
+    if (mesmoDia && mesmaHora && mesmoProf) return null;
+    const nomeProf = (pid: any) => (professores.find((p: any) => Number(p.id) === Number(pid))?.nome || `professor ${pid}`).split(' ')[0];
+    return {
+      matricula: `${DIAS_SEMANA[Number(m.dia_semana)] ?? '?'} ${String(m.horario).slice(0, 5)}${mesmoProf ? '' : ` com ${nomeProf(m.professor_id)}`}`,
+      aulas: `${DIAS_SEMANA[dow]} ${String(prox.horario).slice(0, 5)}${mesmoProf ? '' : ` com ${nomeProf(prox.professor_id)}`}`
+    };
+  })();
+
+  const sincronizarAgenda = async (modo: 'aulas_para_matricula' | 'matricula_para_aulas') => {
+    if (modo === 'matricula_para_aulas' && !window.confirm('Mover TODAS as aulas futuras em aberto para o dia/horário/professor da matrícula?')) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('acorde_token');
+      const res = await fetch(`/api/alunos/${id}/sincronizar-agenda`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ modo })
+      });
+      const resp = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resp.error || 'Erro ao sincronizar');
+      toast.success(modo === 'aulas_para_matricula' ? 'Matrícula atualizada para o horário real das aulas.' : `${resp.atualizadas || 0} aula(s) movida(s) para o horário da matrícula.`);
+      if (resp.divergentes?.length) toast.warning(`${resp.divergentes.length} aula(s) não puderam ser ajustadas.`);
+      await fetchData();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao sincronizar a agenda');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1124,20 +1350,30 @@ export default function AlunoPerfil() {
 
           {activeTab === 'agenda' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              {divergenciaAgenda && (
+                <div className="bg-amber-100 border-4 border-black p-4 shadow-[4px_4px_0_#000] space-y-3">
+                  <p className="text-sm font-black text-black uppercase">⚠ Horário da matrícula diferente das aulas</p>
+                  <p className="text-xs font-bold text-black">
+                    A matrícula diz <span className="underline">{divergenciaAgenda.matricula}</span>, mas a próxima aula está em <span className="underline">{divergenciaAgenda.aulas}</span>.
+                    Escolha qual está certo:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button disabled={saving} onClick={() => sincronizarAgenda('aulas_para_matricula')}
+                      className="bg-[#22c55e] text-white px-3 py-2 text-[10px] font-black uppercase border-2 border-black shadow-[2px_2px_0_#000] disabled:opacity-50">
+                      As aulas estão certas: atualizar a matrícula
+                    </button>
+                    <button disabled={saving} onClick={() => sincronizarAgenda('matricula_para_aulas')}
+                      className="bg-[#ff6b00] text-white px-3 py-2 text-[10px] font-black uppercase border-2 border-black shadow-[2px_2px_0_#000] disabled:opacity-50">
+                      A matrícula está certa: mover as aulas
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-4">
                 <h2 className="text-xl font-black text-black uppercase italic">Aulas do Aluno</h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <button 
-                    onClick={() => {
-                      setAddAulasForm({
-                        quantidade: 4,
-                        data_primeira_aula: format(new Date(), 'yyyy-MM-dd'),
-                        horario: aluno?.matriculas?.[0]?.horario || '14:00:00',
-                        professor_id: aluno?.matriculas?.[0]?.professor_id || (professores[0]?.id || 1),
-                        curso_id: aluno?.matriculas?.[0]?.curso_id || (cursos[0]?.id || 1)
-                      });
-                      setAdicionarAulasModal(true);
-                    }}
+                    onClick={abrirAdicionarAulas}
                     className="bg-[#22c55e] text-white px-4 py-2 text-[10px] font-black uppercase border-2 border-black shadow-[2px_2px_0_#000] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" /> + Adicionar Aulas
@@ -1777,6 +2013,19 @@ export default function AlunoPerfil() {
                     ))}
                   </select>
                 </div>
+
+                <label className="flex items-start gap-2 bg-white border-2 border-black p-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={addAulasForm.atualizar_matricula}
+                    onChange={e => setAddAulasForm({ ...addAulasForm, atualizar_matricula: e.target.checked })}
+                    className="mt-1 w-4 h-4"
+                  />
+                  <span className="text-[10px] font-black uppercase text-black leading-snug">
+                    Este é o horário fixo do aluno: atualizar dia, horário e professor na matrícula
+                    <span className="block text-[9px] text-[#8e7164] normal-case font-bold mt-1">Desmarque só se for uma aula avulsa em outro dia (a matrícula continua como está).</span>
+                  </span>
+                </label>
 
                 {/* Preview das Datas Geradas */}
                 {addAulasForm.data_primeira_aula && Number(addAulasForm.quantidade) > 0 && (
