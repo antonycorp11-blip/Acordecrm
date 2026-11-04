@@ -39,7 +39,7 @@ import { ChordVisualizer } from '../components/musiclass/ChordVisualizers';
 // --- STITCH COMPONENTS ---
 
 const Card = ({ children, className = "", ...props }: { children: React.ReactNode, className?: string } & React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={`bg-[#fff8f6] border-4 border-black shadow-[4px_4px_0_#000] p-6 ${className}`} {...props}>
+  <div className={`bg-[#fff8f6] text-black border-4 border-black shadow-[4px_4px_0_#000] p-6 ${className}`} {...props}>
     {children}
   </div>
 );
@@ -1340,7 +1340,7 @@ export default function AlunoPerfil() {
                     ) : (
                       <div className="bg-[#ffeb3b]/10 border-4 border-[#ffeb3b] p-4 text-left shadow-[4px_4px_0_#000] space-y-2">
                         <span className="text-[10px] font-black text-[#b49e00] uppercase tracking-widest block border-b border-[#ffeb3b]/30 pb-2">⚠️ CONTRATO_PENDENTE</span>
-                        <p className="text-[10px] font-bold text-black uppercase leading-tight">O aluno ainda não assinou o contrato eletrônico pelo portal.</p>
+                        <p className="text-[10px] font-bold text-white uppercase leading-tight">O aluno ainda não assinou o contrato eletrônico pelo portal.</p>
                       </div>
                     );
                   })()}
@@ -1370,7 +1370,7 @@ export default function AlunoPerfil() {
                 </div>
               )}
               <div className="flex justify-between items-center border-b-4 border-black pb-4 mb-4">
-                <h2 className="text-xl font-black text-black uppercase italic">Aulas do Aluno</h2>
+                <h2 className="text-xl font-black text-white uppercase italic">Aulas do Aluno</h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <button 
                     onClick={abrirAdicionarAulas}
@@ -1407,7 +1407,7 @@ export default function AlunoPerfil() {
                      if (sortedMonths.length === 0) {
                        return (
                          <div className="text-center py-10 opacity-50">
-                           <p className="font-black text-black uppercase italic">Nenhuma aula registrada</p>
+                           <p className="font-black text-white uppercase italic">Nenhuma aula registrada</p>
                          </div>
                        );
                      }

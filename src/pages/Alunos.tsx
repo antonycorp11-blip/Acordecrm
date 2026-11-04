@@ -114,7 +114,7 @@ export default function Alunos() {
               <input 
                 type="text" 
                 placeholder="BUSCAR POR NOME OU E-MAIL..."
-                className="w-full pl-10 pr-4 py-3 bg-white border-4 border-black rounded font-black text-xs uppercase placeholder:text-[#7b5647]/50 focus:outline-none focus:bg-[#fff8f6] transition-all"
+                className="w-full pl-10 pr-4 py-3 bg-white text-black border-4 border-black rounded font-black text-xs uppercase placeholder:text-[#7b5647]/50 focus:outline-none focus:bg-[#fff8f6] transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -243,7 +243,7 @@ export default function Alunos() {
                                 }).then(() => fetchAlunos());
                               }
                             }}
-                            className="bg-white p-2 border-2 border-black rounded shadow-[2px_2px_0_#000] hover:bg-red-500 hover:text-white transition-all"
+                            className="bg-white text-black p-2 border-2 border-black rounded shadow-[2px_2px_0_#000] hover:bg-red-500 hover:text-white transition-all"
                             title="Arquivar"
                           >
                             <Trash2 className="w-4 h-4" />

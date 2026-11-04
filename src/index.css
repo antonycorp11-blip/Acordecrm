@@ -246,3 +246,22 @@ input::placeholder, textarea::placeholder {
   font-weight: 500;
   opacity: 0.55;
 }
+
+/* Garantia de contraste (complementa src/utils/campoLegivel.ts):
+   campo com fundo claro nunca herda texto branco de um painel escuro. */
+:is(input, textarea, select)[class*="bg-white"]:not([class*="bg-white/"]):not([class*="text-black"]):not([class*="text-[#"]):not([class*="text-green"]):not([class*="text-purple"]):not([class*="text-red"]):not([class*="text-blue"]):not([class*="text-orange"]):not([class*="text-gray"]):not([class*="text-stone"]),
+:is(input, textarea, select)[class*="bg-[#fff"]:not([class*="text-black"]):not([class*="text-[#"]):not([class*="text-green"]):not([class*="text-purple"]):not([class*="text-red"]):not([class*="text-blue"]):not([class*="text-orange"]):not([class*="text-gray"]):not([class*="text-stone"]),
+:is(input, textarea, select)[class*="bg-[#fef"]:not([class*="text-black"]):not([class*="text-[#"]),
+:is(input, textarea, select)[class*="bg-[#fde"]:not([class*="text-black"]):not([class*="text-[#"]),
+:is(input, textarea, select)[class*="bg-gray-50"]:not([class*="text-black"]):not([class*="text-[#"]) {
+  color: #1a0f0a !important;
+  caret-color: #1a0f0a;
+}
+select option, select optgroup {
+  background-color: #ffffff;
+  color: #1a0f0a;
+}
+input[data-legivel-ph="1"]::placeholder, textarea[data-legivel-ph="1"]::placeholder {
+  color: var(--cor-placeholder) !important;
+  opacity: 1 !important;
+}

@@ -126,9 +126,12 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
         const descAuto = Number(selectedPacote.desconto_automatico || 0);
         const valorComDesc = descAuto > 0 ? Math.max(0, valorCheio - descAuto) : valorCheio;
 
-        setFormData(prev => prev.forma_pagamento !== 'mensal' ? { ...prev, is_emusys_legacy: isLegacy } : ({ 
+        // Prazo sugerido (à vista): planos de até 26 aulas = 6 meses; maiores = 12 meses (pode ser editado)
+        const mesesPlano = Number(selectedPacote.total_aulas) > 0 && Number(selectedPacote.total_aulas) <= 26 ? 6 : 12;
+        setFormData(prev => prev.forma_pagamento !== 'mensal' ? { ...prev, is_emusys_legacy: isLegacy, vigencia_meses: prev.tipo_contrato === 'avulso' ? prev.vigencia_meses : mesesPlano } : ({ 
           ...prev, 
           is_emusys_legacy: isLegacy,
+          vigencia_meses: prev.tipo_contrato === 'avulso' ? prev.vigencia_meses : mesesPlano,
           valor_parcela: valorCheio,
           valor_com_desconto: (prev.valor_com_desconto !== '' && prev.valor_com_desconto != null && Number(prev.valor_com_desconto) > 100) 
             ? prev.valor_com_desconto 
@@ -320,8 +323,8 @@ export function AlunoModal({ isOpen, onClose, onSuccess }: AlunoModalProps) {
               </div>
 
               {/* Course Selection */}
-              <div className="sticker-card bg-[#3D2B1F] p-4">
-                <h2 className="text-white text-[11px] font-bold uppercase mb-3 border-b border-white pb-1 flex items-center gap-2">
+              <div className="sticker-card bg-white p-4 text-black">
+                <h2 className="text-black text-[11px] font-bold uppercase mb-3 border-b border-black pb-1 flex items-center gap-2">
                   <span>🎸</span> Curso
                 </h2>
                 <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">

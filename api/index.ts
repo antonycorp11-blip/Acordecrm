@@ -987,7 +987,8 @@ async function startServer() {
             formaPagamento,
             parcelasCartao: matricula?.parcelas_cartao || null,
             totalAulas: matricula?.aulas_total_contrato || pacote?.total_aulas || null,
-            vigenciaMeses: matricula?.vigencia_meses || null,
+            // Plano mensal padrão: o prazo é sempre o nº de parcelas (um prazo antigo guardado na matrícula nunca vaza para o texto)
+            vigenciaMeses: (avulso || formaPagamento !== 'mensal') ? (matricula?.vigencia_meses || null) : null,
             observacoes: matricula?.observacoes_contrato || null
         };
     };
@@ -1012,6 +1013,19 @@ async function startServer() {
             clausulas,
             ...extra
         });
+
+    // Contrato atualizado a partir dos dados de hoje (aluno + matrícula atual + cláusulas)
+    const montarContratoAtual = async (alunoId: any) => {
+        const { data: aluno } = await supabase.from('alunos')
+            .select('*, matriculas(*, cursos(nome), pacotes(*))')
+            .eq('id', alunoId).single();
+        if (!aluno) return null;
+        const matricula = matriculaAtual(aluno.matriculas);
+        const { data: template } = await supabase.from('contrato_templates').select('*').limit(1).maybeSingle();
+        const clausulas = (template && Array.isArray(template.clausulas) && template.clausulas.length > 0) ? template.clausulas : CLAUSULAS_PADRAO_CONTRATO;
+        const dados = buildContratoDados(aluno, matricula);
+        return { dados, html: gerarHtmlDoAluno(aluno, dados, clausulas) };
+    };
 
     app.post('/api/contratos/preview', async (req, res) => {
         try {
@@ -1135,6 +1149,17 @@ async function startServer() {
             const { data, error } = await supabase.from('contratos').select('*, alunos(nome, cpf)').eq('id', req.params.id).single();
             if (error) throw error;
             if (!data) return res.status(404).json({ error: 'Contrato não encontrado' });
+            // Contrato pendente gerado automaticamente: sempre mostra o texto com os dados atuais da matrícula
+            if (data.status === 'pendente' && !data.dados_dinamicos?.manual && data.aluno_id) {
+                try {
+                    const atual = await montarContratoAtual(data.aluno_id);
+                    if (atual) {
+                        data.conteudo_html = atual.html;
+                        data.dados_dinamicos = atual.dados;
+                        await supabase.from('contratos').update({ conteudo_html: atual.html, dados_dinamicos: atual.dados }).eq('id', data.id);
+                    }
+                } catch (e) { console.warn('[CONTRATO] Não foi possível atualizar o texto do contrato pendente:', e); }
+            }
             res.json(data);
         } catch (error: any) {
             console.error('Erro get contrato:', error);
@@ -2402,6 +2427,7 @@ async function startServer() {
                     // Pagamento à vista nunca tem mensalidades: mantém 1 única cobrança
                     const formaEfetiva = matUpdate.forma_pagamento ?? currentMat.forma_pagamento ?? 'mensal';
                     if (formaEfetiva !== 'mensal') matUpdate.total_parcelas = 1;
+                    else if (currentMat.tipo_contrato !== 'avulso' && matUpdate.vigencia_meses !== undefined) matUpdate.vigencia_meses = null;
 
                     const { error: matError } = await supabase
                         .from('matriculas')
@@ -2816,7 +2842,8 @@ async function startServer() {
             const aVista = forma_pagamento !== 'mensal';
             if (aVista) total_parcelas = 1;
             const parcelas_cartao = forma_pagamento === 'cartao_credito' ? (Number(req.body.parcelas_cartao) || 1) : null;
-            const vigencia_meses = Number(req.body.vigencia_meses) || null;
+            // Prazo explícito só em contrato à vista/avulso; no mensal o prazo é o nº de parcelas (evita "12 meses" num semestral)
+            const vigencia_meses = (aVista || avulso) ? (Number(req.body.vigencia_meses) || null) : null;
 
             // 1. Criar Aluno
             const { data: aluno, error: errA } = await supabase.from('alunos').insert([{ 

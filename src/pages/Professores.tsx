@@ -189,7 +189,7 @@ export default function Professores() {
             <input 
               type="text" 
               placeholder="BUSCAR_PROFESSOR..."
-              className="w-full pl-12 pr-4 py-4 bg-[#fff8f6] border-4 border-black font-black text-xs uppercase focus:outline-none shadow-[4px_4px_0_#000] placeholder:text-black/20"
+              className="w-full pl-12 pr-4 py-4 bg-[#fff8f6] text-black border-4 border-black font-black text-xs uppercase focus:outline-none shadow-[4px_4px_0_#000] placeholder:text-black/20"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />

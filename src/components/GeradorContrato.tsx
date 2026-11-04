@@ -59,6 +59,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
   const [parcelasCartao, setParcelasCartao] = useState(matricula?.parcelas_cartao?.toString() || "12");
   const [vigenciaMeses, setVigenciaMeses] = useState(matricula?.vigencia_meses?.toString() || (matricula?.forma_pagamento && matricula.forma_pagamento !== 'mensal' ? "12" : (matricula?.total_parcelas?.toString() || "6")));
   const [totalAulas, setTotalAulas] = useState((matricula?.aulas_total_contrato || matricula?.pacotes?.total_aulas || "").toString());
+  const [vigenciaManual, setVigenciaManual] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewError, setPreviewError] = useState("");
   const [showPreview, setShowPreview] = useState(false);
@@ -93,6 +94,11 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
       setTotalAulas((matricula?.aulas_total_contrato || matricula?.pacotes?.total_aulas || "").toString());
     }
   }, [isOpen, aluno]);
+
+  // No contrato mensal o prazo é o número de parcelas (6 parcelas = 6 meses), até a pessoa editar o prazo manualmente
+  useEffect(() => {
+    if (!vigenciaManual && !aVista && Number(qtdParcelas) > 0) setVigenciaMeses(String(qtdParcelas));
+  }, [qtdParcelas, aVista, vigenciaManual]);
 
   // Texto do contrato vem do servidor (mesmo gerador usado na Área do Aluno), evitando divergências
   const fetchPreview = async (): Promise<string> => {
@@ -227,6 +233,19 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
     
     const conteudo_html = await ensurePreview();
     if (!conteudo_html) return;
+
+    // Confere o que o aluno vai ver antes de enviar
+    const resumoPagamento = aVista
+      ? `R$ ${valorPlano} À VISTA (${formaPagamento === 'cartao_credito' ? `cartão${Number(parcelasCartao) > 1 ? ` em ${parcelasCartao}x` : ''}` : formaPagamento})`
+      : `${qtdParcelas} parcela(s) de R$ ${valorPlano}, vencimento dia ${diaVencimento}`;
+    const confirmou = window.confirm(
+      `Confira antes de enviar para ${novoEmail}:\n\n` +
+      `• Prazo: ${vigenciaMeses} mês(es)\n` +
+      `• Aulas: ${totalAulas || 'não informado'}\n` +
+      `• Pagamento: ${resumoPagamento}\n\n` +
+      `Enviar o contrato assim?`
+    );
+    if (!confirmou) return;
 
     const dados_dinamicos = {
       responsavel: novoResponsavel,
@@ -372,7 +391,7 @@ export default function GeradorContrato({ aluno, isOpen, onClose }: GeradorContr
                   </div>
                   <div className="flex-1">
                     <label className="text-[10px] font-black text-[#8e7164] uppercase block mb-1">Vigência (Meses)</label>
-                    <input type="number" value={vigenciaMeses} onChange={e => setVigenciaMeses(e.target.value)} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
+                    <input type="number" value={vigenciaMeses} onChange={e => { setVigenciaManual(true); setVigenciaMeses(e.target.value); }} className="w-full px-2 py-1.5 bg-white border-2 border-black font-black text-xs text-black outline-none focus:bg-[#ffeae1]" />
                   </div>
                 </div>
                 <div>
