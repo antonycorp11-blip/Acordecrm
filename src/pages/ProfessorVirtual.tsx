@@ -1352,7 +1352,6 @@ export default function ProfessorVirtual() {
   const [oitavasTeclado, setOitavasTeclado] = useState(1);
   const [modeloTeclado, setModeloTeclado] = useState<'escala' | 'hanon'>('escala');
   const [maoTeclado, setMaoTeclado] = useState<MaoTeclado>('direita');
-  const [retornoHanon, setRetornoHanon] = useState<'salto' | 'passando'>('salto');
   const [metaMinutos, setMetaMinutos] = useState(5);
   const sessaoRef = useRef(0);
 
@@ -1450,7 +1449,7 @@ export default function ProfessorVirtual() {
     }
   };
   const escalaAtual = gerarEscala({ tonica: tonicaEscala, cordaRaiz: cordaRaizEscala, modo: 'jonio', sentido: sentidoEscala });
-  const exercicioTeclado = modeloTeclado === 'hanon' ? gerarHanon({ tonica: tonicaTeclado, tipo: tipoTeclado, mao: maoTeclado, retorno: retornoHanon }) : gerarEscalaTeclado({ tonica: tonicaTeclado, tipo: tipoTeclado, oitavas: oitavasTeclado, mao: maoTeclado });
+  const exercicioTeclado = modeloTeclado === 'hanon' ? gerarHanon({ tonica: tonicaTeclado, tipo: tipoTeclado, mao: maoTeclado }) : gerarEscalaTeclado({ tonica: tonicaTeclado, tipo: tipoTeclado, oitavas: oitavasTeclado, mao: maoTeclado });
   const salvarEscala = async (exercicio: ExercicioVirtual) => {
     setSalvandoEscala(true);
     try {
@@ -1549,7 +1548,6 @@ export default function ProfessorVirtual() {
                     <label className="font-bold">Tônica<select value={tonicaTeclado} onChange={e => setTonicaTeclado(Number(e.target.value))} className={CAMPO}>{NOTAS.map((_, i) => <option key={i} value={i}>{nomeTonicaTeclado(i, tipoTeclado)}</option>)}</select></label>
                     <label className="font-bold">Mão<select value={maoTeclado} onChange={e => setMaoTeclado(e.target.value as MaoTeclado)} className={CAMPO}><option value="direita">Direita</option><option value="esquerda">Esquerda</option></select></label>
                     <label className="font-bold">Tipo<select value={tipoTeclado} onChange={e => setTipoTeclado(e.target.value as TipoEscalaTeclado)} className={CAMPO}>{TIPOS_ESCALA_TECLADO.filter(t => t.valor === 'maior' || t.valor === 'menor_natural').map(t => <option key={t.valor} value={t.valor}>{t.nome}</option>)}</select></label>{modeloTeclado === 'escala' && <label className="font-bold">Oitavas<select value={oitavasTeclado} onChange={e => setOitavasTeclado(Number(e.target.value))} className={CAMPO}>{[1,2].map(n => <option key={n} value={n}>{n}</option>)}</select></label>}
-                    {modeloTeclado === 'hanon' && <label className="font-bold">Retorno<select value={retornoHanon} onChange={e => setRetornoHanon(e.target.value as 'salto' | 'passando')} className={CAMPO}><option value="salto">Salto</option><option value="passando">Passando</option></select></label>}
                   </div>
                   <button type="button" onClick={() => comecar(exercicioTeclado)} className={`${BOTAO_LARANJA} w-full mt-3`}>Começar</button>
                   {podeEditar && <button type="button" disabled={salvandoEscala} onClick={() => salvarEscala(exercicioTeclado)} className={`${BOTAO_CLARO} w-full mt-3`}>{salvandoEscala ? 'Salvando...' : 'Salvar como exercício'}</button>}

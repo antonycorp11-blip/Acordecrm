@@ -65,8 +65,8 @@ export function gerarEscalaTeclado({ tonica, tipo, oitavas, mao = 'direita' }: P
     descricao: `${oitavas} ${oitavas === 1 ? 'oitava' : 'oitavas'} · mão ${mao} · dedilhado editável`, passos: [...subida, ...descida] };
 }
 
-export function gerarHanon({ tonica, tipo = 'maior', mao = 'direita', retorno = 'salto' }: {
-  tonica: number; tipo?: TipoEscalaTeclado; mao?: MaoTeclado; retorno?: 'salto' | 'passando';
+export function gerarHanon({ tonica, tipo = 'maior', mao = 'direita' }: {
+  tonica: number; tipo?: TipoEscalaTeclado; mao?: MaoTeclado;
 }): ExercicioVirtual {
   validarTonica(tonica);
   if (!GRAUS[tipo]) throw new RangeError('Tipo de escala inválido.');
@@ -76,7 +76,7 @@ export function gerarHanon({ tonica, tipo = 'maior', mao = 'direita', retorno = 
   const dedoVolta = mao === 'esquerda' ? [2, 3, 4] : [4, 3, 2];
   const passos = Array.from({ length: 8 }, (_, inicio) => {
     const ordem = [inicio, inicio + 2, inicio + 3, inicio + 4, inicio + 5];
-    if (retorno === 'passando') ordem.push(inicio + 4, inicio + 3, inicio + 2);
+    ordem.push(inicio + 4, inicio + 3, inicio + 2);
     return ordem.map((grau, i): PassoExercicio => ({
       midis: [raiz + 12 * Math.floor(grau / 7) + graus[grau % 7]],
       rotulo: nomeGrau(tonica, tipo, grau % 7, graus[grau % 7]),

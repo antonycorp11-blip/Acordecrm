@@ -18,16 +18,15 @@ assert.equal(nomeTonicaTeclado(1, 'maior'), 'Ré♭');
 assert.equal(gerarEscalaTeclado({ tonica: 1, tipo: 'maior', oitavas: 1 }).passos[3].rotulo, 'Sol♭');
 assert.equal(gerarEscalaTeclado({ tonica: 6, tipo: 'maior', oitavas: 1 }).passos[6].rotulo, 'Mi♯');
 assert.equal(gerarEscalaTeclado({ tonica: 11, tipo: 'maior', oitavas: 2 }).passos[14].midis[0], 95);
-const midis = (tonica: number, tipo: 'maior' | 'menor_natural' = 'maior', retorno: 'salto' | 'passando' = 'salto', mao: 'direita' | 'esquerda' = 'direita') =>
-  gerarHanon({ tonica, tipo, retorno, mao }).passos.map(p => p.midis[0]);
-assert.deepEqual(midis(0).slice(0, 15), [60,64,65,67,69, 62,65,67,69,71, 64,67,69,71,72]);
-assert.deepEqual(midis(2).slice(0, 15), [62,66,67,69,71, 64,67,69,71,73, 66,69,71,73,74]);
-assert.deepEqual(midis(9, 'menor_natural').slice(0, 10), [69,72,74,76,77, 71,74,76,77,79]);
-assert.deepEqual(midis(0, 'maior', 'passando').slice(0, 9), [60,64,65,67,69,67,65,64,62]);
+const midis = (tonica: number, tipo: 'maior' | 'menor_natural' = 'maior', mao: 'direita' | 'esquerda' = 'direita') =>
+  gerarHanon({ tonica, tipo, mao }).passos.map(p => p.midis[0]);
+assert.deepEqual(midis(0).slice(0, 16), [60,64,65,67,69,67,65,64, 62,65,67,69,71,69,67,65]);
+assert.deepEqual(midis(2).slice(0, 16), [62,66,67,69,71,69,67,66, 64,67,69,71,73,71,69,67]);
+assert.deepEqual(midis(9, 'menor_natural').slice(0, 10), [69,72,74,76,77,76,74,72, 71,74]);
 for (const tipo of ['maior', 'menor_natural'] as const) for (let tonica = 0; tonica < 12; tonica++) {
   for (const mao of ['direita', 'esquerda'] as const) {
     const passos = gerarHanon({ tonica, tipo, mao }).passos;
-    assert.equal(passos.length, 40);
+    assert.equal(passos.length, 64);
     assert.equal(passos[0].midis[0], (mao === 'esquerda' ? 36 : 60) + tonica);
     assert.equal(passos[35].midis[0], (mao === 'esquerda' ? 48 : 72) + tonica);
     assert.ok(passos.every(p => p.dedo && p.dedo >= 1 && p.dedo <= 5));
