@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, Mic, Pencil, Play, Plus, RotateCcw, Square, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../services/apiClient';
 import ViolaoPixel from '../components/ViolaoPixel';
 import { createMotorEscuta, createSeguidor } from '../lib/professorVirtual';
+import { contextoAudioTreino } from '../lib/professorVirtual/motor';
 import { estimarPosicao, gerarEscala, midiNaPosicao, otimizarSequencia, posicoesDaSequencia, posicoesDoPasso, type EstimativaPosicao, type PosicaoViolao } from '../lib/professorVirtual/violao';
 import { adicionarAmostra, chavePosicao, lerMapaEscolhido, lerMapas, lerModeloEscolhido, lembrarModeloEscolhido, novaCalibracao, posicoesCalibracao, salvarMapas, type ModeloViolao } from '../lib/professorVirtual/calibracao';
 import type { ExercicioVirtual, Instrumento, LeituraAudio, MotorEscuta, PassoExercicio, ResultadoPasso } from '../lib/professorVirtual/types';
@@ -53,7 +54,7 @@ const nomeInstrumento = (instrumento: Instrumento) => INSTRUMENTOS.find((i) => i
 
 const EXEMPLOS: ExercicioVirtual[] = [
   {
-    titulo: 'Técnica 1-2-3-4',
+    titulo: 'Technique 1-2-3-4',
     instrumento: 'violao',
     bpm: 100,
     descricao: 'Toque quatro casas por corda, avance e volte até a região inicial, descendo com os dedos 4-3-2-1.',
@@ -121,6 +122,10 @@ function useEscuta(aoInterromper?: () => void) {
   // Sem await antes de motor.iniciar(): no iOS o pedido do microfone precisa nascer do toque.
   const ligar = useCallback(async (instrumento: Instrumento) => {
     desligar();
+    try {
+      const sessao = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+      if (sessao) sessao.type = 'play-and-record';
+    } catch { /* Safari antigo pode recusar a configuração. */ }
     const motor = createMotorEscuta();
     motorRef.current = motor;
     try {
@@ -671,11 +676,14 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const [bpmTreino, setBpmTreino] = useState(Math.max(40, Math.min(240, exercicio.bpm || 100)));
   const [metronomoLigado, setMetronomoLigado] = useState(false);
   const [cliqueLigado, setCliqueLigado] = useState(false);
+  const [volumeClique, setVolumeClique] = useState(100);
+  const [batidaVisual, setBatidaVisual] = useState(false);
   const [ritmo, setRitmo] = useState('');
   const [moedasSessao, setMoedasSessao] = useState(0); // Só nesta sessão; nunca persiste nem altera economia.
   const [combo, setCombo] = useState(0);
   const [efeito, setEfeito] = useState<{ tipo: 'acerto' | 'erro'; id: number } | null>(null);
   const contextoCliqueRef = useRef<AudioContext | null>(null);
+  const energiaAnteriorRef = useRef(0);
   const proximoCliqueRef = useRef(0);
   const inicioRitmoRef = useRef<number | null>(null);
   const temposCliqueRef = useRef<number[]>([]);
@@ -719,32 +727,39 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
     inicioRitmoRef.current = performance.now() + 80;
     proximoCliqueRef.current = inicioRitmoRef.current;
     temposCliqueRef.current = [];
+    let batida = 0;
     const timer = window.setInterval(() => {
       const agora = performance.now();
       while (proximoCliqueRef.current < agora + 100) {
         const instante = proximoCliqueRef.current;
-        if (cliqueLigado && contextoCliqueRef.current) {
+        window.setTimeout(() => { setBatidaVisual(true); window.setTimeout(() => setBatidaVisual(false), 110); }, Math.max(0, instante - agora));
+        if (cliqueLigado && contextoCliqueRef.current && volumeClique > 0) {
           const contexto = contextoCliqueRef.current;
           const quando = contexto.currentTime + Math.max(0, (instante - agora) / 1000);
           const oscilador = contexto.createOscillator();
           const ganho = contexto.createGain();
-          oscilador.frequency.value = 880;
+          const compressor = contexto.createDynamicsCompressor();
+          compressor.threshold.value = -12; compressor.ratio.value = 12;
+          oscilador.type = 'square';
+          oscilador.frequency.value = batida % 4 === 0 ? 2600 : 2200;
           ganho.gain.setValueAtTime(0.0001, quando);
-          ganho.gain.exponentialRampToValueAtTime(0.12, quando + 0.002);
+          ganho.gain.exponentialRampToValueAtTime((batida % 4 === 0 ? 0.8 : 0.55) * volumeClique / 100, quando + 0.002);
           ganho.gain.exponentialRampToValueAtTime(0.0001, quando + 0.025);
-          oscilador.connect(ganho).connect(contexto.destination);
+          oscilador.connect(ganho).connect(compressor).connect(contexto.destination);
           oscilador.start(quando);
           oscilador.stop(quando + 0.03);
-          temposCliqueRef.current.push(instante);
+          const latencia = ((contexto.outputLatency || contexto.baseLatency || 0) * 1000);
+          temposCliqueRef.current.push(instante + latencia);
         }
+        batida++;
         proximoCliqueRef.current += intervalo;
       }
-      temposCliqueRef.current = temposCliqueRef.current.filter(t => t > agora - 100);
+      temposCliqueRef.current = temposCliqueRef.current.filter(t => t > agora - 180);
     }, 25);
     return () => window.clearInterval(timer);
-  }, [metronomoLigado, cliqueLigado, bpmTreino, concluido, pausado]);
+  }, [metronomoLigado, cliqueLigado, bpmTreino, volumeClique, concluido, pausado]);
 
-  useEffect(() => () => { void contextoCliqueRef.current?.close(); }, []);
+
 
   useTelaLigada(!concluido);
 
@@ -757,7 +772,10 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       // O alto-falante pode voltar ao microfone: descarte o ataque e a curta cauda do clique.
       const alvoAtual = exercicio.passos[seguidor.passoAtual()];
       const soaComoAlvo = l.midi !== null && alvoAtual?.midis.some(midi => Math.abs(l.midi! - midi) < 0.5);
-      if (metronomoLigado && cliqueLigado && !soaComoAlvo && temposCliqueRef.current.some(t => agora >= t - 20 && agora <= t + 70)) return;
+      const energiaF0 = (l as LeituraAudio & { energiaF0?: number }).energiaF0 ?? 0;
+      const subidaAlvo = soaComoAlvo && l.alvoDominante && energiaF0 > Math.max(0.002, energiaAnteriorRef.current * 1.5);
+      energiaAnteriorRef.current = energiaF0;
+      if (metronomoLigado && cliqueLigado && !subidaAlvo && temposCliqueRef.current.some(t => agora >= t - 35 && agora <= t + 85)) return;
       const indiceAntes = seguidor.passoAtual();
       if (exercicio.instrumento === 'violao' && l.midi !== null) {
         const indiceAtual = seguidor.passoAtual();
@@ -851,11 +869,11 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       </div>
 
       <div className={`${CARTAO} space-y-3`}>
-        <style>{`@keyframes pv-pulso { 0% { opacity: 1; transform: scale(1.5) } 25% { opacity: .7; transform: scale(1) } 100% { opacity: .35; transform: scale(1) } } .pv-pulso { animation: pv-pulso var(--pv-beat) linear .08s infinite } @media (prefers-reduced-motion: reduce) { .pv-pulso { animation: none; opacity: 1 } }`}</style>
-        <div className="flex items-center justify-between gap-3"><h3 className="font-black text-lg">Metrônomo</h3><span key={`${metronomoLigado}-${bpmTreino}`} className={`w-5 h-5 rounded-full bg-[#ff6b00] ${metronomoLigado ? 'pv-pulso' : 'opacity-30'}`} style={{ '--pv-beat': `${60000 / bpmTreino}ms` } as CSSProperties} aria-hidden="true" /></div>
+        <div className="flex items-center justify-between gap-3"><h3 className="font-black text-lg">Metrônomo</h3><span key={`${metronomoLigado}-${bpmTreino}`} className={`w-12 h-12 rounded-full border-4 border-black ${batidaVisual ? 'bg-[#ff6b00]' : 'bg-white'} ${metronomoLigado ? 'opacity-100' : 'opacity-30'}`} aria-hidden="true" /></div>
         <label className="font-bold flex items-center gap-2">BPM <input type="number" min={40} max={240} value={bpmTreino} onChange={e => setBpmTreino(Math.max(40, Math.min(240, Number(e.target.value) || 40)))} className="w-24 border-2 border-black p-2" /></label>
-        <div className="grid grid-cols-2 gap-2"><button type="button" className={BOTAO_CLARO} aria-pressed={metronomoLigado} onClick={() => setMetronomoLigado(v => !v)}>{metronomoLigado ? 'Desligar' : 'Ligar'}</button><button type="button" className={BOTAO_CLARO} aria-pressed={cliqueLigado} onClick={() => { if (!cliqueLigado) { contextoCliqueRef.current ??= new AudioContext(); void contextoCliqueRef.current.resume(); } setCliqueLigado(v => !v); }}>{cliqueLigado ? 'Clique: ligado' : 'Clique: desligado'}</button></div>
-        <p className="text-xs font-semibold">Use fones se ligar o clique sonoro. Ritmo é informativo e não reprova a nota.</p>
+        <div className="grid grid-cols-2 gap-2"><button type="button" className={BOTAO_CLARO} aria-pressed={metronomoLigado} onClick={() => setMetronomoLigado(v => !v)}>{metronomoLigado ? 'Desligar' : 'Ligar'}</button><button type="button" className={BOTAO_CLARO} aria-pressed={cliqueLigado} onClick={() => { if (!cliqueLigado) { contextoCliqueRef.current ??= contextoAudioTreino(); void contextoCliqueRef.current.resume(); } setCliqueLigado(v => !v); }}>{cliqueLigado ? 'Clique: ligado' : 'Clique: desligado'}</button></div>
+        <label className="font-bold block">Volume do clique: {volumeClique}% <input aria-label="Volume do clique" type="range" min="0" max="100" value={volumeClique} onChange={e => setVolumeClique(Number(e.target.value))} className="w-full" /></label>
+        <p className="text-xs font-semibold">Com fone o clique fica mais alto e não entra no microfone. Ritmo é informativo e não reprova a nota.</p>
         {ritmo && <p aria-live="polite" className="font-black">{ritmo}</p>}
       </div>
 

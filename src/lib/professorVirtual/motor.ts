@@ -39,11 +39,14 @@ interface Sessao {
   limiarDb: number;
 }
 
-function criarContexto(): AudioContext {
+let contextoCompartilhado: AudioContext | null = null;
+export function contextoAudioTreino(): AudioContext {
+  if (contextoCompartilhado && contextoCompartilhado.state !== 'closed') return contextoCompartilhado;
   const Contexto =
     window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Contexto) throw new Error('Este navegador não consegue ouvir o microfone. Tente o Chrome ou o Safari atualizados.');
-  return new Contexto();
+  contextoCompartilhado = new Contexto();
+  return contextoCompartilhado;
 }
 
 function erroMicrofone(erro: unknown): Error {
@@ -65,6 +68,7 @@ export function createMotorEscuta(): MotorEscuta {
   let sessao: Sessao | null = null;
   // Invalida um iniciar() que ainda espera a permissão quando parar() ou outro iniciar() chega antes.
   let geracao = 0;
+  let alvoEnergiaMidi: number | null = null;
   let niveisCalibracao: { t: number; db: number }[] | null = null;
 
   function lerQuadro(s: Sessao) {
@@ -78,6 +82,14 @@ export function createMotorEscuta(): MotorEscuta {
     // O sampleRate real pode não ser 44,1/48 kHz e muda de aparelho para aparelho.
     const leitura = s.analisador.processar(s.janela, s.contexto.sampleRate, tempoMs, s.janelaLonga);
     niveisCalibracao?.push({ t: tempoMs, db: leitura.nivelDb });
+    if (alvoEnergiaMidi !== null) {
+      const f0 = 440 * 2 ** ((alvoEnergiaMidi - 69) / 12);
+      const omega = 2 * Math.PI * f0 / s.contexto.sampleRate;
+      const coef = 2 * Math.cos(omega);
+      let a = 0, b = 0;
+      for (const amostra of s.janela) { const c = amostra + coef * a - b; b = a; a = c; }
+      (leitura as LeituraAudio & { energiaF0?: number }).energiaF0 = Math.sqrt(Math.max(0, a * a + b * b - coef * a * b)) / s.janela.length;
+    }
     ouvintes.forEach(cb => cb(leitura));
   }
 
@@ -86,7 +98,7 @@ export function createMotorEscuta(): MotorEscuta {
     document.removeEventListener('visibilitychange', s.aoVoltar);
     s.stream.getTracks().forEach(t => t.stop());
     s.nos.forEach(n => n.disconnect());
-    void s.contexto.close().catch(() => undefined);
+
   }
 
   const motor: MotorEscuta = {
@@ -98,7 +110,7 @@ export function createMotorEscuta(): MotorEscuta {
         throw new Error('O microfone só funciona em página segura (https) e em navegador atualizado.');
       }
       // No iOS o resume precisa sair antes do primeiro await, ainda dentro do toque do usuário.
-      const contexto = criarContexto();
+      const contexto = contextoAudioTreino();
       const retomada = contexto.resume().catch(() => undefined);
 
       let stream: MediaStream;
@@ -107,19 +119,19 @@ export function createMotorEscuta(): MotorEscuta {
           audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
         });
       } catch (erro) {
-        void contexto.close().catch(() => undefined);
+
         throw erroMicrofone(erro);
       }
       await retomada;
       if (minhaGeracao !== geracao) {
         stream.getTracks().forEach(t => t.stop());
-        void contexto.close().catch(() => undefined);
+
         return;
       }
       if (contexto.state !== 'running') await contexto.resume().catch(() => undefined);
       if (minhaGeracao !== geracao || contexto.state !== 'running') {
         stream.getTracks().forEach(t => t.stop());
-        void contexto.close().catch(() => undefined);
+
         if (minhaGeracao === geracao) throw new Error('O áudio não iniciou. Toque em Começar novamente.');
         return;
       }
@@ -172,7 +184,7 @@ export function createMotorEscuta(): MotorEscuta {
         sessao = nova;
       } catch (erro) {
         stream.getTracks().forEach(t => t.stop());
-        void contexto.close().catch(() => undefined);
+
         throw erro;
       }
     },
@@ -207,7 +219,7 @@ export function createMotorEscuta(): MotorEscuta {
       };
     },
 
-    definirAlvo(midi) { sessao?.analisador.definirAlvo(midi); },
+    definirAlvo(midi) { alvoEnergiaMidi = midi; sessao?.analisador.definirAlvo(midi); },
     sampleRate() { return sessao?.contexto.sampleRate ?? null; },
 
     parar() {
