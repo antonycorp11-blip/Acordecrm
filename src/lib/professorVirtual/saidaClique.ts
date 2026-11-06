@@ -30,7 +30,7 @@ function pcm(taxa: number): Float32Array {
   for (let i = 0; i < dados.length; i++) {
     const t = i / taxa;
     dados[i] = Math.min(1, t / 0.0015) * Math.exp(-t * 100) *
-      (0.62 * Math.sin(2 * Math.PI * 1500 * t) + 0.38 * Math.sin(2 * Math.PI * 3000 * t));
+      (0.62 * Math.sin(2 * Math.PI * 3000 * t) + 0.38 * Math.sin(2 * Math.PI * 4500 * t));
     pico = Math.max(pico, Math.abs(dados[i]));
   }
   for (let i = 0; i < dados.length; i++) dados[i] /= pico || 1;

@@ -149,8 +149,19 @@ export function createMotorEscuta(): MotorEscuta {
         const mudo = contexto.createGain();
         mudo.gain.value = 0;
         fonte.connect(passaAlta);
-        passaAlta.connect(analyser).connect(mudo).connect(contexto.destination);
-        passaAlta.connect(analyserLongo).connect(mudo);
+        // Teclado: o clique do metrônomo fica acima de 3 kHz e não pode chegar à análise.
+        let saidaFiltrada: AudioNode = passaAlta;
+        if (instrumento === 'teclado') {
+          for (let i = 0; i < 3; i++) {
+            const passaBaixa = contexto.createBiquadFilter();
+            passaBaixa.type = 'lowpass';
+            passaBaixa.frequency.value = 1800;
+            saidaFiltrada.connect(passaBaixa);
+            saidaFiltrada = passaBaixa;
+          }
+        }
+        saidaFiltrada.connect(analyser).connect(mudo).connect(contexto.destination);
+        saidaFiltrada.connect(analyserLongo).connect(mudo);
 
         const analisador = criarAnalisadorQuadros({
           limiarDb: LIMIAR_PADRAO_DB,

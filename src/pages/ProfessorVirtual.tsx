@@ -700,6 +700,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const testeTimerRef = useRef<number | null>(null);
   const testeIntervaloRef = useRef<number | null>(null);
   const alturasRecentesRef = useRef<number[]>([]);
+  const ataquePendenteRef = useRef(false);
   const [midiLimpo, setMidiLimpo] = useState<number | null>(null);
   const proximoCliqueRef = useRef(0);
   const inicioRitmoRef = useRef<number | null>(null);
@@ -810,6 +811,8 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       if (concluido || pausado) return;
       const agora = performance.now();
       // O alto-falante pode voltar ao microfone: descarte o ataque e a curta cauda do clique.
+      // Leitura descartada não pode apagar o ataque: a próxima leitura válida o herda.
+      if (l.ataque) ataquePendenteRef.current = true;
       // A janela de análise guarda o clique por ~85 ms; a nota real continua soando depois da máscara.
       const intervaloClique = 60000 / Math.max(40, Math.min(300, bpmTreinoRef.current));
       const fimMascara = Math.min(140, intervaloClique * 0.55);
@@ -817,7 +820,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
         setMidiLimpo(null);
         return;
       }
-      // Teclado tem altura fixa; voz desliza e oscila. Salto grande é nota nova, não deslize.
+      // Teclado é afinado e tem altura fixa; voz cai entre as notas, desliza e oscila.
       if (exercicio.instrumento === 'teclado') {
         if (l.midi === null) alturasRecentesRef.current = [];
         else {
@@ -825,12 +828,14 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
           if (alturas.length && Math.abs(l.midi - alturas[alturas.length - 1]) >= 0.75) alturas.length = 0;
           alturas.push(l.midi);
           if (alturas.length > 3) alturas.shift();
-          if (alturas.length < 2 || Math.max(...alturas) - Math.min(...alturas) > 0.25) {
+          const afinada = Math.abs(l.midi - Math.round(l.midi)) <= 0.25;
+          if (!afinada || alturas.length < 3 || Math.max(...alturas) - Math.min(...alturas) > 0.1) {
             setMidiLimpo(null);
             return;
           }
         }
       }
+      if (ataquePendenteRef.current && l.midi !== null) { l = { ...l, ataque: true }; ataquePendenteRef.current = false; }
       setMidiLimpo(l.midi === null ? null : Math.round(l.midi));
       const indiceAntes = seguidor.passoAtual();
       if (exercicio.instrumento === 'violao' && l.midi !== null) {

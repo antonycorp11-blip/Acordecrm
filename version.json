@@ -1,4 +1,4 @@
 {
-  "versao": "2.5.4",
-  "changelog": "Professor Virtual: teclado ignora o clique do metrônomo e som com altura instável, como voz."
+  "versao": "2.5.5",
+  "changelog": "Professor Virtual: teclado filtra o clique por frequência e exige som afinado e estável."
 }
