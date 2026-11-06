@@ -29,7 +29,7 @@ export default function ViolaoPixel({ esperadas = [], proximas = [], midiOuvido,
   }, [principal?.casa, principal?.corda]);
 
   return (
-    <div className="relative border-4 border-black bg-[#fff5df] text-[#261812] p-2 shadow-[4px_4px_0_#000]">
+    <div className="relative w-full border-4 border-black bg-[#fff5df] text-[#261812] p-2 shadow-[4px_4px_0_#000]">
       <style>{`@keyframes pv-brilho { 0% { opacity: 0; transform: scale(.7) } 30% { opacity: 1 } 100% { opacity: 0; transform: scale(1.4) } } @keyframes pv-moeda { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-55px) } } @keyframes pv-tremida { 25% { transform: translateX(-3px) } 50% { transform: translateX(3px) } 75% { transform: translateX(-2px) } } .pv-tremer { animation: pv-tremida .25s ease-out } @media (prefers-reduced-motion: reduce) { .pv-efeito { animation: none !important; display: none } .pv-tremer { animation: none !important } }`}</style>
       {efeito?.tipo === 'acerto' && <div key={efeito.id} className="pv-efeito absolute inset-0 pointer-events-none z-20 border-4 border-yellow-300" style={{ animation: 'pv-brilho .55s ease-out both' }} aria-hidden="true"><span className="absolute left-1/2 top-1/2 w-5 h-5 bg-yellow-300 border-[3px] border-black shadow-[3px_3px_0_#ad6900]" style={{ animation: 'pv-moeda .7s ease-out both', imageRendering: 'pixelated' }} />{[0, 1, 2, 3].map(i => <span key={i} className="absolute text-yellow-400" style={{ left: `${25 + i * 16}%`, top: `${20 + (i % 2) * 40}%`, animation: `pv-brilho .5s ${i * 0.05}s ease-out both` }}>✦</span>)}</div>}
       {efeito?.tipo === 'erro' && <div key={efeito.id} className="pv-efeito pv-tremer absolute inset-0 pointer-events-none z-20 border-4 border-red-500" aria-hidden="true" />}
@@ -37,10 +37,10 @@ export default function ViolaoPixel({ esperadas = [], proximas = [], midiOuvido,
         <span>Violão virtual</span>
         <span className="text-right">● Toque agora · ◇ Depois</span>
       </div>
-      <div ref={rolagem} className="overflow-x-auto overscroll-x-contain" aria-label="Braço do violão, da primeira à sexta corda">
-        <div className="w-max border-4 border-[#452517] bg-[#9a5b32]" style={{ imageRendering: 'pixelated' }}>
+      <div ref={rolagem} className="w-full overflow-x-auto overscroll-x-contain" aria-label="Braço do violão, da primeira à sexta corda">
+        <div className="w-max md:landscape:w-full border-4 border-[#452517] bg-[#9a5b32]" style={{ imageRendering: 'pixelated' }}>
           {CORDAS.map((corda) => (
-            <div key={corda} className="flex h-11 border-b-2 last:border-b-0 border-[#704020]">
+            <div key={corda} className="flex h-11 md:landscape:h-[clamp(38px,6vh,58px)] border-b-2 last:border-b-0 border-[#704020]">
               {CASAS.map((casa) => {
                 const esperada = esperadas.find((p) => p.corda === corda && p.casa === casa);
                 const proxima = proximas.some((p) => p.corda === corda && p.casa === casa);
@@ -54,7 +54,7 @@ export default function ViolaoPixel({ esperadas = [], proximas = [], midiOuvido,
                     disabled={!aoEscolher}
                     onClick={() => aoEscolher?.({ corda, casa })}
                     aria-label={`${corda}ª corda, ${casa === 0 ? 'solta' : `${casa}ª casa`}${esperada ? `, dedo ${esperada.dedo ?? 'não definido'}` : ''}`}
-                    className={`relative w-[52px] h-11 shrink-0 border-r-[3px] border-[#e9c89c] flex items-center justify-center ${casa === 0 ? 'bg-[#d6b58e] border-r-[6px] border-[#271b16]' : ''} ${aoEscolher ? 'cursor-pointer active:bg-[#f1a95b]' : 'cursor-default'}`}
+                    className={`relative w-[52px] md:landscape:w-[6.25%] h-11 md:landscape:h-full shrink-0 border-r-[3px] border-[#e9c89c] flex items-center justify-center ${casa === 0 ? 'bg-[#d6b58e] border-r-[6px] border-[#271b16]' : ''} ${aoEscolher ? 'cursor-pointer active:bg-[#f1a95b]' : 'cursor-default'}`}
                   >
                     {[3, 5, 7, 9, 12].includes(casa) && (corda === 3 || corda === 4) && <span className="absolute w-2 h-2 bg-[#e9bc78] rotate-45" />}
                     <span className={`absolute inset-x-0 top-1/2 h-[2px] ${corda > 3 ? 'bg-[#e7d4ae]' : 'bg-[#fff0cb]'} shadow-[0_1px_0_#423025]`} />
@@ -69,7 +69,7 @@ export default function ViolaoPixel({ esperadas = [], proximas = [], midiOuvido,
             </div>
           ))}
           <div className="flex bg-[#fff0d4] border-t-2 border-[#452517]">
-            {CASAS.map((casa) => <span key={casa} className="w-[52px] text-center text-xs font-black py-0.5">{casa}</span>)}
+            {CASAS.map((casa) => <span key={casa} className="w-[52px] md:landscape:w-[6.25%] text-center text-xs font-black py-0.5">{casa}</span>)}
           </div>
         </div>
       </div>

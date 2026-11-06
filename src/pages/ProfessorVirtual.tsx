@@ -880,8 +880,8 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const posicoesProximas = exercicio.instrumento === 'violao' ? posicoes.slice(indice + 1, indice + 5).flat() : [];
 
   return (
-    <div className="space-y-4">
-      <div>
+    <div className="space-y-4 md:landscape:grid md:landscape:grid-cols-3 md:landscape:gap-3 md:landscape:space-y-0 lg:landscape:grid-cols-4">
+      <div className="md:landscape:col-span-full">
         <p className="font-black">Volta {volta} · Tempo total {tempoFormatado} · Meta {restanteFormatado}</p>
         {metaAtingida && !concluido && <p role="status" className="mt-2 border-4 border-black bg-[#ffcc22] p-3 text-lg font-black">⏱ Meta alcançada! Continue no loop ou toque em Encerrar.</p>}
         <div className="flex justify-between text-base font-black text-[#261812] mb-1">
@@ -893,9 +893,9 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2"><button type="button" className={modoMemoria ? BOTAO_CLARO : BOTAO_LARANJA} aria-pressed={!modoMemoria} onClick={() => setModoMemoria(false)}>Mostrar notas</button><button type="button" className={modoMemoria ? BOTAO_LARANJA : BOTAO_CLARO} aria-pressed={modoMemoria} onClick={() => { setModoMemoria(true); setMostrarTablatura(false); }}>De cor</button></div>
+      <div className="grid grid-cols-2 gap-2 md:landscape:col-span-full"><button type="button" className={modoMemoria ? BOTAO_CLARO : BOTAO_LARANJA} aria-pressed={!modoMemoria} onClick={() => setModoMemoria(false)}>Mostrar notas</button><button type="button" className={modoMemoria ? BOTAO_LARANJA : BOTAO_CLARO} aria-pressed={modoMemoria} onClick={() => { setModoMemoria(true); setMostrarTablatura(false); }}>De cor</button></div>
 
-      <div className={`${CARTAO} relative space-y-3`}>
+      <div className={`${CARTAO} relative space-y-3 md:landscape:order-4`}>
         <style>{`@keyframes pv-moeda-sessao { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-48px) } } @media (prefers-reduced-motion: reduce) { .pv-moeda-sessao { display: none } }`}</style>
         {efeito?.tipo === 'acerto' && <span key={efeito.id} className="pv-moeda-sessao absolute left-1/2 top-4 w-5 h-5 bg-yellow-300 border-[3px] border-black shadow-[3px_3px_0_#ad6900] pointer-events-none" style={{ animation: 'pv-moeda-sessao .65s ease-out both' }} aria-hidden="true" />}
         <div className="flex justify-between font-black text-lg"><span>🪙 {moedasSessao} moedas</span><span>Combo ×{combo}</span></div>
@@ -909,7 +909,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
         {diagnosticoEstado === 'erro' && <p role="alert" className="text-sm font-bold text-red-700">Erro ao enviar: {diagnosticoErro}</p>}
       </div>
 
-      <div className={`${CARTAO} space-y-3`}>
+      <div className={`${CARTAO} space-y-3 md:landscape:order-5`}>
         <div className="flex items-center justify-between gap-3"><h3 className="font-black text-lg">Metrônomo</h3><span key={`${metronomoLigado}-${bpmTreino}`} className={`w-12 h-12 rounded-full border-4 border-black ${batidaVisual ? 'bg-[#ff6b00]' : 'bg-white'} ${metronomoLigado ? 'opacity-100' : 'opacity-30'}`} aria-hidden="true" /></div>
         <label className="font-bold flex items-center gap-2">BPM <input type="number" min={40} max={240} value={bpmTreino} onChange={e => setBpmTreino(Math.max(40, Math.min(240, Number(e.target.value) || 40)))} className="w-24 border-2 border-black p-2" /></label>
         <div className="grid grid-cols-2 gap-2"><button type="button" className={BOTAO_CLARO} aria-pressed={metronomoLigado} onClick={() => { if (!metronomoLigado) { pararTesteSom(); contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current?.encerrar(); saidaCliqueRef.current = new SaidaClique(saidaEscolhida); } setMetronomoLigado(v => !v); }}>{metronomoLigado ? 'Desligar' : 'Ligar'}</button><button type="button" className={BOTAO_CLARO} aria-pressed={cliqueLigado} onClick={() => { if (!cliqueLigado) { contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current ??= new SaidaClique(saidaEscolhida); void contextoCliqueRef.current.resume(); } setCliqueLigado(v => !v); }}>{cliqueLigado ? 'Clique: ligado' : 'Clique: desligado'}</button></div>
@@ -930,13 +930,13 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       </div>
 
       {concluido ? (
-        <div className={`${CARTAO} text-center`}>
+        <div className={`${CARTAO} text-center md:landscape:order-3`}>
           <p className="text-xl font-black uppercase">Resumo do treino</p>
           <p className="text-7xl font-black text-[#ff6b00] my-3">{percentual}%</p>
           <p className="text-base font-semibold">{volta - 1} voltas completas · {tempoFormatado} · {acertos} acertos em {tentativas} tentativas.</p>
         </div>
       ) : (
-        <div className={`${CARTAO} text-center`}>
+        <div className={`${CARTAO} text-center md:landscape:order-3`}>
           <p className="text-sm font-black uppercase tracking-wide text-[#7b5647]">{pausado ? 'Pausado' : 'Toque agora'}</p>
           <p className={`font-black break-words my-1 ${modoMemoria ? 'text-3xl' : rotulo.length > 8 ? 'text-4xl' : 'text-7xl'}`}>{modoMemoria ? exercicio.titulo.replace(/ · .*/, '') : rotulo}</p>
           {!modoMemoria && passo.dica && <p className="text-lg font-semibold">{passo.dica}</p>}
@@ -952,16 +952,16 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       )}
 
       {exercicio.instrumento === 'violao' && (
-        <>
+        <div className="space-y-3 md:landscape:order-2 md:landscape:col-span-full">
           <ViolaoPixel esperadas={modoMemoria ? [] : posicoesAtuais} proximas={modoMemoria ? [] : posicoesProximas} midiOuvido={concluido ? null : midiAoVivo(leitura)} posicaoOuvida={concluido || !leitura?.temSom ? null : posicaoOuvida} efeito={efeito} />
           {!modoMemoria && <button type="button" onClick={() => setMostrarTablatura((valor) => !valor)} aria-pressed={mostrarTablatura} className={`${BOTAO_CLARO} w-full`}>
             {mostrarTablatura ? 'Ocultar tablatura' : 'Mostrar tablatura'}
           </button>}
           {!modoMemoria && mostrarTablatura && <Tablatura passos={exercicio.passos} indice={indice} />}
-        </>
+        </div>
       )}
 
-      {exercicio.instrumento === 'teclado' && <TecladoPixel esperado={modoMemoria ? null : passo.midis.length === 1 ? passo.midis[0] : null} proximas={modoMemoria ? [] : proximos.flatMap(p => p.midis)} dedo={modoMemoria ? undefined : passo.dedo} midiOuvido={concluido || !leitura?.temSom ? null : midiAoVivo(leitura)} midiCorreto={midiAoVivo(leitura) != null && passo.midis.includes(midiAoVivo(leitura)!)} efeito={efeito} />}
+      {exercicio.instrumento === 'teclado' && <div className="md:landscape:order-2 md:landscape:col-span-full"><TecladoPixel esperado={modoMemoria ? null : passo.midis.length === 1 ? passo.midis[0] : null} proximas={modoMemoria ? [] : proximos.flatMap(p => p.midis)} dedo={modoMemoria ? undefined : passo.dedo} midiOuvido={concluido || !leitura?.temSom ? null : midiAoVivo(leitura)} midiCorreto={midiAoVivo(leitura) != null && passo.midis.includes(midiAoVivo(leitura)!)} efeito={efeito} /></div>}
 
       {ultimo && (
         <div aria-live="polite" className={`border-4 border-black p-3 ${ultimo.correto ? 'bg-[#d9f7d9] text-[#0f5d1e]' : 'bg-[#ffd9d6] text-[#8f1410]'}`}>
@@ -985,7 +985,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:landscape:order-6 md:landscape:col-span-full md:landscape:sticky md:landscape:bottom-0 md:landscape:z-30 md:landscape:bg-[#fff8f6] md:landscape:py-2">
         {!concluido && <button type="button" onClick={() => setPausado(v => !v)} className={BOTAO_LARANJA}>{pausado ? 'Continuar' : 'Pausar'}</button>}
         {!concluido && <button type="button" onClick={() => { if (voltarAoAluno) aoSair(); else { setConcluido(true); escuta.desligar(); } }} className={BOTAO_CLARO}>Encerrar</button>}
         {concluido && <button type="button" onClick={aoSair} className={BOTAO_CLARO}>Voltar à lista</button>}
@@ -1469,7 +1469,7 @@ export default function ProfessorVirtual() {
   return (
     <div className="min-h-[100dvh] bg-[#fff8f6] text-[#261812] font-sans">
       <header className="bg-[#ff6b00] border-b-4 border-black px-4 pb-3" style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}>
-        <div className="max-w-xl mx-auto flex items-center gap-3">
+        <div className="max-w-xl md:max-w-6xl mx-auto flex items-center gap-3">
           <button type="button" aria-label="Voltar" onClick={tela.nome === 'lista' ? voltarAoApp : sairOuVoltar} className={BOTAO_ICONE}><ArrowLeft className="w-5 h-5" /></button>
           <h1 className="text-xl font-black uppercase text-black leading-tight">{alunoNome ? `Treino de ${alunoNome}` : 'Professor Virtual'}</h1>
         </div>
@@ -1478,7 +1478,7 @@ export default function ProfessorVirtual() {
         Modo de teste: só a equipe vê esta tela
       </p>
 
-      <main className="max-w-xl mx-auto px-4 py-5 pb-10 space-y-5">
+      <main className="max-w-xl md:max-w-6xl mx-auto px-4 py-5 pb-10 space-y-5">
         {tela.nome === 'mapa_preparo' && <div className={CARTAO}><p className="text-xl font-black">Preparando microfone</p><p>Fique em silêncio por alguns segundos.</p></div>}
         {tela.nome === 'mapa' && <TelaMapaViolao escuta={escuta} aoSair={sair} />}
         {tela.nome === 'calibracao' && (
@@ -1552,8 +1552,8 @@ export default function ProfessorVirtual() {
                   const doInstrumento = lista.filter((e) => e.instrumento === valor);
                   if (!doInstrumento.length) return null;
                   return (
-                    <section key={valor} className="space-y-4">
-                      <h2 className="text-2xl font-black uppercase text-[#261812]">{nome}</h2>
+                    <section key={valor} className="space-y-4 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4 md:space-y-0">
+                      <h2 className="text-2xl font-black uppercase text-[#261812] md:col-span-full">{nome}</h2>
                       {doInstrumento.map((exercicio) => (
                         <article key={exercicio.id ?? exercicio.titulo} className={CARTAO}>
                           <h3 className="text-xl font-black leading-tight">{exercicio.titulo}</h3>
