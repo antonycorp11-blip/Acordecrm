@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
+  BarChart3,
   LayoutDashboard, Users, Music, CreditCard, Settings, LogOut, Trophy,
   Briefcase, BookOpen, FileText, MessageCircle, UserCheck, ChevronLeft, ChevronRight, RefreshCcw, Video
 } from 'lucide-react';
@@ -13,6 +14,7 @@ const navItems = [
   { icon: Music, label: 'Aulas', path: '/agenda' },
   { icon: RefreshCcw, label: 'Reposições', path: '/reposicoes' },
   { icon: CreditCard, label: 'Financeiro', path: '/financeiro' },
+  { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },
   { icon: Settings, label: 'Ajustes', path: '/usuarios' },
 ];
 

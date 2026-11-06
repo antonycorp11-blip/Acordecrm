@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useNavigate,
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OneSignalService } from './services/OneSignalService';
 import { Sidebar } from './components/layout/Sidebar';
-import { Menu, X, LayoutDashboard, Users, Music, CreditCard, LogOut, RefreshCcw } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Users, Music, CreditCard, LogOut, RefreshCcw, BarChart3 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Alunos from './pages/Alunos';
 import Professores from './pages/Professores';
@@ -25,6 +25,9 @@ import { Reposicoes } from './pages/Reposicoes';
 import Assinatura from './pages/Assinatura';
 import { GlobalUpdater } from './components/GlobalUpdater';
 import EadTrilhaAdmin from './pages/EadTrilhaAdmin';
+import Relatorios from './pages/Relatorios';
+import Privacidade from './pages/Privacidade';
+import { AssistenteIA } from './components/AssistenteIA';
 
 import { Toaster } from 'sonner';
 
@@ -57,6 +60,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
     { icon: Music, label: 'Aulas', path: '/agenda' },
     { icon: RefreshCcw, label: 'Reposições', path: '/reposicoes' },
     { icon: CreditCard, label: 'Financeiro', path: '/financeiro' },
+    { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },
   ];
 
   const handleLogout = () => {
@@ -106,6 +110,9 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
           {children}
         </main>
       </div>
+
+      {/* Assistente de IA (somente no painel do administrador) */}
+      <AssistenteIA />
 
       {/* Gaveta Mobile Sidebar (Drawer) */}
       {isMobileMenuOpen && (
@@ -187,6 +194,14 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// Painel administrativo: aluno e professor são enviados para a própria área
+const AdminOnly = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
+  if (user?.role === 'professor') return <Navigate to="/area-professor" replace />;
+  if (user?.role === 'aluno') return <Navigate to="/area-aluno" replace />;
+  return <>{children}</>;
+};
+
 // Componente para redirecionamento baseado em Role
 const RoleRedirect = ({ children, defaultPath }: { children: React.ReactNode, defaultPath: string }) => {
   const { user } = useAuth();
@@ -222,6 +237,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/assinatura/:id" element={<Assinatura />} />
+          <Route path="/privacidade" element={<Privacidade tipo="privacidade" />} />
+          <Route path="/termos" element={<Privacidade tipo="termos" />} />
 
           {/* Rotas Privadas */}
           <Route path="/*" element={
@@ -230,6 +247,7 @@ export default function App() {
                 <Route path="/area-professor" element={<AreaProfessor />} />
                 <Route path="/area-aluno" element={<AreaAluno />} />
                 <Route path="*" element={
+                  <AdminOnly>
                   <MainLayout>
                     <Routes>
                       <Route path="/" element={
@@ -244,6 +262,7 @@ export default function App() {
                       <Route path="/professores" element={<Professores />} />
                       <Route path="/cursos" element={<Cursos />} />
                       <Route path="/financeiro" element={<Financeiro />} />
+                      <Route path="/relatorios" element={<Relatorios />} />
                       <Route path="/contratos" element={<Contratos />} />
                       <Route path="/conquistas" element={<Conquistas />} />
                       <Route path="/ranking" element={<Ranking />} />
@@ -253,6 +272,7 @@ export default function App() {
                 <Route path="/reposicoes" element={<Reposicoes />} />
                     </Routes>
                   </MainLayout>
+                  </AdminOnly>
                 } />
               </Routes>
             </PrivateRoute>

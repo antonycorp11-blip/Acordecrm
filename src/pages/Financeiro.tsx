@@ -150,7 +150,7 @@ export default function Financeiro() {
       if (res.ok) {
         let aulas = await res.json();
         if (Array.isArray(aulas)) {
-           aulas = aulas.filter(a => a.status === 'realizada' || a.status === 'falta_aluno');
+           aulas = aulas.filter(a => a.status === 'realizada');
            setAulasFolha(aulas);
         }
       }

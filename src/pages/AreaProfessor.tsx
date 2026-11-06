@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { getMediaStreamUrl } from '../utils/mediaUtils';
+import { getMediaStreamUrl, getGoogleDrivePreviewUrl } from '../utils/mediaUtils';
 import { 
   Bell, 
   Home, 
@@ -37,7 +37,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MusicEngine, ROOTS, CHORD_TYPES, EXTENSIONS, SCALES } from '../lib/musicEngine';
 import { ChordVisualizer, DrumsVisualizer } from '../components/musiclass/ChordVisualizers';
@@ -314,7 +314,7 @@ export default function AreaProfessor() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Estados de navegação e Modo Apresentação do Professor
-  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos'>('home');
+  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos' | 'fichas'>('home');
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
 
   const [doublePointsGame, setDoublePointsGame] = useState<string | null>(null);
@@ -443,6 +443,7 @@ export default function AreaProfessor() {
   const [selectedTreinoVideo, setSelectedTreinoVideo] = useState<string | null>(null);
   const [isTreinoVideoModalOpen, setIsTreinoVideoModalOpen] = useState(false);
   const [searchTreino, setSearchTreino] = useState('');
+  const [buscaFichas, setBuscaFichas] = useState('');
   const [isCheckinConfirmModalOpen, setIsCheckinConfirmModalOpen] = useState(false);
   const [checkinConfirmData, setCheckinConfirmData] = useState<any>(null);
   // Estados Ricos do Musiclass compartilhados
@@ -552,7 +553,8 @@ export default function AreaProfessor() {
   const loadData = () => {
     Promise.all([
       apiFetch('/api/professores/me').then(r => r.ok ? r.json() : null).catch(() => null),
-      apiFetch(`/api/agenda?start=2020-01-01&end=2030-01-01`).then(r => r.ok ? r.json() : []).catch(() => []),
+      // 12 meses para trás (fichas) e 12 para frente (agenda); antes pedia 2020-2030 e estourava o limite
+      apiFetch(`/api/agenda?start=${format(subMonths(new Date(), 12), 'yyyy-MM-dd')}&end=${format(addMonths(new Date(), 12), 'yyyy-MM-dd')}`).then(r => r.ok ? r.json() : []).catch(() => []),
       apiFetch('/api/alunos').then(r => r.ok ? r.json() : []).catch(() => []),
       apiFetch('/api/gamificacao/config-dobro').then(r => r.ok ? r.json() : { success: false }).catch(() => ({ success: false }))
     ]).then(([me, agenda, alunos, configDobro]) => {
@@ -4264,6 +4266,72 @@ export default function AreaProfessor() {
               </div>
             )}
 
+            {activeProfessorTab === 'fichas' && (() => {
+              // Resumo das aulas realizadas de cada aluno, a partir da agenda do professor
+              const resumoPorAluno: Record<string, { total: number; ultima: string | null }> = {};
+              agendaCompleta.forEach((a: any) => {
+                if (a.status !== 'realizada' || !a.aluno_id) return;
+                const r = resumoPorAluno[a.aluno_id] ||= { total: 0, ultima: null };
+                r.total++;
+                if (!r.ultima || a.data > r.ultima) r.ultima = a.data;
+              });
+              const termo = buscaFichas.trim().toLowerCase();
+              const alunosFiltrados = alunosList
+                .filter((a: any) => !termo || (a.nome || '').toLowerCase().includes(termo))
+                .map((a: any) => ({ ...a, resumo: resumoPorAluno[a.id] || { total: 0, ultima: null } }))
+                .sort((a: any, b: any) => (b.resumo.ultima || '').localeCompare(a.resumo.ultima || ''));
+
+              return (
+                <div className="space-y-4 animate-fade-in pb-24">
+                  <div className="bg-[#fff8f6] border-8 border-black p-5 relative shadow-[8px_8px_0_#000]">
+                    <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-600 text-white font-black text-[8px] uppercase border-l-4 border-b-4 border-black">
+                      FICHAS
+                    </div>
+                    <h3 className="text-black font-black text-lg uppercase italic tracking-tighter mt-1 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-emerald-600" /> FICHAS DOS MEUS ALUNOS
+                    </h3>
+                    <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider mt-1">
+                      Toque em um aluno para ver todas as fichas de aula dele
+                    </p>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="PESQUISAR ALUNO..."
+                    className="w-full bg-white border-4 border-black p-3 font-black text-xs uppercase outline-none focus:bg-[#ffeae1] shadow-[4px_4px_0_#000]"
+                    value={buscaFichas}
+                    onChange={(e) => setBuscaFichas(e.target.value)}
+                  />
+
+                  <div className="space-y-2">
+                    {alunosFiltrados.map((aluno: any) => (
+                      <button
+                        key={aluno.id}
+                        onClick={() => handleAbrirHistoricoAluno(aluno.id, aluno.nome)}
+                        className="w-full text-left bg-white border-4 border-black p-3 flex items-center justify-between gap-3 shadow-[4px_4px_0_#000] active:translate-y-[2px] active:shadow-none transition-all"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <h5 className="font-black text-xs uppercase truncate">{aluno.nome}</h5>
+                          <p className="text-[8px] font-bold text-black/60 uppercase">
+                            {aluno.resumo.total} {aluno.resumo.total === 1 ? 'ficha' : 'fichas'}
+                            {aluno.resumo.ultima ? ` • última aula ${format(new Date(aluno.resumo.ultima + 'T12:00:00'), 'dd/MM/yyyy')}` : ' • nenhuma aula realizada'}
+                          </p>
+                        </div>
+                        <span className="bg-black text-white px-3 py-1.5 font-black text-[9px] uppercase flex items-center gap-1 shrink-0">
+                          <FileText className="w-3 h-3" /> VER FICHAS
+                        </span>
+                      </button>
+                    ))}
+                    {alunosFiltrados.length === 0 && (
+                      <div className="py-6 text-center opacity-50 font-black text-[10px] uppercase border-4 border-dashed border-black/20 bg-white">
+                        NENHUM ALUNO ENCONTRADO.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {activeProfessorTab === 'treinos' && (
               <div className="space-y-4 animate-fade-in pb-10">
                 {/* Cabeçalho da aba Treinos */}
@@ -4275,7 +4343,7 @@ export default function AreaProfessor() {
                     <Flame className="w-5 h-5 text-[#ff6b00] animate-pulse" /> TREINOS DOS ALUNOS
                   </h3>
                   <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider mt-1">
-                    Acompanhe os check-ins diários e assista às gravações de 24h dos alunos!
+                    Acompanhe os check-ins diários e assista às gravações recentes dos alunos!
                   </p>
                 </div>
 
@@ -4345,14 +4413,17 @@ export default function AreaProfessor() {
                       let tempoRestanteStr = '';
                       let isExpirado = true;
                       if (treino.video_url && treino.video_created_at) {
-                        const videoTime = new Date(treino.video_created_at).getTime();
-                        const now = Date.now();
-                        const diffMs = videoTime + 24 * 60 * 60 * 1000 - now;
+                        // O prazo vem do servidor (retenção configurada no painel do Google Drive)
+                        const expiraMs = treino.video_expira_em
+                          ? new Date(treino.video_expira_em).getTime()
+                          : new Date(treino.video_created_at).getTime() + 24 * 60 * 60 * 1000;
+                        const diffMs = expiraMs - Date.now();
                         if (diffMs > 0) {
                           isExpirado = false;
-                          const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                          const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                          const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                           const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                          tempoRestanteStr = `${diffHrs}h ${diffMins}m restantes`;
+                          tempoRestanteStr = diffDias > 0 ? `${diffDias}d ${diffHrs}h restantes` : `${diffHrs}h ${diffMins}m restantes`;
                         }
                       }
 
@@ -4699,6 +4770,7 @@ export default function AreaProfessor() {
             { id: 'home', icon: Home, label: 'HOME' },
             { id: 'jogos', icon: Gamepad2, label: 'JOGOS' },
             { id: 'agenda', icon: Calendar, label: 'AGENDA' },
+            { id: 'fichas', icon: FileText, label: 'FICHAS' },
             { id: 'treinos', icon: Flame, label: 'TREINOS' },
             { id: 'ranking', icon: Trophy, label: 'RANKING' },
             { id: 'perfil', icon: User, label: 'PERFIL' },
@@ -5470,9 +5542,28 @@ export default function AreaProfessor() {
                         </div>
                       )}
 
-                      {/* Professor */}
-                      <div className="flex justify-end text-[7px] font-black text-black/30 uppercase">
-                        Instrutor: {aula.professores?.nome || 'HUB'}
+                      {/* Professor + ficha completa */}
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => {
+                            setIsHistoricoModalOpen(false);
+                            openPreviewModal({
+                              ...aula,
+                              originalId: aula.id,
+                              type: 'regular',
+                              nome: selectedAlunoHistorico.nome,
+                              aluno_nome: selectedAlunoHistorico.nome,
+                              curso_nome: aula.cursos?.nome,
+                              professor_nome: aula.professores?.nome
+                            });
+                          }}
+                          className="bg-black text-white px-3 py-1.5 border-2 border-black font-black text-[8px] uppercase shadow-[2px_2px_0_#ff6b00] active:translate-y-[1px] active:shadow-none flex items-center gap-1"
+                        >
+                          <FileText className="w-3 h-3" /> ABRIR FICHA COMPLETA
+                        </button>
+                        <span className="text-[7px] font-black text-black/30 uppercase">
+                          Instrutor: {aula.professores?.nome || 'HUB'}
+                        </span>
                       </div>
                     </div>
                   );
@@ -5630,17 +5721,28 @@ export default function AreaProfessor() {
 
             {/* Container do Player Brutalista com visual pixel art */}
             <div className="border-4 border-black bg-black shadow-[6px_6px_0_#000] overflow-hidden relative group aspect-video">
-              <video 
-                src={selectedTreinoVideo} 
-                controls 
-                autoPlay 
-                className="w-full h-full object-contain"
-                playsInline
-              />
+              {selectedTreinoVideo.includes('drive.google.com') ? (
+                // Vídeos do Google Drive tocam pelo player do próprio Drive
+                <iframe
+                  src={getGoogleDrivePreviewUrl(selectedTreinoVideo)}
+                  className="w-full h-full"
+                  allow="autoplay; fullscreen"
+                  allowFullScreen
+                  title="Vídeo de treino"
+                />
+              ) : (
+                <video 
+                  src={selectedTreinoVideo} 
+                  controls 
+                  autoPlay 
+                  className="w-full h-full object-contain"
+                  playsInline
+                />
+              )}
             </div>
             
             <div className="mt-4 bg-[#261812] text-white p-3 border-4 border-black text-[7.5px] font-black uppercase text-center tracking-widest">
-              ⏳ ESTE VÍDEO SERÁ EXCLUÍDO APÓS 24 HORAS PARA ECONOMIA DE ARMAZENAMENTO SUPABASE
+              ⏳ ESTE VÍDEO É EXCLUÍDO AUTOMATICAMENTE DO GOOGLE DRIVE APÓS O PRAZO DE RETENÇÃO
             </div>
           </div>
         </div>

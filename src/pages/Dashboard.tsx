@@ -18,6 +18,22 @@ export default function Dashboard() {
   const [faturasPendentes, setFaturasPendentes] = useState<any[]>(() => getStoredCache('dashboard_faturas_pendentes', []));
   const [temporada, setTemporada] = useState<{nome: string}>(() => getStoredCache('dashboard_temporada', { nome: 'Temporada 3' }));
   const [feed, setFeed] = useState<any[]>(() => getStoredCache('dashboard_feed', []));
+  const [alunosEmAtraso, setAlunosEmAtraso] = useState<any[]>(() => getStoredCache('dashboard_alunos_em_atraso', []));
+  const [aulasSemMensalidade, setAulasSemMensalidade] = useState<any[]>(() => getStoredCache('dashboard_aulas_sem_mensalidade', []));
+  const [driveStatus, setDriveStatus] = useState<any>(null);
+
+  // Sensor do Google Drive + retorno da conexão OAuth (?drive=ok)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const retorno = params.get('drive');
+    if (retorno) {
+      if (retorno === 'ok') toast.success('Google Drive conectado! Vídeos de treino liberados.');
+      else toast.error(retorno === 'cancelado' ? 'Conexão com o Google cancelada.' : 'Não foi possível conectar o Google Drive. Tente novamente.');
+      window.history.replaceState({}, '', window.location.pathname);
+      setShowDriveModal(true);
+    }
+    apiFetch('/api/drive/status').then(r => r.ok ? r.json() : null).then(setDriveStatus).catch(() => {});
+  }, []);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [showModalAulas, setShowModalAulas] = useState(false);
   const [showModalFaturas, setShowModalFaturas] = useState(false);
@@ -45,8 +61,18 @@ export default function Dashboard() {
       apiFetch('/api/dashboard/faturas-pendentes').then(r => r.ok ? r.json() : null).catch(() => null),
       apiFetch('/api/feed').then(r => r.ok ? r.json() : null).catch(() => null),
       apiFetch('/api/temporada-atual').then(r => r.ok ? r.json() : null).catch(() => null),
-      apiFetch('/api/leads').then(r => r.ok ? r.json() : null).catch(() => null)
-    ]).then(([aulas, faturas, feedData, temp, leadsList]) => {
+      apiFetch('/api/leads').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch('/api/dashboard/alunos-em-atraso').then(r => r.ok ? r.json() : null).catch(() => null),
+      apiFetch('/api/dashboard/aulas-sem-mensalidade').then(r => r.ok ? r.json() : null).catch(() => null)
+    ]).then(([aulas, faturas, feedData, temp, leadsList, emAtraso, semMensalidade]) => {
+      if (emAtraso && Array.isArray(emAtraso)) {
+        setAlunosEmAtraso(emAtraso);
+        setStoredCache('dashboard_alunos_em_atraso', emAtraso);
+      }
+      if (semMensalidade && Array.isArray(semMensalidade)) {
+        setAulasSemMensalidade(semMensalidade);
+        setStoredCache('dashboard_aulas_sem_mensalidade', semMensalidade);
+      }
       if (aulas && Array.isArray(aulas)) {
         setAulasSemStatus(aulas);
         setStoredCache('dashboard_aulas_sem_status', aulas);
@@ -84,10 +110,18 @@ export default function Dashboard() {
       quintoDia.setHours(0,0,0,0);
 
       // Regra dos modais: Apenas se for maior que zero
-      if (aulas && aulas.length > 0) {
-        setShowModalAulas(true);
-      } else if (faturas && faturas.length > 0 && hoje.getTime() > quintoDia.getTime()) {
-        setShowModalFaturas(true);
+      // Os avisos aparecem no máximo uma vez por dia (antes reabriam a cada foco da janela)
+      const chaveAviso = `acorde_aviso_dashboard_${new Date().toDateString()}`;
+      let jaAvisado = false;
+      try { jaAvisado = sessionStorage.getItem(chaveAviso) === '1' || localStorage.getItem(chaveAviso) === '1'; } catch {}
+      if (!jaAvisado) {
+        if (aulas && aulas.length > 0) {
+          setShowModalAulas(true);
+          try { localStorage.setItem(chaveAviso, '1'); } catch {}
+        } else if (faturas && faturas.length > 0 && hoje.getTime() > quintoDia.getTime()) {
+          setShowModalFaturas(true);
+          try { localStorage.setItem(chaveAviso, '1'); } catch {}
+        }
       }
     }).catch(err => console.warn('[Dashboard] Erro ao carregar alertas:', err));
   };
@@ -166,6 +200,24 @@ export default function Dashboard() {
       {/* MAIN CONTENT */}
       <div className="flex-1 overflow-auto p-6 space-y-5">
 
+        {driveStatus && driveStatus.conectado && driveStatus.alerta && (
+          <button
+            onClick={() => setShowDriveModal(true)}
+            className={`w-full text-left flex items-center gap-3 p-4 border-4 border-black shadow-[4px_4px_0_#000] ${driveStatus.alerta ? 'bg-red-600 text-white' : 'bg-yellow-300 text-black'}`}
+          >
+            <HardDrive className="w-6 h-6 shrink-0" />
+            <div className="flex-1">
+              <p className="font-black text-xs uppercase">
+                {driveStatus.alerta
+                  ? `Google Drive com ${driveStatus.usoPct}% de uso: apague vídeos antigos`
+                  : 'Google Drive não conectado: alunos não conseguem enviar vídeos de treino'}
+              </p>
+              <p className="text-[10px] font-bold opacity-80 uppercase">Toque para abrir o painel do Google Drive</p>
+            </div>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        )}
+
         {/* TOP ROW */}
         <div className="grid grid-cols-3 gap-5">
           {/* Total Alunos & Aulas */}
@@ -203,6 +255,79 @@ export default function Dashboard() {
                 </div>
               )) : (
                 <div className="text-white/80 text-xs font-black uppercase text-center mt-5">Sem alunos cadastrados</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* DESTAQUES FINANCEIROS: ATRASOS E AULAS SEM MENSALIDADE */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="sticker-card rounded-lg flex flex-col overflow-hidden" style={{ background: '#fff8f6', border: '3px solid #261812', maxHeight: '360px' }}>
+            <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#dc2626', borderBottom: '3px solid #261812' }}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-white" />
+                <p className="text-white text-[11px] font-black uppercase tracking-widest">Alunos em atraso ({alunosEmAtraso.length})</p>
+              </div>
+              <span className="text-white font-black text-sm">
+                R$ {alunosEmAtraso.reduce((acc, a) => acc + Number(a.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+              {alunosEmAtraso.length > 0 ? alunosEmAtraso.map((a) => (
+                <button
+                  key={a.aluno_id}
+                  onClick={() => navigate(`/alunos/${a.aluno_id}`)}
+                  className="w-full text-left flex items-center justify-between bg-white p-3 border-2 border-black rounded shadow-[2px_2px_0_#000] hover:bg-red-50 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-black uppercase text-xs truncate">{a.nome}</p>
+                    <p className="text-[9px] font-bold text-[#8e7164] uppercase">
+                      {(a.parcelas || []).map((p: any) => `${p.referencia} R$ ${Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`).join(' • ')}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right ml-2">
+                    <p className="font-black text-red-600 text-sm">R$ {Number(a.total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className={`text-[8px] font-black uppercase px-1 rounded border inline-block ${a.dias_atraso > 30 ? 'bg-red-600 text-white border-red-800' : 'bg-red-100 text-red-800 border-red-300'}`}>
+                      {a.dias_atraso} dias
+                    </p>
+                  </div>
+                </button>
+              )) : (
+                <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center py-6">Nenhum aluno em atraso. 🎉</div>
+              )}
+            </div>
+          </div>
+
+          <div className="sticker-card rounded-lg flex flex-col overflow-hidden" style={{ background: '#fff8f6', border: '3px solid #261812', maxHeight: '360px' }}>
+            <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#7c3aed', borderBottom: '3px solid #261812' }}>
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-white" />
+                <p className="text-white text-[11px] font-black uppercase tracking-widest">Sem mensalidade no mês que vem ({aulasSemMensalidade.length})</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+              <p className="text-[9px] font-bold text-[#8e7164] uppercase">
+                Têm aula este mês{aulasSemMensalidade[0]?.mes_atual ? ` (${aulasSemMensalidade[0].mes_atual})` : ''} e nenhuma mensalidade em {aulasSemMensalidade[0]?.proximo_mes || 'o mês que vem'}. Renove o plano ou gere as parcelas.
+              </p>
+              {aulasSemMensalidade.length > 0 ? aulasSemMensalidade.map((a) => (
+                <button
+                  key={a.aluno_id}
+                  onClick={() => navigate(`/alunos/${a.aluno_id}`)}
+                  className="w-full text-left flex items-center justify-between bg-white p-3 border-2 border-black rounded shadow-[2px_2px_0_#000] hover:bg-violet-50 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-black uppercase text-xs truncate">{a.nome}</p>
+                    <p className="text-[9px] font-bold text-[#8e7164] uppercase">
+                      {a.ultima_mensalidade ? `Última mensalidade: ${a.ultima_mensalidade}` : 'Nenhuma mensalidade gerada'}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right ml-2">
+                    <p className="font-black text-violet-700 text-sm">{a.aulas_neste_mes} {a.aulas_neste_mes === 1 ? 'aula' : 'aulas'}</p>
+                    <p className="text-[8px] font-black uppercase text-[#8e7164]">neste mês</p>
+                  </div>
+                </button>
+              )) : (
+                <div className="h-full flex items-center justify-center text-[#8e7164] text-xs font-black uppercase text-center py-6">Todos os alunos com aula têm mensalidade no mês que vem. ✅</div>
               )}
             </div>
           </div>
@@ -254,7 +379,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#ff6b00', borderBottom: '3px solid #261812' }}>
               <div className="flex items-center gap-2">
                 <span className="text-white font-black text-sm">💰</span>
-                <p className="text-white text-[11px] font-black uppercase tracking-widest">Cobranças do Mês ({faturasPendentes.length})</p>
+                <p className="text-white text-[11px] font-black uppercase tracking-widest">Parcelas em atraso ({faturasPendentes.length})</p>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">

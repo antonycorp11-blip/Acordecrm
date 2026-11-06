@@ -45,7 +45,7 @@ export default function EadTrilhaAdmin() {
       const [resMod, resAul, resConq] = await Promise.all([
         fetch('/api/trilha/modulos', { headers }),
         fetch('/api/trilha/aulas', { headers }),
-        fetch('/api/conquistas', { headers })
+        fetch('/api/gamificacao/conquistas?temporada_id=all', { headers })
       ]);
       if (resMod.ok) setModulos(await resMod.json());
       if (resAul.ok) setAulas(await resAul.json());

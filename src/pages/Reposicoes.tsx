@@ -254,8 +254,12 @@ export function Reposicoes() {
     }
   };
 
+  // Recarrega a fila ao voltar para ela: aulas enviadas na aba Revisão precisam aparecer na hora
   useEffect(() => {
-    fetchReposicoes();
+    if (aba === 'fila') fetchReposicoes();
+  }, [aba]);
+
+  useEffect(() => {
     // contador da aba "Revisão de aulas"
     fetch('/api/aulas/revisao', { headers: { 'Authorization': `Bearer ${localStorage.getItem('acorde_token')}` } })
       .then(r => r.ok ? r.json() : null)

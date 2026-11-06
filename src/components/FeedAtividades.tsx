@@ -8,6 +8,7 @@ interface FeedAtividade {
   icone: string;
   created_at: string;
   aluno_id?: number;
+  aluno_nome?: string | null;
 }
 
 interface FeedProps {
@@ -31,8 +32,11 @@ export const FeedAtividades: React.FC<FeedProps> = ({ atividades, loading }) => 
           <div className="text-xl">{atividade.icone || '🔔'}</div>
           <div>
             <p className="text-xs text-gray-300">
-              <span className="font-bold text-[#00ffcc]">[{atividade.tipo.toUpperCase()}]</span> {atividade.mensagem}
+              <span className="font-bold text-[#00ffcc]">[{(atividade.tipo || '').toUpperCase()}]</span> {atividade.mensagem}
             </p>
+            {atividade.aluno_nome && (
+              <p className="text-[10px] font-black uppercase text-[#ff6b00]">👤 {atividade.aluno_nome}</p>
+            )}
             <span className="text-[10px] text-gray-500">
               {new Date(atividade.created_at).toLocaleString('pt-BR')}
             </span>
