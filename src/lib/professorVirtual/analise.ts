@@ -2,7 +2,7 @@
 
 import type { LeituraAudio, TimbreViolao } from './types';
 
-export const FREQ_MIN_HZ = 70;
+export const FREQ_MIN_HZ = 60;
 export const FREQ_MAX_HZ = 2000;
 export const PISO_DB = -120;
 

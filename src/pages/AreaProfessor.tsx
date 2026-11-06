@@ -34,7 +34,7 @@ import {
   Video,
   Gamepad2
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { toast } from 'sonner';
@@ -277,6 +277,8 @@ import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../
 
 export default function AreaProfessor() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const pdfRef = useRef<HTMLDivElement>(null);
   const [professorData, setProfessorData] = useState<any>(() => getStoredCache('professor_data', null));
   const [disponibilidade, setDisponibilidade] = useState<string[]>([]);
@@ -428,6 +430,8 @@ export default function AreaProfessor() {
 
   // NOVOS ESTADOS ADICIONADOS PARA NOTIFICAÇÕES E TREINOS E HISTÓRICO
   const [selectedAlunoHistorico, setSelectedAlunoHistorico] = useState<{ id: string; nome: string } | null>(null);
+  const [abaHistoricoAluno, setAbaHistoricoAluno] = useState<'fichas' | 'treinos'>('fichas');
+  const [instrumentoTreino, setInstrumentoTreino] = useState('');
   const [historicoAulas, setHistoricoAulas] = useState<any[]>([]);
   const [isHistoricoModalOpen, setIsHistoricoModalOpen] = useState(false);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
@@ -734,6 +738,8 @@ export default function AreaProfessor() {
   };
 
   const handleAbrirHistoricoAluno = async (alunoId: string | number, nomeAluno: string) => {
+    setAbaHistoricoAluno('fichas');
+    setInstrumentoTreino('');
     setSelectedAlunoHistorico({ id: String(alunoId), nome: nomeAluno });
     setIsHistoricoModalOpen(true);
     setLoadingHistorico(true);
@@ -755,6 +761,20 @@ export default function AreaProfessor() {
       setLoadingHistorico(false);
     }
   };
+
+  useEffect(() => {
+    const alunoId = searchParams.get('alunoTreino');
+    if (!alunoId || !alunosList.length || isHistoricoModalOpen) return;
+    const aluno = alunosList.find((a: any) => String(a.id) === alunoId);
+    if (aluno) {
+      setActiveProfessorTab('fichas');
+      handleAbrirHistoricoAluno(aluno.id, aluno.nome);
+      setAbaHistoricoAluno('treinos');
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('alunoTreino');
+    setSearchParams(next, { replace: true });
+  }, [alunosList, searchParams, isHistoricoModalOpen]);
 
   const fetchRanking = async () => {
     setLoadingRanking(true);
@@ -5486,6 +5506,42 @@ export default function AreaProfessor() {
               </p>
             </div>
 
+            <div className="flex gap-2 mb-5">
+              {(['fichas', 'treinos'] as const).map(aba => (
+                <button key={aba} type="button" onClick={() => setAbaHistoricoAluno(aba)}
+                  className={`border-2 border-black px-3 py-2 text-xs font-black uppercase ${abaHistoricoAluno === aba ? 'bg-[#ff6b00] text-black' : 'bg-white text-black'}`}>
+                  {aba === 'fichas' ? 'Fichas' : 'Treinos em Aula'}
+                </button>
+              ))}
+            </div>
+
+            {abaHistoricoAluno === 'treinos' ? (() => {
+              const aluno = alunosList.find((a: any) => String(a.id) === selectedAlunoHistorico.id);
+              const valores = [aluno?.curso, aluno?.curso_ativo, aluno?.instrumento, aluno?.curso_nome,
+                ...(aluno?.matriculas || []).map((m: any) => m.curso?.nome || m.cursos?.nome || m.curso_nome || m.instrumento)];
+              const instrumentos = [...new Set(valores.flatMap((v: any) => Array.isArray(v) ? v : typeof v === 'string' ? v.split(/[,;/]/) : [])
+                .map((v: string) => v.trim()).filter(Boolean))];
+              const normalizar = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+              const destino = (v: string) => /teclado|piano/.test(normalizar(v)) ? 'teclado' : /violao|guitarra/.test(normalizar(v)) ? 'violao' : '';
+              const escolhido = instrumentoTreino || (instrumentos.length === 1 ? instrumentos[0] : '');
+              const abrir = (tipo: string) => navigate(`/professor-virtual?instrumento=${tipo}&aluno=${encodeURIComponent(selectedAlunoHistorico.nome)}&alunoId=${encodeURIComponent(selectedAlunoHistorico.id)}`);
+              return <div className="border-4 border-black bg-white p-4 text-black space-y-4">
+                <h3 className="font-black text-lg">{selectedAlunoHistorico.nome}</h3>
+                <p className="text-sm font-bold">Instrumento: {instrumentos.join(', ') || 'Não informado'}</p>
+                {instrumentos.length > 1 && <label className="block text-sm font-bold">Escolha o instrumento
+                  <select value={instrumentoTreino} onChange={e => setInstrumentoTreino(e.target.value)} className="block mt-2 w-full border-2 border-black bg-white text-black p-2">
+                    <option value="">Selecione</option>{instrumentos.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </label>}
+                {escolhido && !destino(escolhido) && <p className="font-bold">Módulo ainda não disponível para este instrumento</p>}
+                {escolhido && destino(escolhido) && <button type="button" onClick={() => abrir(destino(escolhido))} className="border-2 border-black bg-[#ff6b00] px-4 py-2 font-black text-black">Abrir treino de {escolhido}</button>}
+                {(!escolhido || !destino(escolhido)) && <div className="flex gap-2 flex-wrap">
+                  <button type="button" onClick={() => abrir('teclado')} className="border-2 border-black bg-[#ff6b00] px-4 py-2 font-black text-black">Escolher teclado</button>
+                  <button type="button" onClick={() => abrir('violao')} className="border-2 border-black bg-[#ff6b00] px-4 py-2 font-black text-black">Escolher violão</button>
+                </div>}
+              </div>;
+            })() : <>
+
             {loadingHistorico ? (
               <div className="py-12 text-center">
                 <p className="text-black font-black text-xs uppercase tracking-widest animate-pulse">
@@ -5574,6 +5630,7 @@ export default function AreaProfessor() {
                 })}
               </div>
             )}
+            </>}
           </div>
         </div>
       )}

@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, Mic, Pencil, Play, Plus, RotateCcw, Square, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../services/apiClient';
 import ViolaoPixel from '../components/ViolaoPixel';
+import TecladoPixel from '../components/TecladoPixel';
+import { gerarEscalaTeclado, gerarHanon, nomeTonicaTeclado, TIPOS_ESCALA_TECLADO, type TipoEscalaTeclado, type MaoTeclado } from '../lib/professorVirtual/teclado';
 import { createMotorEscuta, createSeguidor } from '../lib/professorVirtual';
 import { contextoAudioTreino } from '../lib/professorVirtual/motor';
+import { SaidaClique, COMBINACOES_CLIQUE, aplicarSessaoAudio, codigoClique, lerSaidaClique, salvarSaidaClique, type CombinacaoClique } from '../lib/professorVirtual/saidaClique';
 import { estimarPosicao, gerarEscala, midiNaPosicao, otimizarSequencia, posicoesDaSequencia, posicoesDoPasso, type EstimativaPosicao, type PosicaoViolao } from '../lib/professorVirtual/violao';
 import { adicionarAmostra, chavePosicao, lerMapaEscolhido, lerMapas, lerModeloEscolhido, lembrarModeloEscolhido, novaCalibracao, posicoesCalibracao, salvarMapas, type ModeloViolao } from '../lib/professorVirtual/calibracao';
 import type { ExercicioVirtual, Instrumento, LeituraAudio, MotorEscuta, PassoExercicio, ResultadoPasso } from '../lib/professorVirtual/types';
@@ -123,8 +126,7 @@ function useEscuta(aoInterromper?: () => void) {
   const ligar = useCallback(async (instrumento: Instrumento) => {
     desligar();
     try {
-      const sessao = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
-      if (sessao) sessao.type = 'play-and-record';
+      aplicarSessaoAudio(lerSaidaClique().sessao);
     } catch { /* Safari antigo pode recusar a configuração. */ }
     const motor = createMotorEscuta();
     motorRef.current = motor;
@@ -143,7 +145,7 @@ function useEscuta(aoInterromper?: () => void) {
       if (motorRef.current !== motor) return;
       // O motor lê bem mais rápido do que vale a pena redesenhar a tela.
       const agora = performance.now();
-      if (agora - ultimaPinturaRef.current >= 120) {
+      if (agora - ultimaPinturaRef.current >= 125) {
         ultimaPinturaRef.current = agora;
         setLeitura(l);
       }
@@ -650,13 +652,15 @@ function TelaMapaViolao({ escuta, aoSair }: { escuta: Escuta; aoSair: () => void
   </div>;
 }
 
-function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, aoReiniciar }: {
+function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, aoReiniciar, metaMinutos, voltarAoAluno }: {
   exercicio: ExercicioVirtual;
   escuta: Escuta;
   ruidoDb: number;
   diagnosticoInicial?: boolean;
   aoSair: () => void;
   aoReiniciar: () => void;
+  metaMinutos: number;
+  voltarAoAluno?: boolean;
 }) {
   const [seguidor] = useState(() => createSeguidor(exercicio));
   const [indice, setIndice] = useState(0);
@@ -669,31 +673,79 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const inicioSessaoRef = useRef(Date.now());
   const [tempoTotal, setTempoTotal] = useState(0);
   const [mostrarTablatura, setMostrarTablatura] = useState(false);
+  const [modoMemoria, setModoMemoria] = useState(false);
   const [posicaoOuvida, setPosicaoOuvida] = useState<EstimativaPosicao | null>(null);
   const [diagnosticoEstado, setDiagnosticoEstado] = useState<'parado' | 'gravando' | 'enviando' | 'enviado' | 'erro'>(diagnosticoInicial ? 'gravando' : 'parado');
   const [diagnosticoErro, setDiagnosticoErro] = useState('');
   const diagnosticoRef = useRef<{ inicioMs: number | null; bytes: number; leituras: object[] } | null>(diagnosticoInicial ? { inicioMs: null, bytes: 0, leituras: [] } : null);
   const [bpmTreino, setBpmTreino] = useState(Math.max(40, Math.min(240, exercicio.bpm || 100)));
   const [metronomoLigado, setMetronomoLigado] = useState(false);
+  const [vibrarPulso, setVibrarPulso] = useState(false);
+  const podeVibrar = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
   const [cliqueLigado, setCliqueLigado] = useState(false);
   const [volumeClique, setVolumeClique] = useState(100);
   const [batidaVisual, setBatidaVisual] = useState(false);
   const [ritmo, setRitmo] = useState('');
+  const [saidaEscolhida, setSaidaEscolhida] = useState(lerSaidaClique);
+  const [mostrarTesteSom, setMostrarTesteSom] = useState(false);
+  const [testeAtivo, setTesteAtivo] = useState<string | null>(null);
+  const [statusSessao, setStatusSessao] = useState('');
   const [moedasSessao, setMoedasSessao] = useState(0); // Só nesta sessão; nunca persiste nem altera economia.
   const [combo, setCombo] = useState(0);
   const [efeito, setEfeito] = useState<{ tipo: 'acerto' | 'erro'; id: number } | null>(null);
   const contextoCliqueRef = useRef<AudioContext | null>(null);
+  const saidaCliqueRef = useRef<SaidaClique | null>(null);
+  const testeTimerRef = useRef<number | null>(null);
+  const testeIntervaloRef = useRef<number | null>(null);
   const energiaAnteriorRef = useRef(0);
   const proximoCliqueRef = useRef(0);
   const inicioRitmoRef = useRef<number | null>(null);
   const temposCliqueRef = useRef<number[]>([]);
   const [ultimoAtrasoMs, setUltimoAtrasoMs] = useState<number | null>(null);
   const { ouvir, leitura } = escuta;
+  const pararTesteSom = useCallback(() => {
+    if (testeTimerRef.current !== null) clearTimeout(testeTimerRef.current);
+    if (testeIntervaloRef.current !== null) clearInterval(testeIntervaloRef.current);
+    testeTimerRef.current = null; testeIntervaloRef.current = null;
+    saidaCliqueRef.current?.encerrar(); saidaCliqueRef.current = null;
+    setTesteAtivo(null);
+    aplicarSessaoAudio(saidaEscolhida.sessao);
+  }, [saidaEscolhida]);
+  useEffect(() => () => {
+    if (testeTimerRef.current !== null) clearTimeout(testeTimerRef.current);
+    if (testeIntervaloRef.current !== null) clearInterval(testeIntervaloRef.current);
+    saidaCliqueRef.current?.encerrar();
+  }, []);
+  const testarSom = (item: CombinacaoClique) => {
+    if (testeTimerRef.current !== null) clearTimeout(testeTimerRef.current);
+    if (testeIntervaloRef.current !== null) clearInterval(testeIntervaloRef.current);
+    saidaCliqueRef.current?.encerrar();
+    setMetronomoLigado(false);
+    try {
+      const saida = new SaidaClique(item);
+      saidaCliqueRef.current = saida;
+      setStatusSessao(aplicarSessaoAudio(item.sessao));
+      setTesteAtivo(codigoClique(item));
+      saida.tocar(0);
+      testeIntervaloRef.current = window.setInterval(() => saida.tocar(0), 500);
+      testeTimerRef.current = window.setTimeout(() => {
+        if (testeIntervaloRef.current !== null) clearInterval(testeIntervaloRef.current);
+        testeIntervaloRef.current = null; testeTimerRef.current = null;
+        saida.encerrar();
+        if (saidaCliqueRef.current === saida) saidaCliqueRef.current = null;
+        setTesteAtivo(null);
+        aplicarSessaoAudio(saidaEscolhida.sessao);
+      }, 4000);
+    } catch (erro) { setStatusSessao(erro instanceof Error ? erro.message : 'Falha ao tocar'); setTesteAtivo(null); }
+  };
   const posicoes = useMemo(() => posicoesDaSequencia(exercicio.passos), [exercicio.passos]);
   useEffect(() => {
     const timer = window.setInterval(() => setTempoTotal(Math.floor((Date.now() - inicioSessaoRef.current) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, []);
+  const restante = Math.max(0, metaMinutos * 60 - tempoTotal);
+  const metaAtingida = tempoTotal >= metaMinutos * 60;
+  const restanteFormatado = `${Math.floor(restante / 60).toString().padStart(2, '0')}:${(restante % 60).toString().padStart(2, '0')}`;
   const tempoFormatado = `${Math.floor(tempoTotal / 3600).toString().padStart(2, '0')}:${Math.floor(tempoTotal / 60 % 60).toString().padStart(2, '0')}:${(tempoTotal % 60).toString().padStart(2, '0')}`;
 
   const enviarDiagnostico = useCallback(async () => {
@@ -727,37 +779,23 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
     inicioRitmoRef.current = performance.now() + 80;
     proximoCliqueRef.current = inicioRitmoRef.current;
     temposCliqueRef.current = [];
-    let batida = 0;
     const timer = window.setInterval(() => {
       const agora = performance.now();
       while (proximoCliqueRef.current < agora + 100) {
         const instante = proximoCliqueRef.current;
-        window.setTimeout(() => { setBatidaVisual(true); window.setTimeout(() => setBatidaVisual(false), 110); }, Math.max(0, instante - agora));
+        window.setTimeout(() => { setBatidaVisual(true); if (vibrarPulso && podeVibrar) navigator.vibrate(35); window.setTimeout(() => setBatidaVisual(false), 110); }, Math.max(0, instante - agora));
         if (cliqueLigado && contextoCliqueRef.current && volumeClique > 0) {
           const contexto = contextoCliqueRef.current;
-          const quando = contexto.currentTime + Math.max(0, (instante - agora) / 1000);
-          const oscilador = contexto.createOscillator();
-          const ganho = contexto.createGain();
-          const compressor = contexto.createDynamicsCompressor();
-          compressor.threshold.value = -12; compressor.ratio.value = 12;
-          oscilador.type = 'square';
-          oscilador.frequency.value = batida % 4 === 0 ? 2600 : 2200;
-          ganho.gain.setValueAtTime(0.0001, quando);
-          ganho.gain.exponentialRampToValueAtTime((batida % 4 === 0 ? 0.8 : 0.55) * volumeClique / 100, quando + 0.002);
-          ganho.gain.exponentialRampToValueAtTime(0.0001, quando + 0.025);
-          oscilador.connect(ganho).connect(compressor).connect(contexto.destination);
-          oscilador.start(quando);
-          oscilador.stop(quando + 0.03);
+          saidaCliqueRef.current?.tocar(Math.max(0, instante - agora), volumeClique / 100);
           const latencia = ((contexto.outputLatency || contexto.baseLatency || 0) * 1000);
           temposCliqueRef.current.push(instante + latencia);
         }
-        batida++;
         proximoCliqueRef.current += intervalo;
       }
       temposCliqueRef.current = temposCliqueRef.current.filter(t => t > agora - 180);
     }, 25);
     return () => window.clearInterval(timer);
-  }, [metronomoLigado, cliqueLigado, bpmTreino, volumeClique, concluido, pausado]);
+  }, [metronomoLigado, cliqueLigado, bpmTreino, volumeClique, concluido, pausado, saidaEscolhida, vibrarPulso, podeVibrar]);
 
 
 
@@ -844,7 +882,8 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   return (
     <div className="space-y-4">
       <div>
-        <p className="font-black">Volta {volta} · Tempo total {tempoFormatado}</p>
+        <p className="font-black">Volta {volta} · Tempo total {tempoFormatado} · Meta {restanteFormatado}</p>
+        {metaAtingida && !concluido && <p role="status" className="mt-2 border-4 border-black bg-[#ffcc22] p-3 text-lg font-black">⏱ Meta alcançada! Continue no loop ou toque em Encerrar.</p>}
         <div className="flex justify-between text-base font-black text-[#261812] mb-1">
           <span className="min-w-0 truncate pr-2">{exercicio.titulo}</span>
           <span className="shrink-0">{feitos}/{total}</span>
@@ -853,6 +892,8 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
           <div className="h-full bg-[#ff6b00] transition-all" style={{ width: `${(feitos / total) * 100}%` }} />
         </div>
       </div>
+
+      <div className="grid grid-cols-2 gap-2"><button type="button" className={modoMemoria ? BOTAO_CLARO : BOTAO_LARANJA} aria-pressed={!modoMemoria} onClick={() => setModoMemoria(false)}>Mostrar notas</button><button type="button" className={modoMemoria ? BOTAO_LARANJA : BOTAO_CLARO} aria-pressed={modoMemoria} onClick={() => { setModoMemoria(true); setMostrarTablatura(false); }}>De cor</button></div>
 
       <div className={`${CARTAO} relative space-y-3`}>
         <style>{`@keyframes pv-moeda-sessao { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-48px) } } @media (prefers-reduced-motion: reduce) { .pv-moeda-sessao { display: none } }`}</style>
@@ -871,8 +912,19 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       <div className={`${CARTAO} space-y-3`}>
         <div className="flex items-center justify-between gap-3"><h3 className="font-black text-lg">Metrônomo</h3><span key={`${metronomoLigado}-${bpmTreino}`} className={`w-12 h-12 rounded-full border-4 border-black ${batidaVisual ? 'bg-[#ff6b00]' : 'bg-white'} ${metronomoLigado ? 'opacity-100' : 'opacity-30'}`} aria-hidden="true" /></div>
         <label className="font-bold flex items-center gap-2">BPM <input type="number" min={40} max={240} value={bpmTreino} onChange={e => setBpmTreino(Math.max(40, Math.min(240, Number(e.target.value) || 40)))} className="w-24 border-2 border-black p-2" /></label>
-        <div className="grid grid-cols-2 gap-2"><button type="button" className={BOTAO_CLARO} aria-pressed={metronomoLigado} onClick={() => setMetronomoLigado(v => !v)}>{metronomoLigado ? 'Desligar' : 'Ligar'}</button><button type="button" className={BOTAO_CLARO} aria-pressed={cliqueLigado} onClick={() => { if (!cliqueLigado) { contextoCliqueRef.current ??= contextoAudioTreino(); void contextoCliqueRef.current.resume(); } setCliqueLigado(v => !v); }}>{cliqueLigado ? 'Clique: ligado' : 'Clique: desligado'}</button></div>
+        <div className="grid grid-cols-2 gap-2"><button type="button" className={BOTAO_CLARO} aria-pressed={metronomoLigado} onClick={() => { if (!metronomoLigado) { pararTesteSom(); contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current?.encerrar(); saidaCliqueRef.current = new SaidaClique(saidaEscolhida); } setMetronomoLigado(v => !v); }}>{metronomoLigado ? 'Desligar' : 'Ligar'}</button><button type="button" className={BOTAO_CLARO} aria-pressed={cliqueLigado} onClick={() => { if (!cliqueLigado) { contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current ??= new SaidaClique(saidaEscolhida); void contextoCliqueRef.current.resume(); } setCliqueLigado(v => !v); }}>{cliqueLigado ? 'Clique: ligado' : 'Clique: desligado'}</button></div>
+        {podeVibrar && <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={vibrarPulso} onChange={e => setVibrarPulso(e.target.checked)} /> Vibrar no pulso</label>}
         <label className="font-bold block">Volume do clique: {volumeClique}% <input aria-label="Volume do clique" type="range" min="0" max="100" value={volumeClique} onChange={e => setVolumeClique(Number(e.target.value))} className="w-full" /></label>
+        <button type="button" className={`${BOTAO_CLARO} w-full`} onClick={() => setMostrarTesteSom(v => !v)}>Testar som do metrônomo</button>
+        {mostrarTesteSom && <div className="space-y-3 border-t-2 border-black pt-3">
+          <p className="font-bold">Microfone aberto · nível: {leitura ? `${leitura.nivelDb.toFixed(1)} dBFS` : 'sem leitura'} · saída padrão: {codigoClique(saidaEscolhida)}</p>
+          <p className="text-sm">Fale ou toque durante cada teste. Se o nível parar de mudar, o microfone pode ter sido cortado.</p>
+          {(typeof navigator !== 'undefined' && 'audioSession' in navigator ? COMBINACOES_CLIQUE : COMBINACOES_CLIQUE.filter(item => item.sessao === 'auto')).map(item => <div key={codigoClique(item)} className="border-2 border-black p-3 space-y-2">
+            <button type="button" className={`${BOTAO_LARANJA} w-full text-lg`} onClick={() => testarSom(item)}>{testeAtivo === codigoClique(item) ? 'Tocando 4 s…' : `Tocar ${codigoClique(item)} · 4 s`}</button>
+            <p className="font-bold">{codigoClique(item)} · microfone: {leitura ? `${leitura.nivelDb.toFixed(1)} dBFS` : 'sem leitura'} {testeAtivo === codigoClique(item) && `· sessão: ${statusSessao}`}</p>
+            <button type="button" className={`${BOTAO_CLARO} w-full`} onClick={() => { pararTesteSom(); setSaidaEscolhida(item); if (!salvarSaidaClique(item)) toast.error('Não foi possível salvar neste aparelho.'); aplicarSessaoAudio(item.sessao); if (metronomoLigado || cliqueLigado) saidaCliqueRef.current = new SaidaClique(item); }}>Essa ficou alta{codigoClique(saidaEscolhida) === codigoClique(item) ? ' ✓' : ''}</button>
+          </div>)}
+        </div>}
         <p className="text-xs font-semibold">Com fone o clique fica mais alto e não entra no microfone. Ritmo é informativo e não reprova a nota.</p>
         {ritmo && <p aria-live="polite" className="font-black">{ritmo}</p>}
       </div>
@@ -886,9 +938,9 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       ) : (
         <div className={`${CARTAO} text-center`}>
           <p className="text-sm font-black uppercase tracking-wide text-[#7b5647]">{pausado ? 'Pausado' : 'Toque agora'}</p>
-          <p className={`font-black break-words my-1 ${rotulo.length > 8 ? 'text-4xl' : 'text-7xl'}`}>{rotulo}</p>
-          {passo.dica && <p className="text-lg font-semibold">{passo.dica}</p>}
-          {proximos.length > 0 && (
+          <p className={`font-black break-words my-1 ${modoMemoria ? 'text-3xl' : rotulo.length > 8 ? 'text-4xl' : 'text-7xl'}`}>{modoMemoria ? exercicio.titulo.replace(/ · .*/, '') : rotulo}</p>
+          {!modoMemoria && passo.dica && <p className="text-lg font-semibold">{passo.dica}</p>}
+          {!modoMemoria && proximos.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               <span className="text-sm font-bold text-[#7b5647]">Depois:</span>
               {proximos.map((p, i) => (
@@ -901,25 +953,27 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
 
       {exercicio.instrumento === 'violao' && (
         <>
-          <ViolaoPixel esperadas={posicoesAtuais} proximas={posicoesProximas} midiOuvido={concluido ? null : midiAoVivo(leitura)} posicaoOuvida={concluido || !leitura?.temSom ? null : posicaoOuvida} efeito={efeito} />
-          <button type="button" onClick={() => setMostrarTablatura((valor) => !valor)} aria-pressed={mostrarTablatura} className={`${BOTAO_CLARO} w-full`}>
+          <ViolaoPixel esperadas={modoMemoria ? [] : posicoesAtuais} proximas={modoMemoria ? [] : posicoesProximas} midiOuvido={concluido ? null : midiAoVivo(leitura)} posicaoOuvida={concluido || !leitura?.temSom ? null : posicaoOuvida} efeito={efeito} />
+          {!modoMemoria && <button type="button" onClick={() => setMostrarTablatura((valor) => !valor)} aria-pressed={mostrarTablatura} className={`${BOTAO_CLARO} w-full`}>
             {mostrarTablatura ? 'Ocultar tablatura' : 'Mostrar tablatura'}
-          </button>
-          {mostrarTablatura && <Tablatura passos={exercicio.passos} indice={indice} />}
+          </button>}
+          {!modoMemoria && mostrarTablatura && <Tablatura passos={exercicio.passos} indice={indice} />}
         </>
       )}
+
+      {exercicio.instrumento === 'teclado' && <TecladoPixel esperado={modoMemoria ? null : passo.midis.length === 1 ? passo.midis[0] : null} proximas={modoMemoria ? [] : proximos.flatMap(p => p.midis)} dedo={modoMemoria ? undefined : passo.dedo} midiOuvido={concluido || !leitura?.temSom ? null : midiAoVivo(leitura)} midiCorreto={midiAoVivo(leitura) != null && passo.midis.includes(midiAoVivo(leitura)!)} efeito={efeito} />}
 
       {ultimo && (
         <div aria-live="polite" className={`border-4 border-black p-3 ${ultimo.correto ? 'bg-[#d9f7d9] text-[#0f5d1e]' : 'bg-[#ffd9d6] text-[#8f1410]'}`}>
           <p className="text-lg font-black">{ultimo.correto ? 'Certo!' : 'Ainda não'}</p>
-          <p className="text-base font-semibold">{ultimo.mensagem}</p>
-          {typeof ultimo.desvioCents === 'number' && (
+          {!modoMemoria && <p className="text-base font-semibold">{ultimo.mensagem}</p>}
+          {!modoMemoria && typeof ultimo.desvioCents === 'number' && (
             <p className="text-sm mt-1">Afinação: {ultimo.desvioCents > 0 ? '+' : ''}{Math.round(ultimo.desvioCents)} cents</p>
           )}
         </div>
       )}
 
-      {ultimoAtrasoMs !== null && <p className="text-xs text-[#7b5647]">Última nota aprovada: {ultimoAtrasoMs} ms após o ataque</p>}
+      {!modoMemoria && ultimoAtrasoMs !== null && <p className="text-xs text-[#7b5647]">Última nota aprovada: {ultimoAtrasoMs} ms após o ataque</p>}
 
       {!concluido && (
         <div className="space-y-3">
@@ -933,11 +987,11 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
 
       <div className="grid grid-cols-2 gap-3">
         {!concluido && <button type="button" onClick={() => setPausado(v => !v)} className={BOTAO_LARANJA}>{pausado ? 'Continuar' : 'Pausar'}</button>}
-        {!concluido && <button type="button" onClick={() => { setConcluido(true); escuta.desligar(); }} className={BOTAO_CLARO}>Encerrar</button>}
+        {!concluido && <button type="button" onClick={() => { if (voltarAoAluno) aoSair(); else { setConcluido(true); escuta.desligar(); } }} className={BOTAO_CLARO}>Encerrar</button>}
         {concluido && <button type="button" onClick={aoSair} className={BOTAO_CLARO}>Voltar à lista</button>}
       </div>
 
-      <ModoTeste leitura={leitura} extra={`Ruído calibrado: ${ruidoDb.toFixed(1)} dB | Passo: ${indice + 1}`} />
+      {!modoMemoria && <ModoTeste leitura={leitura} extra={`Ruído calibrado: ${ruidoDb.toFixed(1)} dB | Passo: ${indice + 1}`} />}
     </div>
   );
 }
@@ -1239,6 +1293,7 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
                 <button type="button" onClick={() => { if (instrumento === 'violao') { if (gravacao !== 'parada') pararGravacao(); setPassoSelecionado(i); setNotaSelecionada(0); setDedoEscolhido(passo.posicoes?.[0]?.dedo ?? 0); setAba('braco'); } }} disabled={instrumento !== 'violao'} className="min-w-0 flex-1 text-left" aria-label={`Corrigir posição do passo ${i + 1}`}>
                   <p className="text-lg font-black leading-tight truncate">{rotuloPasso(passo)}</p>
                   <p className="text-xs font-semibold truncate">{passo.midis.map(nomeMidi).join(' ')}</p>
+                  {instrumento === 'teclado' && <label className="text-xs font-bold">Dedo direito <select value={passo.dedo ?? 0} onChange={e => setPassos(atuais => atuais.map((p, j) => j === i ? { ...p, dedo: Number(e.target.value) || undefined } : p))} className="border-2 border-black bg-white px-2 py-1">{[0,1,2,3,4,5].map(d => <option key={d} value={d}>{d || '—'}</option>)}</select></label>}
                   {instrumento === 'violao' && <p className="text-xs font-bold">{posicoesDoPasso(passo).map((p) => `${p.corda}ª/${p.casa}${p.dedo !== undefined ? ` dedo ${p.dedo}` : ''}`).join(' · ') || 'Sem posição no braço'}</p>}
                 </button>
                 <button type="button" aria-label="Mover para cima" disabled={i === 0} onClick={() => moverPasso(i, -1)} className={BOTAO_ICONE}><ArrowUp className="w-5 h-5" /></button>
@@ -1272,6 +1327,8 @@ type Tela =
 export default function ProfessorVirtual() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const filtroInstrumento = params.get('instrumento') === 'teclado' || params.get('instrumento') === 'violao' ? params.get('instrumento') : 'todos';
   const [tela, setTela] = useState<Tela>({ nome: 'lista' });
   const [calibracao, setCalibracao] = useState<Calibracao>({ estado: 'pedindo' });
   const [exercicios, setExercicios] = useState<ExercicioVirtual[]>([]);
@@ -1282,6 +1339,13 @@ export default function ProfessorVirtual() {
   const [cordaRaizEscala, setCordaRaizEscala] = useState<3 | 4 | 5 | 6>(5);
   const [sentidoEscala, setSentidoEscala] = useState<'subir' | 'descer' | 'subir_descer'>('subir');
   const [salvandoEscala, setSalvandoEscala] = useState(false);
+  const [tonicaTeclado, setTonicaTeclado] = useState(0);
+  const [tipoTeclado, setTipoTeclado] = useState<TipoEscalaTeclado>('maior');
+  const [oitavasTeclado, setOitavasTeclado] = useState(1);
+  const [modeloTeclado, setModeloTeclado] = useState<'escala' | 'hanon'>('escala');
+  const [maoTeclado, setMaoTeclado] = useState<MaoTeclado>('direita');
+  const [retornoHanon, setRetornoHanon] = useState<'salto' | 'passando'>('salto');
+  const [metaMinutos, setMetaMinutos] = useState(5);
   const sessaoRef = useRef(0);
 
   const escuta = useEscuta(() => {
@@ -1378,12 +1442,13 @@ export default function ProfessorVirtual() {
     }
   };
   const escalaAtual = gerarEscala({ tonica: tonicaEscala, cordaRaiz: cordaRaizEscala, modo: 'jonio', sentido: sentidoEscala });
-  const salvarEscala = async () => {
+  const exercicioTeclado = modeloTeclado === 'hanon' ? gerarHanon({ tonica: tonicaTeclado, tipo: tipoTeclado, mao: maoTeclado, retorno: retornoHanon }) : gerarEscalaTeclado({ tonica: tonicaTeclado, tipo: tipoTeclado, oitavas: oitavasTeclado, mao: maoTeclado });
+  const salvarEscala = async (exercicio: ExercicioVirtual) => {
     setSalvandoEscala(true);
     try {
       const res = await apiFetch('/api/exercicios-virtuais', {
         method: 'POST',
-        body: new Blob([JSON.stringify(escalaAtual)], { type: 'application/json' }),
+        body: new Blob([JSON.stringify(exercicio)], { type: 'application/json' }),
       });
       const dados = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(dados.error || 'Erro ao salvar a escala.');
@@ -1393,7 +1458,10 @@ export default function ProfessorVirtual() {
     finally { setSalvandoEscala(false); }
   };
 
-  const voltarAoApp = () => navigate(user?.role === 'professor' ? '/area-professor' : '/');
+  const alunoNome = params.get('aluno')?.trim();
+  const alunoId = params.get('alunoId');
+  const voltarAoApp = () => navigate(alunoId ? `/area-professor?alunoTreino=${encodeURIComponent(alunoId)}` : user?.role === 'professor' ? '/area-professor' : '/');
+  const sairOuVoltar = () => { if (alunoId) { escuta.desligar(); voltarAoApp(); } else sair(); };
 
   const mostrandoExemplos = exercicios.length === 0;
   const lista = [...exercicios, ...EXEMPLOS];
@@ -1402,8 +1470,8 @@ export default function ProfessorVirtual() {
     <div className="min-h-[100dvh] bg-[#fff8f6] text-[#261812] font-sans">
       <header className="bg-[#ff6b00] border-b-4 border-black px-4 pb-3" style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}>
         <div className="max-w-xl mx-auto flex items-center gap-3">
-          <button type="button" aria-label="Voltar" onClick={tela.nome === 'lista' ? voltarAoApp : sair} className={BOTAO_ICONE}><ArrowLeft className="w-5 h-5" /></button>
-          <h1 className="text-xl font-black uppercase text-black leading-tight">Professor Virtual</h1>
+          <button type="button" aria-label="Voltar" onClick={tela.nome === 'lista' ? voltarAoApp : sairOuVoltar} className={BOTAO_ICONE}><ArrowLeft className="w-5 h-5" /></button>
+          <h1 className="text-xl font-black uppercase text-black leading-tight">{alunoNome ? `Treino de ${alunoNome}` : 'Professor Virtual'}</h1>
         </div>
       </header>
       <p className="bg-black text-white text-center text-sm font-black uppercase tracking-wide py-1.5 px-4">
@@ -1426,7 +1494,7 @@ export default function ProfessorVirtual() {
           <TelaAfinacao leitura={escuta.leitura} aoContinuar={() => setTela({ nome: 'treino', exercicio: tela.exercicio, ruidoDb: tela.ruidoDb, diagnosticoInicial: tela.diagnosticoInicial })} />
         )}
 
-        {tela.nome === 'treino' && <TelaTreino exercicio={tela.exercicio} escuta={escuta} ruidoDb={tela.ruidoDb} diagnosticoInicial={tela.diagnosticoInicial} aoSair={sair} aoReiniciar={() => comecar(tela.exercicio)} />}
+        {tela.nome === 'treino' && <TelaTreino exercicio={tela.exercicio} escuta={escuta} ruidoDb={tela.ruidoDb} diagnosticoInicial={tela.diagnosticoInicial} aoSair={sairOuVoltar} aoReiniciar={() => comecar(tela.exercicio)} metaMinutos={metaMinutos} voltarAoAluno={!!alunoId} />}
 
         {tela.nome === 'editor' && (
           <Editor
@@ -1450,11 +1518,13 @@ export default function ProfessorVirtual() {
                 </button>
               </>
             )}
+            <section className={CARTAO}><h2 className="font-black uppercase">Meta de tempo antes de começar</h2><div className="flex flex-wrap gap-2 my-2">{[3,4,5,10].map(m => <button key={m} type="button" onClick={() => setMetaMinutos(m)} className={`${BOTAO_ICONE} ${metaMinutos === m ? 'bg-[#ffcc22]' : ''}`}>{m}</button>)}</div><label className="font-bold">Minutos (1 a 30) <input type="number" min={1} max={30} value={metaMinutos} onChange={e => setMetaMinutos(Math.max(1, Math.min(30, Number(e.target.value) || 1)))} className="w-20 border-2 border-black p-2" /></label></section>
+            <div className="flex gap-2">{['todos','violao','teclado'].map(valor => <button key={valor} type="button" onClick={() => setParams(prev => { const next = new URLSearchParams(prev); if (valor === 'todos') next.delete('instrumento'); else next.set('instrumento', valor); return next; })} className={filtroInstrumento === valor ? BOTAO_LARANJA : BOTAO_CLARO}>{valor === 'todos' ? 'Todos' : valor === 'violao' ? 'Violão' : 'Teclado'}</button>)}</div>
             {carregando ? (
               <p className="text-base font-bold">Carregando exercícios...</p>
             ) : (
               <>
-                <section className={CARTAO}>
+                {filtroInstrumento !== 'teclado' && <section className={CARTAO}>
                   <h2 className="text-2xl font-black uppercase">Escalas · violão</h2>
                   <div className="grid grid-cols-2 gap-3 mt-3">
                     <label className="font-bold">Tônica<select value={tonicaEscala} onChange={e => setTonicaEscala(Number(e.target.value))} className="block w-full border-2 border-black p-2 bg-white">{NOTAS.map((nota, i) => <option key={i} value={i}>{nota}</option>)}</select></label>
@@ -1462,10 +1532,23 @@ export default function ProfessorVirtual() {
                     <label className="font-bold col-span-2">Sentido<select value={sentidoEscala} onChange={e => setSentidoEscala(e.target.value as typeof sentidoEscala)} className="block w-full border-2 border-black p-2 bg-white"><option value="subir">Subir</option><option value="descer">Descer</option><option value="subir_descer">Subir e descer</option></select></label>
                   </div>
                   <button type="button" onClick={() => comecar(escalaAtual)} className={`${BOTAO_LARANJA} w-full mt-3`}>Começar</button>
-                  {podeEditar && <button type="button" disabled={salvandoEscala} onClick={salvarEscala} className={`${BOTAO_CLARO} w-full mt-3`}>{salvandoEscala ? 'Salvando...' : 'Salvar como exercício'}</button>}
-                </section>
+                  {podeEditar && <button type="button" disabled={salvandoEscala} onClick={() => salvarEscala(escalaAtual)} className={`${BOTAO_CLARO} w-full mt-3`}>{salvandoEscala ? 'Salvando...' : 'Salvar como exercício'}</button>}
+                </section>}
+                {filtroInstrumento !== 'violao' && <section className={CARTAO}>
+                  <h2 className="text-2xl font-black uppercase">Escalas e Hanon · teclado</h2>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <label className="font-bold">Exercício<select value={modeloTeclado} onChange={e => setModeloTeclado(e.target.value as 'escala' | 'hanon')} className={CAMPO}><option value="escala">Escala</option><option value="hanon">Hanon</option></select></label>
+                    <label className="font-bold">Tônica<select value={tonicaTeclado} onChange={e => setTonicaTeclado(Number(e.target.value))} className={CAMPO}>{NOTAS.map((_, i) => <option key={i} value={i}>{nomeTonicaTeclado(i, tipoTeclado)}</option>)}</select></label>
+                    <label className="font-bold">Mão<select value={maoTeclado} onChange={e => setMaoTeclado(e.target.value as MaoTeclado)} className={CAMPO}><option value="direita">Direita</option><option value="esquerda">Esquerda</option></select></label>
+                    <label className="font-bold">Tipo<select value={tipoTeclado} onChange={e => setTipoTeclado(e.target.value as TipoEscalaTeclado)} className={CAMPO}>{TIPOS_ESCALA_TECLADO.filter(t => t.valor === 'maior' || t.valor === 'menor_natural').map(t => <option key={t.valor} value={t.valor}>{t.nome}</option>)}</select></label>{modeloTeclado === 'escala' && <label className="font-bold">Oitavas<select value={oitavasTeclado} onChange={e => setOitavasTeclado(Number(e.target.value))} className={CAMPO}>{[1,2].map(n => <option key={n} value={n}>{n}</option>)}</select></label>}
+                    {modeloTeclado === 'hanon' && <label className="font-bold">Retorno<select value={retornoHanon} onChange={e => setRetornoHanon(e.target.value as 'salto' | 'passando')} className={CAMPO}><option value="salto">Salto</option><option value="passando">Passando</option></select></label>}
+                  </div>
+                  <button type="button" onClick={() => comecar(exercicioTeclado)} className={`${BOTAO_LARANJA} w-full mt-3`}>Começar</button>
+                  {podeEditar && <button type="button" disabled={salvandoEscala} onClick={() => salvarEscala(exercicioTeclado)} className={`${BOTAO_CLARO} w-full mt-3`}>{salvandoEscala ? 'Salvando...' : 'Salvar como exercício'}</button>}
+                </section>}
                 {mostrandoExemplos && !falhaLista && <p className="text-base font-semibold">Ainda não há exercícios cadastrados. Use os exemplos para testar.</p>}
                 {INSTRUMENTOS.map(({ valor, nome }) => {
+                  if (filtroInstrumento !== 'todos' && filtroInstrumento !== valor) return null;
                   const doInstrumento = lista.filter((e) => e.instrumento === valor);
                   if (!doInstrumento.length) return null;
                   return (

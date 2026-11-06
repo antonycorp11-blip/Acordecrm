@@ -8167,6 +8167,10 @@ Regras:
                 && midis.every((m: any) => Number.isInteger(m) && m >= midiMinimo && m <= midiMaximo);
             if (!midisValidos) return { erro: `Passo ${i + 1}: informe de 1 a 8 notas MIDI inteiras entre ${midiMinimo} e ${midiMaximo}.` };
             const limpo: any = { midis };
+            if (corpo.instrumento === 'teclado' && passo.dedo !== undefined) {
+                if (!Number.isInteger(passo.dedo) || passo.dedo < 1 || passo.dedo > 5) return { erro: `Passo ${i + 1}: dedo do teclado deve ser de 1 a 5.` };
+                limpo.dedo = passo.dedo;
+            }
             if (passo.posicoes !== undefined) {
                 if (corpo.instrumento !== 'violao' || !Array.isArray(passo.posicoes) || passo.posicoes.length !== midis.length) {
                     return { erro: `Passo ${i + 1}: informe uma posição para cada nota do violão.` };

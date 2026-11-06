@@ -8,6 +8,8 @@ export interface PassoExercicio {
   midis: number[];
   /** Posições no violão: corda 1 = Mi agudo, 6 = Mi grave; casa 0 = solta. */
   posicoes?: { corda: number; casa: number; dedo?: number }[];
+  /** Dedilhado da mão direita no teclado, editável pelo professor. */
+  dedo?: number;
   /** Nome exibido ao aluno, ex.: "Dó", "C", "Am". */
   rotulo?: string;
   /** Duração gravada pelo professor, em ms (usada para ritmo; opcional no modo "espera a nota"). */
