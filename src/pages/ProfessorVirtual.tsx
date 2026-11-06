@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../services/apiClient';
 import ViolaoPixel from '../components/ViolaoPixel';
 import { createMotorEscuta, createSeguidor } from '../lib/professorVirtual';
-import { estimarPosicao, midiNaPosicao, posicoesDaSequencia, posicoesDoPasso, type EstimativaPosicao, type PosicaoViolao } from '../lib/professorVirtual/violao';
+import { estimarPosicao, midiNaPosicao, otimizarSequencia, posicoesDaSequencia, posicoesDoPasso, type EstimativaPosicao, type PosicaoViolao } from '../lib/professorVirtual/violao';
 import { adicionarAmostra, chavePosicao, lerMapaEscolhido, lerMapas, lerModeloEscolhido, lembrarModeloEscolhido, novaCalibracao, posicoesCalibracao, salvarMapas, type ModeloViolao } from '../lib/professorVirtual/calibracao';
 import type { ExercicioVirtual, Instrumento, LeituraAudio, MotorEscuta, PassoExercicio, ResultadoPasso } from '../lib/professorVirtual/types';
 
@@ -55,10 +55,12 @@ const EXEMPLOS: ExercicioVirtual[] = [
   {
     titulo: 'Técnica 1-2-3-4',
     instrumento: 'violao',
-    descricao: 'Toque as casas 1 a 4 em cada corda, da 6ª à 1ª, e volte descendo.',
-    passos: [...[6, 5, 4, 3, 2, 1].flatMap((corda) => [1, 2, 3, 4].map((casa) => ({ corda, casa }))),
-      ...[1, 2, 3, 4, 5, 6].flatMap((corda) => [4, 3, 2, 1].map((casa) => ({ corda, casa })))].map(({ corda, casa }) => ({
-      midis: [midiNaPosicao(corda, casa)!], posicoes: [{ corda, casa, dedo: casa }],
+    descricao: 'Toque quatro casas por corda, da 1ª à 6ª e de volta, avançando uma casa a cada passagem.',
+    passos: Array.from({ length: 8 }, (_, passagem) =>
+      (passagem % 2 === 0 ? [1, 2, 3, 4, 5, 6] : [6, 5, 4, 3, 2, 1])
+        .flatMap(corda => [1, 2, 3, 4].map(dedo => ({ corda, casa: passagem + dedo, dedo }))))
+      .flat().map(({ corda, casa, dedo }) => ({
+      midis: [midiNaPosicao(corda, casa)!], posicoes: [{ corda, casa, dedo }],
       rotulo: `${corda}ª corda · casa ${casa}`,
     })),
   },
@@ -657,9 +659,13 @@ function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
   useEffect(() => {
     ouvir((l) => {
       if (seguidor.concluido()) return;
-      if (exercicio.instrumento === 'violao' && l.timbre && l.midi !== null) {
-        const anterior = posicoes[Math.max(0, seguidor.passoAtual() - 1)]?.at(-1) ?? null;
-        setPosicaoOuvida(estimarPosicao(Math.round(l.midi), anterior, l.timbre, lerMapaEscolhido()));
+      if (exercicio.instrumento === 'violao' && l.midi !== null) {
+        const indiceAtual = seguidor.passoAtual();
+        const midi = Math.round(l.midi);
+        const notaEsperada = exercicio.passos[indiceAtual]?.midis.indexOf(midi) ?? -1;
+        const salva = notaEsperada >= 0 ? posicoes[indiceAtual]?.[notaEsperada] : null;
+        const anterior = posicoes[Math.max(0, indiceAtual - 1)]?.at(-1) ?? null;
+        setPosicaoOuvida(salva ? { ...salva, confianca: 1 } : estimarPosicao(midi, anterior, l.timbre, lerMapaEscolhido()));
       }
       const resultado = seguidor.processar(l);
       if (!resultado) return;
@@ -780,6 +786,8 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
   const [notasGravadas, setNotasGravadas] = useState(0);
   const [salvando, setSalvando] = useState(false);
   const gravacaoIdRef = useRef(0);
+  const fixosRef = useRef(new Set(passos.map((_, i) => i)));
+  const gravouNotasRef = useRef(false);
 
   const escuta = useEscuta(() => {
     gravacaoIdRef.current++;
@@ -793,6 +801,10 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
     gravacaoIdRef.current++;
     escuta.desligar();
     setGravacao('parada');
+    if (gravouNotasRef.current && instrumento === 'violao') {
+      setPassos(atuais => otimizarSequencia(atuais, fixosRef.current));
+      gravouNotasRef.current = false;
+    }
   };
 
   const gravar = async () => {
@@ -824,6 +836,7 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
             copia[copia.length - 1] = { ...copia[copia.length - 1], duracaoMs: duracaoAnterior };
           }
           copia.push({ midis: [midi], rotulo: NOTAS[midi % 12], ...(posicao ? { posicoes: [posicao] } : {}) });
+          gravouNotasRef.current = true;
           return copia;
         });
         setNotasGravadas((n) => Math.min(200, n + 1));
@@ -863,8 +876,10 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
     const comDedo = { ...posicao, dedo: posicao.casa === 0 ? 0 : dedoEscolhido };
     if (passoSelecionado === null) {
       adicionarPasso({ midis: [midi], rotulo: NOTAS[midi % 12], posicoes: [comDedo] });
+      fixosRef.current.add(passos.length);
       return;
     }
+    fixosRef.current.add(passoSelecionado);
     setPassos((atuais) => atuais.map((passo, i) => {
       if (i !== passoSelecionado) return passo;
       const midis = [...passo.midis];
@@ -876,6 +891,7 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
   const alterarDedo = (dedo: number) => {
     setDedoEscolhido(dedo);
     if (passoSelecionado === null) return;
+    fixosRef.current.add(passoSelecionado);
     setPassos((atuais) => atuais.map((passo, i) => {
       if (i !== passoSelecionado) return passo;
       const posicoes = passo.midis.map((m, n) => {
