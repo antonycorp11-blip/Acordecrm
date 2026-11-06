@@ -28,7 +28,7 @@ for (const tipo of ['maior', 'menor_natural'] as const) for (let tonica = 0; ton
     const passos = gerarHanon({ tonica, tipo, mao }).passos;
     assert.equal(passos.length, 64);
     assert.equal(passos[0].midis[0], (mao === 'esquerda' ? 36 : 60) + tonica);
-    assert.equal(passos[35].midis[0], (mao === 'esquerda' ? 48 : 72) + tonica);
+    assert.equal(passos[56].midis[0], (mao === 'esquerda' ? 48 : 72) + tonica);
     assert.ok(passos.every(p => p.dedo && p.dedo >= 1 && p.dedo <= 5));
     const escala = gerarEscalaTeclado({ tonica, tipo, oitavas: 1, mao });
     assert.equal(escala.passos[0].midis[0], (mao === 'esquerda' ? 36 : 60) + tonica);
