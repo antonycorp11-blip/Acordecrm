@@ -1268,7 +1268,7 @@ export default function ProfessorVirtual() {
   const voltarAoApp = () => navigate(user?.role === 'professor' ? '/area-professor' : '/');
 
   const mostrandoExemplos = exercicios.length === 0;
-  const lista = mostrandoExemplos ? EXEMPLOS : exercicios;
+  const lista = [...exercicios, ...EXEMPLOS];
 
   return (
     <div className="min-h-[100dvh] bg-[#fff8f6] text-[#261812] font-sans">
