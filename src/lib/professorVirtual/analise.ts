@@ -1,6 +1,6 @@
 // Análise de áudio pura: recebe amostras + sampleRate, sem Web Audio, para rodar também em Node.
 
-import type { LeituraAudio } from './types';
+import type { LeituraAudio, TimbreViolao } from './types';
 
 export const FREQ_MIN_HZ = 70;
 export const FREQ_MAX_HZ = 2000;
@@ -110,6 +110,50 @@ function espectro(amostras: Float32Array): PlanoFft {
   fft(plano);
   for (let i = 0; i <= plano.n / 2; i++) plano.re[i] = Math.sqrt(plano.re[i] * plano.re[i] + plano.im[i] * plano.im[i]);
   return plano;
+}
+
+/** Uma FFT por ataque, sobre trecho já estabilizado da nota. */
+export function extrairTimbre(amostras: Float32Array, sampleRate: number, fundamentalHz: number): TimbreViolao | null {
+  if (!Number.isFinite(fundamentalHz) || fundamentalHz <= 0 || amostras.length < 2048) return null;
+  const plano = espectro(amostras);
+  const mag = plano.re;
+  const hzBin = sampleRate / plano.n;
+  const amps: number[] = [];
+  let soma = 0;
+  let somaFreq = 0;
+  let somaDesvio = 0;
+  let pesoDesvio = 0;
+  for (let h = 1; h <= 10; h++) {
+    const centro = h * fundamentalHz / hzBin;
+    if (centro >= plano.n / 2 - 2) { amps.push(0); continue; }
+    const alcance = Math.max(2, Math.ceil(centro * 0.018));
+    let bin = Math.max(2, Math.round(centro) - alcance);
+    const fim = Math.min(plano.n / 2 - 2, Math.round(centro) + alcance);
+    for (let i = bin + 1; i <= fim; i++) if (mag[i] > mag[bin]) bin = i;
+    const amp = mag[bin];
+    amps.push(amp);
+    if (amp <= 0) continue;
+    const a = Math.log(mag[bin - 1] + 1e-12);
+    const b = Math.log(amp + 1e-12);
+    const c = Math.log(mag[bin + 1] + 1e-12);
+    const curva = a - 2 * b + c;
+    const ajuste = curva ? Math.max(-0.5, Math.min(0.5, 0.5 * (a - c) / curva)) : 0;
+    const hz = (bin + ajuste) * hzBin;
+    soma += amp;
+    somaFreq += amp * hz;
+    if (h > 1) {
+      const cents = 1200 * Math.log2(hz / (h * fundamentalHz));
+      somaDesvio += amp * cents * cents;
+      pesoDesvio += amp;
+    }
+  }
+  const maior = Math.max(...amps);
+  if (maior < 1e-8 || soma <= 0) return null;
+  return {
+    harmonicosDb: amps.map(amp => Math.max(-60, 20 * Math.log10(Math.max(amp, maior * 0.001) / maior))),
+    centroideRelativo: somaFreq / soma / fundamentalHz,
+    inharmonicidadeCents: Math.sqrt(somaDesvio / Math.max(pesoDesvio, 1e-9)),
+  };
 }
 
 // --- Nível ---
@@ -285,7 +329,7 @@ export interface OpcoesAtaque {
   subidaDb?: number;
   /** No ataque por volume, quanto o nível precisa passar do pico recente; tremolo e batimento só voltam a ele. */
   margemPicoDb?: number;
-  /** Fluxo (mudança de forma do espectro, 0 a 1) que basta para um ataque, mesmo sem subida de volume (legato). */
+  /** Fluxo (mudança de forma do espectro, 0 a 1) que ajuda a reconhecer um ataque com energia subindo. */
   fluxoAlto?: number;
   /** O detector só rearma quando o fluxo cai abaixo disto (histerese). */
   fluxoBaixo?: number;
@@ -348,6 +392,7 @@ export function criarDetectorAtaque(opcoes: OpcoesAtaque = {}): DetectorAtaque {
       const nivel = rmsDb(janelaCurta.subarray(janelaCurta.length >> 1));
       historico = historico.filter(h => tempoMs - h.t <= memoriaPicoMs);
       const minimo = historico.reduce((m, h) => (tempoMs - h.t <= memoriaMs ? Math.min(m, h.db) : m), nivel);
+      const nivelAnterior = historico.at(-1)?.db ?? PISO_DB;
       const pico = historico.reduce((m, h) => Math.max(m, h.db), PISO_DB);
       historico.push({ t: tempoMs, db: nivel });
       const subida = nivel - minimo;
@@ -362,7 +407,7 @@ export function criarDetectorAtaque(opcoes: OpcoesAtaque = {}): DetectorAtaque {
       }
       if (tempoMs - ultimoAtaqueMs < refratarioMs) return false;
       const porVolume = subida >= subidaDb && nivel >= pico + margemPicoDb;
-      const porFluxo = fluxo >= fluxoAlto && nivel >= pico - quedaMaximaDb;
+      const porFluxo = fluxo >= fluxoAlto && nivel >= pico - quedaMaximaDb && nivel > nivelAnterior;
       if (!porVolume && !porFluxo) return false;
       armado = false;
       ultimoAtaqueMs = tempoMs;
@@ -424,6 +469,8 @@ export function criarAnalisadorQuadros(opcoes: OpcoesAnalisador = {}): Analisado
   const detector = criarDetectorAtaque(opcoes.ataque);
   let limiarDb = opcoes.limiarDb ?? LIMIAR_PADRAO_DB;
   let temSom = false;
+  let inicioAtaqueMs = -Infinity;
+  let timbreFeito = true;
 
   return {
     processar(janela, sampleRate, tempoMs) {
@@ -431,11 +478,17 @@ export function criarAnalisadorQuadros(opcoes: OpcoesAnalisador = {}): Analisado
       const nivelDb = rmsDb(curta);
       temSom = nivelDb >= (temSom ? limiarDb - histereseDb : limiarDb);
       const ataque = detector.processar(curta, sampleRate, tempoMs, limiarDb);
+      if (ataque) { inicioAtaqueMs = tempoMs; timbreFeito = false; }
 
       if (!temSom) {
         return { tempoMs, nivelDb, temSom, ataque: false, midi: null, confianca: 0, croma: new Array(12).fill(0) };
       }
       const pitch = detectarPitch(janela.subarray(janela.length - tamanhoJanelaPitch(sampleRate)), sampleRate, opcoes.pitch);
+      const idadeAtaque = tempoMs - inicioAtaqueMs;
+      const medirTimbre = !timbreFeito && idadeAtaque >= 170 && idadeAtaque <= 250 && pitch && pitch.clareza >= 0.6;
+      const timbre = medirTimbre ? extrairTimbre(janela, sampleRate, pitch.frequencia) : null;
+      if (medirTimbre) timbreFeito = true;
+      if (idadeAtaque > 250) timbreFeito = true;
       return {
         tempoMs,
         nivelDb,
@@ -444,15 +497,18 @@ export function criarAnalisadorQuadros(opcoes: OpcoesAnalisador = {}): Analisado
         midi: pitch?.midi ?? null,
         confianca: pitch?.clareza ?? 0,
         croma: calcularCroma(janela, sampleRate, opcoes.croma),
+        ...(timbre ? { timbre } : {}),
       };
     },
     definirLimiar(novoLimiarDb) {
       limiarDb = novoLimiarDb;
       temSom = false;
+      timbreFeito = true;
     },
     reiniciar() {
       detector.reiniciar();
       temSom = false;
+      timbreFeito = true;
     },
   };
 }

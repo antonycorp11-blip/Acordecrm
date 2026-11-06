@@ -5,7 +5,10 @@ import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, Mic, Pencil, Pla
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../services/apiClient';
+import ViolaoPixel from '../components/ViolaoPixel';
 import { createMotorEscuta, createSeguidor } from '../lib/professorVirtual';
+import { estimarPosicao, midiNaPosicao, posicoesDaSequencia, posicoesDoPasso, type EstimativaPosicao, type PosicaoViolao } from '../lib/professorVirtual/violao';
+import { adicionarAmostra, chavePosicao, lerMapaEscolhido, lerMapas, lerModeloEscolhido, lembrarModeloEscolhido, novaCalibracao, posicoesCalibracao, salvarMapas, type ModeloViolao } from '../lib/professorVirtual/calibracao';
 import type { ExercicioVirtual, Instrumento, LeituraAudio, MotorEscuta, PassoExercicio, ResultadoPasso } from '../lib/professorVirtual/types';
 
 const NOTAS = ['Dó', 'Dó#', 'Ré', 'Ré#', 'Mi', 'Fá', 'Fá#', 'Sol', 'Sol#', 'Lá', 'Lá#', 'Si'];
@@ -49,6 +52,16 @@ const rotuloPasso = (passo: PassoExercicio) => passo.rotulo || passo.midis.map(n
 const nomeInstrumento = (instrumento: Instrumento) => INSTRUMENTOS.find((i) => i.valor === instrumento)?.nome || instrumento;
 
 const EXEMPLOS: ExercicioVirtual[] = [
+  {
+    titulo: 'Técnica 1-2-3-4',
+    instrumento: 'violao',
+    descricao: 'Toque as casas 1 a 4 em cada corda, da 6ª à 1ª, e volte descendo.',
+    passos: [...[6, 5, 4, 3, 2, 1].flatMap((corda) => [1, 2, 3, 4].map((casa) => ({ corda, casa }))),
+      ...[1, 2, 3, 4, 5, 6].flatMap((corda) => [4, 3, 2, 1].map((casa) => ({ corda, casa })))].map(({ corda, casa }) => ({
+      midis: [midiNaPosicao(corda, casa)!], posicoes: [{ corda, casa, dedo: casa }],
+      rotulo: `${corda}ª corda · casa ${casa}`,
+    })),
+  },
   {
     titulo: 'Cordas soltas e acordes Em e G',
     instrumento: 'violao',
@@ -227,6 +240,31 @@ const textoOuvido = (l: LeituraAudio | null, acorde: boolean) => {
   return l.midi !== null && l.confianca >= 0.4 ? nomeMidi(Math.round(l.midi)) : '…';
 };
 
+const midiAoVivo = (l: LeituraAudio | null) => l?.temSom && l.midi !== null && l.confianca >= 0.4 ? Math.round(l.midi) : null;
+
+function Tablatura({ passos, indice }: { passos: PassoExercicio[]; indice: number }) {
+  const inicio = Math.max(0, Math.min(indice - 2, passos.length - 8));
+  const visiveis = passos.slice(inicio, inicio + 8);
+  const posicoes = useMemo(() => posicoesDaSequencia(passos), [passos]);
+  return (
+    <div className={`${CARTAO} overflow-x-auto`}>
+      <h3 className="font-black uppercase mb-2">Tablatura</h3>
+      <div className="min-w-max font-mono text-sm font-bold" aria-label={`Tablatura, passo atual ${indice + 1}`}>
+        {[1, 2, 3, 4, 5, 6].map((corda) => (
+          <div key={corda} className="flex h-8 items-center border-b border-[#b69b83]">
+            <span className="w-8 shrink-0 text-[#7b5647]">{['e', 'B', 'G', 'D', 'A', 'E'][corda - 1]}|</span>
+            {visiveis.map((_, i) => {
+              const casas = posicoes[inicio + i].filter((p) => p.corda === corda).map((p) => p.casa).join(',') || '—';
+              return <span key={inicio + i} className={`w-11 shrink-0 text-center py-1 ${inicio + i === indice ? 'bg-[#ffcc22] text-black border-2 border-black' : 'text-[#554235]'}`}>{casas}</span>;
+            })}
+          </div>
+        ))}
+        <div className="flex"><span className="w-8 shrink-0" />{visiveis.map((_, i) => <span key={i} className="w-11 text-center text-xs">{inicio + i + 1}</span>)}</div>
+      </div>
+    </div>
+  );
+}
+
 const BOTAO = 'inline-flex items-center justify-center gap-2 min-h-12 px-4 py-2 border-4 border-black font-black uppercase text-sm tracking-wide shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all disabled:opacity-50 disabled:shadow-none';
 const BOTAO_CLARO = `${BOTAO} bg-white text-[#261812]`;
 const BOTAO_LARANJA = `${BOTAO} bg-[#ff6b00] text-white`;
@@ -380,6 +418,224 @@ function TelaAfinacao({ leitura, aoContinuar }: { leitura: LeituraAudio | null; 
   );
 }
 
+function TelaMapaViolao({ escuta, aoSair }: { escuta: Escuta; aoSair: () => void }) {
+  useTelaLigada(true);
+  const [modelos, setModelos] = useState<ModeloViolao[]>(() => lerMapas());
+  const modelosRef = useRef(modelos);
+  const [escolhido, setEscolhido] = useState(() => lerModeloEscolhido() || lerMapas().at(-1)?.localId || '');
+  const [indice, setIndice] = useState(0);
+  const [carregandoModelos, setCarregandoModelos] = useState(true);
+  const [falhaServidor, setFalhaServidor] = useState(false);
+  const [falhaCache, setFalhaCache] = useState(false);
+  const [salvandoModelo, setSalvandoModelo] = useState(false);
+  const envioRef = useRef(false);
+  const mapa = modelos.find(m => m.localId === escolhido) ?? modelos[0] ?? null;
+  const atualizarModelos = (proximos: ModeloViolao[]) => {
+    modelosRef.current = proximos;
+    setModelos(proximos);
+    setFalhaCache(!salvarMapas(proximos));
+  };
+  const alterarMapa = (atualizado: ModeloViolao) => {
+    atualizarModelos(modelosRef.current.map(m => m.localId === atualizado.localId ? atualizado : m));
+  };
+  const marcarPendente = (atualizado: ModeloViolao): ModeloViolao => ({
+    ...atualizado, atualizadoEm: new Date().toISOString(), pendente: true, versao: atualizado.versao + 1,
+  });
+
+  useEffect(() => {
+    let ativo = true;
+    apiFetch('/api/modelos-violao').then(async res => {
+      const dados = await res.json().catch(() => null);
+      if (!res.ok || !Array.isArray(dados)) throw new Error('Falha ao carregar modelos.');
+      if (!ativo) return;
+      const locais = modelosRef.current;
+      const remotos: ModeloViolao[] = dados.filter((d: any) => d && typeof d.id === 'string' && typeof d.nome === 'string' && d.mapa?.amostras).map((d: any) => {
+        const local = locais.find(m => m.id === d.id);
+        return local?.pendente ? local : {
+          id: d.id, localId: local?.localId || d.id, nome: d.nome,
+          atualizadoEm: d.mapa.atualizadoEm || d.updated_at || new Date().toISOString(),
+          amostras: d.mapa.amostras, pendente: false, versao: local?.versao || 0,
+        };
+      });
+      atualizarModelos([...remotos, ...locais.filter(m => m.pendente && !remotos.some(r => r.localId === m.localId))]);
+      setFalhaServidor(false);
+      setCarregandoModelos(false);
+    }).catch(() => {
+      if (!ativo) return;
+      setFalhaServidor(true);
+      setCarregandoModelos(false);
+    });
+    return () => { ativo = false; };
+  }, []);
+
+  useEffect(() => {
+    if (carregandoModelos || envioRef.current || !modelos.some(m => m.pendente)) return;
+    const timer = window.setTimeout(async () => {
+      const proximo = modelosRef.current.find(m => m.pendente && m.nome.trim());
+      if (!proximo || envioRef.current) return;
+      envioRef.current = true;
+      setSalvandoModelo(true);
+      try {
+        const res = await apiFetch(proximo.id ? `/api/modelos-violao/${proximo.id}` : '/api/modelos-violao', {
+          method: proximo.id ? 'PUT' : 'POST',
+          body: new Blob([JSON.stringify({ nome: proximo.nome, mapa: { atualizadoEm: proximo.atualizadoEm, amostras: proximo.amostras } })], { type: 'application/json' }),
+        });
+        const dados = await res.json().catch(() => ({}));
+        if (!res.ok || !dados.id) throw new Error(dados.error || 'Falha ao salvar modelo.');
+        const atual = modelosRef.current.find(m => m.localId === proximo.localId);
+        if (atual) {
+          atualizarModelos(modelosRef.current.map(m => m.localId === proximo.localId
+            ? { ...m, id: dados.id, pendente: m.versao !== proximo.versao }
+            : m));
+        }
+        setFalhaServidor(false);
+      } catch {
+        setFalhaServidor(true);
+      } finally {
+        envioRef.current = false;
+        setSalvandoModelo(false);
+      }
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [modelos, carregandoModelos]);
+
+  useEffect(() => {
+    if (!falhaServidor || !modelos.some(m => m.pendente)) return;
+    const timer = window.setTimeout(() => setModelos([...modelosRef.current]), 15000);
+    return () => window.clearTimeout(timer);
+  }, [falhaServidor, modelos]);
+
+  useEffect(() => {
+    if (!mapa && !carregandoModelos) {
+      const novo: ModeloViolao = { ...novaCalibracao('Meu violão'), localId: crypto.randomUUID(), pendente: true, versao: 0 };
+      atualizarModelos([...modelosRef.current, novo]);
+      setEscolhido(novo.localId);
+    }
+  }, [mapa, carregandoModelos]);
+
+  useEffect(() => {
+    if (!mapa) return;
+    lembrarModeloEscolhido(mapa.localId);
+    const proximo = posicoesCalibracao.findIndex(p => (mapa.amostras[chavePosicao(p.corda, p.casa)]?.length ?? 0) < 3);
+    setIndice(Math.max(0, proximo));
+  }, [escolhido, !!mapa]);
+  const [pausado, setPausado] = useState(false);
+  const [modo, setModo] = useState<'calibrar' | 'testar'>('calibrar');
+  const [aviso, setAviso] = useState('Toque a posição destacada. Faça três ataques separados.');
+  const [tentativas, setTentativas] = useState<{ comMao: boolean; semMao: boolean }[]>([]);
+  const [alvoTeste, setAlvoTeste] = useState<PosicaoViolao | null>(null);
+  const ultimaCorreta = useRef<PosicaoViolao | null>(null);
+  const posicao = posicoesCalibracao[indice];
+  const feitas = posicoesCalibracao.reduce((n, p) => n + Math.min(3, mapa?.amostras[chavePosicao(p.corda, p.casa)]?.length ?? 0), 0);
+  const elegiveis = useMemo(() => posicoesCalibracao.filter(p => {
+    const midi = midiNaPosicao(p.corda, p.casa);
+    return (mapa?.amostras[chavePosicao(p.corda, p.casa)]?.length ?? 0) === 3 &&
+      posicoesCalibracao.some(outra => outra.corda !== p.corda && midiNaPosicao(outra.corda, outra.casa) === midi &&
+        (mapa?.amostras[chavePosicao(outra.corda, outra.casa)]?.length ?? 0) === 3);
+  }), [mapa]);
+
+  useEffect(() => {
+    if (!mapa) return;
+    escuta.ouvir(l => {
+      const alvo = modo === 'testar' ? alvoTeste : posicao;
+      if (pausado || !alvo || !l.timbre || l.midi === null || l.confianca < 0.6) return;
+      const esperado = midiNaPosicao(alvo.corda, alvo.casa)!;
+      if (Math.abs(l.midi - esperado) > 0.45) {
+        setAviso(`Nota diferente: ouvi ${nomeMidi(Math.round(l.midi))}; esperava ${nomeMidi(esperado)}. Amostra descartada.`);
+        return;
+      }
+      if (modo === 'testar') {
+        const comMao = estimarPosicao(esperado, ultimaCorreta.current, l.timbre, mapa, true);
+        const semMao = estimarPosicao(esperado, null, l.timbre, mapa, false);
+        const acertou = (p: PosicaoViolao | null) => p?.corda === alvo.corda;
+        setTentativas(atuais => [...atuais, { comMao: acertou(comMao), semMao: acertou(semMao) }]);
+        ultimaCorreta.current = alvo;
+        setAviso(`Tocou ${alvo.corda}ª/${alvo.casa}. Com mão: ${comMao?.corda ?? '—'}ª corda; sem mão: ${semMao?.corda ?? '—'}ª corda.`);
+        setAlvoTeste(null);
+        return;
+      }
+      const atual = modelosRef.current.find(m => m.localId === mapa.localId) ?? mapa;
+      const atualizado = marcarPendente({ ...atual, ...adicionarAmostra(atual, alvo.corda, alvo.casa, l.timbre) });
+      alterarMapa(atualizado);
+      setAviso(`Amostra ${atualizado.amostras[chavePosicao(alvo.corda, alvo.casa)].length}/3 registrada neste aparelho. Confira o status do servidor acima.`);
+      if (atualizado.amostras[chavePosicao(alvo.corda, alvo.casa)].length >= 3) {
+        const seguinte = posicoesCalibracao.findIndex((p, i) => i > indice && (atualizado.amostras[chavePosicao(p.corda, p.casa)]?.length ?? 0) < 3);
+        const anterior = posicoesCalibracao.findIndex(p => (atualizado.amostras[chavePosicao(p.corda, p.casa)]?.length ?? 0) < 3);
+        if (seguinte >= 0 || anterior >= 0) setIndice(seguinte >= 0 ? seguinte : anterior);
+        else { setPausado(true); setAviso('Mapa completo. Aguarde a confirmação do servidor; depois use Testar mapa.'); }
+      }
+    });
+    return () => escuta.ouvir(null);
+  }, [escuta, mapa, modo, pausado, indice, posicao, alvoTeste]);
+
+  const sortear = () => {
+    if (!elegiveis.length) return;
+    const opcoes = elegiveis.filter(p => p.corda !== alvoTeste?.corda || p.casa !== alvoTeste?.casa);
+    setAlvoTeste((opcoes.length ? opcoes : elegiveis)[Math.floor(Math.random() * (opcoes.length || elegiveis.length))]);
+    setAviso('Toque a corda e casa sorteadas uma vez.');
+  };
+  const escolherMapa = (localId: string) => {
+    const modelo = modelos.find(m => m.localId === localId);
+    if (!modelo) return;
+    setEscolhido(localId);
+    lembrarModeloEscolhido(localId);
+    const proximo = posicoesCalibracao.findIndex(p => (modelo.amostras[chavePosicao(p.corda, p.casa)]?.length ?? 0) < 3);
+    setIndice(Math.max(0, proximo));
+    setTentativas([]);
+    setAlvoTeste(null);
+  };
+  const criarModelo = () => {
+    const novo: ModeloViolao = { ...novaCalibracao('Novo violão'), localId: crypto.randomUUID(), pendente: true, versao: 0 };
+    atualizarModelos([...modelosRef.current, novo]);
+    escolherMapa(novo.localId);
+    setEscolhido(novo.localId);
+  };
+  const alvo = modo === 'testar' ? alvoTeste : posicao;
+  if (!mapa) return <div className={CARTAO}>Carregando modelos de violão…</div>;
+  return <div className="space-y-4 text-[#261812]">
+    <div className={CARTAO}>
+      <h2 className="text-xl font-black uppercase">Mapa do meu violão</h2>
+      <label htmlFor="nome-violao" className={ROTULO}>Nome do violão</label>
+      <input id="nome-violao" className={CAMPO} maxLength={120} value={mapa.nome} onChange={e => alterarMapa(marcarPendente({ ...mapa, nome: e.target.value }))} onBlur={() => { if (!mapa.nome.trim()) alterarMapa(marcarPendente({ ...mapa, nome: 'Meu violão' })); }} />
+      <label htmlFor="modelo-violao" className={ROTULO}>Modelo ativo</label>
+      <select id="modelo-violao" className={CAMPO} value={mapa.localId} onChange={e => escolherMapa(e.target.value)}>{modelos.map(m => <option key={m.localId} value={m.localId}>{m.nome || 'Sem nome'}{m.pendente ? ' · pendente' : ''}</option>)}</select>
+      <button type="button" className={`${BOTAO_CLARO} mt-3`} onClick={criarModelo}>Novo modelo</button>
+      {falhaServidor && <p role="alert" className="mt-3 border-4 border-black bg-[#ffcc22] p-3 font-bold">Servidor indisponível. O rascunho fica neste aparelho e será enviado automaticamente quando a conexão voltar.</p>}
+      {falhaCache && <p role="alert" className="mt-3 border-4 border-black bg-[#ffcc22] p-3 font-bold">Não foi possível guardar o rascunho neste aparelho. Mantenha esta tela aberta até o servidor confirmar o envio.</p>}
+      <p role="status" className="text-sm font-semibold mt-2">{mapa.pendente ? (salvandoModelo ? 'Enviando ao servidor…' : 'Alterações pendentes no servidor') : 'Modelo salvo no servidor'} · {new Date(mapa.atualizadoEm).toLocaleDateString('pt-BR')}</p>
+    </div>
+    <div className="grid grid-cols-2 gap-3">
+      <button type="button" className={modo === 'calibrar' ? BOTAO_LARANJA : BOTAO_CLARO} onClick={() => { setModo('calibrar'); setPausado(false); }}>Calibrar</button>
+      <button type="button" className={modo === 'testar' ? BOTAO_LARANJA : BOTAO_CLARO} onClick={() => { setModo('testar'); setPausado(false); setAlvoTeste(null); }}>Testar mapa</button>
+    </div>
+    {modo === 'calibrar' ? <>
+      <div className={CARTAO}>
+        <p className="font-black">{feitas}/234 amostras · {Math.floor(feitas / 3)}/78 posições completas</p>
+        <div className="h-5 border-2 border-black bg-[#eee] mt-2"><div className="h-full bg-[#ff6b00]" style={{ width: `${feitas / 234 * 100}%` }} /></div>
+        <p className="font-bold mt-3">{posicao.corda}ª corda · casa {posicao.casa} · {nomeMidi(midiNaPosicao(posicao.corda, posicao.casa)!)}</p>
+        <p>Coletadas aqui: {mapa.amostras[chavePosicao(posicao.corda, posicao.casa)]?.length ?? 0}/3</p>
+      </div>
+      <ViolaoPixel esperadas={[posicao]} aoEscolher={p => { if (p.casa <= 12) { setIndice(posicoesCalibracao.findIndex(x => x.corda === p.corda && x.casa === p.casa)); setPausado(false); } }} />
+      <div className="grid grid-cols-2 gap-3">
+        <button type="button" className={BOTAO_CLARO} onClick={() => setPausado(p => !p)}>{pausado ? 'Continuar' : 'Pausar'}</button>
+        <button type="button" className={BOTAO_CLARO} onClick={() => setIndice((indice + 1) % posicoesCalibracao.length)}>Pular</button>
+      </div>
+    </> : <>
+      <div className={CARTAO}>
+        <p className="font-black">Teste real: {tentativas.length} {tentativas.length === 1 ? 'tentativa' : 'tentativas'}</p>
+        <p>Com ajuda da mão: {tentativas.length ? `${Math.round(tentativas.filter(t => t.comMao).length / tentativas.length * 100)}%` : '—'}</p>
+        <p>Sem ajuda da mão: {tentativas.length ? `${Math.round(tentativas.filter(t => t.semMao).length / tentativas.length * 100)}%` : '—'}</p>
+        <p className="text-sm mt-2">A taxa conta apenas notas tocadas neste teste; exige duas cordas calibradas para a mesma nota.</p>
+      </div>
+      {elegiveis.length ? <button type="button" className={`${BOTAO_LARANJA} w-full`} onClick={sortear}>{alvoTeste ? 'Sortear outra' : 'Sortear posição'}</button> : <p className={CARTAO}>Calibre pelo menos duas posições da mesma nota para testar.</p>}
+      {alvoTeste && <><p className={`${CARTAO} font-black`}>Toque: {alvoTeste.corda}ª corda · casa {alvoTeste.casa}</p><ViolaoPixel esperadas={[alvoTeste]} /></>}
+    </>}
+    <p role="status" className={`${CARTAO} font-bold`}>{aviso}</p>
+    <MedidorVolume leitura={escuta.leitura} />
+    <button type="button" className={`${BOTAO_CLARO} w-full`} onClick={aoSair}>Voltar</button>
+  </div>;
+}
+
 function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
   exercicio: ExercicioVirtual;
   escuta: Escuta;
@@ -391,17 +647,25 @@ function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
   const [indice, setIndice] = useState(0);
   const [resultados, setResultados] = useState<ResultadoPasso[]>([]);
   const [concluido, setConcluido] = useState(false);
+  const [mostrarTablatura, setMostrarTablatura] = useState(false);
+  const [posicaoOuvida, setPosicaoOuvida] = useState<EstimativaPosicao | null>(null);
   const { ouvir, leitura } = escuta;
+  const posicoes = useMemo(() => posicoesDaSequencia(exercicio.passos), [exercicio.passos]);
 
   useTelaLigada(!concluido);
 
   useEffect(() => {
     ouvir((l) => {
       if (seguidor.concluido()) return;
+      if (exercicio.instrumento === 'violao' && l.timbre && l.midi !== null) {
+        const anterior = posicoes[Math.max(0, seguidor.passoAtual() - 1)]?.at(-1) ?? null;
+        setPosicaoOuvida(estimarPosicao(Math.round(l.midi), anterior, l.timbre, lerMapaEscolhido()));
+      }
       const resultado = seguidor.processar(l);
       if (!resultado) return;
       setResultados((atuais) => [...atuais, resultado]);
       setIndice(seguidor.passoAtual());
+      setPosicaoOuvida(null);
       if (seguidor.concluido()) {
         ouvir(null);
         escuta.desligar();
@@ -409,7 +673,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
       }
     });
     return () => ouvir(null);
-  }, [ouvir, seguidor, escuta.desligar]);
+  }, [ouvir, seguidor, escuta.desligar, exercicio.instrumento, posicoes]);
 
   const total = exercicio.passos.length;
   const passo = exercicio.passos[Math.min(indice, total - 1)];
@@ -419,6 +683,8 @@ function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
   const percentual = Math.round(((total - passosComErro) / total) * 100);
   const rotulo = rotuloPasso(passo);
   const feitos = concluido ? total : indice;
+  const posicoesAtuais = exercicio.instrumento === 'violao' ? posicoes[Math.min(indice, total - 1)] : [];
+  const posicoesProximas = exercicio.instrumento === 'violao' ? posicoes.slice(indice + 1, indice + 5).flat() : [];
 
   return (
     <div className="space-y-4">
@@ -454,6 +720,16 @@ function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
             </div>
           )}
         </div>
+      )}
+
+      {exercicio.instrumento === 'violao' && (
+        <>
+          <ViolaoPixel esperadas={posicoesAtuais} proximas={posicoesProximas} midiOuvido={concluido ? null : midiAoVivo(leitura)} posicaoOuvida={concluido || !leitura?.temSom ? null : posicaoOuvida} />
+          <button type="button" onClick={() => setMostrarTablatura((valor) => !valor)} aria-pressed={mostrarTablatura} className={`${BOTAO_CLARO} w-full`}>
+            {mostrarTablatura ? 'Ocultar tablatura' : 'Mostrar tablatura'}
+          </button>
+          {mostrarTablatura && <Tablatura passos={exercicio.passos} indice={indice} />}
+        </>
       )}
 
       {ultimo && (
@@ -494,7 +770,10 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
   const [descricao, setDescricao] = useState(exercicio?.descricao || '');
   const [bpm, setBpm] = useState(exercicio?.bpm ? String(exercicio.bpm) : '');
   const [passos, setPassos] = useState<PassoExercicio[]>(exercicio?.passos || []);
-  const [aba, setAba] = useState<'nota' | 'acorde' | 'gravar'>('nota');
+  const [aba, setAba] = useState<'nota' | 'acorde' | 'gravar' | 'braco'>('nota');
+  const [passoSelecionado, setPassoSelecionado] = useState<number | null>(null);
+  const [notaSelecionada, setNotaSelecionada] = useState(0);
+  const [dedoEscolhido, setDedoEscolhido] = useState(0);
   const [oitava, setOitava] = useState(exercicio?.instrumento === 'teclado' ? 4 : 3);
   const [gravacao, setGravacao] = useState<EstadoGravacao>('parada');
   const [erroGravacao, setErroGravacao] = useState<string | null>(null);
@@ -529,10 +808,13 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
 
       const capturar = criarCapturaNotas();
       let inicioAnterior: number | null = null;
+      let posicaoAnterior: PosicaoViolao | null = passos.length ? posicoesDoPasso(passos[passos.length - 1]).at(-1) ?? null : null;
       escuta.ouvir((l) => {
         const midi = capturar(l);
         if (midi === null) return;
         if (midi < (instrumento === 'violao' ? 40 : 36) || midi > (instrumento === 'violao' ? 88 : 96)) return;
+        const posicao = instrumento === 'violao' ? estimarPosicao(midi, posicaoAnterior, l.timbre, lerMapaEscolhido()) : null;
+        if (posicao) posicaoAnterior = posicao;
         const duracaoAnterior = inicioAnterior === null ? null : Math.round(l.tempoMs - inicioAnterior);
         setPassos((atuais) => {
           if (atuais.length >= 200) return atuais;
@@ -541,7 +823,7 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
           if (duracaoAnterior !== null && copia.length) {
             copia[copia.length - 1] = { ...copia[copia.length - 1], duracaoMs: duracaoAnterior };
           }
-          copia.push({ midis: [midi], rotulo: NOTAS[midi % 12] });
+          copia.push({ midis: [midi], rotulo: NOTAS[midi % 12], ...(posicao ? { posicoes: [posicao] } : {}) });
           return copia;
         });
         setNotasGravadas((n) => Math.min(200, n + 1));
@@ -563,14 +845,51 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
   const trocarInstrumento = (novo: Instrumento) => {
     setInstrumento(novo);
     setOitava(novo === 'teclado' ? 4 : 3);
+    setAba('nota');
+    setPassoSelecionado(null);
   };
 
   const adicionarPasso = (passo: PassoExercicio) => {
     if (passos.length >= 200) return toast.error('Limite de 200 passos por exercício.');
-    setPassos((atuais) => [...atuais, passo]);
+    setPassos((atuais) => {
+      const anterior = atuais.length ? posicoesDoPasso(atuais[atuais.length - 1]).at(-1) : null;
+      const posicoes = instrumento === 'violao' && !passo.posicoes ? passo.midis.map((midi) => estimarPosicao(midi, anterior)).filter((p): p is EstimativaPosicao => p !== null) : passo.posicoes;
+      return [...atuais, { ...passo, ...(posicoes?.length === passo.midis.length ? { posicoes } : {}) }];
+    });
+  };
+  const escolherNoBraco = (posicao: PosicaoViolao) => {
+    const midi = midiNaPosicao(posicao.corda, posicao.casa);
+    if (midi === null) return;
+    const comDedo = { ...posicao, dedo: posicao.casa === 0 ? 0 : dedoEscolhido };
+    if (passoSelecionado === null) {
+      adicionarPasso({ midis: [midi], rotulo: NOTAS[midi % 12], posicoes: [comDedo] });
+      return;
+    }
+    setPassos((atuais) => atuais.map((passo, i) => {
+      if (i !== passoSelecionado) return passo;
+      const midis = [...passo.midis];
+      midis[notaSelecionada] = midi;
+      const posicoes = passo.midis.map((m, n) => n === notaSelecionada ? comDedo : passo.posicoes?.[n] ?? estimarPosicao(m)).filter((p): p is PosicaoViolao => p !== null);
+      return { ...passo, midis, posicoes, rotulo: midis.length === 1 ? NOTAS[midi % 12] : passo.rotulo };
+    }));
+  };
+  const alterarDedo = (dedo: number) => {
+    setDedoEscolhido(dedo);
+    if (passoSelecionado === null) return;
+    setPassos((atuais) => atuais.map((passo, i) => {
+      if (i !== passoSelecionado) return passo;
+      const posicoes = passo.midis.map((m, n) => {
+        const posicao = passo.posicoes?.[n] ?? estimarPosicao(m);
+        return posicao ? { ...posicao, dedo: n === notaSelecionada ? dedo : posicao.dedo } : null;
+      });
+      return posicoes.every((p) => p !== null) ? { ...passo, posicoes: posicoes as PosicaoViolao[] } : passo;
+    }));
   };
   const alterarDica = (indice: number, dica: string) => setPassos((atuais) => atuais.map((p, i) => (i === indice ? { ...p, dica } : p)));
-  const removerPasso = (indice: number) => setPassos((atuais) => atuais.filter((_, i) => i !== indice));
+  const removerPasso = (indice: number) => {
+    setPassos((atuais) => atuais.filter((_, i) => i !== indice));
+    setPassoSelecionado(null);
+  };
   const moverPasso = (indice: number, direcao: -1 | 1) => setPassos((atuais) => {
     const copia = [...atuais];
     [copia[indice], copia[indice + direcao]] = [copia[indice + direcao], copia[indice]];
@@ -633,8 +952,8 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
       </div>
 
       <div className={CARTAO}>
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {([['nota', 'Nota'], ['acorde', 'Acorde'], ['gravar', 'Gravar']] as const).map(([valor, nome]) => (
+        <div className={`grid ${instrumento === 'violao' ? 'grid-cols-4' : 'grid-cols-3'} gap-1 mb-4`}>
+          {([['nota', 'Nota'], ['acorde', 'Acorde'], ['gravar', 'Gravar'], ...(instrumento === 'violao' ? [['braco', 'Braço'] as const] : [])] as const).map(([valor, nome]) => (
             <button key={valor} type="button" onClick={() => trocarAba(valor)} className={`min-h-12 border-4 border-black font-black uppercase text-sm ${aba === valor ? 'bg-[#261812] text-white' : 'bg-white text-[#261812]'}`}>
               {nome}
             </button>
@@ -697,6 +1016,26 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
             )}
           </div>
         )}
+        {instrumento === 'violao' && (aba === 'braco' || aba === 'gravar') && (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm font-bold">{passoSelecionado === null ? 'Toque no braço para adicionar um passo.' : `Corrigindo passo ${passoSelecionado + 1}, nota ${notaSelecionada + 1}. Toque na corda e casa desejadas.`}</p>
+            {passoSelecionado !== null && (passos[passoSelecionado]?.midis.length ?? 0) > 1 && (
+              <div className="flex flex-wrap gap-2">
+                {passos[passoSelecionado].midis.map((midi, i) => <button key={i} type="button" onClick={() => { setNotaSelecionada(i); setDedoEscolhido(passos[passoSelecionado].posicoes?.[i]?.dedo ?? 0); }} className={`${BOTAO_ICONE} ${notaSelecionada === i ? 'bg-[#ffcc22]' : ''}`} aria-label={`Corrigir nota ${i + 1}: ${nomeMidi(midi)}`}>{i + 1}</button>)}
+              </div>
+            )}
+            <div className="flex items-center flex-wrap gap-2 text-sm font-black">
+              <span>Dedo:</span>
+              {[0, 1, 2, 3, 4].map((dedo) => <button key={dedo} type="button" onClick={() => alterarDedo(dedo)} aria-pressed={dedoEscolhido === dedo} className={`${BOTAO_ICONE} ${dedoEscolhido === dedo ? 'bg-[#ffcc22]' : ''}`}>{dedo}</button>)}
+            </div>
+            <ViolaoPixel
+              esperadas={passoSelecionado === null ? [] : posicoesDoPasso(passos[passoSelecionado])}
+              midiOuvido={gravacao === 'gravando' ? midiAoVivo(leitura) : null}
+              aoEscolher={escolherNoBraco}
+            />
+            {passoSelecionado !== null && <button type="button" onClick={() => setPassoSelecionado(null)} className={BOTAO_CLARO}>Adicionar novo passo</button>}
+          </div>
+        )}
       </div>
 
       <div>
@@ -704,13 +1043,14 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
         {passos.length === 0 && <p className="text-base text-[#261812]">Nenhum passo ainda.</p>}
         <ol className="space-y-3">
           {passos.map((passo, i) => (
-            <li key={i} className="bg-white text-[#261812] border-2 border-black p-2 space-y-2">
+            <li key={i} className={`bg-white text-[#261812] border-2 p-2 space-y-2 ${passoSelecionado === i ? 'border-[#ff6b00]' : 'border-black'}`}>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold w-6 shrink-0">{i + 1}.</span>
-                <div className="min-w-0 flex-1">
+                <button type="button" onClick={() => { if (instrumento === 'violao') { if (gravacao !== 'parada') pararGravacao(); setPassoSelecionado(i); setNotaSelecionada(0); setDedoEscolhido(passo.posicoes?.[0]?.dedo ?? 0); setAba('braco'); } }} disabled={instrumento !== 'violao'} className="min-w-0 flex-1 text-left" aria-label={`Corrigir posição do passo ${i + 1}`}>
                   <p className="text-lg font-black leading-tight truncate">{rotuloPasso(passo)}</p>
                   <p className="text-xs font-semibold truncate">{passo.midis.map(nomeMidi).join(' ')}</p>
-                </div>
+                  {instrumento === 'violao' && <p className="text-xs font-bold">{posicoesDoPasso(passo).map((p) => `${p.corda}ª/${p.casa}${p.dedo !== undefined ? ` dedo ${p.dedo}` : ''}`).join(' · ') || 'Sem posição no braço'}</p>}
+                </button>
                 <button type="button" aria-label="Mover para cima" disabled={i === 0} onClick={() => moverPasso(i, -1)} className={BOTAO_ICONE}><ArrowUp className="w-5 h-5" /></button>
                 <button type="button" aria-label="Mover para baixo" disabled={i === passos.length - 1} onClick={() => moverPasso(i, 1)} className={BOTAO_ICONE}><ArrowDown className="w-5 h-5" /></button>
                 <button type="button" aria-label="Remover passo" onClick={() => removerPasso(i)} className={BOTAO_ICONE}><X className="w-5 h-5" /></button>
@@ -732,6 +1072,8 @@ function Editor({ exercicio, aoFechar }: { exercicio: ExercicioVirtual | null; a
 
 type Tela =
   | { nome: 'lista' }
+  | { nome: 'mapa_preparo' }
+  | { nome: 'mapa' }
   | { nome: 'calibracao'; exercicio: ExercicioVirtual }
   | { nome: 'afinacao'; exercicio: ExercicioVirtual; ruidoDb: number }
   | { nome: 'treino'; exercicio: ExercicioVirtual; ruidoDb: number }
@@ -805,6 +1147,19 @@ export default function ProfessorVirtual() {
     }
   };
 
+  const abrirMapa = async () => {
+    const sessao = ++sessaoRef.current;
+    setErroMicrofone(null);
+    setTela({ nome: 'mapa_preparo' });
+    try {
+      await escuta.ligar('violao');
+      if (sessaoRef.current === sessao) {
+        await escuta.calibrar(CALIBRACAO_MS);
+        if (sessaoRef.current === sessao) setTela({ nome: 'mapa' });
+      }
+    } catch (e) { falhou(sessao, e); }
+  };
+
   const medirDeNovo = () => {
     const sessao = sessaoRef.current;
     medirAmbiente(sessao).catch((e) => falhou(sessao, e));
@@ -847,6 +1202,8 @@ export default function ProfessorVirtual() {
       </p>
 
       <main className="max-w-xl mx-auto px-4 py-5 pb-10 space-y-5">
+        {tela.nome === 'mapa_preparo' && <div className={CARTAO}><p className="text-xl font-black">Preparando microfone</p><p>Fique em silêncio por alguns segundos.</p></div>}
+        {tela.nome === 'mapa' && <TelaMapaViolao escuta={escuta} aoSair={sair} />}
         {tela.nome === 'calibracao' && (
           <TelaCalibracao
             calibracao={calibracao}
@@ -877,9 +1234,12 @@ export default function ProfessorVirtual() {
             {erroMicrofone && <AvisoErro>{erroMicrofone}</AvisoErro>}
             {falhaLista && <AvisoErro>Não foi possível carregar os exercícios da escola. Mostrando os exemplos.</AvisoErro>}
             {podeEditar && (
-              <button type="button" onClick={() => setTela({ nome: 'editor', exercicio: null })} className={`${BOTAO_CLARO} w-full`}>
-                <Plus className="w-5 h-5" /> Novo exercício
-              </button>
+              <>
+                <button type="button" onClick={abrirMapa} className={`${BOTAO_LARANJA} w-full`}>Calibrar violão · Testar mapa</button>
+                <button type="button" onClick={() => setTela({ nome: 'editor', exercicio: null })} className={`${BOTAO_CLARO} w-full`}>
+                  <Plus className="w-5 h-5" /> Novo exercício
+                </button>
+              </>
             )}
             {carregando ? (
               <p className="text-base font-bold">Carregando exercícios...</p>

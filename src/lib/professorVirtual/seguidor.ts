@@ -56,7 +56,6 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
     confiancaMinima = 0.75,
     tempoMaxColetaMs = 900,
     silencioMinimoMs = 200,
-    mudancaNotaCents = 70,
     aceitarOitava = exercicio.instrumento === 'violao',
     esperaAcordeMs = 190,
     coletaAcordeMs = 150,
@@ -75,8 +74,10 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
   let sequencia: { t: number; midi: number }[] = [];
   let somaCroma = new Array<number>(12).fill(0);
   let quadrosCroma = 0;
-  // Última nota avaliada: enquanto ela ainda soa, não pode ser conferida contra o passo seguinte.
-  let referenciaMidi: number | null = null;
+  let recentes: { midi: number; t: number }[] = [];
+  let niveis: { t: number; db: number }[] = [];
+  let inicioErroMs: number | null = null;
+  let midiErro: number | null = null;
 
   const pularVazios = () => {
     while (indice < passos.length && passos[indice].midis.length === 0) indice++;
@@ -87,11 +88,15 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
     sequencia = [];
     somaCroma = new Array<number>(12).fill(0);
     quadrosCroma = 0;
+    inicioErroMs = null;
+    midiErro = null;
   };
 
   const concluirAvaliacao = (resultado: ResultadoPasso) => {
+    const tempo = sequencia.at(-1)?.t ?? inicioAtaqueMs;
     zerarColeta();
     if (resultado.correto) {
+      for (const midi of passos[indice].midis) recentes.push({ midi, t: tempo });
       indice++;
       pularVazios();
     }
@@ -177,28 +182,44 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
     if (coletando) {
       const decorrido = l.tempoMs - inicioAtaqueMs;
       if (decorrido < ignorarAtaqueMs) return null;
-      if (decorrido > tempoMaxColetaMs) zerarColeta();
+      if (decorrido > tempoMaxColetaMs) { zerarColeta(); return null; }
     }
+    // Sem ataque, só se pode confirmar o alvo novo; jamais reprovar nem repetir a nota anterior.
+    if (!coletando && (recentes.length === 0 || recentes.some(({ midi }) =>
+      [0, 7, 12, 19, 24, -7, -12].some(intervalo =>
+        Math.abs(passo.midis[0] - midi - intervalo) * 100 <= quaseCents,
+      )))) return null;
     if (l.midi === null || l.confianca < confiancaMinima) return null;
 
     if (sequencia.length > 0 && Math.abs(l.midi - mediana(sequencia.map(q => q.midi))) * 100 > variacaoEstavelCents) {
       sequencia = [];
     }
     sequencia.push({ t: l.tempoMs, midi: l.midi });
+    sequencia = sequencia.filter(q => l.tempoMs - q.t <= Math.max(200, estabilidadeMs));
     if (sequencia.length < 3 || l.tempoMs - sequencia[0].t < estabilidadeMs) return null;
 
     const midiFirme = mediana(sequencia.map(q => q.midi));
-    if (!coletando) {
-      // Sem ataque, só uma nota claramente diferente vale; salto de oitava aqui é o detector errando no fim do som.
-      const diferenca = referenciaMidi === null ? 0 : Math.abs(midiFirme - referenciaMidi);
-      const oitavaExata = Math.abs(diferenca - 12 * Math.round(diferenca / 12)) * 100 < variacaoEstavelCents;
-      if (diferenca * 100 < mudancaNotaCents || oitavaExata) {
-        sequencia.shift();
-        return null;
-      }
+    const resultado = avaliarNota(midiFirme, passo);
+    if (resultado.correto) return concluirAvaliacao(resultado);
+    if (!coletando) return null;
+
+    // O pitch pode preferir a corda antiga numa mistura. A presença do alvo no croma prevalece.
+    const classeEsperada = classeDaNota(passo.midis[0]);
+    const pico = Math.max(...l.croma, 1e-9);
+    if (recentes.length > 0 && l.croma[classeEsperada] / pico >= 0.45) {
+      return concluirAvaliacao(avaliarNota(passo.midis[0], passo));
     }
-    referenciaMidi = midiFirme;
-    return concluirAvaliacao(avaliarNota(midiFirme, passo));
+    const ressonancia = recentes.some(({ midi }) => [0, 7, 12, 19, 24, -7, -12].some(
+      intervalo => Math.abs(midiFirme - midi - intervalo) * 100 <= quaseCents,
+    ));
+    if (ressonancia) { inicioErroMs = null; midiErro = null; return null; }
+    if (midiErro === null || Math.abs(midiFirme - midiErro) * 100 > variacaoEstavelCents) {
+      midiErro = midiFirme;
+      inicioErroMs = l.tempoMs;
+      return null;
+    }
+    if (inicioErroMs === null || l.tempoMs - inicioErroMs < 200) return null;
+    return concluirAvaliacao(resultado);
   }
 
   function processarAcorde(l: LeituraAudio, passo: PassoExercicio): ResultadoPasso | null {
@@ -215,8 +236,14 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
     });
     quadrosCroma++;
     if (quadrosCroma < 3 || decorrido < esperaAcordeMs + coletaAcordeMs) return null;
-    referenciaMidi = null;
-    return concluirAvaliacao(avaliarAcorde(somaCroma, passo));
+    const croma = [...somaCroma];
+    const classes = passo.midis.map(classeDaNota);
+    for (const { midi } of recentes) {
+      for (const classe of [classeDaNota(midi), classeDaNota(midi + 7)]) {
+        if (!classes.includes(classe)) croma[classe] = 0;
+      }
+    }
+    return concluirAvaliacao(avaliarAcorde(croma, passo));
   }
 
   pularVazios();
@@ -224,11 +251,16 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
   return {
     processar(l) {
       if (indice >= passos.length) return null;
+      recentes = recentes.filter(r => l.tempoMs - r.t <= 2000);
+      niveis = niveis.filter(n => l.tempoMs - n.t <= 90);
+      const nivelAnterior = niveis.length ? Math.min(...niveis.map(n => n.db)) : -Infinity;
+      const energiaSubindo = l.nivelDb > nivelAnterior;
+      niveis.push({ t: l.tempoMs, db: l.nivelDb });
       // Sem o silêncio mínimo, a cauda oscilando no limiar viraria nota nova e seria conferida contra o passo seguinte.
       const somComecou = l.temSom && !tinhaSom && l.tempoMs - ultimoSomMs >= silencioMinimoMs;
       tinhaSom = l.temSom;
       if (l.temSom) ultimoSomMs = l.tempoMs;
-      if (l.ataque || somComecou) {
+      if ((l.ataque || somComecou) && energiaSubindo) {
         zerarColeta();
         coletando = true;
         inicioAtaqueMs = l.tempoMs;
@@ -242,7 +274,8 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
       indice = 0;
       tinhaSom = false;
       ultimoSomMs = -Infinity;
-      referenciaMidi = null;
+      recentes = [];
+      niveis = [];
       zerarColeta();
       pularVazios();
     },

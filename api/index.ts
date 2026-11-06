@@ -8167,6 +8167,19 @@ Regras:
                 && midis.every((m: any) => Number.isInteger(m) && m >= midiMinimo && m <= midiMaximo);
             if (!midisValidos) return { erro: `Passo ${i + 1}: informe de 1 a 8 notas MIDI inteiras entre ${midiMinimo} e ${midiMaximo}.` };
             const limpo: any = { midis };
+            if (passo.posicoes !== undefined) {
+                if (corpo.instrumento !== 'violao' || !Array.isArray(passo.posicoes) || passo.posicoes.length !== midis.length) {
+                    return { erro: `Passo ${i + 1}: informe uma posição para cada nota do violão.` };
+                }
+                const afinacao = [64, 59, 55, 50, 45, 40];
+                const posicoesValidas = passo.posicoes.every((p: any, n: number) =>
+                    p && Number.isInteger(p.corda) && p.corda >= 1 && p.corda <= 6
+                    && Number.isInteger(p.casa) && p.casa >= 0 && p.casa <= 24
+                    && (p.dedo === undefined || (Number.isInteger(p.dedo) && p.dedo >= 0 && p.dedo <= 4))
+                    && afinacao[p.corda - 1] + p.casa === midis[n]);
+                if (!posicoesValidas) return { erro: `Passo ${i + 1}: posição inválida ou diferente da nota MIDI.` };
+                limpo.posicoes = passo.posicoes.map((p: any) => ({ corda: p.corda, casa: p.casa, ...(p.dedo === undefined ? {} : { dedo: p.dedo }) }));
+            }
             if (typeof passo.rotulo === 'string' && passo.rotulo.trim()) limpo.rotulo = passo.rotulo.trim();
             if (typeof passo.dica === 'string' && passo.dica.trim()) limpo.dica = passo.dica.trim();
             if (typeof passo.duracaoMs === 'number' && Number.isFinite(passo.duracaoMs) && passo.duracaoMs > 0) limpo.duracaoMs = passo.duracaoMs;
@@ -8222,6 +8235,70 @@ Regras:
             .maybeSingle();
         if (error) return res.status(500).json({ error: error.message });
         if (!data) return res.status(404).json({ error: 'Exercício não encontrado.' });
+        res.json({ success: true });
+    });
+
+    const MODELO_VIOLAO_CAMPOS = 'id,nome,mapa,ativo,criado_por,created_at,updated_at';
+    const validarModeloViolao = (corpo: any) => {
+        const nome = typeof corpo?.nome === 'string' ? corpo.nome.trim() : '';
+        if (!nome || nome.length > 120) return { erro: 'Informe um nome de até 120 caracteres.' };
+        const mapa = corpo?.mapa;
+        if (!mapa || typeof mapa !== 'object' || Array.isArray(mapa)
+            || !mapa.amostras || typeof mapa.amostras !== 'object' || Array.isArray(mapa.amostras)) {
+            return { erro: 'Mapa de calibração inválido.' };
+        }
+        let tamanho: number;
+        try { tamanho = Buffer.byteLength(JSON.stringify(mapa), 'utf8'); }
+        catch { return { erro: 'Mapa de calibração inválido.' }; }
+        if (tamanho > 256 * 1024) return { erro: 'Mapa excede 256 KB.' };
+        const entradas = Object.entries(mapa.amostras);
+        if (entradas.length > 150 || !entradas.every(([chave, amostras]) => {
+            const posicao = /^([1-6]):(0|[1-9]|1[0-9]|2[0-4])$/.exec(chave);
+            return posicao && Array.isArray(amostras) && amostras.length <= 3 && amostras.every((t: any) =>
+                t && typeof t === 'object' && !Array.isArray(t)
+                && Array.isArray(t.harmonicosDb) && t.harmonicosDb.length >= 1 && t.harmonicosDb.length <= 10
+                && t.harmonicosDb.every((n: any) => typeof n === 'number' && Number.isFinite(n))
+                && typeof t.centroideRelativo === 'number' && Number.isFinite(t.centroideRelativo)
+                && typeof t.inharmonicidadeCents === 'number' && Number.isFinite(t.inharmonicidadeCents));
+        })) return { erro: 'Posições ou medidas do mapa inválidas.' };
+        return { dados: { nome, mapa: { amostras: mapa.amostras, atualizadoEm: typeof mapa.atualizadoEm === 'string' ? mapa.atualizadoEm : new Date().toISOString() } } };
+    };
+
+    app.get('/api/modelos-violao', requireStaff, async (_req, res) => {
+        const { data, error } = await supabase.from('modelos_violao').select(MODELO_VIOLAO_CAMPOS)
+            .eq('ativo', true).order('created_at', { ascending: false });
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    });
+
+    app.post('/api/modelos-violao', requireStaff, async (req: any, res) => {
+        const validado = validarModeloViolao(req.body);
+        if ('erro' in validado) return res.status(400).json({ error: validado.erro });
+        const { data, error } = await supabase.from('modelos_violao')
+            .insert([{ ...validado.dados, criado_por: req.user?.email || null }])
+            .select(MODELO_VIOLAO_CAMPOS).single();
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    });
+
+    app.put('/api/modelos-violao/:id', requireStaff, async (req, res) => {
+        const validado = validarModeloViolao(req.body);
+        if ('erro' in validado) return res.status(400).json({ error: validado.erro });
+        const { data, error } = await supabase.from('modelos_violao')
+            .update({ ...validado.dados, updated_at: new Date().toISOString() })
+            .eq('id', req.params.id).eq('ativo', true)
+            .select(MODELO_VIOLAO_CAMPOS).maybeSingle();
+        if (error) return res.status(500).json({ error: error.message });
+        if (!data) return res.status(404).json({ error: 'Modelo não encontrado.' });
+        res.json(data);
+    });
+
+    app.delete('/api/modelos-violao/:id', requireStaff, async (req, res) => {
+        const { data, error } = await supabase.from('modelos_violao')
+            .update({ ativo: false, updated_at: new Date().toISOString() })
+            .eq('id', req.params.id).eq('ativo', true).select('id').maybeSingle();
+        if (error) return res.status(500).json({ error: error.message });
+        if (!data) return res.status(404).json({ error: 'Modelo não encontrado.' });
         res.json({ success: true });
     });
 

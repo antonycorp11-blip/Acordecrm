@@ -121,6 +121,11 @@ interface Sequencia {
   intervaloS?: number;
   /** Deixa o toque anterior soar (cordas soltas diferentes); senão abafa. */
   deixaSoar?: boolean;
+  /** Nível da nota anterior durante o toque seguinte, relativo ao toque novo. */
+  caudaDb?: number;
+  /** Corda solta que vibra junto com o segundo toque, sem ser dedilhada. */
+  simpatia?: { midi: number; db: number };
+  semReprovacao?: boolean;
 }
 
 const nota = (m: number): PassoExercicio => ({ midis: [m], rotulo: nomeNota(m) });
@@ -144,6 +149,9 @@ const SEQUENCIAS: Sequencia[] = [
   // Passo 2 errado, mas o passo 1 ainda soa: não pode avançar.
   { nome: 'violão: Mi, Lá pedidos; toca Mi e Fá', instrumento: 'violao', passos: [52, 57].map(nota), toques: [[52], [53]], passoEsperado: 1 },
   { nome: 'teclado: C, Am pedidos; toca C e Em', instrumento: 'teclado', passos: ['C', 'Am'].map(acT), toques: [ACORDES_TECLADO.C, ACORDES_TECLADO.Em], passoEsperado: 1, intervaloS: 1.2 },
+  { nome: 'violão: Lá novo com Mi anterior a -6 dB', instrumento: 'violao', passos: [52, 57].map(nota), intervaloS: 0.8, caudaDb: -6, semReprovacao: true },
+  { nome: 'violão: Lá novo com Mi anterior a -12 dB', instrumento: 'violao', passos: [52, 57].map(nota), intervaloS: 0.8, caudaDb: -12, semReprovacao: true },
+  { nome: 'violão: corda Mi solta ressoa por simpatia', instrumento: 'violao', passos: [52, 57].map(nota), intervaloS: 0.8, simpatia: { midi: 40, db: -12 }, semReprovacao: true },
 ];
 
 function rodarSequencia(q: Sequencia, sr: number, snrDb: number, rep: number) {
@@ -159,15 +167,23 @@ function rodarSequencia(q: Sequencia, sr: number, snrDb: number, rep: number) {
     const corte = !q.deixaSoar && i + 1 < toques.length ? Math.round(passo * sr) : Infinity;
     const queda = Math.round(0.08 * sr);
     for (let k = 0; k < y.length && ini + k < n; k++) {
-      const g = k < corte ? 1 : Math.max(0, 1 - (k - corte) / queda);
+      const g = k < corte ? 1 : q.caudaDb !== undefined
+        ? Math.pow(10, q.caudaDb / 20)
+        : Math.max(0, 1 - (k - corte) / queda);
       mix[ini + k] += y[k] * g;
     }
   });
+  if (q.simpatia && toques.length > 1) {
+    const ini = Math.round(passo * sr);
+    const y = seco('violao', [q.simpatia.midi], sr, rep * 100 + 90);
+    const ganho = Math.pow(10, q.simpatia.db / 20);
+    for (let k = 0; k < y.length && ini + k < n; k++) mix[ini + k] += y[k] * ganho;
+  }
   const semente = hashTexto(`${q.nome}|${sr}|${snrDb}|${rep}`);
   const nivelDb = NIVEIS[semente % 2]; // celular razoavelmente perto: aqui o foco é a sequência
   const { audio, inicioToque } = passarPeloMicrofone(mix, { sr, snrDb, semente, nivelDb, preRuidoS: PRE_RUIDO_S });
   const s = simular(audio, sr, { titulo: q.nome, instrumento: q.instrumento, passos: q.passos }, inicioToque, semente);
-  return { passo: s.passoFinal, alvo: q.passoEsperado ?? q.passos.length, mensagens: s.resultados.map((x) => x.r.mensagem) };
+  return { passo: s.passoFinal, alvo: q.passoEsperado ?? q.passos.length, reprovacoes: s.resultados.filter(x => !x.r.correto).length, mensagens: s.resultados.map((x) => x.r.mensagem) };
 }
 
 function secaoSequencias(): string {
@@ -179,7 +195,7 @@ function secaoSequencias(): string {
       for (const sr of SRS) for (let rep = 0; rep < Math.max(3, REPETICOES); rep++) {
         const r = rodarSequencia(q, sr, snr, rep);
         n++;
-        if (r.passo === r.alvo) ok++;
+        if (r.passo === r.alvo && (!q.semReprovacao || r.reprovacoes === 0)) ok++;
         finais.push(r.passo);
       }
       limparCaches();
@@ -294,7 +310,7 @@ function principal() {
 
   const automatico = `# Bancada de precisão do Professor Virtual
 
-Gerado por \`npx tsx tools/bancada-professor-virtual/rodar.ts --repeticoes ${REPETICOES}\`. ${ts.length} tentativas na matriz, em ${((Date.now() - inicio) / 60000).toFixed(1)} min.
+Gerado por \`node --import tsx tools/bancada-professor-virtual/rodar.ts --repeticoes ${REPETICOES}\`. ${ts.length} tentativas na matriz, em ${((Date.now() - inicio) / 60000).toFixed(1)} min.
 Áudio 100% sintético: isto é um teto otimista, não a precisão em quarto real.
 
 Cada célula traz acerto, (acertos/total; intervalo de confiança de Wilson a 95%). As tentativas de um mesmo caso não são independentes, então o intervalo real é mais largo.
@@ -333,7 +349,7 @@ ${latencias(ts)}
 
 ## Sequências (várias notas seguidas)
 
-Certo = o seguidor terminou exatamente no passo indicado.
+Certo = o seguidor terminou exatamente no passo indicado; nos casos de ressonância, também sem reprovação anterior.
 
 ${sequencias}
 

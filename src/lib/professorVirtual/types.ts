@@ -6,6 +6,8 @@ export type Instrumento = 'violao' | 'teclado';
 /** Um passo do exercício: 1 nota = melodia; 2 ou mais = acorde. Notas em MIDI (60 = Dó central). */
 export interface PassoExercicio {
   midis: number[];
+  /** Posições no violão: corda 1 = Mi agudo, 6 = Mi grave; casa 0 = solta. */
+  posicoes?: { corda: number; casa: number; dedo?: number }[];
   /** Nome exibido ao aluno, ex.: "Dó", "C", "Am". */
   rotulo?: string;
   /** Duração gravada pelo professor, em ms (usada para ritmo; opcional no modo "espera a nota"). */
@@ -37,6 +39,17 @@ export interface LeituraAudio {
   confianca: number;
   /** Energia das 12 classes de nota (Dó=0 ... Si=11), normalizada de 0 a 1. */
   croma: number[];
+  /** Medida única após o ataque; ausente nos demais quadros. */
+  timbre?: TimbreViolao;
+}
+
+export interface TimbreViolao {
+  /** Harmônicos 1 a 10 em dB relativos ao mais forte (0 dB). */
+  harmonicosDb: number[];
+  /** Centroide dividido pela fundamental, independente da nota. */
+  centroideRelativo: number;
+  /** Desvio RMS dos parciais em cents frente aos harmônicos ideais. */
+  inharmonicidadeCents: number;
 }
 
 /** Resultado da conferência de um passo. */

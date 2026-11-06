@@ -1,5 +1,5 @@
 -- Professor Virtual: exercícios da escola que o aluno treina com o microfone do celular.
--- AINDA NÃO APLICADA. Sem RLS por enquanto, como as demais tabelas da escola: o backend ainda usa a anon key.
+-- Aplicada em produção em 06/11/2026. Sem RLS por enquanto, como as demais tabelas da escola: o backend ainda usa a anon key.
 -- Ligar o RLS junto com as outras tabelas quando o backend tiver chave própria.
 create table if not exists public.exercicios_virtuais (
   id bigserial primary key,
