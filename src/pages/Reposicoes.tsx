@@ -21,6 +21,7 @@ function RevisaoAulas({ onCount }: { onCount: (n: number) => void }) {
   const [processando, setProcessando] = useState<Set<number>>(new Set());
   const [divergentes, setDivergentes] = useState<any[]>([]);
   const [salvandoAluno, setSalvandoAluno] = useState<number | null>(null);
+  const [erroDecisao, setErroDecisao] = useState<string | null>(null);
 
   const carregar = async () => {
     setLoading(true);
@@ -80,6 +81,7 @@ function RevisaoAulas({ onCount }: { onCount: (n: number) => void }) {
     setProcessando(prev => { const n = new Set(prev); on ? n.add(id) : n.delete(id); return n; });
 
   const decidir = async (aula: any, acao: 'realizada' | 'falta' | 'reposicao') => {
+    setErroDecisao(null);
     marcarProcessando(aula.id, true);
     try {
       let res: Response;
@@ -91,9 +93,10 @@ function RevisaoAulas({ onCount }: { onCount: (n: number) => void }) {
           body: JSON.stringify({ status: acao === 'realizada' ? 'realizada' : 'falta_aluno' })
         });
       }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Erro ao registrar');
+      const resposta = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(resposta.error || `Erro ao registrar (HTTP ${res.status}).`);
+      if (acao === 'reposicao' && (!resposta.success || resposta.aula?.status !== 'reposicao' || resposta.aula?.data !== '2099-12-31')) {
+        throw new Error('O servidor não confirmou a entrada na fila de reposições. Atualize a revisão antes de tentar novamente.');
       }
       remover(aula.id);
       const quando = `${fmtData(aula.data)} (${aula.aluno_nome})`;
@@ -115,7 +118,9 @@ function RevisaoAulas({ onCount }: { onCount: (n: number) => void }) {
         });
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Erro ao registrar');
+      const mensagem = `Aula de ${fmtData(aula.data)} (${aula.aluno_nome}): ${e?.message || 'Erro ao registrar'}`;
+      setErroDecisao(mensagem);
+      toast.error(mensagem, { duration: 10000 });
     } finally {
       marcarProcessando(aula.id, false);
     }
@@ -142,6 +147,7 @@ function RevisaoAulas({ onCount }: { onCount: (n: number) => void }) {
 
   return (
     <div className="space-y-6 text-black">
+      {erroDecisao && <div role="alert" className="bg-red-100 border-4 border-red-700 p-4 font-bold text-sm">{erroDecisao}</div>}
       <div className="bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000]">
         <p className="text-xs font-bold uppercase text-[#8e7164]">
           Aulas que já passaram e ficaram sem presença marcada (somente alunos ativos). Para cada uma, decida: <b>REPOSIÇÃO</b> (vai para a fila de reposições),
@@ -234,21 +240,23 @@ export function Reposicoes() {
   const [totalRevisao, setTotalRevisao] = useState<number | null>(null);
   const [reposicoes, setReposicoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erroFila, setErroFila] = useState<string | null>(null);
 
   const fetchReposicoes = async () => {
+    setLoading(true);
+    setErroFila(null);
     try {
       const token = localStorage.getItem('acorde_token');
       const res = await fetch('/api/agenda?status=reposicao', { 
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        // Filtrar apenas aulas com status = 'reposicao'
-        const apenasReposicoes = data.filter((a: any) => a.status === 'reposicao' || a.status === 'a_repor');
-        setReposicoes(apenasReposicoes);
-      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Erro ao carregar a fila (HTTP ${res.status}).`);
+      if (!Array.isArray(data)) throw new Error('Resposta inválida ao carregar a fila.');
+      setReposicoes(data.filter((a: any) => a.status === 'reposicao' || a.status === 'a_repor'));
     } catch (e) {
       console.error(e);
+      setErroFila(e instanceof Error ? e.message : 'Erro de conexão ao carregar a fila.');
     } finally {
       setLoading(false);
     }
@@ -294,6 +302,11 @@ export function Reposicoes() {
       <div className="flex-1 overflow-auto">
         {loading ? (
           <p className="text-center font-bold">CARREGANDO FILA...</p>
+        ) : erroFila ? (
+          <div role="alert" className="bg-red-100 border-4 border-red-700 p-4 font-bold text-black">
+            <p>Não foi possível carregar a fila: {erroFila}</p>
+            <button onClick={fetchReposicoes} className="mt-3 px-3 py-2 border-2 border-black bg-white text-sm uppercase">Tentar novamente</button>
+          </div>
         ) : reposicoes.length === 0 ? (
           <div className="text-center p-12 border-4 border-dashed border-[#8e7164]/30">
             <p className="text-2xl font-black text-[#8e7164] uppercase">NENHUMA REPOSIÇÃO PENDENTE</p>

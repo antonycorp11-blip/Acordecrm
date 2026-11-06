@@ -15,6 +15,7 @@ import Contratos from './pages/Contratos';
 import AlunoPerfil from './pages/AlunoPerfil';
 import AreaProfessor from './pages/AreaProfessor';
 import AreaAluno from './pages/AreaAluno';
+import ProfessorVirtual from './pages/ProfessorVirtual';
 import Conquistas from './pages/Conquistas';
 import Ranking from './pages/Ranking';
 import Login from './pages/Login';
@@ -202,6 +203,13 @@ const AdminOnly = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Em teste: só a equipe entra; aluno volta para a própria área
+const StaffOnly = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
+  if (user?.role !== 'admin' && user?.role !== 'professor') return <Navigate to="/area-aluno" replace />;
+  return <>{children}</>;
+};
+
 // Componente para redirecionamento baseado em Role
 const RoleRedirect = ({ children, defaultPath }: { children: React.ReactNode, defaultPath: string }) => {
   const { user } = useAuth();
@@ -246,6 +254,7 @@ export default function App() {
               <Routes>
                 <Route path="/area-professor" element={<AreaProfessor />} />
                 <Route path="/area-aluno" element={<AreaAluno />} />
+                <Route path="/professor-virtual" element={<StaffOnly><ProfessorVirtual /></StaffOnly>} />
                 <Route path="*" element={
                   <AdminOnly>
                   <MainLayout>

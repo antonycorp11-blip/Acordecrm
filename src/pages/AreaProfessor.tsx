@@ -34,6 +34,7 @@ import {
   Video,
   Gamepad2
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { OneSignalService } from '../services/OneSignalService';
 import { toast } from 'sonner';
@@ -3278,6 +3279,9 @@ export default function AreaProfessor() {
             <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB</h1>
           </div>
           <div className="flex items-center gap-4">
+            <Link to="/professor-virtual" className="text-black hover:text-[#ff6b00] transition-colors" title="Professor Virtual" aria-label="Professor Virtual">
+              <Mic className="w-6 h-6" />
+            </Link>
             <button 
               onClick={() => {
                 OneSignalService.forcePrompt();

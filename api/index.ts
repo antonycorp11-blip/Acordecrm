@@ -1049,16 +1049,19 @@ async function startServer() {
                 .select('id, data, horario, status, data_original, motivo_cancelamento')
                 .eq('id', req.params.id).single();
             if (error || !aula) return res.status(404).json({ error: 'Aula não encontrada' });
+            if (!STATUS_AULA_ABERTA.includes(aula.status)) return res.status(409).json({ error: 'A aula já foi decidida. Atualize a revisão.' });
             const motivo = String(req.body?.motivo || '').trim() || 'Enviada para reposição na revisão de aulas';
-            const { error: errU } = await supabase.from('aulas').update({
+            const { data: atualizada, error: errU } = await supabase.from('aulas').update({
                 status: 'reposicao',
                 data_original: aula.data,
                 motivo_cancelamento: motivo,
                 data: '2099-12-31',
                 horario: '00:00'
-            }).eq('id', aula.id);
+            }).eq('id', aula.id).in('status', STATUS_AULA_ABERTA)
+                .select('id, status, data, data_original').maybeSingle();
             if (errU) throw errU;
-            res.json({ success: true, anterior: aula });
+            if (!atualizada) return res.status(409).json({ error: 'A aula mudou durante a revisão. Atualize a lista.' });
+            res.json({ success: true, aula: atualizada, anterior: aula });
         } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
@@ -8139,6 +8142,87 @@ Regras:
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
+    });
+
+    // ==========================================
+    // PROFESSOR VIRTUAL: exercícios treinados com o microfone do aluno
+    // ==========================================
+    const EXERCICIO_VIRTUAL_CAMPOS = 'id, titulo, instrumento, descricao, bpm, passos, ativo, created_at';
+
+    const validarExercicioVirtual = (corpo: any): { erro: string } | { dados: any } => {
+        const titulo = typeof corpo?.titulo === 'string' ? corpo.titulo.trim() : '';
+        if (!titulo) return { erro: 'Informe o título do exercício.' };
+        if (corpo.instrumento !== 'violao' && corpo.instrumento !== 'teclado') {
+            return { erro: 'Instrumento inválido: use violao ou teclado.' };
+        }
+        if (!Array.isArray(corpo.passos) || corpo.passos.length === 0 || corpo.passos.length > 200) {
+            return { erro: 'O exercício precisa ter entre 1 e 200 passos.' };
+        }
+        const midiMinimo = corpo.instrumento === 'violao' ? 40 : 36;
+        const midiMaximo = corpo.instrumento === 'violao' ? 88 : 96;
+        const passos: any[] = [];
+        for (const [i, passo] of corpo.passos.entries()) {
+            const midis = passo?.midis;
+            const midisValidos = Array.isArray(midis) && midis.length > 0 && midis.length <= 8
+                && midis.every((m: any) => Number.isInteger(m) && m >= midiMinimo && m <= midiMaximo);
+            if (!midisValidos) return { erro: `Passo ${i + 1}: informe de 1 a 8 notas MIDI inteiras entre ${midiMinimo} e ${midiMaximo}.` };
+            const limpo: any = { midis };
+            if (typeof passo.rotulo === 'string' && passo.rotulo.trim()) limpo.rotulo = passo.rotulo.trim();
+            if (typeof passo.dica === 'string' && passo.dica.trim()) limpo.dica = passo.dica.trim();
+            if (typeof passo.duracaoMs === 'number' && Number.isFinite(passo.duracaoMs) && passo.duracaoMs > 0) limpo.duracaoMs = passo.duracaoMs;
+            passos.push(limpo);
+        }
+        const semBpm = corpo.bpm === undefined || corpo.bpm === null || corpo.bpm === '';
+        const bpm = semBpm ? null : Number(corpo.bpm);
+        if (bpm !== null && (!Number.isInteger(bpm) || bpm <= 0)) return { erro: 'BPM inválido.' };
+        const descricao = typeof corpo.descricao === 'string' && corpo.descricao.trim() ? corpo.descricao.trim() : null;
+        return { dados: { titulo, instrumento: corpo.instrumento, descricao, bpm, passos } };
+    };
+
+    app.get('/api/exercicios-virtuais', requireStaff, async (req, res) => {
+        const { data, error } = await supabase.from('exercicios_virtuais')
+            .select(EXERCICIO_VIRTUAL_CAMPOS)
+            .eq('ativo', true)
+            .order('created_at', { ascending: false });
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    });
+
+    app.post('/api/exercicios-virtuais', requireStaff, async (req: any, res) => {
+        const validado = validarExercicioVirtual(req.body);
+        if ('erro' in validado) return res.status(400).json({ error: validado.erro });
+        const { data, error } = await supabase.from('exercicios_virtuais')
+            .insert([{ ...validado.dados, criado_por: req.user?.email || null }])
+            .select(EXERCICIO_VIRTUAL_CAMPOS)
+            .single();
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    });
+
+    app.put('/api/exercicios-virtuais/:id', requireStaff, async (req, res) => {
+        const validado = validarExercicioVirtual(req.body);
+        if ('erro' in validado) return res.status(400).json({ error: validado.erro });
+        const { data, error } = await supabase.from('exercicios_virtuais')
+            .update(validado.dados)
+            .eq('id', req.params.id)
+            .eq('ativo', true)
+            .select(EXERCICIO_VIRTUAL_CAMPOS)
+            .maybeSingle();
+        if (error) return res.status(500).json({ error: error.message });
+        if (!data) return res.status(404).json({ error: 'Exercício não encontrado.' });
+        res.json(data);
+    });
+
+    app.delete('/api/exercicios-virtuais/:id', requireStaff, async (req, res) => {
+        const { data, error } = await supabase.from('exercicios_virtuais')
+            .update({ ativo: false })
+            .eq('id', req.params.id)
+            .eq('ativo', true)
+            .select('id')
+            .maybeSingle();
+        if (error) return res.status(500).json({ error: error.message });
+        if (!data) return res.status(404).json({ error: 'Exercício não encontrado.' });
+        res.json({ success: true });
     });
 
     // Serve static files from public folder

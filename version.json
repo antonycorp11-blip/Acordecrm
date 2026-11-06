@@ -1,4 +1,4 @@
 {
-  "versao": "2.1.0",
-  "changelog": "Correções: horário das aulas no app do aluno, fila de reposições, falta do aluno não gera pagamento ao professor e mais segurança."
+  "versao": "2.2.0",
+  "changelog": "Professor Virtual em teste para professores e reposições com aviso de erro."
 }

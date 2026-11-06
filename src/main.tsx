@@ -9,12 +9,10 @@ window.fetch = async (...args) => {
   const [resource, config] = args;
   const token = localStorage.getItem('acorde_token');
   if (token && typeof resource === 'string' && resource.startsWith('/api/')) {
-    const newConfig = config || {};
-    newConfig.headers = {
-      ...newConfig.headers,
-      'Authorization': `Bearer ${token}`
-    };
-    return originalFetch(resource, newConfig);
+    // new Headers aceita objeto ou Headers; o spread de um Headers vinha vazio e perdia o Content-Type
+    const headers = new Headers(config?.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    return originalFetch(resource, { ...config, headers });
   }
   return originalFetch(...args);
 };
