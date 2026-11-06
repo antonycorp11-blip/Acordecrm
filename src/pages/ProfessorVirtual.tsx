@@ -699,7 +699,8 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const saidaCliqueRef = useRef<SaidaClique | null>(null);
   const testeTimerRef = useRef<number | null>(null);
   const testeIntervaloRef = useRef<number | null>(null);
-  const energiaAnteriorRef = useRef(0);
+  const alturasRecentesRef = useRef<number[]>([]);
+  const [midiLimpo, setMidiLimpo] = useState<number | null>(null);
   const proximoCliqueRef = useRef(0);
   const inicioRitmoRef = useRef<number | null>(null);
   const temposCliqueRef = useRef<number[]>([]);
@@ -809,12 +810,28 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       if (concluido || pausado) return;
       const agora = performance.now();
       // O alto-falante pode voltar ao microfone: descarte o ataque e a curta cauda do clique.
-      const alvoAtual = exercicio.passos[seguidor.passoAtual()];
-      const soaComoAlvo = l.midi !== null && alvoAtual?.midis.some(midi => Math.abs(l.midi! - midi) < 0.5);
-      const energiaF0 = (l as LeituraAudio & { energiaF0?: number }).energiaF0 ?? 0;
-      const subidaAlvo = soaComoAlvo && l.alvoDominante && energiaF0 > Math.max(0.002, energiaAnteriorRef.current * 1.5);
-      energiaAnteriorRef.current = energiaF0;
-      if (metronomoLigado && cliqueLigado && !subidaAlvo && temposCliqueRef.current.some(t => agora >= t - 35 && agora <= t + 85)) return;
+      // A janela de análise guarda o clique por ~85 ms; a nota real continua soando depois da máscara.
+      const intervaloClique = 60000 / Math.max(40, Math.min(300, bpmTreinoRef.current));
+      const fimMascara = Math.min(140, intervaloClique * 0.55);
+      if (metronomoLigado && cliqueLigado && temposCliqueRef.current.some(t => agora >= t - 30 && agora <= t + fimMascara)) {
+        setMidiLimpo(null);
+        return;
+      }
+      // Teclado tem altura fixa; voz desliza e oscila. Salto grande é nota nova, não deslize.
+      if (exercicio.instrumento === 'teclado') {
+        if (l.midi === null) alturasRecentesRef.current = [];
+        else {
+          const alturas = alturasRecentesRef.current;
+          if (alturas.length && Math.abs(l.midi - alturas[alturas.length - 1]) >= 0.75) alturas.length = 0;
+          alturas.push(l.midi);
+          if (alturas.length > 3) alturas.shift();
+          if (alturas.length < 2 || Math.max(...alturas) - Math.min(...alturas) > 0.25) {
+            setMidiLimpo(null);
+            return;
+          }
+        }
+      }
+      setMidiLimpo(l.midi === null ? null : Math.round(l.midi));
       const indiceAntes = seguidor.passoAtual();
       if (exercicio.instrumento === 'violao' && l.midi !== null) {
         const indiceAtual = seguidor.passoAtual();
@@ -969,7 +986,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
         </div>
       )}
 
-      {exercicio.instrumento === 'teclado' && <div className="md:landscape:order-2 md:landscape:col-span-full"><TecladoPixel esperado={modoMemoria ? null : passo.midis.length === 1 ? passo.midis[0] : null} proximas={modoMemoria ? [] : proximos.flatMap(p => p.midis)} dedo={modoMemoria ? undefined : passo.dedo} midiOuvido={concluido || !leitura?.temSom ? null : midiAoVivo(leitura)} midiCorreto={midiAoVivo(leitura) != null && passo.midis.includes(midiAoVivo(leitura)!)} efeito={efeito} /></div>}
+      {exercicio.instrumento === 'teclado' && <div className="md:landscape:order-2 md:landscape:col-span-full"><TecladoPixel esperado={modoMemoria ? null : passo.midis.length === 1 ? passo.midis[0] : null} proximas={modoMemoria ? [] : proximos.flatMap(p => p.midis)} dedo={modoMemoria ? undefined : passo.dedo} midiOuvido={concluido || !leitura?.temSom ? null : midiLimpo} midiCorreto={midiLimpo != null && passo.midis.includes(midiLimpo)} efeito={efeito} /></div>}
 
       {ultimo && (
         <div aria-live="polite" className={`border-4 border-black p-3 ${ultimo.correto ? 'bg-[#d9f7d9] text-[#0f5d1e]' : 'bg-[#ffd9d6] text-[#8f1410]'}`}>
