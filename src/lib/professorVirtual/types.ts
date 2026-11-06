@@ -37,6 +37,8 @@ export interface LeituraAudio {
   /** Nota principal (MIDI, com fração) ou null; confiança de 0 a 1. */
   midi: number | null;
   confianca: number;
+  /** Confirmação espectral do alvo esperado na janela curta. */
+  alvoDominante?: boolean;
   /** Energia das 12 classes de nota (Dó=0 ... Si=11), normalizada de 0 a 1. */
   croma: number[];
   /** Medida única após o ataque; ausente nos demais quadros. */
@@ -64,6 +66,8 @@ export interface ResultadoPasso {
   mensagem: string;
   /** Afinação em cents quando for nota única. */
   desvioCents?: number;
+  /** Tempo entre ataque detectado e aprovação. */
+  atrasoAprovacaoMs?: number;
 }
 
 /** Interface do motor; a tela e o teste de precisão dependem só disto. */
@@ -73,6 +77,8 @@ export interface MotorEscuta {
   /** Mede o ruído do ambiente por alguns segundos, em silêncio. */
   calibrar(duracaoMs?: number): Promise<{ ruidoDb: number; qualidade: 'boa' | 'media' | 'ruim' }>;
   aoLer(cb: (l: LeituraAudio) => void): () => void;
+  definirAlvo(midi: number | null): void;
+  sampleRate(): number | null;
   parar(): void;
 }
 

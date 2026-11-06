@@ -1,14 +1,13 @@
 # Bancada de precisão do Professor Virtual
 
-Gerado por `node --import tsx tools/bancada-professor-virtual/rodar.ts --repeticoes 1`. 1560 tentativas na matriz, em 10.0 min.
-Após esta rodada, o avanço de notas esperadas sem ataque detectado recebeu um ajuste pontual, verificado diretamente; a matriz abaixo mede a versão anterior a esse ajuste.
+Gerado por `node --import tsx tools/bancada-professor-virtual/rodar.ts --repeticoes 1`. 1560 tentativas na matriz, em 9.0 min.
 Áudio 100% sintético: isto é um teto otimista, não a precisão em quarto real.
 
 Cada célula traz acerto, (acertos/total; intervalo de confiança de Wilson a 95%). As tentativas de um mesmo caso não são independentes, então o intervalo real é mais largo.
 
 ## Geral
 
-- Tocou certo e foi aprovado: 96.1% (271/282; IC 93.2%-97.8%)
+- Tocou certo e foi aprovado: 95.4% (269/282; IC 92.3%-97.3%)
 - Tocou errado e foi recusado: 90.9% (1162/1278; IC 89.2%-92.4%)
 - Tocou errado e foi recusado, sem contar oitava no violão (aceita de propósito): 99.8% (1162/1164; IC 99.4%-100.0%)
 
@@ -20,11 +19,11 @@ Cada célula traz acerto, (acertos/total; intervalo de confiança de Wilson a 95
 | --- | --- | --- | --- | --- | --- |
 | Violão | nota | tocou certo (aprovar) | 100.0% (26/26; IC 87.1%-100.0%) | 100.0% (26/26; IC 87.1%-100.0%) | 100.0% (26/26; IC 87.1%-100.0%) |
 | Violão | nota | tocou errado (recusar) | 77.4% (130/168; IC 70.5%-83.1%) | 77.4% (130/168; IC 70.5%-83.1%) | 77.4% (130/168; IC 70.5%-83.1%) |
-| Violão | acorde | tocou certo (aprovar) | 92.9% (13/14; IC 68.5%-98.7%) | 92.9% (13/14; IC 68.5%-98.7%) | 92.9% (13/14; IC 68.5%-98.7%) |
+| Violão | acorde | tocou certo (aprovar) | 92.9% (13/14; IC 68.5%-98.7%) | 92.9% (13/14; IC 68.5%-98.7%) | 85.7% (12/14; IC 60.1%-96.0%) |
 | Violão | acorde | tocou errado (recusar) | 100.0% (44/44; IC 92.0%-100.0%) | 100.0% (44/44; IC 92.0%-100.0%) | 100.0% (44/44; IC 92.0%-100.0%) |
 | Teclado | nota | tocou certo (aprovar) | 100.0% (28/28; IC 87.9%-100.0%) | 100.0% (28/28; IC 87.9%-100.0%) | 100.0% (28/28; IC 87.9%-100.0%) |
 | Teclado | nota | tocou errado (recusar) | 100.0% (154/154; IC 97.6%-100.0%) | 100.0% (154/154; IC 97.6%-100.0%) | 100.0% (154/154; IC 97.6%-100.0%) |
-| Teclado | acorde | tocou certo (aprovar) | 96.2% (25/26; IC 81.1%-99.3%) | 96.2% (25/26; IC 81.1%-99.3%) | 76.9% (20/26; IC 57.9%-89.0%) |
+| Teclado | acorde | tocou certo (aprovar) | 96.2% (25/26; IC 81.1%-99.3%) | 96.2% (25/26; IC 81.1%-99.3%) | 73.1% (19/26; IC 53.9%-86.3%) |
 | Teclado | acorde | tocou errado (recusar) | 98.3% (59/60; IC 91.1%-99.7%) | 98.3% (59/60; IC 91.1%-99.7%) | 100.0% (60/60; IC 94.0%-100.0%) |
 
 ## Recusa por tipo de erro
@@ -50,9 +49,9 @@ Cada célula traz acerto, (acertos/total; intervalo de confiança de Wilson a 95
 | Instrumento | Tipo | n | Aprovou de primeira | Reprovou e depois aprovou | Só reprovou | Sem resposta |
 | --- | --- | --- | --- | --- | --- | --- |
 | Violão | nota | 78 | 78 (100.0%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) |
-| Violão | acorde | 42 | 38 (90.5%) | 1 (2.4%) | 3 (7.1%) | 0 (0.0%) |
+| Violão | acorde | 42 | 37 (88.1%) | 1 (2.4%) | 4 (9.5%) | 0 (0.0%) |
 | Teclado | nota | 84 | 84 (100.0%) | 0 (0.0%) | 0 (0.0%) | 0 (0.0%) |
-| Teclado | acorde | 78 | 69 (88.5%) | 1 (1.3%) | 8 (10.3%) | 0 (0.0%) |
+| Teclado | acorde | 78 | 69 (88.5%) | 0 (0.0%) | 9 (11.5%) | 0 (0.0%) |
 
 ## Oitava no violão
 
@@ -89,9 +88,9 @@ Cada célula traz acerto, (acertos/total; intervalo de confiança de Wilson a 95
 
 | Instrumento | Tipo | Mediana | P90 |
 | --- | --- | --- | --- |
-| Violão | nota | 216 ms | 236 ms |
+| Violão | nota | 117 ms | 139 ms |
 | Violão | acorde | 387 ms | 413 ms |
-| Teclado | nota | 228 ms | 253 ms |
+| Teclado | nota | 129 ms | 152 ms |
 | Teclado | acorde | 389 ms | 419 ms |
 
 ## Sequências (várias notas seguidas)
@@ -100,29 +99,29 @@ Certo = o seguidor terminou exatamente no passo indicado; nos casos de ressonân
 
 | Sequência | Passo final certo | SNR 30 dB | SNR 20 dB | SNR 10 dB |
 | --- | --- | --- | --- | --- |
-| violão: 6 cordas soltas em ordem, deixando soar | 6 | 6/6 (passos: 6,6,6,6,6,6) | 6/6 (passos: 6,6,6,6,6,6) | 2/6 (passos: 1,3,6,2,1,6) |
-| violão: Dó maior na 1ª posição | 8 | 5/6 (passos: 8,3,8,8,8,8) | 6/6 (passos: 8,8,8,8,8,8) | 2/6 (passos: 1,7,5,4,8,8) |
+| violão: 6 cordas soltas em ordem, deixando soar | 6 | 6/6 (passos: 6,6,6,6,6,6) | 6/6 (passos: 6,6,6,6,6,6) | 5/6 (passos: 1,6,6,6,6,6) |
+| violão: Dó maior na 1ª posição | 8 | 6/6 (passos: 8,8,8,8,8,8) | 6/6 (passos: 8,8,8,8,8,8) | 6/6 (passos: 8,8,8,8,8,8) |
 | violão: mesma nota 3 vezes | 3 | 6/6 (passos: 3,3,3,3,3,3) | 6/6 (passos: 3,3,3,3,3,3) | 5/6 (passos: 3,3,3,3,2,3) |
 | violão: C G Am Em | 4 | 5/6 (passos: 4,4,4,4,1,4) | 5/6 (passos: 4,2,4,4,4,4) | 4/6 (passos: 4,4,4,2,4,2) |
 | violão: mesmo acorde 2 vezes | 2 | 6/6 (passos: 2,2,2,2,2,2) | 6/6 (passos: 2,2,2,2,2,2) | 3/6 (passos: 2,1,2,1,2,1) |
-| teclado: Dó maior | 8 | 1/6 (passos: 2,8,1,4,2,7) | 0/6 (passos: 2,1,1,4,4,2) | 0/6 (passos: 1,1,2,1,2,2) |
+| teclado: Dó maior | 8 | 6/6 (passos: 8,8,8,8,8,8) | 6/6 (passos: 8,8,8,8,8,8) | 5/6 (passos: 8,8,8,4,8,8) |
 | teclado: mesma nota 3 vezes | 3 | 1/6 (passos: 1,3,1,1,2,1) | 0/6 (passos: 1,1,1,2,1,1) | 0/6 (passos: 1,2,1,1,1,1) |
-| teclado: C F G Am | 4 | 2/6 (passos: 4,3,4,2,3,2) | 0/6 (passos: 2,3,2,2,1,2) | 1/6 (passos: 4,0,1,0,1,0) |
+| teclado: C F G Am | 4 | 3/6 (passos: 4,3,4,2,3,4) | 1/6 (passos: 4,3,2,2,1,2) | 1/6 (passos: 4,0,1,0,1,0) |
 | violão: pede Mi 2 vezes, toca 1 vez | 1 | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) |
 | violão: pede G 2 vezes, toca 1 vez | 1 | 6/6 (passos: 1,1,1,1,1,1) | 5/6 (passos: 1,0,1,1,1,1) | 5/6 (passos: 1,1,1,1,0,1) |
 | teclado: pede Dó 2 vezes, toca 1 vez | 1 | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) |
 | teclado: pede C 2 vezes, toca 1 vez | 1 | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) | 2/6 (passos: 0,0,0,1,0,1) |
 | violão: Mi, Lá pedidos; toca Mi e Fá | 1 | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) |
-| teclado: C, Am pedidos; toca C e Em | 1 | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) | 4/6 (passos: 1,1,0,1,0,1) |
-| violão: Lá novo com Mi anterior a -6 dB | 2 | 5/6 (passos: 2,2,2,1,2,2) | 6/6 (passos: 2,2,2,2,2,2) | 5/6 (passos: 2,1,2,2,2,2) |
-| violão: Lá novo com Mi anterior a -12 dB | 2 | 6/6 (passos: 2,2,2,2,2,2) | 6/6 (passos: 2,2,2,2,2,2) | 4/6 (passos: 1,2,1,2,2,2) |
-| violão: corda Mi solta ressoa por simpatia | 2 | 6/6 (passos: 2,2,2,2,2,2) | 6/6 (passos: 2,2,2,2,2,2) | 4/6 (passos: 2,1,2,1,2,2) |
+| teclado: C, Am pedidos; toca C e Em | 1 | 6/6 (passos: 1,1,1,1,1,1) | 6/6 (passos: 1,1,1,1,1,1) | 3/6 (passos: 0,1,0,1,0,1) |
+| violão: Lá novo com Mi anterior a -6 dB | 2 | 6/6 (passos: 2,2,2,2,2,2) | 6/6 (passos: 2,2,2,2,2,2) | 6/6 (passos: 2,2,2,2,2,2) |
+| violão: Lá novo com Mi anterior a -12 dB | 2 | 6/6 (passos: 2,2,2,2,2,2) | 6/6 (passos: 2,2,2,2,2,2) | 6/6 (passos: 2,2,2,2,2,2) |
+| violão: corda Mi solta ressoa por simpatia | 2 | 6/6 (passos: 2,2,2,2,2,2) | 6/6 (passos: 2,2,2,2,2,2) | 5/6 (passos: 2,2,2,1,2,2) |
 
 ## Estresse (fora da matriz)
 
 | Condição (SNR 20 dB) | Acerto |
 | --- | --- |
-| Violão aço/palheta: nota certa | 96.2% (25/26; IC 81.1%-99.3%) |
+| Violão aço/palheta: nota certa | 100.0% (26/26; IC 87.1%-100.0%) |
 | Violão aço/palheta: acorde certo | 78.6% (11/14; IC 52.4%-92.4%) |
 | Violão aço/palheta: semitom errado (acerto = recusou) | 100.0% (50/50; IC 92.9%-100.0%) |
 | Violão aço/palheta: acorde parecido (acerto = recusou) | 100.0% (24/24; IC 86.2%-100.0%) |

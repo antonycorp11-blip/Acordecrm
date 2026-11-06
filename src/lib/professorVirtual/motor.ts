@@ -7,6 +7,7 @@ import {
   FREQ_MIN_HZ,
   LIMIAR_PADRAO_DB,
   tamanhoJanelaAnalise,
+  tamanhoJanelaPitch,
   type AnalisadorQuadros,
 } from './analise';
 import type { Instrumento, LeituraAudio, MotorEscuta } from './types';
@@ -27,8 +28,10 @@ interface Sessao {
   contexto: AudioContext;
   stream: MediaStream;
   analyser: AnalyserNode;
+  analyserLongo: AnalyserNode;
   nos: AudioNode[];
   janela: Float32Array<ArrayBuffer>;
+  janelaLonga: Float32Array<ArrayBuffer>;
   analisador: AnalisadorQuadros;
   timer: ReturnType<typeof setInterval>;
   aoVoltar: () => void;
@@ -71,8 +74,9 @@ export function createMotorEscuta(): MotorEscuta {
     s.ultimoTempoMs = tempoMs;
 
     s.analyser.getFloatTimeDomainData(s.janela);
+    s.analyserLongo.getFloatTimeDomainData(s.janelaLonga);
     // O sampleRate real pode não ser 44,1/48 kHz e muda de aparelho para aparelho.
-    const leitura = s.analisador.processar(s.janela, s.contexto.sampleRate, tempoMs);
+    const leitura = s.analisador.processar(s.janela, s.contexto.sampleRate, tempoMs, s.janelaLonga);
     niveisCalibracao?.push({ t: tempoMs, db: leitura.nivelDb });
     ouvintes.forEach(cb => cb(leitura));
   }
@@ -126,11 +130,15 @@ export function createMotorEscuta(): MotorEscuta {
         passaAlta.type = 'highpass';
         passaAlta.frequency.value = PASSA_ALTA_HZ;
         const analyser = contexto.createAnalyser();
-        analyser.fftSize = tamanhoJanelaAnalise(contexto.sampleRate);
+        analyser.fftSize = tamanhoJanelaPitch(contexto.sampleRate);
+        const analyserLongo = contexto.createAnalyser();
+        analyserLongo.fftSize = tamanhoJanelaAnalise(contexto.sampleRate);
         // O Safari pode não processar um grafo sem destino; ganho zero evita microfonia.
         const mudo = contexto.createGain();
         mudo.gain.value = 0;
-        fonte.connect(passaAlta).connect(analyser).connect(mudo).connect(contexto.destination);
+        fonte.connect(passaAlta);
+        passaAlta.connect(analyser).connect(mudo).connect(contexto.destination);
+        passaAlta.connect(analyserLongo).connect(mudo);
 
         const analisador = criarAnalisadorQuadros({
           limiarDb: LIMIAR_PADRAO_DB,
@@ -151,8 +159,10 @@ export function createMotorEscuta(): MotorEscuta {
           contexto,
           stream,
           analyser,
-          nos: [fonte, passaAlta, analyser, mudo],
+          analyserLongo,
+          nos: [fonte, passaAlta, analyser, analyserLongo, mudo],
           janela: new Float32Array(analyser.fftSize),
+          janelaLonga: new Float32Array(analyserLongo.fftSize),
           analisador,
           timer: setInterval(() => lerQuadro(nova), INTERVALO_LEITURA_MS),
           aoVoltar,
@@ -196,6 +206,9 @@ export function createMotorEscuta(): MotorEscuta {
         ouvintes.delete(cb);
       };
     },
+
+    definirAlvo(midi) { sessao?.analisador.definirAlvo(midi); },
+    sampleRate() { return sessao?.contexto.sampleRate ?? null; },
 
     parar() {
       geracao++;

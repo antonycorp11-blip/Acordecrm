@@ -23,7 +23,7 @@ const proximaPotencia2 = (n: number) => {
 export const tamanhoJanelaAnalise = (sampleRate: number) =>
   Math.min(32768, Math.max(4096, proximaPotencia2(sampleRate * 0.16)));
 /** Janela do pitch: ~85 ms a 48 kHz, 7 períodos do Mi grave (82 Hz). */
-export const tamanhoJanelaPitch = (sampleRate: number) => Math.max(2048, proximaPotencia2(sampleRate * 0.08));
+export const tamanhoJanelaPitch = (sampleRate: number) => Math.min(4096, Math.max(2048, proximaPotencia2(sampleRate * 0.08)));
 /** Janela curta (nível e ataque): ~43 ms a 48 kHz, para o ataque não se espalhar por vários quadros. */
 export const tamanhoJanelaCurta = (sampleRate: number) => Math.max(512, proximaPotencia2(sampleRate * 0.04));
 
@@ -459,7 +459,8 @@ export interface OpcoesAnalisador {
 
 export interface AnalisadorQuadros {
   /** `janela`: as amostras mais recentes, com pelo menos tamanhoJanelaAnalise(sampleRate). */
-  processar(janela: Float32Array, sampleRate: number, tempoMs: number): LeituraAudio;
+  processar(janela: Float32Array, sampleRate: number, tempoMs: number, janelaLonga?: Float32Array): LeituraAudio;
+  definirAlvo(midi: number | null): void;
   definirLimiar(limiarDb: number): void;
   reiniciar(): void;
 }
@@ -471,9 +472,29 @@ export function criarAnalisadorQuadros(opcoes: OpcoesAnalisador = {}): Analisado
   let temSom = false;
   let inicioAtaqueMs = -Infinity;
   let timbreFeito = true;
+  let alvoMidi: number | null = null;
+
+  // Projeção direta da fundamental e de dois harmônicos; vizinhos impedem que um
+  // pico largo de um semitom seja interpretado como o alvo.
+  const energia = (amostras: Float32Array, sr: number, midi: number) => {
+    const f0 = midiParaFrequencia(midi);
+    const hann = janelaHann(amostras.length);
+    let soma = 0;
+    for (let h = 1; h <= 3 && f0 * h < sr / 2; h++) {
+      const coef = 2 * Math.cos(2 * Math.PI * f0 * h / sr);
+      let anterior = 0, anterior2 = 0;
+      for (let i = 0; i < amostras.length; i++) {
+        const atual = amostras[i] * hann[i] + coef * anterior - anterior2;
+        anterior2 = anterior;
+        anterior = atual;
+      }
+      soma += Math.sqrt(Math.max(0, anterior * anterior + anterior2 * anterior2 - coef * anterior * anterior2)) / h;
+    }
+    return soma;
+  };
 
   return {
-    processar(janela, sampleRate, tempoMs) {
+    processar(janela, sampleRate, tempoMs, janelaLonga = janela) {
       const curta = janela.subarray(janela.length - tamanhoJanelaCurta(sampleRate));
       const nivelDb = rmsDb(curta);
       temSom = nivelDb >= (temSom ? limiarDb - histereseDb : limiarDb);
@@ -484,9 +505,13 @@ export function criarAnalisadorQuadros(opcoes: OpcoesAnalisador = {}): Analisado
         return { tempoMs, nivelDb, temSom, ataque: false, midi: null, confianca: 0, croma: new Array(12).fill(0) };
       }
       const pitch = detectarPitch(janela.subarray(janela.length - tamanhoJanelaPitch(sampleRate)), sampleRate, opcoes.pitch);
+      const alvoDominante = alvoMidi !== null && pitch !== null
+        && Math.abs(pitch.midi - alvoMidi) <= 0.4 && pitch.clareza >= 0.75
+        && energia(janela, sampleRate, alvoMidi) > 1.1 * Math.max(
+          energia(janela, sampleRate, alvoMidi - 1), energia(janela, sampleRate, alvoMidi + 1));
       const idadeAtaque = tempoMs - inicioAtaqueMs;
       const medirTimbre = !timbreFeito && idadeAtaque >= 170 && idadeAtaque <= 250 && pitch && pitch.clareza >= 0.6;
-      const timbre = medirTimbre ? extrairTimbre(janela, sampleRate, pitch.frequencia) : null;
+      const timbre = medirTimbre ? extrairTimbre(janelaLonga, sampleRate, pitch.frequencia) : null;
       if (medirTimbre) timbreFeito = true;
       if (idadeAtaque > 250) timbreFeito = true;
       return {
@@ -496,10 +521,12 @@ export function criarAnalisadorQuadros(opcoes: OpcoesAnalisador = {}): Analisado
         ataque,
         midi: pitch?.midi ?? null,
         confianca: pitch?.clareza ?? 0,
-        croma: calcularCroma(janela, sampleRate, opcoes.croma),
+        alvoDominante,
+        croma: calcularCroma(janelaLonga, sampleRate, opcoes.croma),
         ...(timbre ? { timbre } : {}),
       };
     },
+    definirAlvo(midi) { alvoMidi = midi; },
     definirLimiar(novoLimiarDb) {
       limiarDb = novoLimiarDb;
       temSom = false;

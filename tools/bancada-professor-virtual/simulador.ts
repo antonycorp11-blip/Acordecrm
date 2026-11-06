@@ -10,6 +10,7 @@ import {
   FREQ_MIN_HZ,
   LIMIAR_PADRAO_DB,
   tamanhoJanelaAnalise,
+  tamanhoJanelaPitch,
 } from '../../src/lib/professorVirtual/analise';
 import { createSeguidor, type OpcoesSeguidor } from '../../src/lib/professorVirtual/seguidor';
 import type { ExercicioVirtual, Instrumento, ResultadoPasso } from '../../src/lib/professorVirtual/types';
@@ -81,7 +82,10 @@ export function simular(
     const fim = Math.floor(((t / 1000) * sr) / 128) * 128;
     if (fim > entrada.length) break;
     const tempoMs = (fim / sr) * 1000;
-    const leitura = analisador.processar(entrada.subarray(fim - tamanho, fim), sr, tempoMs);
+    const indice = seguidor.passoAtual();
+    analisador.definirAlvo(exercicio.passos[indice]?.midis.length === 1 ? exercicio.passos[indice].midis[0] : null);
+    const leitura = analisador.processar(entrada.subarray(fim - tamanhoJanelaPitch(sr), fim), sr, tempoMs,
+      entrada.subarray(fim - tamanho, fim));
     leituras++;
     if (calibrando) {
       if (tempoMs >= DESCARTE_CALIBRACAO_MS) niveis.push(leitura.nivelDb);

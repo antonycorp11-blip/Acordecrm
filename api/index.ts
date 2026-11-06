@@ -8192,6 +8192,43 @@ Regras:
         return { dados: { titulo, instrumento: corpo.instrumento, descricao, bpm, passos } };
     };
 
+    app.post('/api/diagnosticos-professor-virtual', requireStaff, async (req: any, res) => {
+        const exercicio = typeof req.body?.exercicio === 'string' ? req.body.exercicio.trim() : '';
+        const dados = req.body?.dados;
+        if (!exercicio || exercicio.length > 160 || !dados || typeof dados !== 'object' || Array.isArray(dados)
+            || !Number.isFinite(dados.sampleRate) || dados.sampleRate < 8000 || dados.sampleRate > 192000
+            || typeof dados.userAgent !== 'string' || dados.userAgent.length > 1000
+            || !Array.isArray(dados.leituras) || dados.leituras.length > 2000) {
+            return res.status(400).json({ error: 'Diagnóstico inválido.' });
+        }
+        let tamanho: number;
+        try { tamanho = Buffer.byteLength(JSON.stringify(req.body), 'utf8'); }
+        catch { return res.status(400).json({ error: 'Diagnóstico inválido.' }); }
+        if (tamanho > 300 * 1024) return res.status(413).json({ error: 'Diagnóstico excede 300 KB.' });
+        const valido = dados.leituras.every((l: any) => l && typeof l === 'object' && !Array.isArray(l)
+            && Number.isFinite(l.tempoMs) && l.tempoMs >= 0 && l.tempoMs <= 60000
+            && Number.isFinite(l.nivelDb) && typeof l.ataque === 'boolean'
+            && (l.midi === null || Number.isFinite(l.midi))
+            && Number.isFinite(l.confianca) && l.confianca >= 0 && l.confianca <= 1
+            && Array.isArray(l.passoEsperado) && l.passoEsperado.length <= 8
+            && l.passoEsperado.every((m: any) => Number.isInteger(m) && m >= 0 && m <= 127)
+            && (l.resultadoPasso === null || l.resultadoPasso === 'aprovado' || l.resultadoPasso === 'recusado')
+            && (l.atrasoAprovacaoMs === null || (Number.isFinite(l.atrasoAprovacaoMs) && l.atrasoAprovacaoMs >= 0)));
+        if (!valido) return res.status(400).json({ error: 'Leituras inválidas.' });
+        const { data, error } = await supabase.from('diagnosticos_professor_virtual')
+            .insert([{ exercicio, dados, criado_por: req.user?.email || null }])
+            .select('id').single();
+        if (error) return res.status(500).json({ error: error.message });
+        res.status(201).json(data);
+    });
+
+    app.get('/api/diagnosticos-professor-virtual', requireStaff, async (_req, res) => {
+        const { data, error } = await supabase.from('diagnosticos_professor_virtual')
+            .select('id,exercicio,dados,criado_por,created_at').order('created_at', { ascending: false }).limit(100);
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    });
+
     app.get('/api/exercicios-virtuais', requireStaff, async (req, res) => {
         const { data, error } = await supabase.from('exercicios_virtuais')
             .select(EXERCICIO_VIRTUAL_CAMPOS)

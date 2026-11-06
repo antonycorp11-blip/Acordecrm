@@ -78,6 +78,7 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
   let niveis: { t: number; db: number }[] = [];
   let inicioErroMs: number | null = null;
   let midiErro: number | null = null;
+  let quadrosAlvo = 0;
 
   const pularVazios = () => {
     while (indice < passos.length && passos[indice].midis.length === 0) indice++;
@@ -90,10 +91,13 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
     quadrosCroma = 0;
     inicioErroMs = null;
     midiErro = null;
+    quadrosAlvo = 0;
   };
 
   const concluirAvaliacao = (resultado: ResultadoPasso) => {
     const tempo = sequencia.at(-1)?.t ?? inicioAtaqueMs;
+    if (resultado.correto && coletando && sequencia.length > 0)
+      resultado.atrasoAprovacaoMs = Math.max(0, Math.round(tempo - inicioAtaqueMs));
     zerarColeta();
     if (resultado.correto) {
       for (const midi of passos[indice].midis) recentes.push({ midi, t: tempo });
@@ -190,6 +194,17 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
         Math.abs(passo.midis[0] - midi - intervalo) * 100 <= quaseCents,
       )))) return null;
     if (l.midi === null || l.confianca < confiancaMinima) return null;
+
+    // Duas leituras após o transiente, com alvo afinado e dominante no espectro curto.
+    // Um quadro isolado pode ser a cauda da nota anterior.
+    if (coletando && l.tempoMs - inicioAtaqueMs >= 32 && l.alvoDominante
+        && Math.abs(l.midi - passo.midis[0]) * 100 <= toleranciaCents) {
+      quadrosAlvo++;
+      if (quadrosAlvo >= 2) {
+        sequencia.push({ t: l.tempoMs, midi: l.midi });
+        return concluirAvaliacao(avaliarNota(l.midi, passo));
+      }
+    } else quadrosAlvo = 0;
 
     if (sequencia.length > 0 && Math.abs(l.midi - mediana(sequencia.map(q => q.midi))) * 100 > variacaoEstavelCents) {
       sequencia = [];

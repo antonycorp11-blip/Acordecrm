@@ -148,6 +148,8 @@ function useEscuta(aoInterromper?: () => void) {
   const ouvir = useCallback((ouvinte: ((l: LeituraAudio) => void) | null) => {
     ouvinteRef.current = ouvinte;
   }, []);
+  const definirAlvo = useCallback((midi: number | null) => motorRef.current?.definirAlvo(midi), []);
+  const sampleRate = useCallback(() => motorRef.current?.sampleRate() ?? null, []);
 
   useEffect(() => {
     const interromper = () => {
@@ -167,7 +169,7 @@ function useEscuta(aoInterromper?: () => void) {
     };
   }, [desligar, encerrar]);
 
-  return useMemo(() => ({ leitura, ligar, desligar, calibrar, ouvir }), [leitura, ligar, desligar, calibrar, ouvir]);
+  return useMemo(() => ({ leitura, ligar, desligar, calibrar, ouvir, definirAlvo, sampleRate }), [leitura, ligar, desligar, calibrar, ouvir, definirAlvo, sampleRate]);
 }
 
 // Com as mãos no instrumento ninguém toca na tela, e a tela apagada derruba o microfone.
@@ -651,14 +653,42 @@ function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
   const [concluido, setConcluido] = useState(false);
   const [mostrarTablatura, setMostrarTablatura] = useState(false);
   const [posicaoOuvida, setPosicaoOuvida] = useState<EstimativaPosicao | null>(null);
+  const [diagnosticoEstado, setDiagnosticoEstado] = useState<'parado' | 'gravando' | 'enviando' | 'enviado'>('parado');
+  const diagnosticoRef = useRef<{ inicioMs: number | null; bytes: number; leituras: object[] } | null>(null);
+  const [ultimoAtrasoMs, setUltimoAtrasoMs] = useState<number | null>(null);
   const { ouvir, leitura } = escuta;
   const posicoes = useMemo(() => posicoesDaSequencia(exercicio.passos), [exercicio.passos]);
+
+  const enviarDiagnostico = useCallback(async () => {
+    const gravacao = diagnosticoRef.current;
+    diagnosticoRef.current = null;
+    if (!gravacao) return;
+    setDiagnosticoEstado('enviando');
+    try {
+      const corpo = { exercicio: exercicio.titulo, dados: {
+        sampleRate: escuta.sampleRate(), userAgent: navigator.userAgent,
+        leituras: gravacao.leituras,
+      } };
+      const resposta = await apiFetch('/api/diagnosticos-professor-virtual', {
+        method: 'POST', body: new Blob([JSON.stringify(corpo)], { type: 'application/json' }),
+      });
+      const dados = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw new Error(dados.error || 'Falha ao enviar diagnóstico.');
+      setDiagnosticoEstado('enviado');
+    } catch (erro: any) {
+      setDiagnosticoEstado('parado');
+      toast.error(erro.message || 'Falha ao enviar diagnóstico.');
+    }
+  }, [exercicio.titulo, escuta.sampleRate]);
 
   useTelaLigada(!concluido);
 
   useEffect(() => {
+    escuta.definirAlvo(exercicio.passos[seguidor.passoAtual()]?.midis.length === 1
+      ? exercicio.passos[seguidor.passoAtual()].midis[0] : null);
     ouvir((l) => {
       if (seguidor.concluido()) return;
+      const indiceAntes = seguidor.passoAtual();
       if (exercicio.instrumento === 'violao' && l.midi !== null) {
         const indiceAtual = seguidor.passoAtual();
         const midi = Math.round(l.midi);
@@ -668,18 +698,39 @@ function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
         setPosicaoOuvida(salva ? { ...salva, confianca: 1 } : estimarPosicao(midi, anterior, l.timbre, lerMapaEscolhido()));
       }
       const resultado = seguidor.processar(l);
+      const gravacao = diagnosticoRef.current;
+      if (gravacao) {
+        gravacao.inicioMs ??= l.tempoMs;
+        const linha = {
+          tempoMs: Math.round(l.tempoMs - gravacao.inicioMs), nivelDb: Math.round(l.nivelDb * 10) / 10,
+          ataque: l.ataque, midi: l.midi === null ? null : Math.round(l.midi * 100) / 100,
+          confianca: Math.round(l.confianca * 100) / 100,
+          passoEsperado: exercicio.passos[indiceAntes]?.midis ?? [],
+          resultadoPasso: resultado ? (resultado.correto ? 'aprovado' : 'recusado') : null,
+          atrasoAprovacaoMs: resultado?.atrasoAprovacaoMs ?? null,
+        };
+        const bytes = new TextEncoder().encode(JSON.stringify(linha)).length + 1;
+        if (l.tempoMs - gravacao.inicioMs <= 60000 && gravacao.bytes + bytes <= 270000) {
+          gravacao.leituras.push(linha);
+          gravacao.bytes += bytes;
+        } else void enviarDiagnostico();
+      }
       if (!resultado) return;
+      if (resultado.correto && resultado.atrasoAprovacaoMs !== undefined) setUltimoAtrasoMs(resultado.atrasoAprovacaoMs);
+      escuta.definirAlvo(exercicio.passos[seguidor.passoAtual()]?.midis.length === 1
+        ? exercicio.passos[seguidor.passoAtual()].midis[0] : null);
       setResultados((atuais) => [...atuais, resultado]);
       setIndice(seguidor.passoAtual());
       setPosicaoOuvida(null);
       if (seguidor.concluido()) {
+        if (diagnosticoRef.current) void enviarDiagnostico();
         ouvir(null);
         escuta.desligar();
         setConcluido(true);
       }
     });
     return () => ouvir(null);
-  }, [ouvir, seguidor, escuta.desligar, exercicio.instrumento, posicoes]);
+  }, [ouvir, seguidor, escuta.desligar, escuta.definirAlvo, exercicio, posicoes, enviarDiagnostico]);
 
   const total = exercicio.passos.length;
   const passo = exercicio.passos[Math.min(indice, total - 1)];
@@ -747,6 +798,20 @@ function TelaTreino({ exercicio, escuta, ruidoDb, aoSair, aoReiniciar }: {
           )}
         </div>
       )}
+
+      {ultimoAtrasoMs !== null && <p className="text-xs text-[#7b5647]">Última nota aprovada: {ultimoAtrasoMs} ms após o ataque</p>}
+
+      <div className="flex items-center gap-2 text-xs text-[#7b5647]">
+        {diagnosticoEstado === 'gravando' ? (
+          <button type="button" className="underline font-semibold" onClick={() => void enviarDiagnostico()}>Parar e enviar diagnóstico</button>
+        ) : diagnosticoEstado === 'parado' && !concluido ? (
+          <button type="button" className="underline font-semibold" onClick={() => {
+            diagnosticoRef.current = { inicioMs: null, bytes: 0, leituras: [] };
+            setDiagnosticoEstado('gravando');
+          }}>Gravar diagnóstico</button>
+        ) : <span>{diagnosticoEstado === 'enviando' ? 'Enviando diagnóstico…' : diagnosticoEstado === 'enviado' ? 'Diagnóstico enviado' : ''}</span>}
+        {diagnosticoEstado === 'gravando' && <span>Até 60 s · sem áudio</span>}
+      </div>
 
       {!concluido && (
         <div className="space-y-3">
