@@ -1,4 +1,4 @@
 {
-  "versao": "2.3.3",
-  "changelog": "Professor Virtual: exercícios de exemplo sempre visíveis na lista."
+  "versao": "2.4.0",
+  "changelog": "Professor Virtual: gerador de escalas, treino em loop, metrônomo, moedas e casas pela posição da mão."
 }

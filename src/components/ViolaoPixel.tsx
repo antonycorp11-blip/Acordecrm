@@ -8,12 +8,13 @@ type Props = {
   midiOuvido?: number | null;
   posicaoOuvida?: EstimativaPosicao | null;
   aoEscolher?: (posicao: PosicaoViolao) => void;
+  efeito?: { tipo: 'acerto' | 'erro'; id: number } | null;
 };
 
 const CASAS = Array.from({ length: 16 }, (_, i) => i);
 const CORDAS = [1, 2, 3, 4, 5, 6];
 
-export default function ViolaoPixel({ esperadas = [], proximas = [], midiOuvido, posicaoOuvida, aoEscolher }: Props) {
+export default function ViolaoPixel({ esperadas = [], proximas = [], midiOuvido, posicaoOuvida, aoEscolher, efeito }: Props) {
   const rolagem = useRef<HTMLDivElement>(null);
   const principal = esperadas[0];
   const ouvida = posicaoOuvida ?? (midiOuvido == null ? null : estimarPosicao(midiOuvido, principal));
@@ -28,7 +29,10 @@ export default function ViolaoPixel({ esperadas = [], proximas = [], midiOuvido,
   }, [principal?.casa, principal?.corda]);
 
   return (
-    <div className="border-4 border-black bg-[#fff5df] text-[#261812] p-2 shadow-[4px_4px_0_#000]">
+    <div className="relative border-4 border-black bg-[#fff5df] text-[#261812] p-2 shadow-[4px_4px_0_#000]">
+      <style>{`@keyframes pv-brilho { 0% { opacity: 0; transform: scale(.7) } 30% { opacity: 1 } 100% { opacity: 0; transform: scale(1.4) } } @keyframes pv-moeda { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-55px) } } @keyframes pv-tremida { 25% { transform: translateX(-3px) } 50% { transform: translateX(3px) } 75% { transform: translateX(-2px) } } .pv-tremer { animation: pv-tremida .25s ease-out } @media (prefers-reduced-motion: reduce) { .pv-efeito { animation: none !important; display: none } .pv-tremer { animation: none !important } }`}</style>
+      {efeito?.tipo === 'acerto' && <div key={efeito.id} className="pv-efeito absolute inset-0 pointer-events-none z-20 border-4 border-yellow-300" style={{ animation: 'pv-brilho .55s ease-out both' }} aria-hidden="true"><span className="absolute left-1/2 top-1/2 w-5 h-5 bg-yellow-300 border-[3px] border-black shadow-[3px_3px_0_#ad6900]" style={{ animation: 'pv-moeda .7s ease-out both', imageRendering: 'pixelated' }} />{[0, 1, 2, 3].map(i => <span key={i} className="absolute text-yellow-400" style={{ left: `${25 + i * 16}%`, top: `${20 + (i % 2) * 40}%`, animation: `pv-brilho .5s ${i * 0.05}s ease-out both` }}>✦</span>)}</div>}
+      {efeito?.tipo === 'erro' && <div key={efeito.id} className="pv-efeito pv-tremer absolute inset-0 pointer-events-none z-20 border-4 border-red-500" aria-hidden="true" />}
       <div className="flex justify-between gap-2 items-center mb-2 text-xs font-black uppercase">
         <span>Violão virtual</span>
         <span className="text-right">● Toque agora · ◇ Depois</span>

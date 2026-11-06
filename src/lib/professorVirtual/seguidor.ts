@@ -47,15 +47,17 @@ const listar = (nomes: string[]) =>
 const limitar = (v: number) => Math.min(1, Math.max(0, v));
 
 export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguidor = {}): SeguidorExercicio {
+  const ritmoRapido = (exercicio.bpm ?? 0) >= 100;
   const {
     toleranciaCents = 40,
     quaseCents = 70,
     estabilidadeMs = 120,
     variacaoEstavelCents = 50,
-    ignorarAtaqueMs = 50,
+    ignorarAtaqueMs = ritmoRapido ? 20 : 50,
     confiancaMinima = 0.75,
     tempoMaxColetaMs = 900,
     silencioMinimoMs = 200,
+    mudancaNotaCents = 80,
     aceitarOitava = exercicio.instrumento === 'violao',
     esperaAcordeMs = 190,
     coletaAcordeMs = 150,
@@ -279,6 +281,15 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
         zerarColeta();
         coletando = true;
         inicioAtaqueMs = l.tempoMs;
+      } else if (ritmoRapido && !coletando && passos[indice].midis.length === 1 && recentes.length > 0
+        && l.midi !== null && l.confianca >= confiancaMinima && l.alvoDominante
+        && Math.abs(l.midi - passos[indice].midis[0]) * 100 <= toleranciaCents
+        && Math.abs(passos[indice].midis[0] - recentes.at(-1)!.midi) * 100 >= mudancaNotaCents) {
+        // Legato rápido: a próxima nota está dominante, mesmo que o detector não tenha marcado ataque.
+        // Ainda exige uma segunda leitura firme antes de aprovar.
+        zerarColeta();
+        coletando = true;
+        inicioAtaqueMs = l.tempoMs - 32;
       }
       const passo = passos[indice];
       return passo.midis.length > 1 ? processarAcorde(l, passo) : processarNota(l, passo);

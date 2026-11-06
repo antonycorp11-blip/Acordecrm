@@ -1,6 +1,6 @@
 # Bancada de precisão do Professor Virtual
 
-Gerado por `node --import tsx tools/bancada-professor-virtual/rodar.ts --repeticoes 1`. 1560 tentativas na matriz, em 9.0 min.
+Gerado por `node --import tsx tools/bancada-professor-virtual/rodar.ts --repeticoes 1`. 1560 tentativas na matriz, em 10.0 min.
 Áudio 100% sintético: isto é um teto otimista, não a precisão em quarto real.
 
 Cada célula traz acerto, (acertos/total; intervalo de confiança de Wilson a 95%). As tentativas de um mesmo caso não são independentes, então o intervalo real é mais largo.
@@ -99,6 +99,9 @@ Certo = o seguidor terminou exatamente no passo indicado; nos casos de ressonân
 
 | Sequência | Passo final certo | SNR 30 dB | SNR 20 dB | SNR 10 dB |
 | --- | --- | --- | --- | --- |
+| violão: semicolcheias 100 BPM (150 ms/nota) | 4 | 1/6 (passos: 1,1,4,2,1,1) | 1/6 (passos: 2,4,2,1,1,2) | 2/6 (passos: 4,1,1,1,2,4) |
+| violão: semicolcheias 120 BPM (125 ms/nota) | 4 | 0/6 (passos: 2,1,2,1,1,2) | 1/6 (passos: 1,1,2,2,4,2) | 0/6 (passos: 2,1,1,1,1,1) |
+| violão: semicolcheias 140 BPM (107 ms/nota) | 4 | 0/6 (passos: 2,1,2,2,1,2) | 0/6 (passos: 1,1,2,1,2,1) | 0/6 (passos: 2,1,1,1,1,1) |
 | violão: 6 cordas soltas em ordem, deixando soar | 6 | 6/6 (passos: 6,6,6,6,6,6) | 6/6 (passos: 6,6,6,6,6,6) | 5/6 (passos: 1,6,6,6,6,6) |
 | violão: Dó maior na 1ª posição | 8 | 6/6 (passos: 8,8,8,8,8,8) | 6/6 (passos: 8,8,8,8,8,8) | 6/6 (passos: 8,8,8,8,8,8) |
 | violão: mesma nota 3 vezes | 3 | 6/6 (passos: 3,3,3,3,3,3) | 6/6 (passos: 3,3,3,3,3,3) | 5/6 (passos: 3,3,3,3,2,3) |
@@ -139,5 +142,7 @@ Certo = o seguidor terminou exatamente no passo indicado; nos casos de ressonân
 | Teclado acorde certo, celular longe (pico -36 dBFS) | 96.2% (25/26; IC 81.1%-99.3%) |
 
 <!-- análise manual: o texto abaixo é preservado entre rodadas -->
+
+Nesta execução, os três casos de semicolcheias foram medidos antes do ajuste posterior no seguidor (em exercícios com BPM >= 100, espera após ataque de 50 para 20 ms e detecção de troca de nota sem novo ataque). O resultado acima é a linha de base; a precisão e a recusa de erros desse modo rápido ainda não foram medidas pela bancada completa. Os exercícios sem BPM rápido preservam os parâmetros medidos acima.
 
 A primeira rodada usou os parâmetros atuais do detector. Na segunda, o limiar de ataque foi reduzido de 6 para 5 dB e a margem do pico de 1 para 0 dB; a matriz principal permaneceu igual e a repetição da mesma nota no teclado continuou em 1/6, 0/6 e 0/6. A mudança foi revertida. A tabela acima corresponde à segunda rodada; os resultados das sequências podem variar um passo em alguns casos em relação à primeira.

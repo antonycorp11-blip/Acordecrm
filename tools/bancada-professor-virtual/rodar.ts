@@ -113,6 +113,7 @@ function varrer(casos: Caso[], rotulo: string): Tentativa[] {
 interface Sequencia {
   nome: string;
   instrumento: Instrumento;
+  bpm?: number;
   passos: PassoExercicio[];
   /** Toques reais; por padrão, os próprios passos. */
   toques?: number[][];
@@ -133,6 +134,11 @@ const acV = (n: string): PassoExercicio => ({ midis: ACORDES_VIOLAO[n], rotulo: 
 const acT = (n: string): PassoExercicio => ({ midis: ACORDES_TECLADO[n], rotulo: n });
 
 const SEQUENCIAS: Sequencia[] = [
+  ...[100, 120, 140].map((bpm): Sequencia => ({
+    nome: `violão: semicolcheias ${bpm} BPM (${Math.round(60000 / bpm / 4)} ms/nota)`,
+    instrumento: 'violao', bpm, passos: [52, 53, 54, 55].map(nota),
+    intervaloS: 60 / bpm / 4, semReprovacao: true,
+  })),
   { nome: 'violão: 6 cordas soltas em ordem, deixando soar', instrumento: 'violao', passos: [40, 45, 50, 55, 59, 64].map(nota), deixaSoar: true },
   { nome: 'violão: Dó maior na 1ª posição', instrumento: 'violao', passos: [48, 50, 52, 53, 55, 57, 59, 60].map(nota), intervaloS: 0.8 },
   { nome: 'violão: mesma nota 3 vezes', instrumento: 'violao', passos: [52, 52, 52].map(nota) },
@@ -182,7 +188,7 @@ function rodarSequencia(q: Sequencia, sr: number, snrDb: number, rep: number) {
   const semente = hashTexto(`${q.nome}|${sr}|${snrDb}|${rep}`);
   const nivelDb = NIVEIS[semente % 2]; // celular razoavelmente perto: aqui o foco é a sequência
   const { audio, inicioToque } = passarPeloMicrofone(mix, { sr, snrDb, semente, nivelDb, preRuidoS: PRE_RUIDO_S });
-  const s = simular(audio, sr, { titulo: q.nome, instrumento: q.instrumento, passos: q.passos }, inicioToque, semente);
+  const s = simular(audio, sr, { titulo: q.nome, instrumento: q.instrumento, bpm: q.bpm, passos: q.passos }, inicioToque, semente);
   return { passo: s.passoFinal, alvo: q.passoEsperado ?? q.passos.length, reprovacoes: s.resultados.filter(x => !x.r.correto).length, mensagens: s.resultados.map((x) => x.r.mensagem) };
 }
 
