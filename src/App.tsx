@@ -28,6 +28,7 @@ import { GlobalUpdater } from './components/GlobalUpdater';
 import EadTrilhaAdmin from './pages/EadTrilhaAdmin';
 import Relatorios from './pages/Relatorios';
 import Privacidade from './pages/Privacidade';
+import CadastroLead from './pages/CadastroLead';
 import { AssistenteIA } from './components/AssistenteIA';
 
 import { Toaster } from 'sonner';
@@ -247,6 +248,7 @@ export default function App() {
           <Route path="/assinatura/:id" element={<Assinatura />} />
           <Route path="/privacidade" element={<Privacidade tipo="privacidade" />} />
           <Route path="/termos" element={<Privacidade tipo="termos" />} />
+          <Route path="/cadastro" element={<CadastroLead />} />
 
           {/* Rotas Privadas */}
           <Route path="/*" element={

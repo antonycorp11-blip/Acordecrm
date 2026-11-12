@@ -533,7 +533,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
     // Ignorar rotas não-API e rotas públicas da API
     if (!req.path.startsWith('/api/')) return next();
     
-    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos', '/api/cron/backup', '/api/drive/oauth/callback'];
+    const publicRoutes = ['/api/ping', '/api/auth/login', '/api/auth/register', '/api/auth/verify', '/api/auth/check-student', '/api/auth/setup-password', '/api/vagas', '/api/sistema/versao', '/api/cron/cleanup-videos', '/api/cron/backup', '/api/drive/oauth/callback', '/api/publico/cursos', '/api/publico/lead'];
     const isPublicContrato = !req.headers.authorization && (
         (req.method === 'GET' && /^\/api\/contratos\/[0-9a-f-]{36}$/i.test(req.path)) ||
         (req.method === 'POST' && /^\/api\/contratos\/[0-9a-f-]{36}\/assinar$/i.test(req.path))
@@ -664,6 +664,8 @@ async function startServer() {
         message: { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }
     });
     app.use(['/api/auth/login', '/api/auth/register', '/api/auth/setup-password', '/api/auth/check-student'], authLimiter);
+    // Cadastro público de leads pelo link: no máximo 10 envios a cada 15 minutos por aparelho/rede
+    app.use('/api/publico/lead', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Muitos envios. Tente de novo em alguns minutos.' } }));
 
     // Middleware to log requests
     app.use((req, res, next) => {
@@ -3765,6 +3767,60 @@ async function startServer() {
         } catch (error: any) {
             console.error('[GET /api/leads] Erro inesperado:', error);
             res.status(500).json({ error: error.message || 'Erro ao buscar leads' });
+        }
+    });
+
+    // =====================================================================
+    // LINK DE CADASTRO DO LEAD (público): o próprio lead preenche nome, WhatsApp,
+    // instrumento e de onde veio; cai no Atendimento como "Novos leads".
+    // =====================================================================
+    const ORIGENS_LEAD = ['instagram', 'google', 'indicacao', 'trafego_pago', 'outros'];
+
+    app.get('/api/publico/cursos', async (req, res) => {
+        try {
+            const { data } = await supabase.from('cursos').select('id, nome').order('nome');
+            res.json((data || []).filter((c: any) => !['Black', 'Laranja', 'White'].some((x) => String(c.nome).includes(x))));
+        } catch { res.json([]); }
+    });
+
+    app.post('/api/publico/lead', async (req, res) => {
+        try {
+            const b = req.body || {};
+            if (b.website) return res.json({ success: true }); // campo invisível: robô preencheu
+            const nome = String(b.nome || '').trim().slice(0, 120);
+            const telefone = String(b.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+            if (nome.length < 2) return res.status(400).json({ error: 'Informe seu nome.' });
+            if (telefone.length < 10 || telefone.length > 11) return res.status(400).json({ error: 'Informe um WhatsApp válido com DDD.' });
+            const origem = ORIGENS_LEAD.includes(b.origem) ? b.origem : 'outros';
+            const cursoId = Number.isInteger(Number(b.interesse_curso_id)) && Number(b.interesse_curso_id) > 0 ? Number(b.interesse_curso_id) : null;
+            const indicadoPor = String(b.indicado_por || '').trim().slice(0, 120);
+            const obs = `Cadastro pelo link${indicadoPor ? ` · indicado por: ${indicadoPor}` : ''}${cursoId ? '' : ' · ainda não sabe o instrumento'}`;
+
+            // Mesmo telefone já cadastrado como lead: atualiza em vez de duplicar
+            const { data: existentes } = await supabase.from('leads').select('id, telefone, status, origem, observacoes');
+            const fim8 = telefone.slice(-8);
+            const existente = (existentes || []).find((l: any) => String(l.telefone || '').replace(/\D/g, '').endsWith(fim8));
+            if (existente) {
+                const upd: any = { nome, data_atualizacao: new Date() };
+                if (cursoId) upd.interesse_curso_id = cursoId;
+                if (!existente.origem) upd.origem = origem;
+                const obsAtualizacao = `Atualizou pelo link${indicadoPor ? ` · indicado por: ${indicadoPor}` : ''}`;
+                upd.observacoes = [existente.observacoes, obsAtualizacao].filter(Boolean).join(' | ').slice(0, 1000);
+                if (['sem_interesse'].includes(existente.status)) upd.status = 'em_atendimento';
+                const { error } = await supabase.from('leads').update(upd).eq('id', existente.id);
+                if (error) throw error;
+                return res.json({ success: true, atualizado: true });
+            }
+
+            const { error } = await supabase.from('leads').insert([{
+                nome, telefone, interesse_curso_id: cursoId, origem,
+                status: 'em_atendimento', observacoes: obs, data_atualizacao: new Date()
+            }]);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) {
+            console.error('[LEAD_PUBLICO]', error);
+            res.status(500).json({ error: 'Não foi possível enviar agora. Tente de novo.' });
         }
     });
 

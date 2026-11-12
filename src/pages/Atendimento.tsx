@@ -92,6 +92,8 @@ function CardVisual({ lead, cursos, onEdit, onMove, onAgendarExp, dragProps, isO
 
   const origensMap: Record<string, string> = {
     trafego_pago: 'Tráfego Pago',
+    instagram: 'Instagram',
+    google: 'Google',
     indicacao: 'Indicação',
     outros: 'Outros'
   };
@@ -253,6 +255,7 @@ export default function Atendimento() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'leads' | 'experimentais' | 'vagas'>('leads');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isExpModalOpen, setIsExpModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   
@@ -693,6 +696,12 @@ export default function Atendimento() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 order-2 sm:order-4">
+          <button
+            onClick={() => setIsLinkModalOpen(true)}
+            className="bg-white hover:bg-[#ffeae1] text-black px-3.5 sm:px-5 py-2 sm:py-2.5 border-2 sm:border-3 border-black font-black uppercase text-[10px] sm:text-xs shadow-[3px_3px_0_#000] sm:shadow-[4px_4px_0_#000] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-1.5 transition-all cursor-pointer font-['Space_Mono']"
+          >
+            🔗 LINK_DE_CADASTRO
+          </button>
           <button 
             onClick={() => setIsModalOpen(true)}
             className="bg-[#ff6b00] hover:bg-[#ff8c33] text-white px-3.5 sm:px-5 py-2 sm:py-2.5 border-2 sm:border-3 border-black font-black uppercase text-[10px] sm:text-xs shadow-[3px_3px_0_#000] sm:shadow-[4px_4px_0_#000] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer font-['Space_Mono']"
@@ -701,6 +710,40 @@ export default function Atendimento() {
           </button>
         </div>
       </header>
+
+      {isLinkModalOpen && (
+        <div className="fixed inset-0 z-[300] bg-black/80 flex items-center justify-center p-4" onClick={() => setIsLinkModalOpen(false)}>
+          <div className="bg-[#fff8f6] border-4 border-black shadow-[8px_8px_0_#000] p-5 w-full max-w-lg space-y-3 text-[#1a0f0a]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-black uppercase text-base">Link de cadastro do lead</h2>
+              <button onClick={() => setIsLinkModalOpen(false)} className="font-black text-xl px-2">×</button>
+            </div>
+            <p className="text-xs font-bold text-[#6b5448]">Mande o link para quem chamar no WhatsApp. A pessoa coloca nome, WhatsApp, instrumento e de onde veio, e o lead aparece aqui em "Novos leads". Cada link já marca a origem.</p>
+            {[
+              { rotulo: 'Geral (pergunta de onde veio)', q: '' },
+              { rotulo: 'Bio do Instagram', q: '?origem=instagram' },
+              { rotulo: 'Google / site', q: '?origem=google' },
+              { rotulo: 'Anúncios (tráfego pago)', q: '?origem=anuncio' },
+              { rotulo: 'Indicação', q: '?origem=indicacao' }
+            ].map(l => {
+              const url = `${window.location.origin}/cadastro${l.q}`;
+              return (
+                <div key={l.rotulo} className="bg-white border-2 border-black p-2 flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-black uppercase">{l.rotulo}</p>
+                    <p className="text-xs font-bold text-[#6b5448] truncate">{url}</p>
+                  </div>
+                  <button
+                    onClick={() => { navigator.clipboard?.writeText(url).then(() => toast.success('Link copiado!')).catch(() => toast.error('Não consegui copiar. Segure o texto para copiar.')); }}
+                    className="bg-[#ff6b00] text-white border-2 border-black px-3 py-2 text-[11px] font-black uppercase shrink-0"
+                  >Copiar</button>
+                </div>
+              );
+            })}
+            <p className="text-[11px] font-bold text-[#6b5448]">Mensagem pronta: "Oi! Que bom ter você aqui 😊 Para eu já te passar os horários, preenche rapidinho: {window.location.origin}/cadastro"</p>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Workspace */}
       <div className="p-4 sm:p-8 space-y-4 sm:space-y-6 flex-1 overflow-auto relative z-10 font-['Space_Mono']">
@@ -1045,6 +1088,8 @@ export default function Atendimento() {
                      <div className="grid grid-cols-3 gap-2">
                        {[
                          { id: 'trafego_pago', label: 'Tráfego Pago' },
+                         { id: 'instagram', label: 'Instagram' },
+                         { id: 'google', label: 'Google' },
                          { id: 'indicacao', label: 'Indicação' },
                          { id: 'outros', label: 'Outros' }
                        ].map((opt) => {
@@ -1197,6 +1242,8 @@ export default function Atendimento() {
                      <div className="grid grid-cols-3 gap-2">
                        {[
                          { id: 'trafego_pago', label: 'Tráfego Pago' },
+                         { id: 'instagram', label: 'Instagram' },
+                         { id: 'google', label: 'Google' },
                          { id: 'indicacao', label: 'Indicação' },
                          { id: 'outros', label: 'Outros' }
                        ].map((opt) => {
