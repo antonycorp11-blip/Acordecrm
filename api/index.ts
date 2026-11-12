@@ -7640,6 +7640,18 @@ ${textoBruto}
             // ---------- EQUIPE: salário do mês x teto + prêmios ----------
             const folha = await calcularFolhaProfessores(mesAtual);
             const { data: profs } = await supabase.from('professores').select('id, nome, status');
+            // Aulas que já passaram neste mês e ficaram sem presença marcada (só viram salário se forem marcadas)
+            const inicioMes = intervaloDoMes(mesAtual).inicio;
+            const passadasAbertas = inicioMes < hoje ? await fetchAllRows(() => supabase.from('aulas')
+                .select('professor_id, alunos(status)')
+                .gte('data', inicioMes).lt('data', hoje)
+                .in('status', STATUS_AULA_PREVISTA)
+                .order('id', { ascending: true })) : [];
+            const semMarcacao: Record<number, number> = {};
+            passadasAbertas.forEach((a: any) => {
+                if (unRel(a.alunos)?.status === 'arquivado') return;
+                semMarcacao[a.professor_id] = (semMarcacao[a.professor_id] || 0) + 1;
+            });
             const dono = (profs || []).find((p: any) => isDonoPorNome(p.nome));
             const nomeProf = (id: any) => String((profs || []).find((p: any) => Number(p.id) === Number(id))?.nome || `Professor ${id}`).trim();
             const equipe = (profs || [])
@@ -7648,7 +7660,8 @@ ${textoBruto}
                     const f: any = folha.professores.find((x: any) => Number(x.professor_id) === Number(p.id)) || {};
                     const teto = TETO_SALARIO_PROFESSOR[p.id] ?? null;
                     const aulasRealizadas = f.aulas_realizadas || 0;
-                    const aulasPrevistas = f.aulas_previstas || 0;
+                    const aulasSemMarcacao = semMarcacao[p.id] || 0;
+                    const aulasPrevistas = Math.max(0, (f.aulas_previstas || 0) - aulasSemMarcacao); // só as de hoje até o fim do mês
                     const valorRealizado = aulasRealizadas * VALOR_AULA_PROFESSOR;
                     const valorProjetado = (aulasRealizadas + aulasPrevistas) * VALOR_AULA_PROFESSOR;
                     return {
@@ -7656,6 +7669,8 @@ ${textoBruto}
                         nome: String(p.nome).trim(),
                         aulas_realizadas: aulasRealizadas,
                         aulas_previstas: aulasPrevistas,
+                        aulas_sem_marcacao: aulasSemMarcacao,
+                        valor_sem_marcacao: aulasSemMarcacao * VALOR_AULA_PROFESSOR,
                         valor_realizado: valorRealizado,
                         valor_projetado: valorProjetado,
                         teto,
@@ -7734,6 +7749,9 @@ ${textoBruto}
 
             res.json({
                 hoje,
+                mes_atual: mesAtual,
+                mes_atual_nome: MESES_PT[Number(mesAtual.slice(0, 2)) - 1],
+                mes_pagamento_nome: MESES_PT[Number(mesAtual.slice(0, 2)) % 12],
                 meta: {
                     total: meses.reduce((a, m) => a + m.meta, 0),
                     feitas_total: matriculas.length,

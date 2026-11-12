@@ -132,17 +132,20 @@ export function PainelMetaEquipe() {
       <div className="rounded-lg p-4 flex flex-col max-h-[356px] overflow-y-auto custom-scrollbar" style={{ background: '#fff8f6', border: '3px solid #261812', boxShadow: '4px 4px 0 #261812' }}>
         <div className="flex items-center gap-2 mb-3">
           <Users className="w-5 h-5 text-[#ff6b00]" />
-          <p className="text-[#261812] font-black uppercase text-xs tracking-widest">Equipe no mês</p>
+          <p className="text-[#261812] font-black uppercase text-xs tracking-widest">Equipe em {dados.mes_atual_nome || 'este mês'}</p>
         </div>
-        <p className="text-[10px] font-bold text-[#8e7164] uppercase mb-2">R$ 30 por aula · teto R$ 500 (Juan e Vitória) · prêmio R$ 30 por matrícula, fora do teto</p>
+        <p className="text-[10px] font-bold text-[#8e7164] uppercase mb-2">
+          Salário de {dados.mes_atual_nome || 'este mês'} é pago em {dados.mes_pagamento_nome || 'no mês seguinte'}. "Já ganhou" = aulas dadas até hoje. "Previsto" = se todas as aulas agendadas até o fim do mês acontecerem. R$ 30 por aula · teto R$ 500 (Juan e Vitória) · prêmio R$ 30 por matrícula, fora do teto.
+        </p>
         <div className="space-y-2">
           {equipe.map((p: any) => (
             <div key={p.id} className="bg-white border-2 border-black p-2">
-              <div className="flex justify-between items-center text-[11px] font-black uppercase text-[#261812]">
+              <div className="flex justify-between items-baseline text-[11px] font-black uppercase text-[#261812]">
                 <span className="truncate">{p.nome}</span>
-                <span className={p.alerta === 'acima' ? 'text-red-600' : p.alerta === 'perto' ? 'text-orange-600' : 'text-[#261812]'}>
-                  {brl(p.valor_projetado)}{p.teto ? ` / ${brl(p.teto)}` : ''}
-                </span>
+                <span>Já ganhou {brl(p.valor_realizado)}</span>
+              </div>
+              <div className={`text-[10px] font-black uppercase mt-0.5 ${p.alerta === 'acima' ? 'text-red-600' : p.alerta === 'perto' ? 'text-orange-600' : 'text-[#8e7164]'}`}>
+                Previsto até o fim do mês: {brl(p.valor_projetado)}{p.teto ? ` (teto ${brl(p.teto)})` : ''}
               </div>
               {p.teto && (
                 <div className="h-2 bg-[#feccba] border border-black mt-1">
@@ -150,10 +153,11 @@ export function PainelMetaEquipe() {
                 </div>
               )}
               <div className="flex justify-between text-[10px] font-bold text-[#8e7164] mt-1">
-                <span>{p.aulas_realizadas} dada(s) · {p.aulas_previstas} a dar</span>
+                <span>{p.aulas_realizadas} dada(s) · {p.aulas_previstas} agendada(s) até o fim do mês</span>
                 <span title={(p.premios_alunos || []).join(', ')}>{p.premios_qtd ? `🏅 ${p.premios_qtd} matrícula(s) +${brl(p.premios_valor)}` : 'sem prêmio ainda'}</span>
               </div>
-              {p.alerta === 'acima' && <p className="text-[10px] font-black text-red-600 uppercase mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Projeção passa do teto</p>}
+              {p.aulas_sem_marcacao > 0 && <p className="text-[10px] font-black text-orange-600 uppercase mt-1">{p.aulas_sem_marcacao} aula(s) já passaram sem presença marcada (+{brl(p.valor_sem_marcacao)} se forem dadas)</p>}
+              {p.alerta === 'acima' && <p className="text-[10px] font-black text-red-600 uppercase mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Do jeito que a agenda está, passa do teto</p>}
             </div>
           ))}
         </div>
