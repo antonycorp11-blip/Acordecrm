@@ -702,6 +702,12 @@ export default function Atendimento() {
           >
             🔗 LINK_DE_CADASTRO
           </button>
+          <a
+            href="/remarketing"
+            className="bg-[#25D366] text-[#0b3d1f] px-3.5 sm:px-5 py-2 sm:py-2.5 border-2 sm:border-3 border-black font-black uppercase text-[10px] sm:text-xs shadow-[3px_3px_0_#000] sm:shadow-[4px_4px_0_#000] flex items-center gap-1.5 font-['Space_Mono']"
+          >
+            📣 REMARKETING
+          </a>
           <button 
             onClick={() => setIsModalOpen(true)}
             className="bg-[#ff6b00] hover:bg-[#ff8c33] text-white px-3.5 sm:px-5 py-2 sm:py-2.5 border-2 sm:border-3 border-black font-black uppercase text-[10px] sm:text-xs shadow-[3px_3px_0_#000] sm:shadow-[4px_4px_0_#000] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer font-['Space_Mono']"

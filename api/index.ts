@@ -3809,6 +3809,7 @@ async function startServer() {
                 if (['sem_interesse'].includes(existente.status)) upd.status = 'em_atendimento';
                 const { error } = await supabase.from('leads').update(upd).eq('id', existente.id);
                 if (error) throw error;
+                await notificarNovoLead('🔁 Lead voltou pelo link', `${nome} preencheu o cadastro de novo. Toque para atender.`);
                 return res.json({ success: true, atualizado: true });
             }
 
@@ -3817,11 +3818,124 @@ async function startServer() {
                 status: 'em_atendimento', observacoes: obs, data_atualizacao: new Date()
             }]);
             if (error) throw error;
+            let instrumento = '';
+            if (cursoId) { const { data: c } = await supabase.from('cursos').select('nome').eq('id', cursoId).maybeSingle(); instrumento = c?.nome || ''; }
+            const rotuloOrigem: Record<string, string> = { instagram: 'Instagram', google: 'Google', indicacao: 'Indicação', trafego_pago: 'Anúncio', outros: 'Outros' };
+            await notificarNovoLead('🎸 Novo lead chegou!', `${nome}${instrumento ? ` · ${instrumento}` : ''} · ${rotuloOrigem[origem] || origem}. Toque para atender agora.`);
             res.json({ success: true });
         } catch (error: any) {
             console.error('[LEAD_PUBLICO]', error);
             res.status(500).json({ error: 'Não foi possível enviar agora. Tente de novo.' });
         }
+    });
+
+    // Remarketing e teste de aviso: administradores ou a conta de professor do dono
+    const requireAdminOuDono = async (req: any, res: any, next: any) => {
+        try {
+            if (req.user?.role === 'admin') return next();
+            if (req.user?.email) {
+                const { data: prof } = await supabase.from('professores').select('nome').ilike('email', escapeLike(req.user.email)).limit(1).maybeSingle();
+                if (prof && isDonoPorNome(prof.nome)) return next();
+            }
+        } catch { /* nega abaixo */ }
+        return res.status(403).json({ error: 'Acesso negado: apenas administradores.' });
+    };
+
+    // Aviso no celular dos administradores e do dono quando um lead se cadastra pelo link
+    const notificarNovoLead = async (titulo: string, mensagem: string) => {
+        try {
+            const { data: profs } = await supabase.from('professores').select('nome, email');
+            const emailsDono = (profs || []).filter((p: any) => isDonoPorNome(p.nome) && p.email).map((p: any) => String(p.email).toLowerCase());
+            const { data: usuarios } = await supabase.from('usuarios').select('id, email, role');
+            const destinos = (usuarios || []).filter((u: any) => u.email && (u.role === 'admin' || emailsDono.includes(String(u.email).toLowerCase())));
+            await Promise.all(destinos.map((u: any) => sendPushNotification(titulo, mensagem, String(u.id), u.email, false, 'https://acordecrm.vercel.app/atendimento')));
+        } catch (e) { console.error('[AVISO_NOVO_LEAD]', e); }
+    };
+
+    // Teste: manda o aviso de novo lead só para quem está logado
+    app.post('/api/leads/teste-notificacao', requireAdminOuDono, async (req: any, res) => {
+        try {
+            const email = req.user?.email;
+            if (!email) return res.status(400).json({ error: 'Usuário sem e-mail.' });
+            await sendPushNotification('🎸 Teste: novo lead chegou!', 'Se você está vendo isto, os avisos de lead vão chegar neste aparelho.', String(req.user.id || ''), email, false, 'https://acordecrm.vercel.app/atendimento');
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    // =====================================================================
+    // REMARKETING: leads parados e ex-alunos, com registro de cada contato
+    // =====================================================================
+    app.get('/api/remarketing', requireAdminOuDono, async (req: any, res) => {
+        try {
+            const agora = Date.now();
+            const dias = (ts: any) => (ts ? Math.max(0, Math.floor((agora - new Date(ts).getTime()) / 86400000)) : null);
+            const [{ data: leads }, { data: cursos }, { data: contatos }, { data: exAlunos }, { data: mural }] = await Promise.all([
+                supabase.from('leads').select('id, nome, telefone, status, interesse_curso_id, origem, data_criacao, data_atualizacao'),
+                supabase.from('cursos').select('id, nome'),
+                supabase.from('remarketing_contatos').select('tipo, ref_id, contatado_em').order('contatado_em', { ascending: false }),
+                supabase.from('alunos').select('id, nome, telefone, responsavel_telefone, matriculas(curso_id, status)').eq('status', 'arquivado'),
+                supabase.from('mural_vergonha').select('aluno_id, nome_cliente')
+            ]);
+            const nomeCurso = (id: any) => (cursos || []).find((c: any) => Number(c.id) === Number(id))?.nome || null;
+            const ultimo: Record<string, { em: string; qtd: number }> = {};
+            (contatos || []).forEach((c: any) => {
+                const k = `${c.tipo}:${c.ref_id}`;
+                if (!ultimo[k]) ultimo[k] = { em: c.contatado_em, qtd: 0 };
+                ultimo[k].qtd++;
+            });
+            const fone = (t: any) => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 12 && d.startsWith('55') ? d : (d.length >= 10 ? `55${d}` : ''); };
+            const item = (tipo: string, id: number, nome: string, telefone: any, instrumento: string | null, desde: any, extra: any = {}) => {
+                const u = ultimo[`${tipo}:${id}`];
+                return { tipo, id, nome: String(nome || '').trim() || 'Sem nome', whatsapp: fone(telefone), instrumento, dias_parado: dias(desde), ultimo_contato: u?.em || null, contatos: u?.qtd || 0, ...extra };
+            };
+            const grupos: Record<string, any[]> = { aula_marcada: [], em_atendimento: [], sem_interesse: [], ex_alunos: [] };
+            const doisDias = 2 * 86400000;
+            (leads || []).forEach((l: any) => {
+                const st = l.status || 'em_atendimento';
+                const it = item('lead', l.id, l.nome, l.telefone, nomeCurso(l.interesse_curso_id), l.data_atualizacao || l.data_criacao, { origem: l.origem });
+                if (!it.whatsapp) return;
+                if (st === 'aula_marcada') grupos.aula_marcada.push(it);
+                else if (st === 'sem_interesse') grupos.sem_interesse.push(it);
+                else if (['em_atendimento', 'iniciado', 'novo'].includes(st)) {
+                    // quem chegou nas últimas 48h ainda está sendo atendido: fica fora do remarketing
+                    const ref = new Date(l.data_atualizacao || l.data_criacao || 0).getTime();
+                    if (agora - ref >= doisDias) grupos.em_atendimento.push(it);
+                }
+            });
+            const devedores = new Set((mural || []).map((m: any) => m.aluno_id).filter(Boolean));
+            const telefonesLead = new Set((leads || []).map((l: any) => String(l.telefone || '').replace(/\D/g, '').slice(-8)).filter(Boolean));
+            (exAlunos || []).forEach((a: any) => {
+                if (devedores.has(a.id) || /(teste|\[professor\]|novo aluno na escola)/i.test(a.nome || '')) return;
+                const tel = a.telefone || a.responsavel_telefone;
+                const it = item('aluno', a.id, a.nome, tel, nomeCurso((a.matriculas || [])[0]?.curso_id), null);
+                if (!it.whatsapp || telefonesLead.has(it.whatsapp.slice(-8))) return;
+                grupos.ex_alunos.push(it);
+            });
+            // nunca contatados primeiro; depois quem foi contatado há mais tempo
+            Object.values(grupos).forEach((l) => l.sort((a, b) => (a.ultimo_contato ? 1 : 0) - (b.ultimo_contato ? 1 : 0) || String(a.ultimo_contato || '').localeCompare(String(b.ultimo_contato || '')) || (b.dias_parado || 0) - (a.dias_parado || 0)));
+            res.json(grupos);
+        } catch (error: any) {
+            console.error('[REMARKETING]', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post('/api/remarketing/contato', requireAdminOuDono, async (req: any, res) => {
+        try {
+            const { tipo, ref_id, grupo } = req.body || {};
+            if (!['lead', 'aluno'].includes(tipo) || !Number(ref_id)) return res.status(400).json({ error: 'Contato inválido.' });
+            const { data, error } = await supabase.from('remarketing_contatos').insert([{ tipo, ref_id: Number(ref_id), grupo: grupo || null }]).select().single();
+            if (error) throw error;
+            res.json(data);
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.delete('/api/remarketing/contato/:id', requireAdminOuDono, async (req: any, res) => {
+        try {
+            const { error } = await supabase.from('remarketing_contatos').delete().eq('id', req.params.id);
+            if (error) throw error;
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
     });
 
     app.post('/api/leads', requireAdmin, async (req, res) => {
@@ -5362,7 +5476,7 @@ async function startServer() {
 
     // O app registra no OneSignal o id da tabela usuarios; aqui convertemos o e-mail do destinatário nesse id.
     // Sem destinatário identificado, o push não é enviado (nunca vira envio para todos).
-    async function sendPushNotification(titulo: string, mensagem: string, _targetId?: string | string[], emailTo?: string, enviarEmail: boolean = true) {
+    async function sendPushNotification(titulo: string, mensagem: string, _targetId?: string | string[], emailTo?: string, enviarEmail: boolean = true, urlDestino: string = 'https://acordecrm.vercel.app') {
         if (!emailTo) {
             console.warn('[PUSH_NOTIFICATION] Destinatário sem e-mail; aviso não enviado.');
             return;
@@ -5397,7 +5511,7 @@ async function startServer() {
                         include_aliases: { external_id: [String(usuarioDestino.id)] },
                         headings: { en: titulo, pt: titulo },
                         contents: { en: mensagem, pt: mensagem },
-                        url: 'https://acordecrm.vercel.app'
+                        url: urlDestino
                     })
                 });
                 const data: any = await response.json().catch(() => ({}));

@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useNavigate,
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OneSignalService } from './services/OneSignalService';
 import { Sidebar } from './components/layout/Sidebar';
-import { Menu, X, LayoutDashboard, Users, Music, CreditCard, LogOut, RefreshCcw, BarChart3 } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Users, Music, CreditCard, LogOut, RefreshCcw, BarChart3, Megaphone } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Alunos from './pages/Alunos';
 import Professores from './pages/Professores';
@@ -29,6 +29,7 @@ import EadTrilhaAdmin from './pages/EadTrilhaAdmin';
 import Relatorios from './pages/Relatorios';
 import Privacidade from './pages/Privacidade';
 import CadastroLead from './pages/CadastroLead';
+import Remarketing from './pages/Remarketing';
 import { AssistenteIA } from './components/AssistenteIA';
 
 import { Toaster } from 'sonner';
@@ -63,6 +64,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
     { icon: RefreshCcw, label: 'Reposições', path: '/reposicoes' },
     { icon: CreditCard, label: 'Financeiro', path: '/financeiro' },
     { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },
+    { icon: Megaphone, label: 'Remarketing', path: '/remarketing' },
   ];
 
   const handleLogout = () => {
@@ -267,6 +269,7 @@ export default function App() {
                         </RoleRedirect>
                       } />
                       <Route path="/atendimento" element={<Atendimento />} />
+                      <Route path="/remarketing" element={<Remarketing />} />
                       <Route path="/alunos" element={<Alunos />} />
                       <Route path="/alunos/:id" element={<AlunoPerfil />} />
                       <Route path="/agenda" element={<Agenda />} />
