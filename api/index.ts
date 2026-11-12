@@ -21,7 +21,7 @@ function getMesAtualBR() {
 }
 
 function getDateBR() {
-    return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+    return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse().join('-');
 }
 
 // pdf-parse é importado dinamicamente para evitar crash no módulo
@@ -49,6 +49,34 @@ try {
   console.warn('Could not create upload dir:', e);
 }
 const upload = multer({ dest: uploadDir, limits: { fileSize: 150 * 1024 * 1024 } });
+const uploadContatos = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// CSV separado por ponto e vírgula, com suporte às aspas usadas pelo csv.writer.
+function lerCsvContatos(csv: string): string[][] {
+    const linhas: string[][] = [];
+    let linha: string[] = [];
+    let campo = '';
+    let aspas = false;
+    const texto = csv.replace(/^\uFEFF/, '');
+    for (let i = 0; i < texto.length; i++) {
+        const c = texto[i];
+        if (c === '"') {
+            if (aspas && texto[i + 1] === '"') { campo += '"'; i++; }
+            else aspas = !aspas;
+        } else if (c === ';' && !aspas) {
+            linha.push(campo); campo = '';
+        } else if ((c === '\n' || c === '\r') && !aspas) {
+            if (c === '\r' && texto[i + 1] === '\n') i++;
+            linha.push(campo); campo = '';
+            if (linha.some(x => x.trim())) linhas.push(linha);
+            linha = [];
+        } else campo += c;
+    }
+    if (aspas) throw new Error('CSV com aspas sem fechamento.');
+    linha.push(campo);
+    if (linha.some(x => x.trim())) linhas.push(linha);
+    return linhas;
+}
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://ojfnqcajbhvlqtprrfxg.supabase.co';
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qZm5xY2FqYmh2bHF0cHJyZnhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTI2MDMsImV4cCI6MjEwMjkyODYwM30.5yGrdipKkLNO6xx3whdE-6a2ub5MjEfVFEdxfqHlIbg';
@@ -3840,6 +3868,104 @@ async function startServer() {
         } catch { /* nega abaixo */ }
         return res.status(403).json({ error: 'Acesso negado: apenas administradores.' });
     };
+
+    // Importação feita pelo administrador. O arquivo fica apenas na memória durante a requisição.
+    app.post('/api/contatos-whatsapp/importar', requireAdmin, uploadContatos.single('arquivo'), async (req: any, res) => {
+        try {
+            if (!req.file) return res.status(400).json({ error: 'Selecione um arquivo CSV.' });
+            const linhas = lerCsvContatos(req.file.buffer.toString('utf8'));
+            const cabecalho = ['telefone', 'primeira_conversa', 'ultima_conversa', 'mes_primeira', 'mensagens', 'mensagens_da_escola', 'ultima_fala'];
+            if (!linhas.length || cabecalho.some((c, i) => linhas[0][i]?.trim() !== c)) return res.status(400).json({ error: 'Cabeçalho do CSV inválido.' });
+            if (linhas.length > 20001) return res.status(400).json({ error: 'CSV muito grande (máximo de 20 mil contatos).' });
+            const validoDia = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(`${v}T12:00:00Z`));
+            const candidatos: any[] = [];
+            let invalidos = 0;
+            for (const col of linhas.slice(1)) {
+                const telefone = String(col[0] || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+                const primeira = String(col[1] || '').trim();
+                const ultima = String(col[2] || '').trim();
+                const mes = String(col[3] || '').trim();
+                if (col.length !== 7 || telefone.length < 10 || telefone.length > 15 || !validoDia(primeira) || (ultima && !validoDia(ultima)) || mes !== primeira.slice(0, 7)) { invalidos++; continue; }
+                candidatos.push({ telefone, primeira_conversa: primeira, ultima_conversa: ultima || null, mes });
+            }
+            const [alunos, leads, contatos] = await Promise.all([
+                fetchAllRows(() => supabase.from('alunos').select('telefone, responsavel_telefone').order('id')),
+                fetchAllRows(() => supabase.from('leads').select('telefone').order('id')),
+                fetchAllRows(() => supabase.from('contatos_whatsapp').select('telefone').order('id'))
+            ]);
+            const fim8 = (v: any) => String(v || '').replace(/\D/g, '').slice(-8);
+            const cadastrados = new Set<string>();
+            for (const a of alunos || []) for (const t of [a.telefone, a.responsavel_telefone]) if (fim8(t).length === 8) cadastrados.add(fim8(t));
+            for (const l of leads || []) if (fim8(l.telefone).length === 8) cadastrados.add(fim8(l.telefone));
+            const existentes = new Set<string>((contatos || []).map((c: any) => fim8(c.telefone)));
+            const novos: any[] = [];
+            let jaCadastrados = 0;
+            let repetidos = 0;
+            for (const c of candidatos) {
+                const fim = fim8(c.telefone);
+                if (cadastrados.has(fim)) { jaCadastrados++; continue; }
+                if (existentes.has(fim)) { repetidos++; continue; }
+                existentes.add(fim);
+                novos.push(c);
+            }
+            for (let i = 0; i < novos.length; i += 200) {
+                const { error } = await supabase.from('contatos_whatsapp').upsert(novos.slice(i, i + 200), { onConflict: 'telefone', ignoreDuplicates: true });
+                if (error) throw error;
+            }
+            res.json({ importados: novos.length, ja_cadastrados: jaCadastrados, repetidos, invalidos });
+        } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao importar CSV.' }); }
+    });
+
+    app.get('/api/contatos-whatsapp/missao', requireAdminOuDono, async (_req: any, res) => {
+        try {
+            const hoje = getDateBR();
+            const todos = await fetchAllRows(() => supabase.from('contatos_whatsapp').select('id, telefone, primeira_conversa, mes, status, tentativas, ultimo_contato_em, atribuido_em, lead_id').order('primeira_conversa').order('id'));
+            const missao = todos.filter((c: any) => c.atribuido_em === hoje).slice(0, 10);
+            const diaCuiaba = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse().join('-');
+            const diasDesde = (iso: string) => Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${diaCuiaba(iso)}T12:00:00Z`)) / 86400000);
+            const elegiveis = todos.filter((c: any) => c.status === 'pendente' || (c.status === 'nao_respondeu' && c.tentativas < 2 && c.ultimo_contato_em && diasDesde(c.ultimo_contato_em) >= 3));
+            for (const c of elegiveis) {
+                if (missao.length >= 10) break;
+                if (c.atribuido_em === hoje) continue;
+                const { data: atribuido, error: erroAtribuir } = await supabase.from('contatos_whatsapp').update({ atribuido_em: hoje }).eq('id', c.id).eq('status', c.status).select('id, telefone, primeira_conversa, mes, status, tentativas, ultimo_contato_em, atribuido_em, lead_id').maybeSingle();
+                if (erroAtribuir) throw erroAtribuir;
+                if (atribuido) missao.push(atribuido);
+            }
+            missao.sort((a: any, b: any) => String(a.primeira_conversa).localeCompare(String(b.primeira_conversa)) || a.id - b.id);
+            res.json({ hoje, contatos: missao.map((c: any) => ({ ...c, pode_contatar: c.status === 'pendente' || (c.status === 'nao_respondeu' && c.tentativas < 2 && c.ultimo_contato_em && diasDesde(c.ultimo_contato_em) >= 3) })), pendentes: elegiveis.length });
+        } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao carregar missão.' }); }
+    });
+
+    app.post('/api/contatos-whatsapp/:id/resultado', requireAdminOuDono, async (req: any, res) => {
+        try {
+            const resultado = String(req.body?.resultado || '');
+            if (!['respondeu', 'nao_respondeu', 'interessado', 'nao_quer', 'numero_invalido'].includes(resultado)) return res.status(400).json({ error: 'Resultado inválido.' });
+            const { data: contato, error } = await supabase.from('contatos_whatsapp').select('*').eq('id', req.params.id).maybeSingle();
+            if (error) throw error;
+            const hoje = getDateBR();
+            const ultimoDia = contato?.ultimo_contato_em ? new Date(contato.ultimo_contato_em).toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse().join('-') : '';
+            const diasEspera = ultimoDia ? Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${ultimoDia}T12:00:00Z`)) / 86400000) : 0;
+            if (!contato || contato.atribuido_em !== hoje || !['pendente', 'nao_respondeu'].includes(contato.status) || contato.tentativas >= 2 || (contato.status === 'nao_respondeu' && diasEspera < 3)) return res.status(409).json({ error: 'Contato fora da missão ou já concluído.' });
+            let leadId = contato.lead_id;
+            if (resultado === 'interessado') {
+                const leads = await fetchAllRows(() => supabase.from('leads').select('id, telefone').order('id'));
+                const fim = String(contato.telefone).slice(-8);
+                leadId = (leads || []).find((l: any) => String(l.telefone || '').replace(/\D/g, '').endsWith(fim))?.id;
+                if (!leadId) {
+                    const { data: novoLead, error: erroLead } = await supabase.from('leads').insert([{ nome: 'Contato antigo do WhatsApp', telefone: contato.telefone,
+                        status: 'em_atendimento', origem: 'outros', observacoes: `Interessado na missão do WhatsApp · primeira conversa ${contato.primeira_conversa}`,
+                        data_atualizacao: new Date() }]).select('id').single();
+                    if (erroLead) throw erroLead;
+                    leadId = novoLead.id;
+                }
+            }
+            const { data: atualizado, error: erroAtualizar } = await supabase.from('contatos_whatsapp').update({ status: resultado, tentativas: contato.tentativas + 1,
+                ultimo_contato_em: new Date().toISOString(), lead_id: leadId || null }).eq('id', contato.id).eq('status', contato.status).eq('tentativas', contato.tentativas).select().maybeSingle();
+            if (erroAtualizar) throw erroAtualizar;
+            if (!atualizado) return res.status(409).json({ error: 'Contato já atualizado. Recarregue a missão.' });
+            res.json(atualizado);
+        } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao salvar resultado.' }); }
+    });
 
     // Aviso no celular dos administradores e do dono quando um lead se cadastra pelo link
     const notificarNovoLead = async (titulo: string, mensagem: string) => {
