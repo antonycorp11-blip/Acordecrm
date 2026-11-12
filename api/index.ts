@@ -3947,7 +3947,9 @@ async function startServer() {
             const hoje = getDateBR();
             const ultimoDia = contato?.ultimo_contato_em ? new Date(contato.ultimo_contato_em).toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse().join('-') : '';
             const diasEspera = ultimoDia ? Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${ultimoDia}T12:00:00Z`)) / 86400000) : 0;
-            if (!contato || contato.atribuido_em !== hoje || !['pendente', 'nao_respondeu'].includes(contato.status) || contato.tentativas >= 2 || (contato.status === 'nao_respondeu' && diasEspera < 3)) return res.status(409).json({ error: 'Contato fora da missão ou já concluído.' });
+            // já registrado hoje (ex.: "enviado" ao abrir o WhatsApp): só atualiza o resultado, sem gastar outra tentativa
+            const corrigindo = !!contato && contato.atribuido_em === hoje && ultimoDia === hoje;
+            if (!contato || (!corrigindo && (contato.atribuido_em !== hoje || !['pendente', 'nao_respondeu'].includes(contato.status) || contato.tentativas >= 2 || (contato.status === 'nao_respondeu' && diasEspera < 3)))) return res.status(409).json({ error: 'Contato fora da missão ou já concluído.' });
             let leadId = contato.lead_id;
             if (resultado === 'interessado') {
                 const leads = await fetchAllRows(() => supabase.from('leads').select('id, telefone').order('id'));
@@ -3961,8 +3963,8 @@ async function startServer() {
                     leadId = novoLead.id;
                 }
             }
-            const { data: atualizado, error: erroAtualizar } = await supabase.from('contatos_whatsapp').update({ status: resultado, tentativas: contato.tentativas + 1,
-                ultimo_contato_em: new Date().toISOString(), lead_id: leadId || null }).eq('id', contato.id).eq('status', contato.status).eq('tentativas', contato.tentativas).select().maybeSingle();
+            const { data: atualizado, error: erroAtualizar } = await supabase.from('contatos_whatsapp').update({ status: resultado, tentativas: corrigindo ? contato.tentativas : contato.tentativas + 1,
+                ultimo_contato_em: corrigindo ? contato.ultimo_contato_em : new Date().toISOString(), lead_id: leadId || null }).eq('id', contato.id).eq('status', contato.status).eq('tentativas', contato.tentativas).select().maybeSingle();
             if (erroAtualizar) throw erroAtualizar;
             if (!atualizado) return res.status(409).json({ error: 'Contato já atualizado. Recarregue a missão.' });
             res.json(atualizado);

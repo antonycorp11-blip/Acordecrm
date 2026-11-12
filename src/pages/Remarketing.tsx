@@ -181,7 +181,7 @@ export default function Remarketing() {
     finally { setImportando(false); }
   };
 
-  const registrarResultado = async (contato: ContatoAntigo, resultado: string) => {
+  const registrarResultado = async (contato: ContatoAntigo, resultado: string, aviso?: string) => {
     setSalvandoId(contato.id);
     try {
       const r = await apiFetch(`/api/contatos-whatsapp/${contato.id}/resultado`, {
@@ -189,14 +189,16 @@ export default function Remarketing() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Não foi possível salvar.');
-      toast.success(resultado === 'interessado' ? 'Lead criado no Atendimento.' : 'Resultado salvo.');
+      toast.success(aviso || (resultado === 'interessado' ? 'Lead criado no Atendimento.' : 'Resultado salvo.'));
       await carregarMissao();
     } catch (e: any) { toast.error(e.message || 'Não foi possível salvar.'); }
     finally { setSalvandoId(null); }
   };
 
   const contatosMissao = missao?.contatos || [];
-  const concluidosMissao = contatosMissao.filter(c => !c.pode_contatar).length;
+  const pendentesMissao = contatosMissao.filter(c => c.pode_contatar);
+  const feitosMissao = contatosMissao.filter(c => !c.pode_contatar);
+  const concluidosMissao = feitosMissao.length;
   const proximoMissao = contatosMissao.find(c => c.pode_contatar)?.id;
   const progresso = contatosMissao.length ? Math.round((concluidosMissao / contatosMissao.length) * 100) : 0;
 
@@ -344,66 +346,84 @@ export default function Remarketing() {
 
           {aba === 'missao' ? (
             <>
+              {erroMissao && <p className="font-bold text-red-300">{erroMissao}</p>}
+              {!missao && !erroMissao && <p className="text-white font-black uppercase text-center py-10">Carregando missão...</p>}
+              {missao && contatosMissao.length === 0 && <div className="bg-[#fff8f6] border-4 border-dashed border-[#8e7164] p-10 text-center font-black uppercase">Nenhum número disponível hoje.</div>}
+
               {missao && contatosMissao.length > 0 && (
                 <div className="bg-[#fff8f6] border-4 border-black p-3 flex items-center gap-3">
                   <span className="font-black text-2xl leading-none">{concluidosMissao}/{contatosMissao.length}</span>
                   <div className="flex-1">
                     <div className="h-3 bg-[#eadbd3] border-2 border-black"><div className="h-full bg-[#ff6b00] transition-all" style={{ width: `${progresso}%` }} /></div>
-                    <p className="text-xs font-bold text-[#6b5448] mt-1">{progresso === 100 ? 'Missão de hoje concluída! 🎉' : 'concluídos hoje'} · {missao.pendentes} na fila</p>
+                    <p className="text-xs font-bold text-[#6b5448] mt-1">mensagens enviadas hoje · {Math.max(0, missao.pendentes - pendentesMissao.length)} ainda na fila</p>
                   </div>
                 </div>
               )}
-              {erroMissao && <p className="font-bold text-red-300">{erroMissao}</p>}
-              {!missao && !erroMissao && <p className="text-white font-black uppercase text-center py-10">Carregando missão...</p>}
-              {missao && contatosMissao.length === 0 && <div className="bg-[#fff8f6] border-4 border-dashed border-[#8e7164] p-10 text-center font-black uppercase">Nenhum número disponível hoje.</div>}
 
-              <div className="space-y-2">
-                {[...contatosMissao].sort((a, b) => Number(!a.pode_contatar) - Number(!b.pode_contatar)).map(c => {
-                  const numero = c.telefone.length <= 11 ? `55${c.telefone}` : c.telefone;
-                  const link = `https://wa.me/${numero}?text=${encodeURIComponent(textoContatoAntigo(c))}`;
-                  const aberto = abertos.has(c.id);
-                  const proximo = c.id === proximoMissao;
-                  const tentativa = Math.min(c.tentativas + (c.pode_contatar ? 1 : 0), 2);
-                  if (!c.pode_contatar) {
+              {/* a enviar */}
+              {pendentesMissao.length > 0 ? (
+                <div className="space-y-2">
+                  {pendentesMissao.map(c => {
+                    const numero = c.telefone.length <= 11 ? `55${c.telefone}` : c.telefone;
+                    const link = `https://wa.me/${numero}?text=${encodeURIComponent(textoContatoAntigo(c))}`;
+                    const proximo = c.id === proximoMissao;
                     return (
-                      <div key={c.id} className="bg-[#3a2820] border-2 border-[#5a4034] px-3 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[#c9b3a8]">
-                        <Check className="w-4 h-4 text-emerald-400" />
-                        <span className="font-black line-through decoration-1">{formatarTelefone(c.telefone)}</span>
-                        <span className="text-xs font-bold">{c.status === 'nao_respondeu' && c.tentativas < 2 ? 'Não respondeu · volta em 3 dias' : ROTULO_RESULTADO[c.status] || 'Concluído'}{c.lead_id ? ' · virou lead' : ''}</span>
+                      <div key={c.id} className={`border-4 p-3 flex flex-wrap items-center gap-3 ${proximo ? 'bg-[#fff8f6] border-[#ff6b00] shadow-[4px_4px_0_#ff6b00]' : 'bg-[#fff8f6] border-black'}`}>
+                        <div className="flex-1 min-w-[160px]">
+                          <p className="font-black text-lg leading-tight">{formatarTelefone(c.telefone)}</p>
+                          <p className="text-xs font-bold text-[#6b5448]">Conversou em {nomeMes(c.mes)} · {c.tentativas + 1}ª tentativa</p>
+                        </div>
+                        <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => registrarResultado(c, 'nao_respondeu', 'Enviado ✓ foi para o registro de hoje')}
+                          className="flex items-center justify-center gap-2 bg-[#25D366] text-[#0b3d1f] border-4 border-black font-black uppercase text-sm min-h-[52px] px-5 w-full sm:w-auto shadow-[3px_3px_0_#000] active:translate-y-0.5 active:shadow-none">
+                          <MessageCircle className="w-5 h-5" /> Enviar no WhatsApp
+                        </a>
+                        <button onClick={() => registrarResultado(c, 'numero_invalido')} disabled={salvandoId !== null}
+                          className="text-xs font-black uppercase text-[#8e7164] underline w-full sm:w-auto">Número inválido</button>
                       </div>
                     );
-                  }
-                  return (
-                    <div key={c.id} className={`border-4 p-3 ${aberto ? 'bg-[#eaf9ef] border-[#1f9d55]' : proximo ? 'bg-[#fff8f6] border-[#ff6b00] shadow-[4px_4px_0_#ff6b00]' : 'bg-[#fff8f6] border-black'}`}>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex-1 min-w-[160px]">
-                          <p className="font-black text-lg leading-tight flex items-center gap-2">{formatarTelefone(c.telefone)}
-                            {aberto && <span className="inline-flex items-center gap-1 bg-[#1f9d55] text-white text-[11px] font-black uppercase px-2 py-0.5"><Check className="w-3.5 h-3.5" /> Mensagem enviada</span>}</p>
-                          <p className="text-xs font-bold text-[#6b5448]">Conversou em {nomeMes(c.mes)} · {tentativa}ª tentativa</p>
-                        </div>
-                        <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => marcarAberto(c.id)}
-                          className={`flex items-center justify-center gap-2 border-4 border-black font-black uppercase text-sm min-h-[52px] px-5 w-full sm:w-auto ${aberto ? 'bg-white text-[#0b3d1f]' : 'bg-[#25D366] text-[#0b3d1f] shadow-[3px_3px_0_#000]'}`}>
-                          <MessageCircle className="w-5 h-5" /> {aberto ? 'Abrir de novo' : 'WhatsApp'}
-                        </a>
-                      </div>
-                      {aberto && <p className="mt-2 text-xs font-black text-[#1f9d55]">Agora marque o que aconteceu:</p>}
-                      <div className={`mt-2 grid grid-cols-2 sm:grid-cols-5 gap-1.5 ${aberto ? '' : 'opacity-60'}`}>
-                        {RESULTADOS.map(r => (
-                          <button key={r.valor} onClick={() => registrarResultado(c, r.valor)} disabled={salvandoId !== null}
-                            className={`border-2 border-black px-2 py-2.5 font-black text-xs min-h-[44px] disabled:opacity-50 ${r.cor} ${r.valor === 'interessado' ? 'col-span-2 sm:col-span-1' : ''}`}>
-                            {salvandoId === c.id ? '...' : r.rotulo}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {missao && missao.pendentes > 0 && (
-                <button disabled={carregandoMais} onClick={async () => { setCarregandoMais(true); const antes = contatosMissao.length; await carregarMissao(true); setCarregandoMais(false); toast.success('Mais contatos carregados.'); if (antes === 0) window.scrollTo({ top: 0 }); }}
-                  className="w-full flex items-center justify-center gap-2 bg-[#ff6b00] text-white border-4 border-black font-black uppercase text-sm min-h-[56px] shadow-[4px_4px_0_#000] disabled:opacity-60">
-                  <RotateCcw className="w-5 h-5" /> {carregandoMais ? 'Carregando...' : 'Carregar mais 10 contatos'}
+                  })}
+                </div>
+              ) : missao && contatosMissao.length > 0 && (
+                <div className="bg-[#ff6b00] border-4 border-black shadow-[6px_6px_0_#000] p-6 text-center text-white">
+                  <p className="text-4xl mb-1">🏆</p>
+                  <p className="font-black uppercase text-2xl leading-tight">Missão cumprida!</p>
+                  <p className="font-bold text-sm mt-1">{contatosMissao.length} mensagens enviadas hoje. Quem responder, marque no registro abaixo.</p>
+                </div>
+              )}
+
+              {missao && missao.pendentes > pendentesMissao.length && (
+                <button disabled={carregandoMais} onClick={async () => { setCarregandoMais(true); await carregarMissao(true); setCarregandoMais(false); toast.success('Mais 10 contatos carregados.'); }}
+                  className="w-full flex items-center justify-center gap-2 bg-white text-[#1a0f0a] border-4 border-black font-black uppercase text-sm min-h-[56px] shadow-[4px_4px_0_#000] disabled:opacity-60">
+                  <RotateCcw className="w-5 h-5" /> {carregandoMais ? 'Carregando...' : pendentesMissao.length ? 'Carregar mais 10 contatos' : 'Quero mais: carregar outros 10'}
                 </button>
+              )}
+
+              {/* registro de hoje */}
+              {feitosMissao.length > 0 && (
+                <details open={pendentesMissao.length === 0} className="bg-[#2b1d17] border-2 border-[#5a4034] group">
+                  <summary className="flex items-center justify-between p-3 cursor-pointer list-none text-white font-black uppercase text-sm">
+                    <span className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Registro de hoje · {feitosMissao.length} enviados</span>
+                    <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
+                  </summary>
+                  <div className="p-2 pt-0 space-y-1.5">
+                    {feitosMissao.map(c => (
+                      <div key={c.id} className="bg-[#3a2820] border border-[#5a4034] p-2.5 flex flex-wrap items-center gap-2 text-[#e8d7ce]">
+                        <span className="font-black">{formatarTelefone(c.telefone)}</span>
+                        <span className={`text-[11px] font-black uppercase px-2 py-0.5 ${c.status === 'interessado' ? 'bg-[#25D366] text-[#0b3d1f]' : c.status === 'nao_respondeu' ? 'bg-[#5a4034]' : 'bg-[#6b5448]'}`}>
+                          {c.status === 'nao_respondeu' ? 'Enviado · aguardando' : ROTULO_RESULTADO[c.status] || c.status}{c.lead_id ? ' · virou lead' : ''}
+                        </span>
+                        {!c.lead_id && c.status !== 'numero_invalido' && (
+                          <div className="flex gap-1 ml-auto flex-wrap">
+                            {RESULTADOS.filter(r => r.valor !== 'nao_respondeu' && r.valor !== c.status && r.valor !== 'numero_invalido').map(r => (
+                              <button key={r.valor} onClick={() => registrarResultado(c, r.valor)} disabled={salvandoId !== null}
+                                className={`border-2 border-black px-2 py-1.5 font-black text-[11px] text-[#1a0f0a] disabled:opacity-50 ${r.cor}`}>{salvandoId === c.id ? '...' : r.rotulo}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
               )}
             </>
           ) : (
