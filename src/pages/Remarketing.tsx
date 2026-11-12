@@ -3,6 +3,7 @@ import { MessageCircle, Check, Copy, Download, Pencil, RotateCcw, Search, BellRi
 import { toast } from 'sonner';
 import { apiFetch } from '../services/apiClient';
 import { useAuth } from '../contexts/AuthContext';
+import { DivulgacaoDoDia } from '../components/DivulgacaoDoDia';
 
 // Remarketing para tablet e PC: abas no topo, lista à esquerda e mensagem à direita
 // (no celular/tablet em pé a mensagem fica em cima). Um toque no verde abre o WhatsApp
@@ -13,7 +14,7 @@ type Grupo = Exclude<Aba, 'missao'>;
 type Modelo = { titulo: string; texto: string };
 
 const ABAS: { id: Aba; titulo: string; descricao: string }[] = [
-  { id: 'missao', titulo: 'Missão do dia', descricao: 'Contatos antigos do WhatsApp: até 10 por dia, dos mais antigos primeiro. Sem resposta, volta em 3 dias (no máximo 2 tentativas).' },
+  { id: 'missao', titulo: 'Missão do dia', descricao: 'Todo dia: postar nos 4 canais e chamar os contatos antigos do WhatsApp, até 10 por dia, dos mais antigos primeiro. Sem resposta, volta em 3 dias (no máximo 2 tentativas).' },
   { id: 'campanha_indicacao', titulo: 'Campanha: Indicação', descricao: 'Só alunos ativos (ou o responsável, quando o aluno é menor). A cada indicado que se matricular, o aluno ganha R$ 15 de desconto na mensalidade. Cada um recebe uma vez: o check verde fica salvo.' },
   { id: 'aula_marcada', titulo: 'Fez aula, não fechou', descricao: 'Marcaram aula experimental e não se matricularam.' },
   { id: 'em_atendimento', titulo: 'Conversou e sumiu', descricao: 'Chamaram, mas pararam de responder há mais de 2 dias.' },
@@ -363,6 +364,8 @@ export default function Remarketing() {
 
           {aba === 'missao' ? (
             <>
+              <DivulgacaoDoDia />
+              <h2 className="text-white font-black uppercase text-sm pt-1">Contatos antigos do WhatsApp</h2>
               {erroMissao && <p className="font-bold text-red-300">{erroMissao}</p>}
               {!missao && !erroMissao && <p className="text-white font-black uppercase text-center py-10">Carregando missão...</p>}
               {missao && contatosMissao.length === 0 && <div className="bg-[#fff8f6] border-4 border-dashed border-[#8e7164] p-10 text-center font-black uppercase">Nenhum número disponível hoje.</div>}

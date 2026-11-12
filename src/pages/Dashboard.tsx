@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { FeedAtividades } from '../components/FeedAtividades';
 import { GoogleDriveModal } from '../components/GoogleDriveModal';
 import { PainelMetaEquipe } from '../components/dashboard/PainelMetaEquipe';
+import { DivulgacaoDoDia } from '../components/DivulgacaoDoDia';
 import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
 
 export default function Dashboard() {
@@ -218,6 +219,9 @@ export default function Dashboard() {
             <ChevronRight className="w-5 h-5" />
           </button>
         )}
+
+        {/* DIVULGAÇÃO DO DIA (lembrete de postagens) */}
+        <DivulgacaoDoDia compacto />
 
         {/* META DE MATRÍCULAS + EQUIPE (tempo real) */}
         <PainelMetaEquipe />

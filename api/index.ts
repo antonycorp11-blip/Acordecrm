@@ -3988,15 +3988,72 @@ async function startServer() {
     });
 
     // Aviso no celular dos administradores e do dono quando um lead se cadastra pelo link
-    const notificarNovoLead = async (titulo: string, mensagem: string) => {
+    const notificarNovoLead = async (titulo: string, mensagem: string, url = 'https://acordecrm.vercel.app/atendimento') => {
         try {
             const { data: profs } = await supabase.from('professores').select('nome, email');
             const emailsDono = (profs || []).filter((p: any) => isDonoPorNome(p.nome) && p.email).map((p: any) => String(p.email).toLowerCase());
             const { data: usuarios } = await supabase.from('usuarios').select('id, email, role');
             const destinos = (usuarios || []).filter((u: any) => u.email && (u.role === 'admin' || emailsDono.includes(String(u.email).toLowerCase())));
-            await Promise.all(destinos.map((u: any) => sendPushNotification(titulo, mensagem, String(u.id), u.email, false, 'https://acordecrm.vercel.app/atendimento')));
+            await Promise.all(destinos.map((u: any) => sendPushNotification(titulo, mensagem, String(u.id), u.email, false, url)));
         } catch (e) { console.error('[AVISO_NOVO_LEAD]', e); }
     };
+
+    // =====================================================================
+    // DIVULGAÇÃO DO DIA: checklist de postagens que o dono precisa fazer todo dia
+    // =====================================================================
+    const CANAIS_DIVULGACAO = [
+        { id: 'insta_studio', titulo: 'Instagram do Studio', dica: 'Post, reels ou story no perfil do estúdio' },
+        { id: 'insta_pessoal', titulo: 'Meu Instagram', dica: 'Post ou story no seu perfil pessoal' },
+        { id: 'status_whatsapp', titulo: 'Status do WhatsApp', dica: 'Story no WhatsApp do estúdio' },
+        { id: 'grupos_whatsapp', titulo: 'Grupos do WhatsApp', dica: 'Divulgar nos grupos (bairro, pais, condomínio...)' }
+    ];
+    const diaMenos = (dia: string, n: number) => {
+        const d = parseDateOnly(dia); d.setUTCDate(d.getUTCDate() - n);
+        return d.toISOString().slice(0, 10);
+    };
+
+    app.get('/api/divulgacao/hoje', requireAdminOuDono, async (req: any, res) => {
+        try {
+            const hoje = getDateBR();
+            const { data, error } = await supabase.from('divulgacao_posts').select('dia, canal, feito_em').gte('dia', diaMenos(hoje, 90));
+            if (error) throw error;
+            const porDia = new Map<string, Map<string, string>>();
+            (data || []).forEach((r: any) => {
+                const dia = String(r.dia).slice(0, 10);
+                if (!porDia.has(dia)) porDia.set(dia, new Map());
+                porDia.get(dia)!.set(r.canal, r.feito_em);
+            });
+            const ids = CANAIS_DIVULGACAO.map(c => c.id);
+            const completo = (dia: string) => ids.every(id => porDia.get(dia)?.has(id));
+            // sequência: dias seguidos com tudo postado (hoje conta se já estiver completo)
+            let sequencia = 0;
+            for (let i = completo(hoje) ? 0 : 1; i < 90 && completo(diaMenos(hoje, i)); i++) sequencia++;
+            const semana = Array.from({ length: 7 }, (_, i) => {
+                const dia = diaMenos(hoje, 6 - i);
+                return { dia, feitos: ids.filter(id => porDia.get(dia)?.has(id)).length };
+            });
+            res.json({
+                hoje, sequencia, semana, total: ids.length,
+                canais: CANAIS_DIVULGACAO.map(c => ({ ...c, feito_em: porDia.get(hoje)?.get(c.id) || null }))
+            });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
+
+    app.post('/api/divulgacao/:canal', requireAdminOuDono, async (req: any, res) => {
+        try {
+            const canal = String(req.params.canal);
+            if (!CANAIS_DIVULGACAO.some(c => c.id === canal)) return res.status(400).json({ error: 'Canal inválido.' });
+            const hoje = getDateBR();
+            if (req.body?.feito === false) {
+                const { error } = await supabase.from('divulgacao_posts').delete().eq('dia', hoje).eq('canal', canal);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('divulgacao_posts').upsert({ dia: hoje, canal }, { onConflict: 'dia,canal', ignoreDuplicates: true });
+                if (error) throw error;
+            }
+            res.json({ success: true });
+        } catch (error: any) { res.status(500).json({ error: error.message }); }
+    });
 
     // Teste: manda o aviso de novo lead só para quem está logado
     app.post('/api/leads/teste-notificacao', requireAdminOuDono, async (req: any, res) => {
@@ -6409,6 +6466,11 @@ async function startServer() {
         } else {
             await setConfigValue('AUTO_ULTIMO_ENVIO_DIARIO', hoje);
             const auto = await getAutomacoes();
+            // Lembrete no celular do dono: missão de divulgação + contatos do dia
+            await etapa('lembrete_missao_do_dia', async () => {
+                await notificarNovoLead('🎯 Missão do dia', 'Postar no Instagram do Studio, no seu Instagram, no status e nos grupos do WhatsApp + 10 contatos. Bora!', 'https://acordecrm.vercel.app/remarketing');
+                return 'enviado';
+            });
             if (auto.AUTO_EMAIL_DIARIO_DONO) await etapa('relatorio_diario_direcao', () => relatorioDiarioDono(hoje));
             if (auto.AUTO_LEMBRETE_PRESENCA) await etapa('lembrete_presenca', () => lembretePresencaProfessores(hoje));
             if (auto.AUTO_COBRANCA_ALUNOS) await etapa('cobranca_alunos', () => cobrancaAlunos(hoje));

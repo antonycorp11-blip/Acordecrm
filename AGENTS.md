@@ -42,4 +42,5 @@ Objetivo: colocar no CRM os 2–3 mil números de 2,5 anos de conversas do Whats
    ignorando números que já são alunos ou leads (comparar pelos últimos 8 dígitos, como em `/api/publico/lead`). Upload do CSV por uma tela admin ou script.
 3. "Missão do dia" (a fazer): 10 contatos por dia na tela de Remarketing (tablet), botão do WhatsApp com mensagem pronta,
    resultado do contato (respondeu, não respondeu, interessado, não quer, número inválido), nova tentativa após 3 dias, no máximo 2 tentativas; "interessado" vira lead.
-4. Depois: gamificação para o dono (avatar pixel reaproveitando `AvatarPixel`, XP por contato/matrícula/aula dada, sequência de dias, conquistas).
+4. Divulgação do dia (feito): checklist de 4 postagens diárias (Instagram do Studio, Instagram pessoal, status e grupos do WhatsApp), tabela `divulgacao_posts`, rotas `/api/divulgacao/*`, componente `src/components/DivulgacaoDoDia.tsx` (no topo da Missão do dia e resumido no Dashboard). Push de lembrete às 7h no cron diário `/api/cron/cleanup-videos`.
+5. Depois: gamificação para o dono (avatar pixel reaproveitando `AvatarPixel`, XP por contato/matrícula/aula dada, sequência de dias, conquistas).
