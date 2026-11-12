@@ -1,4 +1,5 @@
 import { contextoAudioTreino } from './motor';
+import { FREQ_CLIQUE_HZ, registrarClique } from './filtroClique';
 
 export type RotaClique = 'A' | 'B' | 'C';
 export type SessaoAudio = 'auto' | 'playback' | 'play-and-record';
@@ -29,8 +30,8 @@ function pcm(taxa: number): Float32Array {
   let pico = 0;
   for (let i = 0; i < dados.length; i++) {
     const t = i / taxa;
-    dados[i] = Math.min(1, t / 0.0015) * Math.exp(-t * 100) *
-      (0.62 * Math.sin(2 * Math.PI * 3000 * t) + 0.38 * Math.sin(2 * Math.PI * 4500 * t));
+    // Tom único e agudo: a escuta corta essa faixa e reconhece o clique pelo horário agendado.
+    dados[i] = Math.min(1, t / 0.0015) * Math.exp(-t * 100) * Math.sin(2 * Math.PI * FREQ_CLIQUE_HZ * t);
     pico = Math.max(pico, Math.abs(dados[i]));
   }
   for (let i = 0; i < dados.length; i++) dados[i] /= pico || 1;
@@ -81,6 +82,7 @@ export class SaidaClique {
 
   tocar(atrasoMs: number, volume = 1): void {
     if (volume <= 0) return;
+    registrarClique((this.contexto.currentTime + Math.max(0, atrasoMs) / 1000) * 1000);
     if (this.combinacao.rota === 'B') {
       const timer = window.setTimeout(() => {
         this.timers.delete(timer);

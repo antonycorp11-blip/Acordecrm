@@ -7,9 +7,12 @@ import {
   FREQ_MIN_HZ,
   LIMIAR_PADRAO_DB,
   tamanhoJanelaAnalise,
+  tamanhoJanelaCurta,
   tamanhoJanelaPitch,
+  rmsDb,
   type AnalisadorQuadros,
 } from './analise';
+import { cliqueEsperado, criarFiltroClique, FREQ_CLIQUE_HZ, type FiltroClique } from './filtroClique';
 import type { Instrumento, LeituraAudio, MotorEscuta } from './types';
 
 const INTERVALO_LEITURA_MS = 32;
@@ -29,6 +32,9 @@ interface Sessao {
   stream: MediaStream;
   analyser: AnalyserNode;
   analyserLongo: AnalyserNode;
+  analyserClique: AnalyserNode;
+  janelaClique: Float32Array<ArrayBuffer>;
+  filtroClique: FiltroClique;
   nos: AudioNode[];
   janela: Float32Array<ArrayBuffer>;
   janelaLonga: Float32Array<ArrayBuffer>;
@@ -74,13 +80,16 @@ export function createMotorEscuta(): MotorEscuta {
   function lerQuadro(s: Sessao) {
     const tempoMs = s.contexto.currentTime * 1000;
     if (tempoMs === s.ultimoTempoMs) return;
-    if (tempoMs - s.ultimoTempoMs > LACUNA_MAXIMA_MS) s.analisador.reiniciar();
+    if (tempoMs - s.ultimoTempoMs > LACUNA_MAXIMA_MS) { s.analisador.reiniciar(); s.filtroClique.reiniciar(); }
     s.ultimoTempoMs = tempoMs;
 
     s.analyser.getFloatTimeDomainData(s.janela);
     s.analyserLongo.getFloatTimeDomainData(s.janelaLonga);
     // O sampleRate real pode não ser 44,1/48 kHz e muda de aparelho para aparelho.
-    const leitura = s.analisador.processar(s.janela, s.contexto.sampleRate, tempoMs, s.janelaLonga);
+    s.analyserClique.getFloatTimeDomainData(s.janelaClique);
+    const leitura = s.filtroClique.processar(
+      s.analisador.processar(s.janela, s.contexto.sampleRate, tempoMs, s.janelaLonga),
+      rmsDb(s.janelaClique), cliqueEsperado(tempoMs));
     niveisCalibracao?.push({ t: tempoMs, db: leitura.nivelDb });
     if (alvoEnergiaMidi !== null) {
       const f0 = 440 * 2 ** ((alvoEnergiaMidi - 69) / 12);
@@ -149,8 +158,21 @@ export function createMotorEscuta(): MotorEscuta {
         const mudo = contexto.createGain();
         mudo.gain.value = 0;
         fonte.connect(passaAlta);
-        // Teclado: o clique do metrônomo fica acima de 3 kHz e não pode chegar à análise.
+        // O clique do metrônomo (tom de 4,8 kHz) não pode chegar à análise de nota.
+        const nosFiltro: AudioNode[] = [];
         let saidaFiltrada: AudioNode = passaAlta;
+        if (instrumento === 'violao') {
+          // Corte estreito: os harmônicos do violão (timbre/calibração) ficam intactos.
+          for (let i = 0; i < 2; i++) {
+            const corte = contexto.createBiquadFilter();
+            corte.type = 'notch';
+            corte.frequency.value = FREQ_CLIQUE_HZ;
+            corte.Q.value = 2;
+            saidaFiltrada.connect(corte);
+            saidaFiltrada = corte;
+            nosFiltro.push(corte);
+          }
+        }
         if (instrumento === 'teclado') {
           for (let i = 0; i < 3; i++) {
             const passaBaixa = contexto.createBiquadFilter();
@@ -158,8 +180,17 @@ export function createMotorEscuta(): MotorEscuta {
             passaBaixa.frequency.value = 1800;
             saidaFiltrada.connect(passaBaixa);
             saidaFiltrada = passaBaixa;
+            nosFiltro.push(passaBaixa);
           }
         }
+        // Escuta só a faixa do clique, para saber em que quadros ele chegou ao microfone.
+        const faixaClique = contexto.createBiquadFilter();
+        faixaClique.type = 'bandpass';
+        faixaClique.frequency.value = FREQ_CLIQUE_HZ;
+        faixaClique.Q.value = 6;
+        const analyserClique = contexto.createAnalyser();
+        analyserClique.fftSize = tamanhoJanelaCurta(contexto.sampleRate);
+        passaAlta.connect(faixaClique).connect(analyserClique).connect(mudo);
         saidaFiltrada.connect(analyser).connect(mudo).connect(contexto.destination);
         saidaFiltrada.connect(analyserLongo).connect(mudo);
 
@@ -183,7 +214,10 @@ export function createMotorEscuta(): MotorEscuta {
           stream,
           analyser,
           analyserLongo,
-          nos: [fonte, passaAlta, analyser, analyserLongo, mudo],
+          analyserClique,
+          janelaClique: new Float32Array(analyserClique.fftSize),
+          filtroClique: criarFiltroClique(),
+          nos: [fonte, passaAlta, ...nosFiltro, faixaClique, analyserClique, analyser, analyserLongo, mudo],
           janela: new Float32Array(analyser.fftSize),
           janelaLonga: new Float32Array(analyserLongo.fftSize),
           analisador,
