@@ -289,10 +289,15 @@ const calcularRanking = async (progressoPronto?: any[]) => {
     }).sort((a: any, b: any) => b.xp - a.xp);
 };
 
-// Valor da aula do professor: menos de 10 alunos ativos = R$ 35; 10 ou mais = R$ 30
-const VALOR_AULA_POUCOS_ALUNOS = 35;
-const VALOR_AULA_MUITOS_ALUNOS = 30;
+// Valor da aula do professor: R$ 30 por aula dada, para todos (regra da escola desde o início)
+const VALOR_AULA_PROFESSOR = 30;
+const VALOR_AULA_POUCOS_ALUNOS = VALOR_AULA_PROFESSOR;
+const VALOR_AULA_MUITOS_ALUNOS = VALOR_AULA_PROFESSOR;
 const LIMITE_ALUNOS_VALOR_AULA = 10;
+// Prêmio por matrícula vinda de aula experimental do professor: o valor de uma aula, FORA do teto
+const PREMIO_MATRICULA_PROFESSOR = VALOR_AULA_PROFESSOR;
+// Teto mensal do salário por aulas (prêmios ficam fora): Juan (id 2) e Vitória (id 17)
+const TETO_SALARIO_PROFESSOR: Record<number, number> = { 2: 500, 17: 500 };
 
 // ---------------------------------------------------------------------
 // MENSALIDADES: regras únicas usadas por Dashboard, Relatórios, e-mails e assistente
@@ -378,6 +383,32 @@ const isDonoPorNome = (nome: string) => {
     return n.includes('aquilles') || n.includes('áquilles');
 };
 
+// Matrículas do período vindas de aula experimental: o professor da experimental (a mais recente do lead) ganha o prêmio
+const calcularPremiosMatricula = async (inicio: string, fim: string) => {
+    const premios: Record<number, { qtd: number; alunos: string[] }> = {};
+    const { data: leads } = await supabase.from('leads')
+        .select('id, nome, data_atualizacao')
+        .eq('status', 'matriculado')
+        .gte('data_atualizacao', `${inicio}T00:00:00-03:00`)
+        .lte('data_atualizacao', `${fim}T23:59:59-03:00`);
+    if (!leads || leads.length === 0) return premios;
+    const { data: exps } = await supabase.from('aulas_experimentais')
+        .select('lead_id, professor_id, data')
+        .in('lead_id', leads.map((l: any) => l.id))
+        .not('professor_id', 'is', null)
+        .order('data', { ascending: false });
+    const profDoLead: Record<number, number> = {};
+    (exps || []).forEach((e: any) => { if (!profDoLead[e.lead_id]) profDoLead[e.lead_id] = e.professor_id; });
+    leads.forEach((l: any) => {
+        const pid = profDoLead[l.id];
+        if (!pid) return;
+        const p = premios[pid] ||= { qtd: 0, alunos: [] };
+        p.qtd++;
+        p.alunos.push(String(l.nome || '').trim());
+    });
+    return premios;
+};
+
 // Folha de um mês de aulas (MM/AAAA): calculada ao vivo a partir da agenda.
 // Valor da aula conforme o nº de alunos distintos que o professor atende NAQUELE mês.
 const calcularFolhaProfessores = async (mesAno: string, professorId?: number) => {
@@ -426,10 +457,30 @@ const calcularFolhaProfessores = async (mesAno: string, professorId?: number) =>
         }
     });
 
+    // Prêmios por matrícula (fora do teto); professor que só teve prêmio também entra na folha
+    const premios = await calcularPremiosMatricula(inicio, fim);
+    const idsSoPremio = Object.keys(premios).map(Number)
+        .filter((id) => !porProf[id] && (!professorId || id === Number(professorId)));
+    if (idsSoPremio.length > 0) {
+        const { data: profsPremio } = await supabase.from('professores').select('id, nome').in('id', idsSoPremio);
+        (profsPremio || []).forEach((pr: any) => {
+            if (isDonoPorNome(pr.nome)) return;
+            porProf[pr.id] = { professor_id: pr.id, professor_nome: pr.nome, alunos: new Set<number>(), aulas_realizadas: 0, aulas_previstas: 0, reposicoes_realizadas: 0, reposicoes_previstas: 0 };
+        });
+    }
+
     const professores = Object.values(porProf).map((p: any) => {
         const qtdAlunos = p.alunos.size;
         const valorAula = valorAulaPorQtdAlunos(qtdAlunos);
+        const premio = premios[p.professor_id] || { qtd: 0, alunos: [] };
+        const teto = TETO_SALARIO_PROFESSOR[p.professor_id] ?? null;
+        const valorPrevistoAulas = (p.aulas_realizadas + p.aulas_previstas) * valorAula;
         return {
+            matriculas_premiadas: premio.qtd,
+            alunos_premiados: premio.alunos,
+            valor_premios: premio.qtd * PREMIO_MATRICULA_PROFESSOR,
+            teto_salario: teto,
+            acima_do_teto: teto !== null && valorPrevistoAulas > teto,
             professor_id: p.professor_id,
             professor_nome: p.professor_nome,
             alunos_no_mes: qtdAlunos,
@@ -446,8 +497,10 @@ const calcularFolhaProfessores = async (mesAno: string, professorId?: number) =>
     return {
         mes_aulas: `${mStr.padStart(2, '0')}/${yStr}`,
         professores,
-        total_realizado: professores.reduce((acc: number, p: any) => acc + p.valor_realizado, 0),
-        total_previsto: professores.reduce((acc: number, p: any) => acc + p.valor_previsto_total, 0)
+        // totais já incluem os prêmios por matrícula (também são pagos)
+        total_premios: professores.reduce((acc: number, p: any) => acc + p.valor_premios, 0),
+        total_realizado: professores.reduce((acc: number, p: any) => acc + p.valor_realizado + p.valor_premios, 0),
+        total_previsto: professores.reduce((acc: number, p: any) => acc + p.valor_previsto_total + p.valor_premios, 0)
     };
 };
 
@@ -4424,13 +4477,15 @@ async function startServer() {
 
             const folha = await calcularFolhaProfessores(`${prevMStr}/${yNum}`);
             const finalRemun = folha.professores
-                // Financeiro mostra o real: só professores com aulas já dadas
-                .filter((p: any) => p.aulas_realizadas > 0)
+                // Financeiro mostra o real: professores com aulas já dadas ou prêmio de matrícula
+                .filter((p: any) => p.aulas_realizadas > 0 || p.valor_premios > 0)
                 .map((p: any) => ({
                     professor_id: p.professor_id,
                     professor_nome: p.professor_nome,
                     total_aulas: p.aulas_realizadas,
-                    valor_estimado: p.valor_realizado,
+                    valor_estimado: p.valor_realizado + p.valor_premios,
+                    valor_premios: p.valor_premios,
+                    matriculas_premiadas: p.matriculas_premiadas,
                     valor_aula: p.valor_aula,
                     alunos_ativos: p.alunos_no_mes,
                     aulas_previstas: p.aulas_previstas,
@@ -7513,6 +7568,194 @@ ${textoBruto}
             });
         } catch (error: any) {
             console.error('[RELATORIOS]', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // =====================================================================
+    // PAINEL DO DONO (Dashboard): meta de matrículas, equipe (teto e prêmios)
+    // e quais alunos viriam para o dono. Tudo calculado ao vivo.
+    // =====================================================================
+    const META_MATRICULAS_PADRAO: Record<string, number> = { '11/2026': 20, '12/2026': 20, '01/2027': 20 };
+    // Seg/qua/sex o dono não dá aula depois das 20h (última aula começa às 19h)
+    const HORARIO_LIMITE_DONO: Record<number, string> = { 1: '19:00', 3: '19:00', 5: '19:00' };
+    const GRADE_SEMANA = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+    const GRADE_DONO: Record<number, string[]> = {
+        1: GRADE_SEMANA, 2: [...GRADE_SEMANA, '20:00'], 3: GRADE_SEMANA, 4: [...GRADE_SEMANA, '20:00'], 5: GRADE_SEMANA,
+        6: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00']
+    };
+    const NOMES_TESTE = /(teste|\[professor\]|novo aluno na escola)/i;
+    const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const DIAS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+    const lerMetaMatriculas = async (): Promise<Record<string, number>> => {
+        try {
+            const { data } = await supabase.from('system_config').select('key_value').eq('key_name', 'META_MATRICULAS').maybeSingle();
+            const v = data?.key_value ? JSON.parse(data.key_value) : null;
+            if (v && typeof v === 'object' && Object.keys(v).length > 0) return v;
+        } catch { /* usa o padrão */ }
+        return META_MATRICULAS_PADRAO;
+    };
+
+    app.get('/api/painel/meta-e-equipe', requireAdmin, async (req: any, res) => {
+        try {
+            const hoje = getDateBR();
+            const mesAtual = getMesAtualBR();
+            const dataBR = (ts: string) => new Date(ts).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+            const hhmm = (h: any) => String(h || '').slice(0, 5);
+            const dow = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd)).getUTCDay(); };
+
+            // ---------- META DE MATRÍCULAS (conta toda matrícula nova, mesmo que o aluno saia depois) ----------
+            const metaCfg = await lerMetaMatriculas();
+            const mesesMeta = Object.keys(metaCfg).sort((a, b) => refOrdenavel(a).localeCompare(refOrdenavel(b)));
+            const ini = intervaloDoMes(mesesMeta[0]).inicio;
+            const fimMeta = intervaloDoMes(mesesMeta[mesesMeta.length - 1]).fim;
+            const { data: novos } = await supabase.from('alunos')
+                .select('id, nome, data_cadastro')
+                .gte('data_cadastro', `${ini}T00:00:00-03:00`)
+                .lte('data_cadastro', `${fimMeta}T23:59:59-03:00`)
+                .order('data_cadastro', { ascending: false });
+            const matriculas = (novos || [])
+                .filter((a: any) => a.data_cadastro && !NOMES_TESTE.test(a.nome || ''))
+                .map((a: any) => ({ aluno_id: a.id, nome: String(a.nome || '').trim(), data: dataBR(a.data_cadastro) }));
+            const meses = mesesMeta.map((m) => {
+                const { inicio, fim } = intervaloDoMes(m);
+                const lista = matriculas.filter((x: any) => x.data >= inicio && x.data <= fim);
+                const diasNoMes = Number(fim.slice(8, 10));
+                const situacao = m === mesAtual ? 'atual' : (refOrdenavel(m) < refOrdenavel(mesAtual) ? 'passado' : 'futuro');
+                const diaHoje = Number(hoje.slice(8, 10));
+                return {
+                    mes: m,
+                    nome: MESES_PT[Number(m.slice(0, 2)) - 1],
+                    meta: Number(metaCfg[m]) || 0,
+                    feitas: lista.length,
+                    alunos: lista,
+                    dias_no_mes: diasNoMes,
+                    dia_atual: situacao === 'atual' ? diaHoje : null,
+                    dias_restantes: situacao === 'atual' ? diasNoMes - diaHoje + 1 : (situacao === 'futuro' ? diasNoMes : 0),
+                    situacao
+                };
+            });
+
+            // ---------- EQUIPE: salário do mês x teto + prêmios ----------
+            const folha = await calcularFolhaProfessores(mesAtual);
+            const { data: profs } = await supabase.from('professores').select('id, nome, status');
+            const dono = (profs || []).find((p: any) => isDonoPorNome(p.nome));
+            const nomeProf = (id: any) => String((profs || []).find((p: any) => Number(p.id) === Number(id))?.nome || `Professor ${id}`).trim();
+            const equipe = (profs || [])
+                .filter((p: any) => p.status === 'ativo' && !isDonoPorNome(p.nome))
+                .map((p: any) => {
+                    const f: any = folha.professores.find((x: any) => Number(x.professor_id) === Number(p.id)) || {};
+                    const teto = TETO_SALARIO_PROFESSOR[p.id] ?? null;
+                    const aulasRealizadas = f.aulas_realizadas || 0;
+                    const aulasPrevistas = f.aulas_previstas || 0;
+                    const valorRealizado = aulasRealizadas * VALOR_AULA_PROFESSOR;
+                    const valorProjetado = (aulasRealizadas + aulasPrevistas) * VALOR_AULA_PROFESSOR;
+                    return {
+                        id: p.id,
+                        nome: String(p.nome).trim(),
+                        aulas_realizadas: aulasRealizadas,
+                        aulas_previstas: aulasPrevistas,
+                        valor_realizado: valorRealizado,
+                        valor_projetado: valorProjetado,
+                        teto,
+                        pct_teto: teto ? Math.round((valorProjetado / teto) * 100) : null,
+                        alerta: teto ? (valorProjetado > teto ? 'acima' : (valorProjetado >= teto * 0.85 ? 'perto' : 'ok')) : 'sem_teto',
+                        premios_qtd: f.matriculas_premiadas || 0,
+                        premios_valor: f.valor_premios || 0,
+                        premios_alunos: f.alunos_premiados || [],
+                        total_a_pagar: valorProjetado + (f.valor_premios || 0)
+                    };
+                })
+                .sort((a: any, b: any) => b.valor_projetado - a.valor_projetado);
+
+            // ---------- PLANO: quais alunos viriam para o dono ----------
+            // Horário semanal real de cada aluno ativo: aulas em aberto das próximas 2 semanas (ou a matrícula, se não houver)
+            const ate = (() => { const [y, m, d] = hoje.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + 13)).toISOString().slice(0, 10); })();
+            const { data: ativos } = await supabase.from('alunos')
+                .select('id, nome, matriculas(id, status, dia_semana, horario, professor_id)')
+                .eq('status', 'ativo');
+            const aulasProx = await fetchAllRows(() => supabase.from('aulas')
+                .select('aluno_id, data, horario, professor_id')
+                .gte('data', hoje).lte('data', ate)
+                .in('status', ['pendente', 'confirmada', 'aguardando_confirmacao'])
+                .is('data_original', null)
+                .order('data', { ascending: true }));
+            const idsAtivos = new Set((ativos || []).map((a: any) => a.id));
+            const slots: any[] = [];
+            const vistos = new Set<string>();
+            aulasProx.forEach((a: any) => {
+                if (!idsAtivos.has(a.aluno_id) || !a.professor_id) return;
+                const s = { aluno_id: a.aluno_id, dia: dow(a.data), hora: hhmm(a.horario), professor_id: a.professor_id };
+                const k = `${s.aluno_id}|${s.dia}|${s.hora}`;
+                if (vistos.has(k)) return;
+                vistos.add(k);
+                slots.push(s);
+            });
+            (ativos || []).forEach((a: any) => {
+                if (slots.some((s) => s.aluno_id === a.id)) return;
+                const m = (a.matriculas || []).filter((x: any) => x.status === 'ativa').sort((x: any, y: any) => y.id - x.id)[0];
+                if (m && m.dia_semana !== null && m.dia_semana !== undefined && m.horario && m.professor_id) {
+                    slots.push({ aluno_id: a.id, dia: Number(m.dia_semana), hora: hhmm(m.horario), professor_id: m.professor_id, pela_matricula: true });
+                }
+            });
+            const nomeAluno = (id: any) => String((ativos || []).find((a: any) => a.id === id)?.nome || '').trim();
+            const fmt = (s: any) => ({ aluno_id: s.aluno_id, nome: nomeAluno(s.aluno_id), dia: DIAS_PT[s.dia], dia_num: s.dia, hora: s.hora, professor: nomeProf(s.professor_id), professor_id: s.professor_id });
+
+            const donoId = dono?.id;
+            const ocupadoDono = new Set(slots.filter((s) => s.professor_id === donoId).map((s) => `${s.dia}|${s.hora}`));
+            const aulasDonoHoje = ocupadoDono.size;
+            const podeDono = (dia: number, hora: string) => dia >= 1 && dia <= 6 && (!HORARIO_LIMITE_DONO[dia] || hora <= HORARIO_LIMITE_DONO[dia]);
+            const viriam: any[] = []; const ficam: any[] = []; const remarcar: any[] = [];
+            const capacidade: Record<number, number> = {};
+            Object.keys(TETO_SALARIO_PROFESSOR).map(Number).forEach((pid) => {
+                // pior caso: mês com 5 semanas -> nº de aulas semanais que cabem no teto
+                const cap = Math.floor(TETO_SALARIO_PROFESSOR[pid] / (VALOR_AULA_PROFESSOR * 5));
+                capacidade[pid] = cap;
+                const bloqueado = (s: any) => !podeDono(s.dia, s.hora) || ocupadoDono.has(`${s.dia}|${s.hora}`);
+                // Ficam com o professor primeiro: horários que você não pode assumir, depois os de sábado
+                const ordem = slots.filter((s) => s.professor_id === pid).sort((a, b) =>
+                    (Number(bloqueado(b)) - Number(bloqueado(a))) || (Number(b.dia === 6) - Number(a.dia === 6)) || (a.dia - b.dia) || a.hora.localeCompare(b.hora));
+                let vagas = cap;
+                ordem.forEach((s) => {
+                    if (vagas > 0) { ficam.push(fmt(s)); vagas--; return; }
+                    const k = `${s.dia}|${s.hora}`;
+                    if (podeDono(s.dia, s.hora) && !ocupadoDono.has(k)) { viriam.push(fmt(s)); ocupadoDono.add(k); }
+                    else remarcar.push({ ...fmt(s), motivo: !podeDono(s.dia, s.hora) ? 'fora do seu horário' : 'você já tem aula nesse horário' });
+                });
+            });
+            let livres = 0; let livresNobres = 0;
+            Object.entries(GRADE_DONO).forEach(([d, horas]) => horas.forEach((h) => {
+                if (ocupadoDono.has(`${d}|${h}`)) return;
+                livres++;
+                if (Number(d) === 6 || h >= '17:00') livresNobres++;
+            }));
+            const ordenar = (l: any[]) => l.sort((a, b) => a.dia_num - b.dia_num || a.hora.localeCompare(b.hora));
+
+            res.json({
+                hoje,
+                meta: {
+                    total: meses.reduce((a, m) => a + m.meta, 0),
+                    feitas_total: matriculas.length,
+                    hoje: matriculas.filter((x: any) => x.data === hoje).length,
+                    ultima: matriculas[0] || null,
+                    meses
+                },
+                equipe,
+                plano: {
+                    dono: dono ? String(dono.nome).trim() : null,
+                    aulas_semana_hoje: aulasDonoHoje,
+                    aulas_semana_com_plano: aulasDonoHoje + viriam.length,
+                    horarios_livres: livres,
+                    horarios_livres_nobres: livresNobres,
+                    capacidade_por_professor: Object.fromEntries(Object.entries(capacidade).map(([id, c]) => [nomeProf(id), c])),
+                    viriam_para_voce: ordenar(viriam),
+                    ficam_com_professor: ordenar(ficam),
+                    precisam_remarcar: ordenar(remarcar)
+                }
+            });
+        } catch (error: any) {
+            console.error('[PAINEL]', error);
             res.status(500).json({ error: error.message });
         }
     });

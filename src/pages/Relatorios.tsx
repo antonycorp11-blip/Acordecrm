@@ -257,7 +257,7 @@ export default function Relatorios() {
               extra={<span className="text-white font-black text-sm">{brl(folha.total_previsto)}</span>}>
               <p className="text-[10px] font-bold text-[#8e7164] mb-3">
                 Considera que todas as aulas agendadas do mês acontecem (inclui reposições já remarcadas). Recalculado a cada mudança na agenda.
-                Valor da aula: R$ 35 com menos de 10 alunos no mês, R$ 30 com 10 ou mais. Pago no mês seguinte.
+                Valor da aula: R$ 30 por aula dada. Prêmio de R$ 30 por matrícula vinda da experimental do professor (fora do teto de R$ 500 de Juan e Vitória). Pago no mês seguinte.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -269,6 +269,7 @@ export default function Relatorios() {
                       <th className="text-right p-2">Dadas</th>
                       <th className="text-right p-2">A dar</th>
                       <th className="text-right p-2">Reposições</th>
+                      <th className="text-right p-2">Prêmios</th>
                       <th className="text-right p-2">Já garantido</th>
                       <th className="text-right p-2">Previsto total</th>
                     </tr>
@@ -282,17 +283,18 @@ export default function Relatorios() {
                         <td className="p-2 text-right">{p.aulas_realizadas}</td>
                         <td className="p-2 text-right">{p.aulas_previstas}</td>
                         <td className="p-2 text-right">{p.reposicoes_realizadas + p.reposicoes_previstas}</td>
-                        <td className="p-2 text-right">{brl(p.valor_realizado)}</td>
-                        <td className="p-2 text-right font-black">{brl(p.valor_previsto_total)}</td>
+                        <td className="p-2 text-right" title={(p.alunos_premiados || []).join(', ')}>{p.matriculas_premiadas ? `${p.matriculas_premiadas} · ${brl(p.valor_premios)}` : '-'}</td>
+                        <td className="p-2 text-right">{brl(p.valor_realizado + (p.valor_premios || 0))}</td>
+                        <td className={`p-2 text-right font-black ${p.acima_do_teto ? 'text-red-600' : ''}`} title={p.teto_salario ? `Teto de ${brl(p.teto_salario)} (prêmios fora)` : ''}>{brl(p.valor_previsto_total + (p.valor_premios || 0))}{p.acima_do_teto ? ' ⚠' : ''}</td>
                       </tr>
                     ))}
                     {folha.professores.length === 0 && (
-                      <tr><td colSpan={8} className="p-4 text-center text-[#8e7164] font-black uppercase text-[10px]">Nenhuma aula neste mês.</td></tr>
+                      <tr><td colSpan={9} className="p-4 text-center text-[#8e7164] font-black uppercase text-[10px]">Nenhuma aula neste mês.</td></tr>
                     )}
                   </tbody>
                   <tfoot>
                     <tr className="bg-[#feccba] font-black">
-                      <td className="p-2 uppercase" colSpan={6}>Total</td>
+                      <td className="p-2 uppercase" colSpan={7}>Total (com prêmios)</td>
                       <td className="p-2 text-right">{brl(folha.total_realizado)}</td>
                       <td className="p-2 text-right">{brl(folha.total_previsto)}</td>
                     </tr>

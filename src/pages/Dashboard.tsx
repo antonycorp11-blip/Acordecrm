@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { FeedAtividades } from '../components/FeedAtividades';
 import { GoogleDriveModal } from '../components/GoogleDriveModal';
+import { PainelMetaEquipe } from '../components/dashboard/PainelMetaEquipe';
 import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
 
 export default function Dashboard() {
@@ -217,6 +218,9 @@ export default function Dashboard() {
             <ChevronRight className="w-5 h-5" />
           </button>
         )}
+
+        {/* META DE MATRÍCULAS + EQUIPE (tempo real) */}
+        <PainelMetaEquipe />
 
         {/* TOP ROW */}
         <div className="grid grid-cols-3 gap-5">
