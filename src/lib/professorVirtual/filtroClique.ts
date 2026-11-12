@@ -1,19 +1,20 @@
-// Separa o clique do metrônomo da nota tocada.
-// O clique é um tom puro de FREQ_CLIQUE_HZ (fora da faixa das notas). A análise de nota recebe o som
-// já sem essa faixa (filtro no motor) e, por segurança, os quadros em que o clique chega ao microfone
-// não podem virar "ataque" nem "começo de som". Se o aluno tocou junto com o clique (o objetivo do
-// metrônomo!), o ataque é devolvido logo que o clique passa.
+// Separa o clique do metrônomo da nota tocada, sem atrasar a escuta.
+// O clique tem 3 kHz (onde o alto-falante do celular é mais alto) + 6 kHz (harmônico: a distorção do
+// alto-falante só gera 3, 9, 12 kHz... nada na faixa das notas). O motor corta essas faixas antes da
+// análise de nota. Por segurança, nos poucos quadros em que o clique chega ao microfone, o volume e o
+// "tem som" ficam como estavam (sem ataque falso); se o aluno tocou junto com o clique, o ataque é
+// devolvido no quadro seguinte. Nada é segurado depois: funciona até 500 BPM.
 
 import type { LeituraAudio } from './types';
 
-/** Tom único: dois tons no alto-falante do celular geram um terceiro (a diferença) dentro da faixa das notas. */
-export const FREQ_CLIQUE_HZ = 4800;
+export const FREQ_CLIQUE_HZ = 3000;
+export const FREQS_CLIQUE_HZ = [3000, 6000];
 
 // Horários (relógio do AudioContext, em ms) em que um clique foi agendado.
 const agenda: number[] = [];
 export function registrarClique(tempoMs: number): void {
   agenda.push(tempoMs);
-  if (agenda.length > 64) agenda.splice(0, agenda.length - 64);
+  if (agenda.length > 128) agenda.splice(0, agenda.length - 128);
 }
 export function limparCliques(): void { agenda.length = 0; }
 /** Saída do alto-falante + entrada do microfone passam de 300 ms em alguns Android. */
@@ -31,8 +32,10 @@ export interface OpcoesFiltroClique {
   subidaDb?: number;
   /** Abaixo disso a faixa é considerada silêncio, mesmo subindo. */
   minimoDb?: number;
-  /** Segurança: nunca segurar mais que isso seguido (som agudo contínuo não é clique). */
-  maxQuadros?: number;
+  /** A faixa do clique precisa chegar perto do volume da nota; o violão/teclado tem pouco nessa faixa. */
+  relacaoMinimaDb?: number;
+  /** Segurança: sem um clique novo (subida da faixa), nunca congelar mais que isso (som agudo contínuo não é clique). */
+  maxCongeladoMs?: number;
   /** Na saída do clique, subida de volume que indica nota nova tocada junto. */
   subidaNotaDb?: number;
 }
@@ -44,52 +47,59 @@ export interface FiltroClique {
 }
 
 export function criarFiltroClique(opcoes: OpcoesFiltroClique = {}): FiltroClique {
-  const { subidaDb = 12, minimoDb = -80, maxQuadros = 6, subidaNotaDb = 4 } = opcoes;
-  let pisoBanda: number | null = null;
+  const { subidaDb = 12, minimoDb = -80, relacaoMinimaDb = -12, maxCongeladoMs = 160, subidaNotaDb = 4 } = opcoes;
+  // Piso da faixa = menor valor dos últimos quadros: entre dois cliques a faixa sempre volta a cair,
+  // mesmo com clique a cada 120 ms (500 BPM).
+  const historicoBanda: number[] = [];
   let anterior: LeituraAudio | null = null; // última leitura fora do clique
-  let antesDoClique: LeituraAudio | null = null;
-  let quadrosNoClique = 0;
+  let base: LeituraAudio | null = null;     // leitura de antes do clique em andamento
+  let inicioCongeladoMs: number | null = null;
+  let menorNivel = Infinity;
 
   return {
     processar(l, bandaDb, esperado) {
-      const piso = pisoBanda ?? bandaDb;
-      const clique = esperado && bandaDb >= minimoDb && bandaDb >= piso + subidaDb && quadrosNoClique < maxQuadros;
+      const t = l.tempoMs;
+      const piso = historicoBanda.length ? Math.min(...historicoBanda) : bandaDb;
+      const bandaAnterior = historicoBanda.length ? historicoBanda[historicoBanda.length - 1] : bandaDb;
+      // Clique novo chegando (faixa subindo): em BPM alto os cliques emendam, e cada um renova o prazo.
+      if (inicioCongeladoMs !== null && bandaDb >= bandaAnterior + 6) inicioCongeladoMs = t;
+      historicoBanda.push(bandaDb);
+      if (historicoBanda.length > 6) historicoBanda.shift();
+      const congeladoHa = inicioCongeladoMs === null ? 0 : t - inicioCongeladoMs;
+      // Só congela se o clique de fato mexeu na leitura (volume subiu ou virou "ataque"); com uma nota
+      // forte soando, o resto do clique some embaixo dela e nada precisa ser segurado.
+      const mexeu = l.ataque || l.nivelDb >= (inicioCongeladoMs !== null ? (base?.nivelDb ?? -Infinity) : (anterior?.nivelDb ?? -Infinity)) + 3;
+      const clique = esperado && bandaDb >= minimoDb && bandaDb >= piso + subidaDb
+        && bandaDb - l.nivelDb >= relacaoMinimaDb && congeladoHa < maxCongeladoMs && (mexeu || inicioCongeladoMs !== null);
 
       if (clique) {
-        if (quadrosNoClique === 0) antesDoClique = anterior;
-        quadrosNoClique++;
-        const base = antesDoClique;
-        const tinhaSom = base?.temSom ?? false;
-        // Congela volume e "tem som" como estavam antes do clique; a nota (já filtrada) segue valendo se havia som.
-        return {
-          ...l,
-          ataque: false,
-          temSom: tinhaSom,
-          nivelDb: base?.nivelDb ?? l.nivelDb,
-          ...(tinhaSom ? {} : { midi: null, confianca: 0, alvoDominante: false }),
-        };
+        if (inicioCongeladoMs === null) { inicioCongeladoMs = t; base = anterior; menorNivel = Infinity; }
+        // O clique só soma volume: o menor entre o atual e o de antes acompanha a nota caindo,
+        // e a próxima nota (mesmo repetida) ainda aparece como subida.
+        const nivelDb = Math.min(l.nivelDb, base?.nivelDb ?? l.nivelDb);
+        menorNivel = Math.min(menorNivel, nivelDb);
+        if (!base?.temSom) return { ...l, ataque: false, temSom: false, nivelDb, midi: null, confianca: 0, alvoDominante: false };
+        // A nota já vem sem a faixa do clique: segue valendo, só sem ataque falso.
+        return { ...l, ataque: false, temSom: true, nivelDb };
       }
 
-      // Piso da faixa: desce rápido, sobe devagar (só fora do clique).
-      pisoBanda = pisoBanda === null ? bandaDb : bandaDb < pisoBanda ? bandaDb : pisoBanda + 0.05 * (bandaDb - pisoBanda);
-
       let saida = l;
-      if (quadrosNoClique > 0) {
-        const base = antesDoClique;
-        const subiu = l.temSom && (!base?.temSom || l.nivelDb >= base.nivelDb + subidaNotaDb);
+      if (inicioCongeladoMs !== null) {
+        const referenciaDb = Math.min(base?.nivelDb ?? Infinity, menorNivel);
+        const subiu = l.temSom && (!base?.temSom || l.nivelDb >= referenciaDb + subidaNotaDb);
         const trocouNota = l.temSom && l.midi !== null && base?.midi != null && l.confianca >= 0.6 && Math.abs(l.midi - base.midi) >= 0.6;
         if (!l.ataque && (subiu || trocouNota)) saida = { ...l, ataque: true };
-        quadrosNoClique = 0;
-        antesDoClique = null;
+        inicioCongeladoMs = null;
+        base = null;
       }
       anterior = saida;
       return saida;
     },
     reiniciar() {
-      pisoBanda = null;
+      historicoBanda.length = 0;
       anterior = null;
-      antesDoClique = null;
-      quadrosNoClique = 0;
+      base = null;
+      inicioCongeladoMs = null;
     },
   };
 }

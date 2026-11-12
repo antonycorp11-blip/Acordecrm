@@ -88,6 +88,8 @@ export interface MotorEscuta {
 export interface SeguidorExercicio {
   processar(l: LeituraAudio): ResultadoPasso | null;
   passoAtual(): number;
+  /** Andamento atual do metrônomo (ajusta a exigência de nota firme em BPM alto). */
+  definirBpm?(bpm: number): void;
   concluido(): boolean;
   reiniciar(): void;
 }

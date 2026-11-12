@@ -12,7 +12,7 @@ import {
   rmsDb,
   type AnalisadorQuadros,
 } from './analise';
-import { cliqueEsperado, criarFiltroClique, FREQ_CLIQUE_HZ, type FiltroClique } from './filtroClique';
+import { cliqueEsperado, criarFiltroClique, FREQ_CLIQUE_HZ, FREQS_CLIQUE_HZ, type FiltroClique } from './filtroClique';
 import type { Instrumento, LeituraAudio, MotorEscuta } from './types';
 
 const INTERVALO_LEITURA_MS = 32;
@@ -158,21 +158,21 @@ export function createMotorEscuta(): MotorEscuta {
         const mudo = contexto.createGain();
         mudo.gain.value = 0;
         fonte.connect(passaAlta);
-        // O clique do metrônomo (tom de 4,8 kHz) não pode chegar à análise de nota.
+        // O clique do metrônomo (3 kHz + 6 kHz) não pode chegar à análise de nota.
         const nosFiltro: AudioNode[] = [];
         let saidaFiltrada: AudioNode = passaAlta;
-        if (instrumento === 'violao') {
-          // Corte estreito: os harmônicos do violão (timbre/calibração) ficam intactos.
-          for (let i = 0; i < 2; i++) {
-            const corte = contexto.createBiquadFilter();
-            corte.type = 'notch';
-            corte.frequency.value = FREQ_CLIQUE_HZ;
-            corte.Q.value = 2;
-            saidaFiltrada.connect(corte);
-            saidaFiltrada = corte;
-            nosFiltro.push(corte);
-          }
-        }
+        const cortar = (hz: number) => {
+          // Corte estreito: os harmônicos do instrumento (timbre/calibração) ficam quase intactos.
+          const corte = contexto.createBiquadFilter();
+          corte.type = 'notch';
+          corte.frequency.value = hz;
+          corte.Q.value = 4;
+          saidaFiltrada.connect(corte);
+          saidaFiltrada = corte;
+          nosFiltro.push(corte);
+        };
+        cortar(FREQS_CLIQUE_HZ[0]);
+        if (instrumento === 'violao') { cortar(FREQS_CLIQUE_HZ[0]); cortar(FREQS_CLIQUE_HZ[1]); }
         if (instrumento === 'teclado') {
           for (let i = 0; i < 3; i++) {
             const passaBaixa = contexto.createBiquadFilter();

@@ -678,7 +678,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const [diagnosticoEstado, setDiagnosticoEstado] = useState<'parado' | 'gravando' | 'enviando' | 'enviado' | 'erro'>(diagnosticoInicial ? 'gravando' : 'parado');
   const [diagnosticoErro, setDiagnosticoErro] = useState('');
   const diagnosticoRef = useRef<{ inicioMs: number | null; bytes: number; leituras: object[] } | null>(diagnosticoInicial ? { inicioMs: null, bytes: 0, leituras: [] } : null);
-  const [bpmTreino, setBpmTreino] = useState(Math.max(40, Math.min(300, exercicio.bpm || 100)));
+  const [bpmTreino, setBpmTreino] = useState(Math.max(40, Math.min(500, exercicio.bpm || 100)));
   const bpmTreinoRef = useRef(bpmTreino);
   bpmTreinoRef.current = bpmTreino;
   const [metronomoLigado, setMetronomoLigado] = useState(false);
@@ -793,7 +793,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
           const latencia = ((contexto.outputLatency || contexto.baseLatency || 0) * 1000);
           temposCliqueRef.current.push(instante + latencia);
         }
-        proximoCliqueRef.current += 60000 / Math.max(40, Math.min(300, bpmTreinoRef.current));
+        proximoCliqueRef.current += 60000 / Math.max(40, Math.min(500, bpmTreinoRef.current));
       }
       temposCliqueRef.current = temposCliqueRef.current.filter(t => t > agora - 180);
     }, 25);
@@ -803,6 +803,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
 
 
   useTelaLigada(!concluido);
+  useEffect(() => { seguidor.definirBpm?.(bpmTreino); }, [seguidor, bpmTreino]);
 
   useEffect(() => {
     escuta.definirAlvo(exercicio.passos[seguidor.passoAtual()]?.midis.length === 1
@@ -810,16 +811,9 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
     ouvir((l) => {
       if (concluido || pausado) return;
       const agora = performance.now();
-      // O alto-falante pode voltar ao microfone: descarte o ataque e a curta cauda do clique.
-      // Leitura descartada não pode apagar o ataque: a próxima leitura válida o herda.
+      // O clique do metrônomo já sai da escuta no motor (corte de faixa + filtroClique), sem pausar a leitura.
+      // Leitura descartada abaixo (som instável) não pode apagar o ataque: a próxima leitura válida o herda.
       if (l.ataque) ataquePendenteRef.current = true;
-      // A janela de análise guarda o clique por ~85 ms; a nota real continua soando depois da máscara.
-      const intervaloClique = 60000 / Math.max(40, Math.min(300, bpmTreinoRef.current));
-      const fimMascara = Math.min(140, intervaloClique * 0.55);
-      if (metronomoLigado && cliqueLigado && temposCliqueRef.current.some(t => agora >= t - 30 && agora <= t + fimMascara)) {
-        setMidiLimpo(null);
-        return;
-      }
       // Teclado é afinado e tem altura fixa; voz cai entre as notas, desliza e oscila.
       if (exercicio.instrumento === 'teclado') {
         if (l.midi === null) alturasRecentesRef.current = [];
@@ -829,7 +823,11 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
           alturas.push(l.midi);
           if (alturas.length > 3) alturas.shift();
           const afinada = Math.abs(l.midi - Math.round(l.midi)) <= 0.25;
-          if (!afinada || alturas.length < 3 || Math.max(...alturas) - Math.min(...alturas) > 0.1) {
+          // Em BPM alto a nota dura pouco: duas leituras firmes bastam. Se o espectro já confirma a nota
+          // esperada (alvoDominante), não precisa esperar.
+          const leiturasFirmes = bpmTreinoRef.current >= 160 ? 2 : 3;
+          const firme = afinada && alturas.length >= leiturasFirmes && Math.max(...alturas.slice(-leiturasFirmes)) - Math.min(...alturas.slice(-leiturasFirmes)) <= 0.1;
+          if (!(afinada && l.alvoDominante) && !firme) {
             setMidiLimpo(null);
             return;
           }
@@ -936,11 +934,11 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
         <div className="flex items-center justify-between gap-3"><h3 className="font-black text-lg">Metrônomo</h3><span key={`${metronomoLigado}-${bpmTreino}`} className={`w-12 h-12 rounded-full border-4 border-black ${batidaVisual ? 'bg-[#ff6b00]' : 'bg-white'} ${metronomoLigado ? 'opacity-100' : 'opacity-30'}`} aria-hidden="true" /></div>
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2" aria-label="Controle de BPM">
-            {[-5, -1].map(passo => <button key={passo} type="button" aria-label={`${passo} BPM`} className={`${BOTAO_CLARO} min-w-12 min-h-12 text-lg`} onClick={() => setBpmTreino(valor => Math.max(40, Math.min(300, valor + passo)))}>{passo}</button>)}
+            {[-5, -1].map(passo => <button key={passo} type="button" aria-label={`${passo} BPM`} className={`${BOTAO_CLARO} min-w-12 min-h-12 text-lg`} onClick={() => setBpmTreino(valor => Math.max(40, Math.min(500, valor + passo)))}>{passo}</button>)}
             <span className="font-black text-3xl text-center min-w-20" aria-live="off">{bpmTreino}<span className="block text-xs">BPM</span></span>
-            {[1, 5].map(passo => <button key={passo} type="button" aria-label={`+${passo} BPM`} className={`${BOTAO_CLARO} min-w-12 min-h-12 text-lg`} onClick={() => setBpmTreino(valor => Math.max(40, Math.min(300, valor + passo)))}>+{passo}</button>)}
+            {[1, 5].map(passo => <button key={passo} type="button" aria-label={`+${passo} BPM`} className={`${BOTAO_CLARO} min-w-12 min-h-12 text-lg`} onClick={() => setBpmTreino(valor => Math.max(40, Math.min(500, valor + passo)))}>+{passo}</button>)}
           </div>
-          <input aria-label="BPM" type="range" min={40} max={300} value={bpmTreino} onChange={e => setBpmTreino(Number(e.target.value))} className="w-full h-10 touch-none" />
+          <input aria-label="BPM" type="range" min={40} max={500} value={bpmTreino} onChange={e => setBpmTreino(Number(e.target.value))} className="w-full h-10 touch-none" />
         </div>
         <div className="grid grid-cols-2 gap-2"><button type="button" className={BOTAO_CLARO} aria-pressed={metronomoLigado} onClick={() => { if (!metronomoLigado) { pararTesteSom(); contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current?.encerrar(); saidaCliqueRef.current = new SaidaClique(saidaEscolhida); } setMetronomoLigado(v => !v); }}>{metronomoLigado ? 'Desligar' : 'Ligar'}</button><button type="button" className={BOTAO_CLARO} aria-pressed={cliqueLigado} onClick={() => { if (!cliqueLigado) { contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current ??= new SaidaClique(saidaEscolhida); void contextoCliqueRef.current.resume(); } setCliqueLigado(v => !v); }}>{cliqueLigado ? 'Clique: ligado' : 'Clique: desligado'}</button></div>
         {podeVibrar && <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={vibrarPulso} onChange={e => setVibrarPulso(e.target.checked)} /> Vibrar no pulso</label>}

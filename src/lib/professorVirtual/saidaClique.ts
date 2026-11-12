@@ -1,5 +1,5 @@
 import { contextoAudioTreino } from './motor';
-import { FREQ_CLIQUE_HZ, registrarClique } from './filtroClique';
+import { FREQS_CLIQUE_HZ, registrarClique } from './filtroClique';
 
 export type RotaClique = 'A' | 'B' | 'C';
 export type SessaoAudio = 'auto' | 'playback' | 'play-and-record';
@@ -24,14 +24,18 @@ export function aplicarSessaoAudio(tipo: SessaoAudio): string {
   } catch { return 'recusada'; }
 }
 
-const DURACAO = 0.038;
+const DURACAO = 0.05;
 function pcm(taxa: number): Float32Array {
   const dados = new Float32Array(Math.ceil(taxa * DURACAO));
   let pico = 0;
   for (let i = 0; i < dados.length; i++) {
     const t = i / taxa;
-    // Tom único e agudo: a escuta corta essa faixa e reconhece o clique pelo horário agendado.
-    dados[i] = Math.min(1, t / 0.0015) * Math.exp(-t * 100) * Math.sin(2 * Math.PI * FREQ_CLIQUE_HZ * t);
+    // 3 kHz é onde o alto-falante do celular soa mais alto; 6 kHz é harmônico dele, então a distorção
+    // do alto-falante não cria som novo na faixa das notas (o antigo 3 + 4,5 kHz criava 1,5 kHz).
+    // Subida suave (4 ms): concentra a energia em 3/6 kHz, sem espirrar para a faixa das notas.
+    const subida = t < 0.004 ? 0.5 - 0.5 * Math.cos(Math.PI * t / 0.004) : 1;
+    dados[i] = subida * Math.exp(-t * 80) *
+      (0.7 * Math.sin(2 * Math.PI * FREQS_CLIQUE_HZ[0] * t) + 0.3 * Math.sin(2 * Math.PI * FREQS_CLIQUE_HZ[1] * t));
     pico = Math.max(pico, Math.abs(dados[i]));
   }
   for (let i = 0; i < dados.length; i++) dados[i] /= pico || 1;

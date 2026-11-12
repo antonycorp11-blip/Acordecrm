@@ -47,13 +47,13 @@ const listar = (nomes: string[]) =>
 const limitar = (v: number) => Math.min(1, Math.max(0, v));
 
 export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguidor = {}): SeguidorExercicio {
-  const ritmoRapido = (exercicio.bpm ?? 0) >= 100;
+  let ritmoRapido = (exercicio.bpm ?? 0) >= 100;
   const {
     toleranciaCents = 40,
     quaseCents = 70,
-    estabilidadeMs = 120,
+    estabilidadeMs: estabilidadeOpcao,
     variacaoEstavelCents = 50,
-    ignorarAtaqueMs = ritmoRapido ? 20 : 50,
+    ignorarAtaqueMs: ignorarAtaqueOpcao,
     confiancaMinima = 0.75,
     tempoMaxColetaMs = 900,
     silencioMinimoMs = 200,
@@ -66,6 +66,17 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
     similaridadeMinima = 0.7,
     quintaOpcional = true,
   } = opcoes;
+
+  let estabilidadeMs = 120;
+  let ignorarAtaqueMs = 50;
+  // O andamento do metrônomo muda durante o treino: em BPM alto cada nota dura pouco e a
+  // exigência de nota firme precisa caber dentro dela (500 BPM = 120 ms por nota).
+  const aplicarBpm = (bpm: number) => {
+    ritmoRapido = bpm >= 100;
+    ignorarAtaqueMs = ignorarAtaqueOpcao ?? (ritmoRapido ? 20 : 50);
+    estabilidadeMs = estabilidadeOpcao ?? (bpm >= 160 ? Math.max(48, Math.min(120, (60000 / bpm) * 0.4)) : 120);
+  };
+  aplicarBpm(exercicio.bpm ?? 0);
 
   const passos = exercicio.passos;
   let indice = 0;
@@ -295,6 +306,7 @@ export function createSeguidor(exercicio: ExercicioVirtual, opcoes: OpcoesSeguid
       return passo.midis.length > 1 ? processarAcorde(l, passo) : processarNota(l, passo);
     },
     passoAtual: () => indice,
+    definirBpm: (bpm: number) => aplicarBpm(bpm),
     concluido: () => indice >= passos.length,
     reiniciar() {
       indice = 0;
