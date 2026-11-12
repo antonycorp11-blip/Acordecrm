@@ -3916,16 +3916,18 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao importar CSV.' }); }
     });
 
-    app.get('/api/contatos-whatsapp/missao', requireAdminOuDono, async (_req: any, res) => {
+    app.get('/api/contatos-whatsapp/missao', requireAdminOuDono, async (req: any, res) => {
         try {
             const hoje = getDateBR();
             const todos = await fetchAllRows(() => supabase.from('contatos_whatsapp').select('id, telefone, primeira_conversa, mes, status, tentativas, ultimo_contato_em, atribuido_em, lead_id').order('primeira_conversa').order('id'));
-            const missao = todos.filter((c: any) => c.atribuido_em === hoje).slice(0, 10);
+            const missao = todos.filter((c: any) => c.atribuido_em === hoje);
+            // ?mais=1 puxa mais 10 contatos para hoje (o dono pode pedir quantas listas quiser)
+            const alvo = Math.max(10, missao.length + (req.query?.mais ? 10 : 0));
             const diaCuiaba = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse().join('-');
             const diasDesde = (iso: string) => Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${diaCuiaba(iso)}T12:00:00Z`)) / 86400000);
             const elegiveis = todos.filter((c: any) => c.status === 'pendente' || (c.status === 'nao_respondeu' && c.tentativas < 2 && c.ultimo_contato_em && diasDesde(c.ultimo_contato_em) >= 3));
             for (const c of elegiveis) {
-                if (missao.length >= 10) break;
+                if (missao.length >= alvo) break;
                 if (c.atribuido_em === hoje) continue;
                 const { data: atribuido, error: erroAtribuir } = await supabase.from('contatos_whatsapp').update({ atribuido_em: hoje }).eq('id', c.id).eq('status', c.status).select('id, telefone, primeira_conversa, mes, status, tentativas, ultimo_contato_em, atribuido_em, lead_id').maybeSingle();
                 if (erroAtribuir) throw erroAtribuir;
