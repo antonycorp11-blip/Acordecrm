@@ -37,17 +37,29 @@ def main(origem, destino):
             return None
         return user if 10 <= len(user) <= 15 else None
 
-    stats = db.execute('''
+    # Só mensagens de verdade: o tipo 7 (e os tipos >= 50) são avisos automáticos do WhatsApp
+    # ("criptografia", "conta comercial", "código de segurança mudou"...). Eles aparecem em
+    # chats de todos os contatos salvos no aparelho, mesmo sem conversa nenhuma.
+    REAL = 'timestamp > 0 and chat_row_id is not null and message_type <> 7 and message_type < 50'
+    stats = db.execute(f'''
         select chat_row_id, min(timestamp), max(timestamp), count(*),
                sum(case when from_me = 1 then 1 else 0 end)
-        from message where timestamp > 0 and chat_row_id is not null
-        group by chat_row_id''').fetchall()
+        from message where {REAL}
+        group by chat_row_id
+        having sum(case when from_me = 0 then 1 else 0 end) > 0''').fetchall()
     stats = {r[0]: r[1:] for r in stats}
 
+    # Contas comerciais (lojas, bancos, fornecedores) não são leads
+    comerciais = set()
+    if 'message_system_business_state' in tabelas:
+        comerciais = {r[0] for r in db.execute('''
+            select distinct m.chat_row_id from message_system_business_state b
+            join message m on m._id = b.message_row_id where coalesce(b.business_name, '') <> '' ''')}
+
     ultimo_de_quem = {}
-    for chat_id, from_me in db.execute('''
+    for chat_id, from_me in db.execute(f'''
         select m.chat_row_id, m.from_me from message m
-        join (select chat_row_id, max(timestamp) t from message where timestamp > 0 group by chat_row_id) u
+        join (select chat_row_id, max(timestamp) t from message where {REAL} group by chat_row_id) u
           on u.chat_row_id = m.chat_row_id and u.t = m.timestamp'''):
         ultimo_de_quem[chat_id] = 'escola' if from_me else 'contato'
 
@@ -55,7 +67,7 @@ def main(origem, destino):
     for chat_id, jid_id in db.execute('select _id, jid_row_id from chat'):
         tel = telefone_do_jid(jid_id)
         st = stats.get(chat_id)
-        if not tel or not st:
+        if not tel or not st or chat_id in comerciais:
             continue
         primeira, ultima, total, minhas = st
         atual = por_tel.get(tel)
