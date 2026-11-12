@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Music } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 // Página pública: o lead preenche em poucos segundos e cai direto no Atendimento.
 // Links úteis: /cadastro  ·  /cadastro?origem=instagram  ·  ?origem=google  ·  ?origem=anuncio  ·  ?origem=indicacao
@@ -70,6 +70,7 @@ export default function CadastroLead() {
     return (
       <div className="min-h-screen bg-[#fff8f6] flex items-center justify-center p-4">
         <div className="bg-white border-4 border-black shadow-[6px_6px_0_#000] p-6 max-w-md w-full text-center">
+          <img src="/logo-studio-acorde.png" alt="Studio Acorde" className="w-48 max-w-full h-auto mx-auto mb-5" />
           <div className="w-16 h-16 bg-[#00c853] border-4 border-black rounded-full flex items-center justify-center mx-auto mb-4">
             <Check className="w-8 h-8 text-white" />
           </div>
@@ -83,12 +84,10 @@ export default function CadastroLead() {
   return (
     <div className="min-h-screen bg-[#fff8f6] flex justify-center p-4 py-8">
       <form onSubmit={enviar} className="bg-white border-4 border-black shadow-[6px_6px_0_#000] p-5 sm:p-6 max-w-md w-full space-y-5 h-fit" noValidate>
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-[#ff6b00] border-2 border-black flex items-center justify-center shrink-0">
-            <Music className="w-6 h-6 text-white" />
-          </div>
+        <div className="space-y-3">
+          <img src="/logo-studio-acorde.png" alt="Studio Acorde" className="w-56 max-w-full h-auto" />
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-[#ff6b00]">Studio Acorde · Escola de Música</p>
+            <p className="text-xs font-black uppercase tracking-widest text-[#ff6b00]">Escola de Música · Cuiabá</p>
             <h1 className="text-xl font-black text-[#1a0f0a] leading-tight">Falta pouco! Leva 30 segundos.</h1>
           </div>
         </div>

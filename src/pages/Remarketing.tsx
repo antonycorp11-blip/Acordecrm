@@ -248,7 +248,7 @@ export default function Remarketing() {
       {/* topo */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div>
-          <h1 className="text-white font-black uppercase text-xl sm:text-2xl tracking-tight leading-none">Remarketing</h1>
+          <h1 className="text-white font-black uppercase text-xl sm:text-2xl tracking-tight leading-none flex items-center gap-3"><img src="/logo-studio-acorde.png" alt="" className="w-9 h-9 object-cover object-left" />Remarketing</h1>
           <p className="text-[#c9b3a8] text-xs font-bold mt-1">Toque no verde, envie no WhatsApp e volte para registrar.</p>
         </div>
         <button onClick={testarAviso} className="flex items-center gap-2 text-[#c9b3a8] hover:text-white border border-[#5a4034] px-3 py-2 font-bold text-xs">

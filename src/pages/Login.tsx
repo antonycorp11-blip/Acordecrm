@@ -127,6 +127,7 @@ export default function Login() {
 
         <div className="p-8">
           <div className="text-center mb-8">
+            <img src="/logo-studio-acorde.png" alt="Studio Acorde" className="w-56 max-w-full h-auto mx-auto mb-6" />
             <h1 className="text-3xl font-black text-black uppercase italic tracking-tighter mb-1 leading-none">
               {step === 'setup' ? 'ATIVAR CONTA' : 'LOGIN'}
             </h1>

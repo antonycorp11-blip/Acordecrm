@@ -67,15 +67,11 @@ export function Sidebar() {
       <div className={cn('p-6 pb-4 border-b-4 border-[#261812]', isCollapsed && 'px-3 flex justify-center')}>
         {!isCollapsed ? (
           <>
-            <h1 className="font-black text-[#a04100] leading-none tracking-tighter uppercase" style={{ fontSize: '2rem', lineHeight: 1.1 }}>
-              STUDIO<br />MASTER
-            </h1>
+            <h1><img src="/logo-studio-acorde.png" alt="Studio Acorde" className="w-full max-w-[200px] h-auto" /></h1>
             <p className="text-[#7b5647] text-[9px] font-black uppercase tracking-widest mt-1">CONSOLE DE COMANDO</p>
           </>
         ) : (
-          <div className="w-10 h-10 bg-[#a04100] rounded flex items-center justify-center">
-            <span className="text-white font-black text-sm">SM</span>
-          </div>
+          <img src="/logo-studio-acorde.png" alt="Studio Acorde" className="w-10 h-10 object-cover object-left" />
         )}
       </div>
 
