@@ -67,7 +67,7 @@ const lerPreferencias = (): Preferencias => {
 
 type ContatoAntigo = {
   id: number; telefone: string; mes: string; primeira_conversa: string;
-  status: string; tentativas: number; pode_contatar: boolean; lead_id: number | null;
+  status: string; tentativas: number; pode_contatar: boolean; lead_id: number | null; ultimo_contato_em?: string | null;
 };
 type Missao = { hoje: string; contatos: ContatoAntigo[]; pendentes: number };
 
@@ -127,6 +127,23 @@ export default function Remarketing() {
 
   const carregar = () => apiFetch('/api/remarketing').then(r => (r.ok ? r.json() : null)).then(d => d && setDados(d)).catch(() => toast.error('Não foi possível carregar a lista.'));
   const [carregandoMais, setCarregandoMais] = useState(false);
+  const [buscaNumero, setBuscaNumero] = useState('');
+  const [resultadosBusca, setResultadosBusca] = useState<ContatoAntigo[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const ultimaBusca = React.useRef(0);
+  const buscarNumero = async (texto: string) => {
+    setBuscaNumero(texto);
+    const digitos = texto.replace(/\D/g, '');
+    if (digitos.length < 4) { setResultadosBusca([]); return; }
+    const minha = ++ultimaBusca.current;
+    setBuscando(true);
+    try {
+      const r = await apiFetch('/api/contatos-whatsapp/buscar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: digitos }) });
+      const d = await r.json();
+      if (minha === ultimaBusca.current) setResultadosBusca(r.ok ? d : []);
+    } catch { if (minha === ultimaBusca.current) setResultadosBusca([]); }
+    finally { if (minha === ultimaBusca.current) setBuscando(false); }
+  };
   const carregarMissao = async (mais = false) => {
     try {
       const r = await apiFetch(`/api/contatos-whatsapp/missao${mais ? '?mais=1' : ''}`);
@@ -367,18 +384,34 @@ export default function Remarketing() {
                     const numero = c.telefone.length <= 11 ? `55${c.telefone}` : c.telefone;
                     const link = `https://wa.me/${numero}?text=${encodeURIComponent(textoContatoAntigo(c))}`;
                     const proximo = c.id === proximoMissao;
+                    const aberto = abertos.has(c.id); // já tocou no WhatsApp: falta confirmar
                     return (
-                      <div key={c.id} className={`border-4 p-3 flex flex-wrap items-center gap-3 ${proximo ? 'bg-[#fff8f6] border-[#ff6b00] shadow-[4px_4px_0_#ff6b00]' : 'bg-[#fff8f6] border-black'}`}>
-                        <div className="flex-1 min-w-[160px]">
-                          <p className="font-black text-lg leading-tight">{formatarTelefone(c.telefone)}</p>
-                          <p className="text-xs font-bold text-[#6b5448]">Conversou em {nomeMes(c.mes)} · {c.tentativas + 1}ª tentativa</p>
+                      <div key={c.id} className={`border-4 p-3 ${aberto ? 'bg-[#fff3c4] border-[#d99a00] shadow-[4px_4px_0_#d99a00]' : proximo ? 'bg-[#fff8f6] border-[#ff6b00] shadow-[4px_4px_0_#ff6b00]' : 'bg-[#fff8f6] border-black'}`}>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex-1 min-w-[160px]">
+                            <p className="font-black text-lg leading-tight">{formatarTelefone(c.telefone)}</p>
+                            <p className="text-xs font-bold text-[#6b5448]">{aberto ? 'Mensagem aberta no WhatsApp · confirme abaixo' : `Conversou em ${nomeMes(c.mes)} · ${c.tentativas + 1}ª tentativa`}</p>
+                          </div>
+                          <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => marcarAberto(c.id)}
+                            className={`flex items-center justify-center gap-2 border-4 border-black font-black uppercase text-sm min-h-[52px] px-5 w-full sm:w-auto active:translate-y-0.5 ${aberto ? 'bg-white text-[#0b3d1f]' : 'bg-[#25D366] text-[#0b3d1f] shadow-[3px_3px_0_#000] active:shadow-none'}`}>
+                            <MessageCircle className="w-5 h-5" /> {aberto ? 'Abrir de novo' : 'Abrir no WhatsApp'}
+                          </a>
                         </div>
-                        <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => registrarResultado(c, 'nao_respondeu', 'Enviado ✓ foi para o registro de hoje')}
-                          className="flex items-center justify-center gap-2 bg-[#25D366] text-[#0b3d1f] border-4 border-black font-black uppercase text-sm min-h-[52px] px-5 w-full sm:w-auto shadow-[3px_3px_0_#000] active:translate-y-0.5 active:shadow-none">
-                          <MessageCircle className="w-5 h-5" /> Enviar no WhatsApp
-                        </a>
-                        <button onClick={() => registrarResultado(c, 'numero_invalido')} disabled={salvandoId !== null}
-                          className="text-xs font-black uppercase text-[#8e7164] underline w-full sm:w-auto">Número inválido</button>
+                        {aberto ? (
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button onClick={() => registrarResultado(c, 'nao_respondeu', 'Envio confirmado ✓ foi para o registro de hoje')} disabled={salvandoId !== null}
+                              className="flex items-center justify-center gap-2 bg-[#1f9d55] text-white border-4 border-black font-black uppercase text-sm min-h-[52px] disabled:opacity-50">
+                              <Check className="w-5 h-5" /> {salvandoId === c.id ? '...' : 'Enviei'}
+                            </button>
+                            <button onClick={() => registrarResultado(c, 'numero_invalido', 'Marcado: sem WhatsApp')} disabled={salvandoId !== null}
+                              className="bg-white border-4 border-black font-black uppercase text-sm min-h-[52px] disabled:opacity-50">
+                              Sem WhatsApp
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={() => registrarResultado(c, 'numero_invalido', 'Marcado: sem WhatsApp')} disabled={salvandoId !== null}
+                            className="mt-2 text-xs font-black uppercase text-[#8e7164] underline">Sem WhatsApp / número inválido</button>
+                        )}
                       </div>
                     );
                   })}
@@ -397,6 +430,35 @@ export default function Remarketing() {
                   <RotateCcw className="w-5 h-5" /> {carregandoMais ? 'Carregando...' : pendentesMissao.length ? 'Carregar mais 10 contatos' : 'Quero mais: carregar outros 10'}
                 </button>
               )}
+
+              {/* busca: registrar respostas de qualquer dia */}
+              <div className="bg-[#fff8f6] border-4 border-black p-3 space-y-2">
+                <label className="flex items-center gap-2 bg-white border-2 border-black px-3">
+                  <Search className="w-5 h-5 text-[#6b5448]" />
+                  <input value={buscaNumero} onChange={e => buscarNumero(e.target.value)} inputMode="numeric" placeholder="Buscar número para registrar resposta"
+                    className="flex-1 py-2.5 text-base outline-none bg-transparent text-[#1a0f0a]" />
+                </label>
+                {buscaNumero.replace(/\D/g, '').length > 0 && buscaNumero.replace(/\D/g, '').length < 4 && <p className="text-xs font-bold text-[#6b5448]">Digite pelo menos 4 números.</p>}
+                {buscando && <p className="text-xs font-bold text-[#6b5448]">Buscando...</p>}
+                {!buscando && buscaNumero.replace(/\D/g, '').length >= 4 && resultadosBusca.length === 0 && <p className="text-xs font-bold text-[#6b5448]">Nenhum contato com esse número.</p>}
+                {resultadosBusca.map(c => (
+                  <div key={c.id} className="border-2 border-black bg-white p-2.5 flex flex-wrap items-center gap-2">
+                    <span className="font-black">{formatarTelefone(c.telefone)}</span>
+                    <span className={`text-[11px] font-black uppercase px-2 py-0.5 ${c.status === 'interessado' ? 'bg-[#25D366] text-[#0b3d1f]' : 'bg-[#eadbd3]'}`}>
+                      {c.status === 'pendente' ? 'Ainda não chamado' : c.status === 'nao_respondeu' ? 'Enviado · aguardando' : ROTULO_RESULTADO[c.status] || c.status}{c.lead_id ? ' · virou lead' : ''}
+                    </span>
+                    {c.ultimo_contato_em && <span className="text-[11px] font-bold text-[#6b5448]">{quando(c.ultimo_contato_em)}</span>}
+                    {!c.lead_id && (
+                      <div className="flex gap-1 ml-auto flex-wrap">
+                        {RESULTADOS.filter(r => r.valor !== 'nao_respondeu' && r.valor !== c.status).map(r => (
+                          <button key={r.valor} onClick={async () => { await registrarResultado(c, r.valor); buscarNumero(buscaNumero); }} disabled={salvandoId !== null}
+                            className={`border-2 border-black px-2 py-1.5 font-black text-[11px] text-[#1a0f0a] disabled:opacity-50 ${r.cor}`}>{salvandoId === c.id ? '...' : r.rotulo}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
 
               {/* registro de hoje */}
               {feitosMissao.length > 0 && (

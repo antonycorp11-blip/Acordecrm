@@ -3938,6 +3938,20 @@ async function startServer() {
         } catch (error: any) { res.status(500).json({ error: error.message || 'Erro ao carregar missão.' }); }
     });
 
+    // Busca por número para registrar respostas de contatos de qualquer dia
+    app.post('/api/contatos-whatsapp/buscar', requireAdminOuDono, async (req: any, res) => {
+        try {
+            let q = String(req.body?.q || '').replace(/\D/g, '');
+            if (q.length > 11 && q.startsWith('55')) q = q.slice(2);
+            if (q.length < 4) return res.json([]);
+            const { data, error } = await supabase.from('contatos_whatsapp')
+                .select('id, telefone, primeira_conversa, mes, status, tentativas, ultimo_contato_em, atribuido_em, lead_id')
+                .ilike('telefone', `%${q}%`).order('ultimo_contato_em', { ascending: false, nullsFirst: false }).limit(20);
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error: any) { res.status(500).json({ error: error.message || 'Erro na busca.' }); }
+    });
+
     app.post('/api/contatos-whatsapp/:id/resultado', requireAdminOuDono, async (req: any, res) => {
         try {
             const resultado = String(req.body?.resultado || '');
@@ -3947,8 +3961,10 @@ async function startServer() {
             const hoje = getDateBR();
             const ultimoDia = contato?.ultimo_contato_em ? new Date(contato.ultimo_contato_em).toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse().join('-') : '';
             const diasEspera = ultimoDia ? Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${ultimoDia}T12:00:00Z`)) / 86400000) : 0;
-            // já registrado hoje (ex.: "enviado" ao abrir o WhatsApp): só atualiza o resultado, sem gastar outra tentativa
-            const corrigindo = !!contato && contato.atribuido_em === hoje && ultimoDia === hoje;
+            // Resposta de quem já foi chamado (hoje ou antes, achado pela busca): só atualiza o resultado,
+            // sem gastar outra tentativa. "Não respondeu" (envio confirmado) segue a regra da missão.
+            const corrigindo = !!contato && resultado !== 'nao_respondeu'
+                && (!!contato.ultimo_contato_em || contato.atribuido_em !== hoje || contato.status !== 'pendente');
             if (!contato || (!corrigindo && (contato.atribuido_em !== hoje || !['pendente', 'nao_respondeu'].includes(contato.status) || contato.tentativas >= 2 || (contato.status === 'nao_respondeu' && diasEspera < 3)))) return res.status(409).json({ error: 'Contato fora da missão ou já concluído.' });
             let leadId = contato.lead_id;
             if (resultado === 'interessado') {
@@ -3963,8 +3979,8 @@ async function startServer() {
                     leadId = novoLead.id;
                 }
             }
-            const { data: atualizado, error: erroAtualizar } = await supabase.from('contatos_whatsapp').update({ status: resultado, tentativas: corrigindo ? contato.tentativas : contato.tentativas + 1,
-                ultimo_contato_em: corrigindo ? contato.ultimo_contato_em : new Date().toISOString(), lead_id: leadId || null }).eq('id', contato.id).eq('status', contato.status).eq('tentativas', contato.tentativas).select().maybeSingle();
+            const { data: atualizado, error: erroAtualizar } = await supabase.from('contatos_whatsapp').update({ status: resultado, tentativas: corrigindo ? Math.max(1, contato.tentativas) : contato.tentativas + 1,
+                ultimo_contato_em: corrigindo ? (contato.ultimo_contato_em || new Date().toISOString()) : new Date().toISOString(), lead_id: leadId || null }).eq('id', contato.id).eq('status', contato.status).eq('tentativas', contato.tentativas).select().maybeSingle();
             if (erroAtualizar) throw erroAtualizar;
             if (!atualizado) return res.status(409).json({ error: 'Contato já atualizado. Recarregue a missão.' });
             res.json(atualizado);
