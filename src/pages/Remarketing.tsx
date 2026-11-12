@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MessageCircle, Check, Copy, Download, Pencil, RotateCcw, Search, BellRing, Upload, ChevronDown, Target } from 'lucide-react';
+import { MessageCircle, Check, Copy, Download, Pencil, RotateCcw, Search, BellRing, Upload, ChevronDown, Target, Gift } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '../services/apiClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,12 +8,13 @@ import { useAuth } from '../contexts/AuthContext';
 // (no celular/tablet em pé a mensagem fica em cima). Um toque no verde abre o WhatsApp
 // com a mensagem pronta; o envio é sempre manual, um por um.
 
-type Aba = 'missao' | 'aula_marcada' | 'em_atendimento' | 'ex_alunos' | 'sem_interesse';
+type Aba = 'missao' | 'campanha_indicacao' | 'aula_marcada' | 'em_atendimento' | 'ex_alunos' | 'sem_interesse';
 type Grupo = Exclude<Aba, 'missao'>;
 type Modelo = { titulo: string; texto: string };
 
 const ABAS: { id: Aba; titulo: string; descricao: string }[] = [
   { id: 'missao', titulo: 'Missão do dia', descricao: 'Contatos antigos do WhatsApp: até 10 por dia, dos mais antigos primeiro. Sem resposta, volta em 3 dias (no máximo 2 tentativas).' },
+  { id: 'campanha_indicacao', titulo: 'Campanha: Indicação', descricao: 'Só alunos ativos (ou o responsável, quando o aluno é menor). A cada indicado que se matricular, o aluno ganha R$ 15 de desconto na mensalidade. Cada um recebe uma vez: o check verde fica salvo.' },
   { id: 'aula_marcada', titulo: 'Fez aula, não fechou', descricao: 'Marcaram aula experimental e não se matricularam.' },
   { id: 'em_atendimento', titulo: 'Conversou e sumiu', descricao: 'Chamaram, mas pararam de responder há mais de 2 dias.' },
   { id: 'ex_alunos', titulo: 'Ex-alunos', descricao: 'Saíram da escola e não têm dívida.' },
@@ -22,6 +23,12 @@ const ABAS: { id: Aba; titulo: string; descricao: string }[] = [
 
 // {saudacao} = Bom dia / Boa tarde / Boa noite · {nome} = primeiro nome · {instrumento}
 const MODELOS: Record<string, Modelo[]> = {
+  // {aluno} vira "você" ou o nome do filho(a) quando a mensagem vai para o responsável · {link} = cadastro já marcado como indicação
+  campanha_indicacao: [
+    { titulo: 'Completa', texto: '{saudacao}, {nome}! 🎶 Que alegria ter {aluno} com a gente no Studio Acorde!\n\nEstamos com uma campanha de indicação: a cada pessoa que você indicar e que se matricular, você ganha *R$ 15 de desconto* na sua mensalidade. Indicou 2? São R$ 30. E não tem limite!\n\nÉ só me mandar o nome e o WhatsApp de quem você quer indicar, ou enviar este link para a pessoa se cadastrar:\n{link}' },
+    { titulo: 'Curta', texto: '{saudacao}, {nome}! Conhece alguém que quer aprender música? 🎶 Cada pessoa indicada por você que se matricular no Studio Acorde vale *R$ 15 de desconto* na sua mensalidade, sem limite. Me manda o contato aqui ou compartilha o link: {link}' },
+    { titulo: 'Amigos e família', texto: '{saudacao}, {nome}! Música fica ainda melhor com amigos 🎸 Indique amigos ou familiares para o Studio Acorde: cada um que se matricular dá *R$ 15 de desconto* na sua mensalidade. Link para cadastro: {link}' }
+  ],
   missao_1: [
     { titulo: 'Retomar conversa', texto: '{saudacao}! Aqui é do Studio Acorde 🎶 Há um tempo você conversou com a gente sobre aulas de música. Abrimos novos horários e a aula experimental continua gratuita. Quer que eu te mande os horários livres?' },
     { titulo: 'Curta', texto: '{saudacao}! Tudo bem? Aqui é do Studio Acorde 🎶 Ainda tem vontade de aprender música? Temos horários novos essa semana.' },
@@ -143,7 +150,9 @@ export default function Remarketing() {
   const editarTexto = (txt: string) => salvarPrefs({ ...prefs, editados: { ...prefs.editados, [chaveTexto]: txt } });
   const restaurarTexto = () => { const editados = { ...prefs.editados }; delete editados[chaveTexto]; salvarPrefs({ ...prefs, editados }); };
 
-  const montarTexto = (base: string, p?: { nome?: string; instrumento?: string }) => base
+  const montarTexto = (base: string, p?: { nome?: string; instrumento?: string; aluno?: string | null; aluno_nome?: string }) => base
+    .replace(/\{link\}/g, `https://acordecrm.vercel.app/cadastro?origem=indicacao${p?.aluno_nome ? `&por=${encodeURIComponent(String(p.aluno_nome).trim())}` : ''}`)
+    .replace(/\{aluno\}/g, p?.aluno ? primeiroNome(p.aluno) : 'você')
     .replace(/\{saudacao\}/g, saudacao())
     .replace(/,\s*\{nome\}/g, p?.nome ? `, ${primeiroNome(p.nome)}` : '')
     .replace(/\{nome\}/g, p?.nome ? primeiroNome(p.nome) : '')
@@ -193,12 +202,14 @@ export default function Remarketing() {
 
   // ---------- grupos ----------
   const grupo = aba === 'missao' ? null : aba;
+  // na campanha o check vale para sempre; nos outros grupos, só no dia
+  const jaFeito = (g: Aba | null, p: any) => (g === 'campanha_indicacao' ? !!p.ultimo_contato : ehHoje(p.ultimo_contato));
   const lista = useMemo(() => {
     if (!grupo) return [];
     const l = (dados?.[grupo] || []).filter(p => !busca || String(p.nome).toLowerCase().includes(busca.toLowerCase()));
-    return esconderHoje ? l.filter(p => !ehHoje(p.ultimo_contato) || contatadosAgora.has(`${p.tipo}-${p.id}`)) : l;
+    return esconderHoje ? l.filter(p => !jaFeito(grupo, p) || contatadosAgora.has(`${p.tipo}-${p.id}`)) : l;
   }, [dados, grupo, busca, esconderHoje, contatadosAgora]);
-  const contatadosHoje = grupo ? (dados?.[grupo] || []).filter(p => ehHoje(p.ultimo_contato)).length : 0;
+  const contatadosHoje = grupo ? (dados?.[grupo] || []).filter(p => jaFeito(grupo, p)).length : 0;
 
   const registrar = async (p: any) => {
     if (!grupo) return;
@@ -237,7 +248,7 @@ export default function Remarketing() {
 
   const contagem = (id: Aba) => id === 'missao'
     ? contatosMissao.length - concluidosMissao
-    : (dados?.[id] || []).filter(p => !ehHoje(p.ultimo_contato)).length;
+    : (dados?.[id] || []).filter(p => !jaFeito(id, p)).length;
   const info = ABAS.find(a => a.id === aba)!;
   const exemplo = grupo ? lista[0] : undefined;
 
@@ -264,6 +275,7 @@ export default function Remarketing() {
             <button key={a.id} role="tab" aria-selected={ativo} onClick={() => { setAba(a.id); setEditando(false); setBusca(''); }}
               className={`shrink-0 flex items-center gap-2 px-4 py-3 border-2 border-black font-black uppercase text-xs sm:text-sm min-h-[52px] ${ativo ? 'bg-[#ff6b00] text-white' : 'bg-[#fff8f6] text-[#1a0f0a] shadow-[3px_3px_0_#000]'}`}>
               {a.id === 'missao' && <Target className="w-4 h-4" />}
+              {a.id === 'campanha_indicacao' && <Gift className="w-4 h-4" />}
               {a.titulo}
               <span className={`min-w-[26px] px-1.5 py-0.5 text-xs text-center ${ativo ? 'bg-black/25' : 'bg-[#1a0f0a] text-white'}`}>{contagem(a.id)}</span>
             </button>
@@ -402,7 +414,7 @@ export default function Remarketing() {
                   <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar nome" className="flex-1 py-2.5 text-base outline-none bg-transparent text-[#1a0f0a]" />
                 </label>
                 <button onClick={() => setEsconderHoje(!esconderHoje)} className={`${botao} ${esconderHoje ? '!bg-black text-white' : ''}`}>
-                  {esconderHoje ? `Ocultando ${contatadosHoje} de hoje` : 'Mostrando todos'}
+                  {esconderHoje ? `Ocultando ${contatadosHoje} ${grupo === 'campanha_indicacao' ? 'já enviados' : 'de hoje'}` : 'Mostrando todos'}
                 </button>
                 <button onClick={copiarTelefones} className={botao}><Copy className="w-4 h-4" /> Telefones</button>
                 <button onClick={baixarCsv} className={botao}><Download className="w-4 h-4" /> CSV</button>
@@ -412,19 +424,19 @@ export default function Remarketing() {
                 <p className="text-white font-black uppercase text-center py-10">Carregando...</p>
               ) : lista.length === 0 ? (
                 <div className="bg-[#fff8f6] border-4 border-dashed border-[#8e7164] p-10 text-center">
-                  <p className="font-black uppercase text-lg">{esconderHoje && contatadosHoje > 0 ? 'Todo mundo deste grupo já foi contatado hoje 💪' : 'Ninguém neste grupo'}</p>
+                  <p className="font-black uppercase text-lg">{esconderHoje && contatadosHoje > 0 ? (grupo === 'campanha_indicacao' ? 'Campanha enviada para todos os alunos ativos 🎉' : 'Todo mundo deste grupo já foi contatado hoje 💪') : 'Ninguém neste grupo'}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
                   {lista.map(p => {
                     const link = `https://wa.me/${p.whatsapp}?text=${encodeURIComponent(montarTexto(textoModelo, p))}`;
-                    const feito = ehHoje(p.ultimo_contato);
+                    const feito = jaFeito(grupo, p);
                     return (
                       <div key={`${p.tipo}-${p.id}`} className={`border-4 p-3 flex items-center gap-3 ${feito ? 'bg-[#eaf9ef] border-[#1f9d55]' : 'bg-[#fff8f6] border-black'}`}>
                         <div className="flex-1 min-w-0">
                           <p className="font-black uppercase leading-tight truncate flex items-center gap-1.5">{feito && <Check className="w-4 h-4 shrink-0 text-[#1f9d55]" strokeWidth={4} />}{p.nome}</p>
                           <p className="text-xs font-bold text-[#6b5448] truncate">
-                            {p.instrumento || 'Instrumento não informado'}{p.dias_parado != null ? ` · parado há ${p.dias_parado}d` : ''}
+                            {p.aluno ? `Responsável por ${primeiroNome(p.aluno)} · ` : ''}{p.instrumento || 'Instrumento não informado'}{p.dias_parado != null ? ` · parado há ${p.dias_parado}d` : ''}
                           </p>
                           <p className={`text-[11px] font-black uppercase ${ehHoje(p.ultimo_contato) ? 'text-emerald-700' : 'text-[#8e7164]'}`}>
                             {quando(p.ultimo_contato)}{p.contatos > 1 ? ` · ${p.contatos} contatos` : ''}

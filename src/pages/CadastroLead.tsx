@@ -29,7 +29,7 @@ export default function CadastroLead() {
   const [telefone, setTelefone] = useState('');
   const [curso, setCurso] = useState<string>('');
   const [origem, setOrigem] = useState<string>(veioDeAnuncio ? 'trafego_pago' : (ORIGENS.some(o => o.id === origemUrl) ? origemUrl : ''));
-  const [indicadoPor, setIndicadoPor] = useState('');
+  const [indicadoPor, setIndicadoPor] = useState(() => (params.get('por') || '').slice(0, 80));
   const [website, setWebsite] = useState(''); // campo invisível contra robôs
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');

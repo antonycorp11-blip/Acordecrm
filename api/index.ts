@@ -3997,13 +3997,15 @@ async function startServer() {
         try {
             const agora = Date.now();
             const dias = (ts: any) => (ts ? Math.max(0, Math.floor((agora - new Date(ts).getTime()) / 86400000)) : null);
+            let alunosAtivos: any[] = [];
             const [{ data: leads }, { data: cursos }, { data: contatos }, { data: exAlunos }, { data: mural }] = await Promise.all([
                 supabase.from('leads').select('id, nome, telefone, status, interesse_curso_id, origem, data_criacao, data_atualizacao'),
                 supabase.from('cursos').select('id, nome'),
-                supabase.from('remarketing_contatos').select('tipo, ref_id, contatado_em').order('contatado_em', { ascending: false }),
+                supabase.from('remarketing_contatos').select('tipo, ref_id, grupo, contatado_em').order('contatado_em', { ascending: false }),
                 supabase.from('alunos').select('id, nome, telefone, responsavel_telefone, matriculas(curso_id, status)').eq('status', 'arquivado'),
-                supabase.from('mural_vergonha').select('aluno_id, nome_cliente')
-            ]);
+                supabase.from('mural_vergonha').select('aluno_id, nome_cliente'),
+                supabase.from('alunos').select('id, nome, telefone, responsavel_nome, responsavel_telefone, matriculas(curso_id, status)').eq('status', 'ativo')
+            ]).then(r => { alunosAtivos = (r[5] as any).data || []; return r.slice(0, 5) as any; });
             const nomeCurso = (id: any) => (cursos || []).find((c: any) => Number(c.id) === Number(id))?.nome || null;
             const ultimo: Record<string, { em: string; qtd: number }> = {};
             (contatos || []).forEach((c: any) => {
@@ -4016,7 +4018,7 @@ async function startServer() {
                 const u = ultimo[`${tipo}:${id}`];
                 return { tipo, id, nome: String(nome || '').trim() || 'Sem nome', whatsapp: fone(telefone), instrumento, dias_parado: dias(desde), ultimo_contato: u?.em || null, contatos: u?.qtd || 0, ...extra };
             };
-            const grupos: Record<string, any[]> = { aula_marcada: [], em_atendimento: [], sem_interesse: [], ex_alunos: [] };
+            const grupos: Record<string, any[]> = { aula_marcada: [], em_atendimento: [], sem_interesse: [], ex_alunos: [], campanha_indicacao: [] };
             const doisDias = 2 * 86400000;
             (leads || []).forEach((l: any) => {
                 const st = l.status || 'em_atendimento';
@@ -4038,6 +4040,22 @@ async function startServer() {
                 const it = item('aluno', a.id, a.nome, tel, nomeCurso((a.matriculas || [])[0]?.curso_id), null);
                 if (!it.whatsapp || telefonesLead.has(it.whatsapp.slice(-8))) return;
                 grupos.ex_alunos.push(it);
+            });
+            // Campanha de indicação: só alunos ativos; o check é próprio da campanha
+            const campanha: Record<number, { em: string; qtd: number }> = {};
+            (contatos || []).filter((c: any) => c.grupo === 'campanha_indicacao' && c.tipo === 'aluno').forEach((c: any) => {
+                if (!campanha[c.ref_id]) campanha[c.ref_id] = { em: c.contatado_em, qtd: 0 };
+                campanha[c.ref_id].qtd++;
+            });
+            alunosAtivos.forEach((a: any) => {
+                if (/(teste|\[professor\]|novo aluno na escola)/i.test(a.nome || '')) return;
+                const resp = String(a.responsavel_nome || '').trim();
+                const tel = resp ? (a.responsavel_telefone || a.telefone) : (a.telefone || a.responsavel_telefone);
+                const it = item('aluno', a.id, resp || a.nome, tel, nomeCurso((a.matriculas || [])[0]?.curso_id), null, { aluno: resp ? a.nome : null, aluno_nome: a.nome });
+                if (!it.whatsapp) return;
+                it.ultimo_contato = campanha[a.id]?.em || null;
+                it.contatos = campanha[a.id]?.qtd || 0;
+                grupos.campanha_indicacao.push(it);
             });
             // nunca contatados primeiro; depois quem foi contatado há mais tempo
             Object.values(grupos).forEach((l) => l.sort((a, b) => (a.ultimo_contato ? 1 : 0) - (b.ultimo_contato ? 1 : 0) || String(a.ultimo_contato || '').localeCompare(String(b.ultimo_contato || '')) || (b.dias_parado || 0) - (a.dias_parado || 0)));
