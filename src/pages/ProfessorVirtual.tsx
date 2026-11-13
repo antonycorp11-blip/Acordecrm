@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiFetch } from '../services/apiClient';
 import ViolaoPixel from '../components/ViolaoPixel';
 import TecladoPixel from '../components/TecladoPixel';
+import Metronomo, { lerEstiloMetronomo, salvarEstiloMetronomo, type EstiloMetronomo } from '../components/professorVirtual/Metronomo';
 import { gerarEscalaTeclado, gerarHanon, nomeTonicaTeclado, TIPOS_ESCALA_TECLADO, type TipoEscalaTeclado, type MaoTeclado } from '../lib/professorVirtual/teclado';
 import { createMotorEscuta, createSeguidor } from '../lib/professorVirtual';
 import { contextoAudioTreino } from '../lib/professorVirtual/motor';
@@ -694,6 +695,11 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const [statusSessao, setStatusSessao] = useState('');
   const [moedasSessao, setMoedasSessao] = useState(0); // Só nesta sessão; nunca persiste nem altera economia.
   const [combo, setCombo] = useState(0);
+  const comboRef = useRef(0);
+  const [maiorCombo, setMaiorCombo] = useState(0);
+  const [mostrarAjustes, setMostrarAjustes] = useState(false);
+  const [estiloMetronomo, setEstiloMetronomo] = useState<EstiloMetronomo>(lerEstiloMetronomo);
+  const [inicioVisualMs, setInicioVisualMs] = useState<number | null>(null);
   const [efeito, setEfeito] = useState<{ tipo: 'acerto' | 'erro'; id: number } | null>(null);
   const contextoCliqueRef = useRef<AudioContext | null>(null);
   const saidaCliqueRef = useRef<SaidaClique | null>(null);
@@ -780,6 +786,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   useEffect(() => {
     if (!metronomoLigado || concluido || pausado) return;
     inicioRitmoRef.current = performance.now() + 80;
+    setInicioVisualMs(inicioRitmoRef.current);
     proximoCliqueRef.current = inicioRitmoRef.current;
     temposCliqueRef.current = [];
     const timer = window.setInterval(() => {
@@ -867,14 +874,16 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
       if (resultado.correto) {
         setAcertos(v => v + 1);
         setMoedasSessao(v => v + 1);
-        setCombo(v => v + 1);
+        comboRef.current += 1;
+        setCombo(comboRef.current);
+        setMaiorCombo(maior => Math.max(maior, comboRef.current));
         if (metronomoLigado && inicioRitmoRef.current !== null) {
           const periodoNota = 60000 / bpmTreino / 4;
           const ataque = agora - (resultado.atrasoAprovacaoMs ?? 0);
           const desvio = ataque - inicioRitmoRef.current - Math.round((ataque - inicioRitmoRef.current) / periodoNota) * periodoNota;
           setRitmo(`${Math.abs(desvio) <= 25 ? 'No tempo' : desvio < 0 ? 'Adiantada' : 'Atrasada'} · ${Math.round(Math.abs(desvio))} ms`);
         }
-      } else setCombo(0);
+      } else { comboRef.current = 0; setCombo(0); }
       setEfeito({ tipo: resultado.correto ? 'acerto' : 'erro', id: agora });
       if (resultado.correto && resultado.atrasoAprovacaoMs !== undefined) setUltimoAtrasoMs(resultado.atrasoAprovacaoMs);
       if (seguidor.concluido()) {
@@ -900,38 +909,34 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const posicoesAtuais = exercicio.instrumento === 'violao' ? posicoes[Math.min(indice, total - 1)] : [];
   const posicoesProximas = exercicio.instrumento === 'violao' ? posicoes.slice(indice + 1, indice + 5).flat() : [];
 
+  const estrelas = tentativas === 0 ? 0 : percentual >= 90 ? 3 : percentual >= 70 ? 2 : 1;
+  const volumePct = leitura?.nivelDb != null && Number.isFinite(leitura.nivelDb) ? Math.max(0, Math.min(100, ((leitura.nivelDb + 70) / 70) * 100)) : 0;
+  const ouvidoCorreto = midiLimpo !== null && passo.midis.includes(midiLimpo);
+  const encerrarTreino = () => { if (voltarAoAluno) aoSair(); else { setConcluido(true); escuta.desligar(); } };
+
   return (
-    <div className="space-y-4 md:landscape:grid md:landscape:grid-cols-3 md:landscape:gap-3 md:landscape:space-y-0 lg:landscape:grid-cols-4">
-      <div className="md:landscape:col-span-full">
-        <p className="font-black">Volta {volta} · Tempo total {tempoFormatado} · Meta {restanteFormatado}</p>
-        {metaAtingida && !concluido && <p role="status" className="mt-2 border-4 border-black bg-[#ffcc22] p-3 text-lg font-black">⏱ Meta alcançada! Continue no loop ou toque em Encerrar.</p>}
-        <div className="flex justify-between text-base font-black text-[#261812] mb-1">
-          <span className="min-w-0 truncate pr-2">{exercicio.titulo}</span>
-          <span className="shrink-0">{feitos}/{total}</span>
-        </div>
-        <div className="h-4 border-4 border-black bg-white overflow-hidden">
-          <div className="h-full bg-[#ff6b00] transition-all" style={{ width: `${(feitos / total) * 100}%` }} />
-        </div>
-      </div>
+    <div className="-mx-3 sm:mx-0 min-h-[calc(100dvh-110px)] flex flex-col bg-[radial-gradient(circle_at_50%_30%,#3a1d0e,#1a0f0a_70%)] text-white border-4 border-black shadow-[6px_6px_0_#000] overflow-x-hidden">
+      <style>{`@keyframes pv-alvo-pulso { 15% { transform: scale(1.06) } } @keyframes pv-selo { 0% { opacity: 0; transform: translateY(12px) rotate(8deg) } 20% { opacity: 1 } 100% { opacity: 0; transform: translateY(-18px) rotate(8deg) } } @keyframes pv-erro { 25% { transform: translateX(-5px) } 50% { transform: translateX(5px) } 75% { transform: translateX(-3px) } } @media (prefers-reduced-motion: reduce) { .pv-alvo, .pv-selo, .pv-erro { animation: none !important } }`}</style>
+      {concluido ? <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4 py-8 text-center max-w-md mx-auto w-full">
+        <h2 className="font-['Press_Start_2P'] text-[#ffcc22] text-base leading-loose">FASE<br />CONCLUÍDA!</h2>
+        <div className="text-4xl" aria-label={`${estrelas} estrelas`}>{[0, 1, 2].map(i => <span key={i} className={i < estrelas ? '' : 'grayscale opacity-30'}>⭐</span>)}</div>
+        <div className="grid grid-cols-2 gap-3 w-full">{[['PRECISÃO', `${percentual}%`], ['MOEDAS', `🪙 ${moedasSessao}`], ['MAIOR COMBO', `×${maiorCombo}`], ['TEMPO', tempoFormatado]].map(([titulo, valor]) => <div key={titulo} className="border-4 border-black bg-[#fff8f6] text-[#261812] p-3 shadow-[4px_4px_0_#000]"><small className="font-['Press_Start_2P'] text-[8px]">{titulo}</small><strong className="block mt-2 text-lg font-['Press_Start_2P']">{valor}</strong></div>)}</div>
+        <p className="font-bold">{volta - 1} voltas completas · {acertos} acertos em {tentativas} tentativas.</p>
+        <button type="button" onClick={aoReiniciar} className={`${BOTAO_LARANJA} w-full`}>JOGAR DE NOVO</button>
+        <button type="button" onClick={aoSair} className={`${BOTAO_CLARO} w-full`}>VOLTAR À LISTA</button>
+      </div> : <>
+        <header className="bg-black border-b-4 border-[#ff6b00] p-2 flex items-center gap-2"><button type="button" onClick={encerrarTreino} aria-label="Encerrar treino" className="shrink-0 min-w-11 min-h-11 border-[3px] border-white text-white font-black text-xl">✕</button><div className="min-w-0 flex-1"><div className="flex items-center gap-1 text-[9px] font-['Press_Start_2P']"><span className="truncate">{exercicio.titulo}</span><span className="text-[#c9b3a8] shrink-0">VOLTA {volta}</span></div><div className="h-3 border-[3px] border-white bg-[#3a2820] mt-2"><div className="h-full bg-[repeating-linear-gradient(90deg,#ff6b00_0_8px,#ff8a33_8px_16px)]" style={{ width: `${(feitos / total) * 100}%` }} /></div><span className="sr-only">{feitos} de {total} passos feitos</span></div><div className="shrink-0 border-[3px] border-black bg-[#ffcc22] text-black px-2 py-1 font-['Press_Start_2P'] text-[10px]">🪙 {moedasSessao}</div></header>
+        <div className="flex justify-between items-center px-3 py-2"><span className="text-[#ffcc22] font-['Press_Start_2P'] text-[10px]">COMBO <b className="text-white text-base">×{combo}</b> 🔥</span><span aria-label={`${estrelas} estrelas`}>{[0, 1, 2].map(i => <span key={i} className={i < estrelas ? '' : 'grayscale opacity-30'}>⭐</span>)}</span></div>
+        {metaAtingida && <p role="status" className="mx-3 mb-2 border-2 border-black bg-[#ffcc22] text-black p-2 font-bold">⏱ Meta alcançada! Continue ou encerre.</p>}
+        <div className="md:landscape:grid md:landscape:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:landscape:gap-4 flex-1 min-w-0 px-3 pb-3"><div className="relative border-4 border-black bg-gradient-to-b from-[#2b1d17] to-[#1a0f0a] p-3 text-center shadow-[6px_6px_0_#000] min-w-0"><p className="font-['Press_Start_2P'] text-[10px] text-[#c9b3a8]">{pausado ? 'PAUSADO' : 'TOQUE AGORA'}</p><div key={efeito?.tipo === 'erro' ? efeito.id : 'alvo'} className={`relative mx-auto my-4 w-[min(150px,48vw)] h-[min(150px,48vw)] border-[6px] border-white bg-[#ff6b00] shadow-[0_0_0_6px_#000,0_0_30px_#ff6b0088] flex flex-col items-center justify-center ${efeito?.tipo === 'erro' ? 'pv-erro' : 'pv-alvo'}`} style={efeito?.tipo === 'erro' ? { animation: 'pv-erro .3s ease-out' } : { transform: metronomoLigado && !pausado && batidaVisual ? 'scale(1.06)' : 'scale(1)', transition: 'transform 90ms ease-out' }}><strong className={`font-['Press_Start_2P'] text-white leading-relaxed break-words px-1 ${rotulo.length > 12 ? 'text-xs' : rotulo.length > 7 ? 'text-base' : 'text-2xl'}`}>{modoMemoria ? '?' : rotulo}</strong>{!modoMemoria && posicoesAtuais[0] && <span className="absolute bottom-2 text-[9px] font-black">CORDA {posicoesAtuais[0].corda} · CASA {posicoesAtuais[0].casa}</span>}</div>{!modoMemoria && <p className="text-base font-bold min-h-6">{passo.dica || (passo.dedo ? `Use o dedo ${passo.dedo}` : 'Ouça e toque a nota indicada')}</p>}{!modoMemoria && proximos.length > 0 && <div className="flex flex-wrap justify-center items-center gap-2 mt-4"><span className="font-['Press_Start_2P'] text-[8px] text-[#c9b3a8]">DEPOIS ▶</span>{proximos.map((p, i) => <span key={i} className="max-w-24 truncate border-[3px] border-black bg-[#fff8f6] text-black px-2 py-1 font-['Press_Start_2P'] text-[9px]">{rotuloPasso(p)}</span>)}</div>}{efeito?.tipo === 'acerto' && ultimo?.correto && <span key={efeito.id} className="pv-selo absolute top-4 right-2 border-[3px] border-black bg-[#2ecc71] text-black px-2 py-1 font-['Press_Start_2P'] text-[9px] shadow-[3px_3px_0_#000]" style={{ animation: 'pv-selo 1.2s ease-out both' }}>{ultimo.pontuacao < .9 ? 'QUASE' : 'PERFEITO! +10'}</span>}{efeito?.tipo === 'erro' && ultimo && <p key={efeito.id} role="status" className="border-2 border-black bg-[#ffd9d6] text-[#8f1410] p-2 mt-3 font-bold">{ultimo.mensagem}</p>}</div>
+          <div className="min-w-0 mt-4 md:landscape:mt-0 flex flex-col justify-center">{exercicio.instrumento === 'violao' ? <ViolaoPixel esperadas={modoMemoria ? [] : posicoesAtuais} proximas={modoMemoria ? [] : posicoesProximas} midiOuvido={midiAoVivo(leitura)} posicaoOuvida={!leitura?.temSom ? null : posicaoOuvida} efeito={efeito} /> : <TecladoPixel esperado={modoMemoria ? null : passo.midis.length === 1 ? passo.midis[0] : null} proximas={modoMemoria ? [] : proximos.flatMap(p => p.midis)} dedo={modoMemoria ? undefined : passo.dedo} midiOuvido={!leitura?.temSom ? null : midiLimpo} midiCorreto={ouvidoCorreto} efeito={efeito} />}</div></div>
+        <div className="mx-3 mb-3 flex items-center gap-2 font-black text-xs"><span className="shrink-0">🎤 OUVINDO</span><div className="flex-1 h-3 border-[3px] border-black bg-[#3a2820]"><div className="h-full bg-gradient-to-r from-[#2ecc71] via-[#ffcc22] to-[#ff6b00]" style={{ width: `${volumePct}%` }} /></div><span className="text-white min-w-10 text-right">{textoOuvido(leitura, passo.midis.length > 1)} {ouvidoCorreto ? '✓' : ''}</span></div>
+        <footer className="sticky bottom-0 z-30 bg-black border-t-4 border-[#ff6b00] p-2 flex items-center gap-2"><div className="min-w-0 flex-1 flex items-center gap-2 border-[3px] border-white p-1"><Metronomo bpm={bpmTreino} ligado={metronomoLigado && !pausado} inicioMs={inicioVisualMs} estilo={estiloMetronomo} compacto /><span className="font-['Press_Start_2P'] text-[9px] whitespace-nowrap">{bpmTreino}<small className="block text-[#c9b3a8] mt-1">BPM</small></span></div><button type="button" onClick={() => setPausado(v => !v)} className="min-w-11 min-h-11 bg-[#ff6b00] border-[3px] border-black font-black" aria-label={pausado ? 'Continuar' : 'Pausar'}>{pausado ? '▶' : '❚❚'}</button><button type="button" onClick={() => setMostrarAjustes(true)} className="min-w-11 min-h-11 bg-[#fff8f6] text-black border-[3px] border-black text-xl font-black" aria-label="Abrir ajustes">⚙</button></footer>
+      </>}
 
-      <div className="grid grid-cols-2 gap-2 md:landscape:col-span-full"><button type="button" className={modoMemoria ? BOTAO_CLARO : BOTAO_LARANJA} aria-pressed={!modoMemoria} onClick={() => setModoMemoria(false)}>Mostrar notas</button><button type="button" className={modoMemoria ? BOTAO_LARANJA : BOTAO_CLARO} aria-pressed={modoMemoria} onClick={() => { setModoMemoria(true); setMostrarTablatura(false); }}>De cor</button></div>
-
-      <div className={`${CARTAO} relative space-y-3 md:landscape:order-4`}>
-        <style>{`@keyframes pv-moeda-sessao { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-48px) } } @media (prefers-reduced-motion: reduce) { .pv-moeda-sessao { display: none } }`}</style>
-        {efeito?.tipo === 'acerto' && <span key={efeito.id} className="pv-moeda-sessao absolute left-1/2 top-4 w-5 h-5 bg-yellow-300 border-[3px] border-black shadow-[3px_3px_0_#ad6900] pointer-events-none" style={{ animation: 'pv-moeda-sessao .65s ease-out both' }} aria-hidden="true" />}
-        <div className="flex justify-between font-black text-lg"><span>🪙 {moedasSessao} moedas</span><span>Combo ×{combo}</span></div>
-        <p className="text-xs font-semibold">Moedas desta sessão de treino.</p>
-        <button type="button" className={`${BOTAO_LARANJA} w-full`} disabled={diagnosticoEstado === 'enviando' || diagnosticoEstado === 'enviado'} onClick={() => {
-          if (diagnosticoEstado === 'gravando') void enviarDiagnostico();
-          else if (diagnosticoEstado === 'erro' && diagnosticoRef.current?.leituras.length) void enviarDiagnostico();
-          else { diagnosticoRef.current = { inicioMs: null, bytes: 0, leituras: [] }; setDiagnosticoErro(''); setDiagnosticoEstado('gravando'); }
-        }}>{diagnosticoEstado === 'gravando' ? 'Parar e enviar diagnóstico' : diagnosticoEstado === 'enviando' ? 'Enviando diagnóstico…' : diagnosticoEstado === 'enviado' ? 'Diagnóstico enviado' : diagnosticoEstado === 'erro' ? 'Tentar enviar diagnóstico novamente' : 'Gravar diagnóstico'}</button>
-        {diagnosticoEstado === 'gravando' && <p className="text-sm font-bold">Gravando até 60 s de leituras, sem áudio. Ao terminar, o envio é automático.</p>}
-        {diagnosticoEstado === 'erro' && <p role="alert" className="text-sm font-bold text-red-700">Erro ao enviar: {diagnosticoErro}</p>}
-      </div>
-
-      <div className={`${CARTAO} space-y-3 md:landscape:order-5`}>
-        <div className="flex items-center justify-between gap-3"><h3 className="font-black text-lg">Metrônomo</h3><span key={`${metronomoLigado}-${bpmTreino}`} className={`w-12 h-12 rounded-full border-4 border-black ${batidaVisual ? 'bg-[#ff6b00]' : 'bg-white'} ${metronomoLigado ? 'opacity-100' : 'opacity-30'}`} aria-hidden="true" /></div>
+      {mostrarAjustes && <div className="fixed inset-0 z-[100] bg-black/75 flex items-end sm:items-center justify-center" onClick={() => setMostrarAjustes(false)}><section role="dialog" aria-modal="true" aria-label="Ajustes do treino" onClick={e => e.stopPropagation()} className="w-full sm:max-w-xl max-h-[90dvh] overflow-y-auto rounded-t-xl sm:rounded-none bg-[#fff8f6] text-[#261812] border-4 border-black p-4 space-y-5 shadow-[6px_6px_0_#000]"><div className="sticky top-0 z-10 bg-[#fff8f6] flex justify-between items-center border-b-4 border-black pb-2"><h2 className="font-['Press_Start_2P'] text-xs">⚙ AJUSTES</h2><button type="button" aria-label="Fechar ajustes" onClick={() => setMostrarAjustes(false)} className="min-w-11 min-h-11 border-2 border-black text-xl font-black">✕</button></div>
+              <div className="space-y-3">
+        <h3 className="font-black text-lg">Metrônomo</h3>
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2" aria-label="Controle de BPM">
             {[-5, -1].map(passo => <button key={passo} type="button" aria-label={`${passo} BPM`} className={`${BOTAO_CLARO} min-w-12 min-h-12 text-lg`} onClick={() => setBpmTreino(valor => Math.max(40, Math.min(500, valor + passo)))}>{passo}</button>)}
@@ -957,69 +962,25 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
         {ritmo && <p aria-live="polite" className="font-black">{ritmo}</p>}
       </div>
 
-      {concluido ? (
-        <div className={`${CARTAO} text-center md:landscape:order-3`}>
-          <p className="text-xl font-black uppercase">Resumo do treino</p>
-          <p className="text-7xl font-black text-[#ff6b00] my-3">{percentual}%</p>
-          <p className="text-base font-semibold">{volta - 1} voltas completas · {tempoFormatado} · {acertos} acertos em {tentativas} tentativas.</p>
-        </div>
-      ) : (
-        <div className={`${CARTAO} text-center md:landscape:order-3`}>
-          <p className="text-sm font-black uppercase tracking-wide text-[#7b5647]">{pausado ? 'Pausado' : 'Toque agora'}</p>
-          <p className={`font-black break-words my-1 ${modoMemoria ? 'text-3xl' : rotulo.length > 8 ? 'text-4xl' : 'text-7xl'}`}>{modoMemoria ? exercicio.titulo.replace(/ · .*/, '') : rotulo}</p>
-          {!modoMemoria && passo.dica && <p className="text-lg font-semibold">{passo.dica}</p>}
-          {!modoMemoria && proximos.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <span className="text-sm font-bold text-[#7b5647]">Depois:</span>
-              {proximos.map((p, i) => (
-                <span key={i} className="border-2 border-black bg-[#fff1eb] px-2 py-0.5 text-base font-bold">{rotuloPasso(p)}</span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
-      {exercicio.instrumento === 'violao' && (
-        <div className="space-y-3 md:landscape:order-2 md:landscape:col-span-full">
-          <ViolaoPixel esperadas={modoMemoria ? [] : posicoesAtuais} proximas={modoMemoria ? [] : posicoesProximas} midiOuvido={concluido ? null : midiAoVivo(leitura)} posicaoOuvida={concluido || !leitura?.temSom ? null : posicaoOuvida} efeito={efeito} />
-          {!modoMemoria && <button type="button" onClick={() => setMostrarTablatura((valor) => !valor)} aria-pressed={mostrarTablatura} className={`${BOTAO_CLARO} w-full`}>
-            {mostrarTablatura ? 'Ocultar tablatura' : 'Mostrar tablatura'}
-          </button>}
-          {!modoMemoria && mostrarTablatura && <Tablatura passos={exercicio.passos} indice={indice} />}
-        </div>
-      )}
-
-      {exercicio.instrumento === 'teclado' && <div className="md:landscape:order-2 md:landscape:col-span-full"><TecladoPixel esperado={modoMemoria ? null : passo.midis.length === 1 ? passo.midis[0] : null} proximas={modoMemoria ? [] : proximos.flatMap(p => p.midis)} dedo={modoMemoria ? undefined : passo.dedo} midiOuvido={concluido || !leitura?.temSom ? null : midiLimpo} midiCorreto={midiLimpo != null && passo.midis.includes(midiLimpo)} efeito={efeito} /></div>}
-
-      {ultimo && (
-        <div aria-live="polite" className={`border-4 border-black p-3 ${ultimo.correto ? 'bg-[#d9f7d9] text-[#0f5d1e]' : 'bg-[#ffd9d6] text-[#8f1410]'}`}>
-          <p className="text-lg font-black">{ultimo.correto ? 'Certo!' : 'Ainda não'}</p>
-          {!modoMemoria && <p className="text-base font-semibold">{ultimo.mensagem}</p>}
-          {!modoMemoria && typeof ultimo.desvioCents === 'number' && (
-            <p className="text-sm mt-1">Afinação: {ultimo.desvioCents > 0 ? '+' : ''}{Math.round(ultimo.desvioCents)} cents</p>
-          )}
-        </div>
-      )}
-
-      {!modoMemoria && ultimoAtrasoMs !== null && <p className="text-xs text-[#7b5647]">Última nota aprovada: {ultimoAtrasoMs} ms após o ataque</p>}
-
-      {!concluido && (
-        <div className="space-y-3">
-          <div className="flex items-baseline justify-between gap-3 text-[#261812]">
-            <span className="text-base font-bold">Ouvindo:</span>
-            <span className="text-2xl font-black text-right">{textoOuvido(leitura, passo.midis.length > 1)}</span>
-          </div>
-          <MedidorVolume leitura={leitura} />
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 md:landscape:order-6 md:landscape:col-span-full md:landscape:sticky md:landscape:bottom-0 md:landscape:z-30 md:landscape:bg-[#fff8f6] md:landscape:py-2">
-        {!concluido && <button type="button" onClick={() => setPausado(v => !v)} className={BOTAO_LARANJA}>{pausado ? 'Continuar' : 'Pausar'}</button>}
-        {!concluido && <button type="button" onClick={() => { if (voltarAoAluno) aoSair(); else { setConcluido(true); escuta.desligar(); } }} className={BOTAO_CLARO}>Encerrar</button>}
-        {concluido && <button type="button" onClick={aoSair} className={BOTAO_CLARO}>Voltar à lista</button>}
+        <div className="border-t-2 border-black pt-3 space-y-3"><h3 className="font-black text-lg">Estilo do metrônomo</h3><div className="grid grid-cols-3 gap-2">{(['bolinha', 'pendulo', 'mascote'] as const).map(estilo => <button type="button" key={estilo} aria-pressed={estiloMetronomo === estilo} onClick={() => { setEstiloMetronomo(estilo); salvarEstiloMetronomo(estilo); }} className={`min-h-11 border-2 border-black px-1 text-xs font-black capitalize ${estiloMetronomo === estilo ? 'bg-[#ff6b00] text-white' : 'bg-white text-[#261812]'}`}>{estilo === 'pendulo' ? 'Pêndulo' : estilo}</button>)}</div></div>
+        <div className="border-t-2 border-black pt-3 space-y-3"><h3 className="font-black text-lg">Treino</h3><div className="grid grid-cols-2 gap-2"><button type="button" className={modoMemoria ? BOTAO_CLARO : BOTAO_LARANJA} onClick={() => setModoMemoria(false)}>Mostrar notas</button><button type="button" className={modoMemoria ? BOTAO_LARANJA : BOTAO_CLARO} onClick={() => { setModoMemoria(true); setMostrarTablatura(false); }}>De cor</button></div><p className="font-bold">Meta: {metaMinutos} min · Tempo: {tempoFormatado} · Restante: {restanteFormatado}</p>{exercicio.instrumento === 'violao' && !modoMemoria && <><button type="button" onClick={() => setMostrarTablatura(v => !v)} className={`${BOTAO_CLARO} w-full`}>{mostrarTablatura ? 'Ocultar tablatura' : 'Mostrar tablatura'}</button>{mostrarTablatura && <Tablatura passos={exercicio.passos} indice={indice} />}</>}{!modoMemoria && ultimoAtrasoMs !== null && <p>Última nota aprovada: {ultimoAtrasoMs} ms após o ataque</p>}<ModoTeste leitura={leitura} extra={`Ruído calibrado: ${ruidoDb.toFixed(1)} dB | Passo: ${indice + 1}`} /></div>
+        <div className="border-t-2 border-black pt-3">      <div className="space-y-3">
+        <style>{`@keyframes pv-moeda-sessao { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-48px) } } @media (prefers-reduced-motion: reduce) { .pv-moeda-sessao { display: none } }`}</style>
+        {efeito?.tipo === 'acerto' && <span key={efeito.id} className="pv-moeda-sessao absolute left-1/2 top-4 w-5 h-5 bg-yellow-300 border-[3px] border-black shadow-[3px_3px_0_#ad6900] pointer-events-none" style={{ animation: 'pv-moeda-sessao .65s ease-out both' }} aria-hidden="true" />}
+        <h3 className="font-black text-lg">Diagnóstico</h3>
+        <button type="button" className={`${BOTAO_LARANJA} w-full`} disabled={diagnosticoEstado === 'enviando' || diagnosticoEstado === 'enviado'} onClick={() => {
+          if (diagnosticoEstado === 'gravando') void enviarDiagnostico();
+          else if (diagnosticoEstado === 'erro' && diagnosticoRef.current?.leituras.length) void enviarDiagnostico();
+          else { diagnosticoRef.current = { inicioMs: null, bytes: 0, leituras: [] }; setDiagnosticoErro(''); setDiagnosticoEstado('gravando'); }
+        }}>{diagnosticoEstado === 'gravando' ? 'Parar e enviar diagnóstico' : diagnosticoEstado === 'enviando' ? 'Enviando diagnóstico…' : diagnosticoEstado === 'enviado' ? 'Diagnóstico enviado' : diagnosticoEstado === 'erro' ? 'Tentar enviar diagnóstico novamente' : 'Gravar diagnóstico'}</button>
+        {diagnosticoEstado === 'gravando' && <p className="text-sm font-bold">Gravando até 60 s de leituras, sem áudio. Ao terminar, o envio é automático.</p>}
+        {diagnosticoEstado === 'erro' && <p role="alert" className="text-sm font-bold text-red-700">Erro ao enviar: {diagnosticoErro}</p>}
       </div>
 
-      {!modoMemoria && <ModoTeste leitura={leitura} extra={`Ruído calibrado: ${ruidoDb.toFixed(1)} dB | Passo: ${indice + 1}`} />}
+</div>
+      </section></div>}
+
     </div>
   );
 }

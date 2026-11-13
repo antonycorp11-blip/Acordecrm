@@ -31,25 +31,25 @@ export default function TecladoPixel({ esperado, proximas = [], dedo, midiOuvido
     }
     setSimulada(true);
   };
-  const classeMarca = (midi: number) => midiOuvido === midi ? (midiCorreto ? 'bg-emerald-400 text-black' : 'bg-rose-500 text-white') : esperado === midi ? 'bg-amber-300 text-black' : '';
-  return <div ref={quadro} className={`relative overflow-hidden border-4 border-black bg-[#111b35] text-white shadow-[6px_6px_0_#000] ${simulada ? 'fixed inset-0 z-[100] flex flex-col' : ''} ${telaCheia ? 'h-dvh w-screen flex flex-col' : ''} w-full md:landscape:min-h-[220px]`}>
+  const classeMarca = (midi: number) => midiOuvido === midi ? (midiCorreto ? 'bg-emerald-400 text-black' : 'bg-rose-500 text-white') : esperado === midi ? 'bg-[#ff6b00] text-white' : '';
+  return <div ref={quadro} className={`relative overflow-hidden border-4 border-black bg-[#1a0f0a] text-white shadow-[6px_6px_0_#000] ${simulada ? 'fixed inset-0 z-[100] flex flex-col' : ''} ${telaCheia ? 'h-dvh w-screen flex flex-col' : ''} w-full md:landscape:min-h-[220px]`}>
     <style>{`@keyframes teclado-particula { 0% { opacity:1; transform:translate(0,0) scale(1) } 100% { opacity:0; transform:translate(var(--dx),var(--dy)) scale(.2) } } .teclado-particula { animation:teclado-particula .65s ease-out both } @media (orientation:landscape) { :fullscreen .teclado-faixa > div { height:calc(100dvh - 72px) } } @media (prefers-reduced-motion:reduce) { .teclado-particula { display:none } .teclado-faixa { scroll-behavior:auto !important } }`}</style>
-    <div className="flex items-center justify-between gap-2 p-3 border-b-4 border-black bg-[#273867]"><div><p className="text-xs tracking-[.3em] text-cyan-200 font-black">PIXEL KEYS / TECLADO</p><p className="font-black text-lg">{esperado == null ? 'Escute e toque' : `${NOME[esperado % 12]}${Math.floor(esperado / 12) - 1}`} <span className="text-amber-300">{dedo ? `· dedo ${dedo}` : ''}</span></p></div><button type="button" onClick={alternarTela} className="shrink-0 border-2 border-white px-2 py-1 text-xs font-black bg-[#ff6b00] text-black">{telaCheia || simulada ? 'Sair da tela cheia' : 'Tela cheia'}</button></div>
+    <div className="flex items-center justify-between gap-2 p-3 border-b-4 border-black bg-[#261812]"><div><p className="text-xs tracking-[.3em] text-[#ffcc22] font-black">TECLADO</p><p className="font-black text-lg">{esperado == null ? 'Escute e toque' : `${NOME[esperado % 12]}${Math.floor(esperado / 12) - 1}`} <span className="text-[#ffcc22]">{dedo ? `· dedo ${dedo}` : ''}</span></p></div><button type="button" onClick={alternarTela} className="shrink-0 min-h-11 border-2 border-white px-2 py-1 text-xs font-black bg-[#ff6b00] text-black">{telaCheia || simulada ? 'Sair da tela cheia' : 'Tela cheia'}</button></div>
     {(simulada || telaCheia) && <p className="text-center text-xs font-bold py-1 bg-[#111b35] landscape:hidden">No celular, gire para a horizontal ↻</p>}
-    <div ref={faixa} className="teclado-faixa w-full overflow-x-auto overscroll-x-contain p-3 pb-5 flex-1 flex items-center md:landscape:py-2" aria-label="Teclado de Dó2 a Dó7"><div className="relative flex h-52 min-w-max md:landscape:h-[min(26vh,250px)] border-4 border-black bg-black p-1 shadow-[inset_0_8px_0_#3b5287]" style={{ imageRendering: 'pixelated' }}>
+    <div ref={faixa} className="teclado-faixa w-full overflow-x-auto overscroll-x-contain p-3 pb-5 flex-1 flex items-center md:landscape:py-2" aria-label="Teclado de Dó2 a Dó7"><div className="relative flex h-52 min-w-max md:landscape:h-[min(26vh,250px)] border-4 border-black bg-black p-1 shadow-[inset_0_8px_0_#4a3529]" style={{ imageRendering: 'pixelated' }}>
       {brancas.map(m => {
         const ativo = esperado === m || midiOuvido === m;
-        return <div key={m} className={`relative w-[47px] h-full border-x-2 border-b-[7px] border-black rounded-b-md bg-gradient-to-b ${ativo ? 'from-amber-100 via-white to-cyan-200' : 'from-[#d6e9fa] via-white to-[#c3cadb]'} shadow-[inset_3px_0_0_#fff,inset_-3px_0_0_#8193ae]`}>
-          {proximas.includes(m) && !ativo && <span className="absolute bottom-9 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-400 opacity-50 rotate-45" />}
+        return <div key={m} className={`relative w-[47px] h-full border-x-2 border-b-[7px] border-black rounded-b-sm bg-gradient-to-b ${esperado === m ? 'from-[#ff8a33] via-[#ff6b00] to-[#c84a00]' : 'from-[#fffdf6] via-[#f1e9d8] to-[#d9cdb6]'} shadow-[inset_3px_0_0_#fff,inset_-3px_0_0_#a39580]`}>
+          {proximas.includes(m) && !ativo && <span className="absolute bottom-9 left-1/2 -translate-x-1/2 w-7 h-8 border-[3px] border-dashed border-[#ffcc22]" />}
           {ativo && <span className={`absolute bottom-8 left-1/2 -translate-x-1/2 min-w-8 h-8 grid place-items-center border-2 border-black font-black shadow-[2px_2px_0_#000] ${classeMarca(m)}`}>{esperado === m ? dedo || '●' : '♪'}</span>}
-          {m % 12 === 0 && <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] font-black text-slate-600">Dó{Math.floor(m / 12) - 1}</span>}
+          {m % 12 === 0 && <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] font-black ${esperado === m ? 'text-white' : 'text-[#6b5448]'}`}>Dó{Math.floor(m / 12) - 1}{m === 60 ? ' ●' : ''}</span>}
         </div>;
       })}
       {Array.from({ length: FIM - INICIO + 1 }, (_, i) => INICIO + i).filter(m => PRETAS.has(m % 12)).map(m => {
         const antes = brancas.filter(b => b < m).length;
         const ativo = esperado === m || midiOuvido === m;
-        return <div key={m} className={`absolute top-1 z-10 w-[29px] h-[61%] border-[3px] border-black rounded-b-md bg-gradient-to-r ${ativo ? 'from-[#19213f] via-[#3c4973] to-[#10172f]' : 'from-[#101827] via-[#303c56] to-[#0a1020]'} shadow-[3px_5px_0_#080d1a,inset_2px_2px_0_#7084ad]`} style={{ left: 4 + antes * 47 - 14 }}>
-          {proximas.includes(m) && !ativo && <span className="absolute bottom-5 left-2 w-2 h-2 bg-slate-400 opacity-50 rotate-45" />}
+        return <div key={m} className={`absolute top-1 z-10 w-[27px] h-[62%] border-[3px] border-black rounded-b-sm bg-gradient-to-r ${esperado === m ? 'from-[#ff8a33] via-[#ff6b00] to-[#ad3d00]' : 'from-[#3a3a3a] via-[#0d0d0d] to-black'} shadow-[3px_5px_0_#000,inset_2px_2px_0_#777]`} style={{ left: 4 + antes * 47 - 13.5 }}>
+          {proximas.includes(m) && !ativo && <span className="absolute bottom-5 left-1 w-4 h-7 border-[3px] border-dashed border-[#ffcc22]" />}
           {ativo && <span className={`absolute bottom-4 left-1/2 -translate-x-1/2 min-w-7 h-7 grid place-items-center border-2 border-black font-black shadow-[2px_2px_0_#000] ${classeMarca(m)}`}>{esperado === m ? dedo || '●' : '♪'}</span>}
         </div>;
       })}

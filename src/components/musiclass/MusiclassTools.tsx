@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, Play, Square, Activity, X, Info, Settings, ShieldAlert, Award } from 'lucide-react';
+import Metronomo, { lerEstiloMetronomo, salvarEstiloMetronomo, type EstiloMetronomo } from '../professorVirtual/Metronomo';
 
 interface MusiclassToolsProps {
   onClose?: () => void;
@@ -15,13 +16,12 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
   const [bpm, setBpm] = useState<number>(120);
   const [isPlayingMetronome, setIsPlayingMetronome] = useState<boolean>(false);
   const [timeSignature, setTimeSignature] = useState<number>(4); // 4/4 por padrão
-  const [currentBeat, setCurrentBeat] = useState<number>(0);
-  const [ledFlash, setLedFlash] = useState<boolean>(false);
+  const [estiloMetronomo, setEstiloMetronomo] = useState<EstiloMetronomo>(lerEstiloMetronomo);
+  const [inicioVisualMs, setInicioVisualMs] = useState<number | null>(null);
 
   // Customização Metrônomo
   const [metronomeTimer, setMetronomeTimer] = useState<number>(0); // segundos restantes
   const [metronomeTimerLimit, setMetronomeTimerLimit] = useState<number>(0); // limite total escolhido
-  const [metronomeAngle, setMetronomeAngle] = useState<number>(0);
   const metronomeTimerIntervalId = useRef<number | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -43,30 +43,23 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
 
   const playClick = (time: number, beat: number) => {
     if (!audioContextRef.current) return;
-    const osc = audioContextRef.current.createOscillator();
-    const gainNode = audioContextRef.current.createGain();
-
-    osc.connect(gainNode);
-    gainNode.connect(audioContextRef.current.destination);
-
-    osc.type = 'sine';
     const isFirstBeat = beat === 0;
-    osc.frequency.setValueAtTime(isFirstBeat ? 1600 : 1000, time); // Cliques mais encorpados e definidos
-    
-    gainNode.gain.setValueAtTime(1.5, time); // Volume aumentado para maior visibilidade
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
+    const ctx = audioContextRef.current;
+    const tamanho = Math.ceil(ctx.sampleRate * .05);
+    const buffer = ctx.createBuffer(1, tamanho, ctx.sampleRate);
+    const dados = buffer.getChannelData(0);
+    for (let i = 0; i < tamanho; i++) {
+      const t = i / ctx.sampleRate;
+      const ataque = Math.min(1, t / .004);
+      dados[i] = (Math.sin(2 * Math.PI * 3000 * t) * .7 + Math.sin(2 * Math.PI * 6000 * t) * .3) * ataque * Math.exp(-80 * t);
+    }
+    const fonte = ctx.createBufferSource();
+    const ganho = ctx.createGain();
+    fonte.buffer = buffer;
+    ganho.gain.value = isFirstBeat ? .95 : .75;
+    fonte.connect(ganho).connect(ctx.destination);
+    fonte.start(time);
 
-    osc.start(time);
-    osc.stop(time + 0.04);
-
-    // Dispara animação síncrona com o tempo do som
-    const delay = Math.max(0, (time - audioContextRef.current.currentTime) * 1000);
-    setTimeout(() => {
-      setLedFlash(true);
-      setCurrentBeat(beat);
-      setMetronomeAngle(beat % 2 === 0 ? 28 : -28); // Alterna o ângulo do pêndulo
-      setTimeout(() => setLedFlash(false), 80);
-    }, delay);
   };
 
   const scheduler = () => {
@@ -88,13 +81,12 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
         window.clearInterval(schedulerTimerRef.current);
       }
       setIsPlayingMetronome(false);
-      setCurrentBeat(0);
-      setMetronomeAngle(0);
     } else {
       setIsPlayingMetronome(true);
       beatRef.current = 0;
       if (audioContextRef.current) {
         nextNoteTimeRef.current = audioContextRef.current.currentTime + 0.05;
+        setInicioVisualMs(performance.now() + 50);
       }
       schedulerTimerRef.current = window.setInterval(scheduler, lookahead);
     }
@@ -131,7 +123,6 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
             if (schedulerTimerRef.current) window.clearInterval(schedulerTimerRef.current);
             if (metronomeTimerIntervalId.current) window.clearInterval(metronomeTimerIntervalId.current);
             playEndChime();
-            setMetronomeAngle(0);
             return 0;
           }
           return prev - 1;
@@ -597,30 +588,9 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
               </button>
             </div>
 
-            {/* Novo Metrônomo Físico (Pêndulo Oscilante Retrô) */}
-            <div className="relative w-full h-28 bg-[#1a0a05] border-4 border-black flex justify-center overflow-hidden shadow-inner p-2">
-              <span className="absolute top-1 text-[7px] font-black text-white/20 uppercase tracking-widest">VISOR DE FREQUÊNCIA</span>
-              
-              {/* Pêndulo */}
-              <div 
-                className="absolute origin-bottom w-1 bg-yellow-500 rounded"
-                style={{
-                  height: '75px',
-                  bottom: '8px',
-                  transform: `rotate(${isPlayingMetronome ? metronomeAngle : 0}deg)`,
-                  transition: isPlayingMetronome ? `transform ${60 / bpm}s cubic-bezier(0.4, 0, 0.2, 1)` : 'transform 0.3s ease-out',
-                }}
-              >
-                {/* Peso do Pêndulo (Bolinha Vermelha) */}
-                <div className="absolute -top-2.5 -left-2 w-5 h-5 bg-red-600 rounded-full border-4 border-black shadow flex items-center justify-center">
-                  <span className="text-[6.5px] font-black text-white leading-none">{currentBeat + 1}</span>
-                </div>
-              </div>
-
-              {/* Centro de Batida LED */}
-              <div className="absolute bottom-1.5 flex gap-1 items-center">
-                <div className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-all ${ledFlash ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-[#261812]'}`}></div>
-              </div>
+            <div className="bg-[#1a0f0a] border-4 border-black p-3 flex flex-col items-center gap-3">
+              <Metronomo bpm={bpm} ligado={isPlayingMetronome} inicioMs={inicioVisualMs} estilo={estiloMetronomo} compasso={timeSignature} />
+              <div className="grid grid-cols-3 gap-2 w-full">{(['bolinha', 'pendulo', 'mascote'] as const).map(estilo => <button type="button" key={estilo} aria-pressed={estiloMetronomo === estilo} onClick={() => { setEstiloMetronomo(estilo); salvarEstiloMetronomo(estilo); }} className={`min-h-11 border-2 border-black text-xs font-black capitalize ${estiloMetronomo === estilo ? 'bg-[#ff6b00] text-white' : 'bg-[#fff8f6] text-[#261812]'}`}>{estilo === 'pendulo' ? 'Pêndulo' : estilo}</button>)}</div>
             </div>
 
             {/* Opções de Timer Integrado ao Metrônomo */}
@@ -663,13 +633,13 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                 -1
               </button>
               <button
-                onClick={() => setBpm(Math.min(240, bpm + 1))}
+                onClick={() => setBpm(Math.min(500, bpm + 1))}
                 className="bg-[#261812] text-white border-2 border-black p-1 px-3 shadow-[2px_2px_0_#000] font-black text-xs hover:bg-[#ff6b00] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
               >
                 +1
               </button>
               <button
-                onClick={() => setBpm(Math.min(240, bpm + 5))}
+                onClick={() => setBpm(Math.min(500, bpm + 5))}
                 className="bg-[#261812] text-white border-2 border-black p-1 px-3 shadow-[2px_2px_0_#000] font-black text-xs hover:bg-[#ff6b00] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
               >
                 +5
@@ -1034,21 +1004,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                   <span className="text-xl font-bold text-white/60 ml-2">BPM</span>
                 </div>
 
-                <div className="relative w-full h-44 bg-white/5 border-4 border-white/20 flex justify-center overflow-hidden p-2 rounded-lg">
-                  <div 
-                    className="absolute origin-bottom w-1.5 bg-yellow-500 rounded"
-                    style={{
-                      height: '115px',
-                      bottom: '10px',
-                      transform: `rotate(${isPlayingMetronome ? metronomeAngle : 0}deg)`,
-                      transition: isPlayingMetronome ? `transform ${60 / bpm}s cubic-bezier(0.4, 0, 0.2, 1)` : 'transform 0.3s ease-out',
-                    }}
-                  >
-                    <div className="absolute -top-3 -left-2.5 w-8 h-8 bg-red-600 rounded-full border-4 border-black shadow flex items-center justify-center">
-                      <span className="text-[9px] font-black text-white leading-none">{currentBeat + 1}</span>
-                    </div>
-                  </div>
-                </div>
+                <div className="w-full bg-[#1a0f0a] border-4 border-white/20 p-4 flex justify-center"><Metronomo bpm={bpm} ligado={isPlayingMetronome} inicioMs={inicioVisualMs} estilo={estiloMetronomo} compasso={timeSignature} /></div>
 
                 {metronomeTimerLimit > 0 && (
                   <span className="text-xl font-black text-white/80 uppercase">
