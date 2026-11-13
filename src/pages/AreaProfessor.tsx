@@ -5316,6 +5316,14 @@ export default function AreaProfessor() {
         </div>
       )}
 
+      {/* Botão flutuante de Ferramentas (metrônomo, afinador, cronômetro) em qualquer aba */}
+      {!showTools && (
+        <button type="button" onClick={() => setShowTools(true)}
+          className="fixed bottom-24 right-4 z-40 bg-[#ff6b00] text-white border-4 border-black px-3 py-2.5 font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
+          🎸 Ferramentas
+        </button>
+      )}
+
       {/* Modal de Ferramentas */}
       {showTools && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">

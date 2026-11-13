@@ -75,6 +75,8 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
   };
 
   const startMetronome = () => {
+    // iPhone: sem isso o som do site fica mudo com a chave de silencioso ligada.
+    try { const sessao = (navigator as Navigator & { audioSession?: { type: string } }).audioSession; if (sessao) sessao.type = 'playback'; } catch { /* navegador sem suporte */ }
     initAudioContext();
     if (isPlayingMetronome) {
       if (schedulerTimerRef.current) {

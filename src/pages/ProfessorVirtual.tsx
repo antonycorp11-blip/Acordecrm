@@ -385,9 +385,9 @@ function TelaCalibracao({ calibracao, leitura, aoRepetir, aoContinuar }: {
       )}
       {medindo && (
         <div className={`${CARTAO} text-center`}>
-          <p className="text-xl font-black">Fique em silêncio</p>
-          <p className="text-7xl font-black text-[#ff6b00] my-3">{restante}</p>
-          <p className="text-base">Estamos medindo o ruído do ambiente. Não toque ainda.</p>
+          <p className="text-xl font-black">Preparando o microfone…</p>
+          <p className="text-5xl my-3 animate-pulse" aria-hidden="true">🎤</p>
+          <p className="text-base">Um segundinho e já começamos.</p>
         </div>
       )}
       {calibracao.estado === 'pronta' && (
@@ -704,6 +704,17 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
   const contextoCliqueRef = useRef<AudioContext | null>(null);
   const saidaCliqueRef = useRef<SaidaClique | null>(null);
   const testeTimerRef = useRef<number | null>(null);
+  // Um toque liga o metrônomo inteiro (pulso + som). Precisa nascer do toque por causa do iPhone.
+  const alternarMetronomo = () => {
+    if (metronomoLigado) { setMetronomoLigado(false); return; }
+    pararTesteSom();
+    contextoCliqueRef.current ??= contextoAudioTreino();
+    void contextoCliqueRef.current.resume();
+    saidaCliqueRef.current?.encerrar();
+    saidaCliqueRef.current = new SaidaClique(saidaEscolhida);
+    setCliqueLigado(true);
+    setMetronomoLigado(true);
+  };
   const testeIntervaloRef = useRef<number | null>(null);
   const alturasRecentesRef = useRef<number[]>([]);
   const ataquePendenteRef = useRef(false);
@@ -916,7 +927,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
 
   return (
     <div className="-mx-3 sm:mx-0 min-h-[calc(100dvh-110px)] flex flex-col bg-[radial-gradient(circle_at_50%_30%,#3a1d0e,#1a0f0a_70%)] text-white border-4 border-black shadow-[6px_6px_0_#000] overflow-x-hidden">
-      <style>{`@keyframes pv-alvo-pulso { 15% { transform: scale(1.06) } } @keyframes pv-selo { 0% { opacity: 0; transform: translateY(12px) rotate(8deg) } 20% { opacity: 1 } 100% { opacity: 0; transform: translateY(-18px) rotate(8deg) } } @keyframes pv-erro { 25% { transform: translateX(-5px) } 50% { transform: translateX(5px) } 75% { transform: translateX(-3px) } } @media (prefers-reduced-motion: reduce) { .pv-alvo, .pv-selo, .pv-erro { animation: none !important } }`}</style>
+      <style>{`@media (orientation: landscape) and (max-height: 520px) { .pv-grade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2.4fr); gap: 10px; align-items: stretch } .pv-status, .pv-ouvindo { display: none } .pv-palco { padding: 6px } .pv-palco .pv-alvo-caixa { width: 92px; height: 92px; margin: 6px auto; border-width: 4px } .pv-palco p { font-size: 12px } .pv-grade svg[role='img'] { height: min(54vh, 240px) !important } } @keyframes pv-alvo-pulso { 15% { transform: scale(1.06) } } @keyframes pv-selo { 0% { opacity: 0; transform: translateY(12px) rotate(8deg) } 20% { opacity: 1 } 100% { opacity: 0; transform: translateY(-18px) rotate(8deg) } } @keyframes pv-erro { 25% { transform: translateX(-5px) } 50% { transform: translateX(5px) } 75% { transform: translateX(-3px) } } @media (prefers-reduced-motion: reduce) { .pv-alvo, .pv-selo, .pv-erro { animation: none !important } }`}</style>
       {concluido ? <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4 py-8 text-center max-w-md mx-auto w-full">
         <h2 className="font-['Press_Start_2P'] text-[#ffcc22] text-base leading-loose">FASE<br />CONCLUÍDA!</h2>
         <div className="text-4xl" aria-label={`${estrelas} estrelas`}>{[0, 1, 2].map(i => <span key={i} className={i < estrelas ? '' : 'grayscale opacity-30'}>⭐</span>)}</div>
@@ -926,12 +937,27 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
         <button type="button" onClick={aoSair} className={`${BOTAO_CLARO} w-full`}>VOLTAR À LISTA</button>
       </div> : <>
         <header className="bg-black border-b-4 border-[#ff6b00] p-2 flex items-center gap-2"><button type="button" onClick={encerrarTreino} aria-label="Encerrar treino" className="shrink-0 min-w-11 min-h-11 border-[3px] border-white text-white font-black text-xl">✕</button><div className="min-w-0 flex-1"><div className="flex items-center gap-1 text-[9px] font-['Press_Start_2P']"><span className="truncate">{exercicio.titulo}</span><span className="text-[#c9b3a8] shrink-0">VOLTA {volta}</span></div><div className="h-3 border-[3px] border-white bg-[#3a2820] mt-2"><div className="h-full bg-[repeating-linear-gradient(90deg,#ff6b00_0_8px,#ff8a33_8px_16px)]" style={{ width: `${(feitos / total) * 100}%` }} /></div><span className="sr-only">{feitos} de {total} passos feitos</span></div><div className="shrink-0 border-[3px] border-black bg-[#ffcc22] text-black px-2 py-1 font-['Press_Start_2P'] text-[10px]">🪙 {moedasSessao}</div></header>
-        <div className="flex justify-between items-center px-3 py-2"><span className="text-[#ffcc22] font-['Press_Start_2P'] text-[10px]">COMBO <b className="text-white text-base">×{combo}</b> 🔥</span><span aria-label={`${estrelas} estrelas`}>{[0, 1, 2].map(i => <span key={i} className={i < estrelas ? '' : 'grayscale opacity-30'}>⭐</span>)}</span></div>
+        <div className="pv-status flex justify-between items-center px-3 py-2"><span className="text-[#ffcc22] font-['Press_Start_2P'] text-[10px]">COMBO <b className="text-white text-base">×{combo}</b> 🔥</span><span aria-label={`${estrelas} estrelas`}>{[0, 1, 2].map(i => <span key={i} className={i < estrelas ? '' : 'grayscale opacity-30'}>⭐</span>)}</span></div>
         {metaAtingida && <p role="status" className="mx-3 mb-2 border-2 border-black bg-[#ffcc22] text-black p-2 font-bold">⏱ Meta alcançada! Continue ou encerre.</p>}
-        <div className="md:landscape:grid md:landscape:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:landscape:gap-4 flex-1 min-w-0 px-3 pb-3"><div className="relative border-4 border-black bg-gradient-to-b from-[#2b1d17] to-[#1a0f0a] p-3 text-center shadow-[6px_6px_0_#000] min-w-0"><p className="font-['Press_Start_2P'] text-[10px] text-[#c9b3a8]">{pausado ? 'PAUSADO' : 'TOQUE AGORA'}</p><div key={efeito?.tipo === 'erro' ? efeito.id : 'alvo'} className={`relative mx-auto my-4 w-[min(150px,48vw)] h-[min(150px,48vw)] border-[6px] border-white bg-[#ff6b00] shadow-[0_0_0_6px_#000,0_0_30px_#ff6b0088] flex flex-col items-center justify-center ${efeito?.tipo === 'erro' ? 'pv-erro' : 'pv-alvo'}`} style={efeito?.tipo === 'erro' ? { animation: 'pv-erro .3s ease-out' } : { transform: metronomoLigado && !pausado && batidaVisual ? 'scale(1.06)' : 'scale(1)', transition: 'transform 90ms ease-out' }}><strong className={`font-['Press_Start_2P'] text-white leading-relaxed break-words px-1 ${rotulo.length > 12 ? 'text-xs' : rotulo.length > 7 ? 'text-base' : 'text-2xl'}`}>{modoMemoria ? '?' : rotulo}</strong>{!modoMemoria && posicoesAtuais[0] && <span className="absolute bottom-2 text-[9px] font-black">CORDA {posicoesAtuais[0].corda} · CASA {posicoesAtuais[0].casa}</span>}</div>{!modoMemoria && <p className="text-base font-bold min-h-6">{passo.dica || (passo.dedo ? `Use o dedo ${passo.dedo}` : 'Ouça e toque a nota indicada')}</p>}{!modoMemoria && proximos.length > 0 && <div className="flex flex-wrap justify-center items-center gap-2 mt-4"><span className="font-['Press_Start_2P'] text-[8px] text-[#c9b3a8]">DEPOIS ▶</span>{proximos.map((p, i) => <span key={i} className="max-w-24 truncate border-[3px] border-black bg-[#fff8f6] text-black px-2 py-1 font-['Press_Start_2P'] text-[9px]">{rotuloPasso(p)}</span>)}</div>}{efeito?.tipo === 'acerto' && ultimo?.correto && <span key={efeito.id} className="pv-selo absolute top-4 right-2 border-[3px] border-black bg-[#2ecc71] text-black px-2 py-1 font-['Press_Start_2P'] text-[9px] shadow-[3px_3px_0_#000]" style={{ animation: 'pv-selo 1.2s ease-out both' }}>{ultimo.pontuacao < .9 ? 'QUASE' : 'PERFEITO! +10'}</span>}{efeito?.tipo === 'erro' && ultimo && <p key={efeito.id} role="status" className="border-2 border-black bg-[#ffd9d6] text-[#8f1410] p-2 mt-3 font-bold">{ultimo.mensagem}</p>}</div>
+        <div className="pv-grade md:landscape:grid md:landscape:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:landscape:gap-4 flex-1 min-w-0 px-3 pb-3"><div className="pv-palco relative border-4 border-black bg-gradient-to-b from-[#2b1d17] to-[#1a0f0a] p-3 text-center shadow-[6px_6px_0_#000] min-w-0"><p className="font-['Press_Start_2P'] text-[10px] text-[#c9b3a8]">{pausado ? 'PAUSADO' : 'TOQUE AGORA'}</p><div key={efeito?.tipo === 'erro' ? efeito.id : 'alvo'} className={`pv-alvo-caixa relative mx-auto my-4 w-[min(150px,48vw)] h-[min(150px,48vw)] border-[6px] border-white bg-[#ff6b00] shadow-[0_0_0_6px_#000,0_0_30px_#ff6b0088] flex flex-col items-center justify-center ${efeito?.tipo === 'erro' ? 'pv-erro' : 'pv-alvo'}`} style={efeito?.tipo === 'erro' ? { animation: 'pv-erro .3s ease-out' } : { transform: metronomoLigado && !pausado && batidaVisual ? 'scale(1.06)' : 'scale(1)', transition: 'transform 90ms ease-out' }}><strong className={`font-['Press_Start_2P'] text-white leading-relaxed break-words px-1 ${rotulo.length > 12 ? 'text-xs' : rotulo.length > 7 ? 'text-base' : 'text-2xl'}`}>{modoMemoria ? '?' : rotulo}</strong>{!modoMemoria && posicoesAtuais[0] && <span className="absolute bottom-2 text-[9px] font-black">CORDA {posicoesAtuais[0].corda} · CASA {posicoesAtuais[0].casa}</span>}</div>{!modoMemoria && <p className="text-base font-bold min-h-6">{passo.dica || (passo.dedo ? `Use o dedo ${passo.dedo}` : 'Ouça e toque a nota indicada')}</p>}{!modoMemoria && proximos.length > 0 && <div className="flex flex-wrap justify-center items-center gap-2 mt-4"><span className="font-['Press_Start_2P'] text-[8px] text-[#c9b3a8]">DEPOIS ▶</span>{proximos.map((p, i) => <span key={i} className="max-w-24 truncate border-[3px] border-black bg-[#fff8f6] text-black px-2 py-1 font-['Press_Start_2P'] text-[9px]">{rotuloPasso(p)}</span>)}</div>}{efeito?.tipo === 'acerto' && ultimo?.correto && <span key={efeito.id} className="pv-selo absolute top-4 right-2 border-[3px] border-black bg-[#2ecc71] text-black px-2 py-1 font-['Press_Start_2P'] text-[9px] shadow-[3px_3px_0_#000]" style={{ animation: 'pv-selo 1.2s ease-out both' }}>{ultimo.pontuacao < .9 ? 'QUASE' : 'PERFEITO! +10'}</span>}{efeito?.tipo === 'erro' && ultimo && <p key={efeito.id} role="status" className="border-2 border-black bg-[#ffd9d6] text-[#8f1410] p-2 mt-3 font-bold">{ultimo.mensagem}</p>}</div>
           <div className="min-w-0 mt-4 md:landscape:mt-0 flex flex-col justify-center">{exercicio.instrumento === 'violao' ? <ViolaoPixel esperadas={modoMemoria ? [] : posicoesAtuais} proximas={modoMemoria ? [] : posicoesProximas} midiOuvido={midiAoVivo(leitura)} posicaoOuvida={!leitura?.temSom ? null : posicaoOuvida} efeito={efeito} /> : <TecladoPixel esperado={modoMemoria ? null : passo.midis.length === 1 ? passo.midis[0] : null} proximas={modoMemoria ? [] : proximos.flatMap(p => p.midis)} dedo={modoMemoria ? undefined : passo.dedo} midiOuvido={!leitura?.temSom ? null : midiLimpo} midiCorreto={ouvidoCorreto} efeito={efeito} />}</div></div>
-        <div className="mx-3 mb-3 flex items-center gap-2 font-black text-xs"><span className="shrink-0">🎤 OUVINDO</span><div className="flex-1 h-3 border-[3px] border-black bg-[#3a2820]"><div className="h-full bg-gradient-to-r from-[#2ecc71] via-[#ffcc22] to-[#ff6b00]" style={{ width: `${volumePct}%` }} /></div><span className="text-white min-w-10 text-right">{textoOuvido(leitura, passo.midis.length > 1)} {ouvidoCorreto ? '✓' : ''}</span></div>
-        <footer className="sticky bottom-0 z-30 bg-black border-t-4 border-[#ff6b00] p-2 flex items-center gap-2"><div className="min-w-0 flex-1 flex items-center gap-2 border-[3px] border-white p-1"><Metronomo bpm={bpmTreino} ligado={metronomoLigado && !pausado} inicioMs={inicioVisualMs} estilo={estiloMetronomo} compacto /><span className="font-['Press_Start_2P'] text-[9px] whitespace-nowrap">{bpmTreino}<small className="block text-[#c9b3a8] mt-1">BPM</small></span></div><button type="button" onClick={() => setPausado(v => !v)} className="min-w-11 min-h-11 bg-[#ff6b00] border-[3px] border-black font-black" aria-label={pausado ? 'Continuar' : 'Pausar'}>{pausado ? '▶' : '❚❚'}</button><button type="button" onClick={() => setMostrarAjustes(true)} className="min-w-11 min-h-11 bg-[#fff8f6] text-black border-[3px] border-black text-xl font-black" aria-label="Abrir ajustes">⚙</button></footer>
+        <div className="pv-ouvindo mx-3 mb-3 flex items-center gap-2 font-black text-xs"><span className="shrink-0">🎤 OUVINDO</span><div className="flex-1 h-3 border-[3px] border-black bg-[#3a2820]"><div className="h-full bg-gradient-to-r from-[#2ecc71] via-[#ffcc22] to-[#ff6b00]" style={{ width: `${volumePct}%` }} /></div><span className="text-white min-w-10 text-right">{textoOuvido(leitura, passo.midis.length > 1)} {ouvidoCorreto ? '✓' : ''}</span></div>
+        <footer className="sticky bottom-0 z-30 bg-black border-t-4 border-[#ff6b00] p-2 flex items-stretch gap-2">
+          <button type="button" onClick={alternarMetronomo} aria-pressed={metronomoLigado} aria-label={metronomoLigado ? 'Parar metrônomo' : 'Tocar metrônomo'}
+            className={`min-w-0 flex-1 flex items-center gap-2 border-[3px] p-1 text-left ${metronomoLigado ? 'border-[#ffcc22]' : 'border-white'}`}>
+            <span className={`shrink-0 w-9 h-9 grid place-items-center border-[3px] border-black font-black ${metronomoLigado ? 'bg-[#ffcc22] text-black' : 'bg-[#ff6b00] text-white'}`}>{metronomoLigado ? '■' : '▶'}</span>
+            <Metronomo bpm={bpmTreino} ligado={metronomoLigado && !pausado} inicioMs={inicioVisualMs} estilo={estiloMetronomo} compacto />
+          </button>
+          <div className="flex flex-col items-center justify-center gap-1 border-[3px] border-white px-1">
+            <button type="button" aria-label="+5 BPM" onClick={() => setBpmTreino(v => Math.min(500, v + 5))} className="w-9 h-6 bg-[#3a2820] text-white font-black leading-none">+</button>
+            <span className="font-['Press_Start_2P'] text-[10px] text-white">{bpmTreino}</span>
+            <button type="button" aria-label="-5 BPM" onClick={() => setBpmTreino(v => Math.max(40, v - 5))} className="w-9 h-6 bg-[#3a2820] text-white font-black leading-none">−</button>
+          </div>
+          <div className="flex flex-col gap-1">
+            <button type="button" onClick={() => setPausado(v => !v)} className="min-w-11 flex-1 bg-[#fff8f6] text-black border-[3px] border-black text-[10px] font-black px-1" aria-label={pausado ? 'Continuar treino' : 'Pausar treino'}>{pausado ? '▶ Treino' : '❚❚ Treino'}</button>
+            <button type="button" onClick={() => setMostrarAjustes(true)} className="min-w-11 flex-1 bg-[#fff8f6] text-black border-[3px] border-black text-lg font-black" aria-label="Abrir ajustes">⚙</button>
+          </div>
+        </footer>
       </>}
 
       {mostrarAjustes && <div className="fixed inset-0 z-[100] bg-black/75 flex items-end sm:items-center justify-center" onClick={() => setMostrarAjustes(false)}><section role="dialog" aria-modal="true" aria-label="Ajustes do treino" onClick={e => e.stopPropagation()} className="w-full sm:max-w-xl max-h-[90dvh] overflow-y-auto rounded-t-xl sm:rounded-none bg-[#fff8f6] text-[#261812] border-4 border-black p-4 space-y-5 shadow-[6px_6px_0_#000]"><div className="sticky top-0 z-10 bg-[#fff8f6] flex justify-between items-center border-b-4 border-black pb-2"><h2 className="font-['Press_Start_2P'] text-xs">⚙ AJUSTES</h2><button type="button" aria-label="Fechar ajustes" onClick={() => setMostrarAjustes(false)} className="min-w-11 min-h-11 border-2 border-black text-xl font-black">✕</button></div>
@@ -945,7 +971,7 @@ function TelaTreino({ exercicio, escuta, ruidoDb, diagnosticoInicial, aoSair, ao
           </div>
           <input aria-label="BPM" type="range" min={40} max={500} value={bpmTreino} onChange={e => setBpmTreino(Number(e.target.value))} className="w-full h-10 touch-none" />
         </div>
-        <div className="grid grid-cols-2 gap-2"><button type="button" className={BOTAO_CLARO} aria-pressed={metronomoLigado} onClick={() => { if (!metronomoLigado) { pararTesteSom(); contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current?.encerrar(); saidaCliqueRef.current = new SaidaClique(saidaEscolhida); } setMetronomoLigado(v => !v); }}>{metronomoLigado ? 'Desligar' : 'Ligar'}</button><button type="button" className={BOTAO_CLARO} aria-pressed={cliqueLigado} onClick={() => { if (!cliqueLigado) { contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current ??= new SaidaClique(saidaEscolhida); void contextoCliqueRef.current.resume(); } setCliqueLigado(v => !v); }}>{cliqueLigado ? 'Clique: ligado' : 'Clique: desligado'}</button></div>
+        <div className="grid grid-cols-2 gap-2"><button type="button" className={metronomoLigado ? BOTAO_LARANJA : BOTAO_CLARO} aria-pressed={metronomoLigado} onClick={alternarMetronomo}>{metronomoLigado ? '■ Parar metrônomo' : '▶ Tocar metrônomo'}</button><button type="button" className={BOTAO_CLARO} aria-pressed={cliqueLigado} onClick={() => { if (!cliqueLigado) { contextoCliqueRef.current ??= contextoAudioTreino(); saidaCliqueRef.current ??= new SaidaClique(saidaEscolhida); void contextoCliqueRef.current.resume(); } setCliqueLigado(v => !v); }}>{cliqueLigado ? 'Som: ligado' : 'Som: desligado (só luz)'}</button></div>
         {podeVibrar && <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={vibrarPulso} onChange={e => setVibrarPulso(e.target.checked)} /> Vibrar no pulso</label>}
         <label className="font-bold block">Volume do clique: {volumeClique}% <input aria-label="Volume do clique" type="range" min="0" max="100" value={volumeClique} onChange={e => setVolumeClique(Number(e.target.value))} className="w-full" /></label>
         <button type="button" className={`${BOTAO_CLARO} w-full`} onClick={() => setMostrarTesteSom(v => !v)}>Testar som do metrônomo</button>
@@ -1387,7 +1413,11 @@ export default function ProfessorVirtual() {
     setTela({ nome: 'calibracao', exercicio, diagnosticoInicial });
     try {
       await escuta.ligar(exercicio.instrumento);
-      if (sessaoRef.current === sessao) await medirAmbiente(sessao);
+      if (sessaoRef.current !== sessao) return;
+      // Medição do ambiente rápida e silenciosa: o aluno não precisa ver nem esperar uma tela de "fique em silêncio".
+      setCalibracao({ estado: 'medindo' });
+      const medida = await escuta.calibrar(1200);
+      if (sessaoRef.current === sessao) aposCalibracao(exercicio, medida.ruidoDb, diagnosticoInicial);
     } catch (e) {
       falhou(sessao, e);
     }
@@ -1455,14 +1485,14 @@ export default function ProfessorVirtual() {
   const lista = [...exercicios, ...EXEMPLOS];
 
   return (
-    <div className="min-h-[100dvh] bg-[#fff8f6] text-[#261812] font-sans">
-      <header className="bg-[#ff6b00] border-b-4 border-black px-4 pb-3" style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}>
+    <div className={`min-h-[100dvh] font-sans ${tela.nome === 'lista' ? 'bg-[radial-gradient(circle_at_50%_0%,#3a1d0e,#1a0f0a_60%)] text-white' : 'bg-[#fff8f6] text-[#261812]'}`}>
+      <header className="bg-black border-b-4 border-[#ff6b00] px-4 pb-3" style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}>
         <div className="max-w-xl md:max-w-6xl mx-auto flex items-center gap-3">
           <button type="button" aria-label="Voltar" onClick={tela.nome === 'lista' ? voltarAoApp : sairOuVoltar} className={BOTAO_ICONE}><ArrowLeft className="w-5 h-5" /></button>
-          <h1 className="text-xl font-black uppercase text-black leading-tight">{alunoNome ? `Treino de ${alunoNome}` : 'Professor Virtual'}</h1>
+          <h1 className="font-['Press_Start_2P'] text-[13px] text-white leading-snug">{alunoNome ? `Treino de ${alunoNome}` : <>PROFESSOR <span className="text-[#ff6b00]">VIRTUAL</span></>}</h1>
         </div>
       </header>
-      <p className="bg-black text-white text-center text-sm font-black uppercase tracking-wide py-1.5 px-4">
+      <p className="bg-[#ffcc22] text-black text-center text-[10px] font-black uppercase tracking-wide py-1 px-4">
         Modo de teste: só a equipe vê esta tela
       </p>
 
@@ -1495,79 +1525,115 @@ export default function ProfessorVirtual() {
         )}
 
         {tela.nome === 'lista' && (
-          <>
+          <div className="space-y-5 text-white">
             {erroMicrofone && <AvisoErro>{erroMicrofone}</AvisoErro>}
             {falhaLista && <AvisoErro>Não foi possível carregar os exercícios da escola. Mostrando os exemplos.</AvisoErro>}
-            {podeEditar && (
-              <>
-                <button type="button" onClick={abrirMapa} className={`${BOTAO_LARANJA} w-full`}>Calibrar violão · Testar mapa</button>
-                <button type="button" onClick={() => setTela({ nome: 'editor', exercicio: null })} className={`${BOTAO_CLARO} w-full`}>
-                  <Plus className="w-5 h-5" /> Novo exercício
-                </button>
-              </>
-            )}
-            <section className={CARTAO}><h2 className="font-black uppercase">Meta de tempo antes de começar</h2><div className="flex flex-wrap gap-2 my-2">{[3,4,5,10].map(m => <button key={m} type="button" onClick={() => setMetaMinutos(m)} className={`${BOTAO_ICONE} ${metaMinutos === m ? 'bg-[#ffcc22]' : ''}`}>{m}</button>)}</div><label className="font-bold">Minutos (1 a 30) <input type="number" min={1} max={30} value={metaMinutos} onChange={e => setMetaMinutos(Math.max(1, Math.min(30, Number(e.target.value) || 1)))} className="w-20 border-2 border-black p-2" /></label></section>
-            <div className="flex gap-2">{['todos','violao','teclado'].map(valor => <button key={valor} type="button" onClick={() => setParams(prev => { const next = new URLSearchParams(prev); if (valor === 'todos') next.delete('instrumento'); else next.set('instrumento', valor); return next; })} className={filtroInstrumento === valor ? BOTAO_LARANJA : BOTAO_CLARO}>{valor === 'todos' ? 'Todos' : valor === 'violao' ? 'Violão' : 'Teclado'}</button>)}</div>
+
+            {/* escolha do instrumento */}
+            <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Instrumento">
+              {([['todos', '🎵', 'Todos'], ['violao', '🎸', 'Violão'], ['teclado', '🎹', 'Teclado']] as const).map(([valor, icone, nome]) => {
+                const ativo = filtroInstrumento === valor;
+                return <button key={valor} type="button" role="tab" aria-selected={ativo}
+                  onClick={() => setParams(prev => { const next = new URLSearchParams(prev); if (valor === 'todos') next.delete('instrumento'); else next.set('instrumento', valor); return next; })}
+                  className={`flex flex-col items-center gap-1 py-3 border-4 border-black font-black ${ativo ? 'bg-[#ff6b00] text-white shadow-[4px_4px_0_#ffcc22]' : 'bg-[#2b1d17] text-[#e8d7ce] shadow-[4px_4px_0_#000]'}`}>
+                  <span className="text-3xl" aria-hidden="true">{icone}</span>
+                  <span className="font-['Press_Start_2P'] text-[9px]">{nome.toUpperCase()}</span>
+                </button>;
+              })}
+            </div>
+
+            {/* meta do dia */}
+            <section className="bg-[#2b1d17] border-4 border-black shadow-[6px_6px_0_#000] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="font-['Press_Start_2P'] text-[10px] text-[#ffcc22]">⏱ META DE HOJE</h2>
+                <span className="text-xs font-bold text-[#c9b3a8]">treine até a barra encher</span>
+              </div>
+              <div className="grid grid-cols-5 gap-2 mt-3">
+                {[3, 5, 10, 15, 20].map(m => <button key={m} type="button" onClick={() => setMetaMinutos(m)} aria-pressed={metaMinutos === m}
+                  className={`py-2 border-[3px] border-black font-['Press_Start_2P'] text-[10px] ${metaMinutos === m ? 'bg-[#ffcc22] text-black' : 'bg-[#fff8f6] text-black'}`}>{m}<small className="block text-[7px] mt-1">MIN</small></button>)}
+              </div>
+            </section>
+
             {carregando ? (
-              <p className="text-base font-bold">Carregando exercícios...</p>
+              <p className="font-['Press_Start_2P'] text-[10px] text-center py-8 animate-pulse">CARREGANDO FASES…</p>
             ) : (
               <>
-                {filtroInstrumento !== 'teclado' && <section className={CARTAO}>
-                  <h2 className="text-2xl font-black uppercase">Escalas · violão</h2>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <label className="font-bold">Tônica<select value={tonicaEscala} onChange={e => setTonicaEscala(Number(e.target.value))} className="block w-full border-2 border-black p-2 bg-white">{NOTAS.map((nota, i) => <option key={i} value={i}>{nota}</option>)}</select></label>
-                    <label className="font-bold">Corda raiz<select value={cordaRaizEscala} onChange={e => setCordaRaizEscala(Number(e.target.value) as 3 | 4 | 5 | 6)} className="block w-full border-2 border-black p-2 bg-white">{[6, 5, 4, 3].map(corda => <option key={corda} value={corda}>{corda}ª corda</option>)}</select></label>
-                    <label className="font-bold col-span-2">Sentido<select value={sentidoEscala} onChange={e => setSentidoEscala(e.target.value as typeof sentidoEscala)} className="block w-full border-2 border-black p-2 bg-white"><option value="subir">Subir</option><option value="descer">Descer</option><option value="subir_descer">Subir e descer</option></select></label>
+                {/* treino rápido (gerador) */}
+                {filtroInstrumento !== 'teclado' && <section className="bg-gradient-to-b from-[#3a1d0e] to-[#1a0f0a] border-4 border-black shadow-[6px_6px_0_#000] p-4">
+                  <div className="flex items-center gap-3"><span className="text-4xl" aria-hidden="true">🎸</span><div><p className="font-['Press_Start_2P'] text-[9px] text-[#ffcc22]">TREINO RÁPIDO</p><h2 className="text-xl font-black">Escala no violão</h2></div></div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <label className="text-xs font-black text-[#c9b3a8]">TÔNICA<select value={tonicaEscala} onChange={e => setTonicaEscala(Number(e.target.value))} className={`${CAMPO} mt-1`}>{NOTAS.map((nota, i) => <option key={i} value={i}>{nota}</option>)}</select></label>
+                    <label className="text-xs font-black text-[#c9b3a8]">CORDA RAIZ<select value={cordaRaizEscala} onChange={e => setCordaRaizEscala(Number(e.target.value) as 3 | 4 | 5 | 6)} className={`${CAMPO} mt-1`}>{[6, 5, 4, 3].map(corda => <option key={corda} value={corda}>{corda}ª corda</option>)}</select></label>
+                    <label className="text-xs font-black text-[#c9b3a8] col-span-2">SENTIDO<select value={sentidoEscala} onChange={e => setSentidoEscala(e.target.value as typeof sentidoEscala)} className={`${CAMPO} mt-1`}><option value="subir">Subir</option><option value="descer">Descer</option><option value="subir_descer">Subir e descer</option></select></label>
                   </div>
-                  <button type="button" onClick={() => comecar(escalaAtual)} className={`${BOTAO_LARANJA} w-full mt-3`}>Começar</button>
-                  {podeEditar && <button type="button" disabled={salvandoEscala} onClick={() => salvarEscala(escalaAtual)} className={`${BOTAO_CLARO} w-full mt-3`}>{salvandoEscala ? 'Salvando...' : 'Salvar como exercício'}</button>}
+                  <button type="button" onClick={() => comecar(escalaAtual)} className="w-full mt-4 min-h-14 bg-[#ff6b00] text-white border-4 border-black shadow-[4px_4px_0_#ffcc22] font-['Press_Start_2P'] text-sm active:translate-y-1 active:shadow-none">▶ JOGAR</button>
+                  {podeEditar && <button type="button" disabled={salvandoEscala} onClick={() => salvarEscala(escalaAtual)} className="w-full mt-2 text-xs font-black underline text-[#c9b3a8]">{salvandoEscala ? 'Salvando...' : 'Salvar como exercício da escola'}</button>}
                 </section>}
-                {filtroInstrumento !== 'violao' && <section className={CARTAO}>
-                  <h2 className="text-2xl font-black uppercase">Escalas e Hanon · teclado</h2>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <label className="font-bold">Exercício<select value={modeloTeclado} onChange={e => setModeloTeclado(e.target.value as 'escala' | 'hanon')} className={CAMPO}><option value="escala">Escala</option><option value="hanon">Hanon</option></select></label>
-                    <label className="font-bold">Tônica<select value={tonicaTeclado} onChange={e => setTonicaTeclado(Number(e.target.value))} className={CAMPO}>{NOTAS.map((_, i) => <option key={i} value={i}>{nomeTonicaTeclado(i, tipoTeclado)}</option>)}</select></label>
-                    <label className="font-bold">Mão<select value={maoTeclado} onChange={e => setMaoTeclado(e.target.value as MaoTeclado)} className={CAMPO}><option value="direita">Direita</option><option value="esquerda">Esquerda</option></select></label>
-                    <label className="font-bold">Tipo<select value={tipoTeclado} onChange={e => setTipoTeclado(e.target.value as TipoEscalaTeclado)} className={CAMPO}>{TIPOS_ESCALA_TECLADO.filter(t => t.valor === 'maior' || t.valor === 'menor_natural').map(t => <option key={t.valor} value={t.valor}>{t.nome}</option>)}</select></label>{modeloTeclado === 'escala' && <label className="font-bold">Oitavas<select value={oitavasTeclado} onChange={e => setOitavasTeclado(Number(e.target.value))} className={CAMPO}>{[1,2].map(n => <option key={n} value={n}>{n}</option>)}</select></label>}
+                {filtroInstrumento !== 'violao' && <section className="bg-gradient-to-b from-[#3a1d0e] to-[#1a0f0a] border-4 border-black shadow-[6px_6px_0_#000] p-4">
+                  <div className="flex items-center gap-3"><span className="text-4xl" aria-hidden="true">🎹</span><div><p className="font-['Press_Start_2P'] text-[9px] text-[#ffcc22]">TREINO RÁPIDO</p><h2 className="text-xl font-black">Escala e Hanon no teclado</h2></div></div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <label className="text-xs font-black text-[#c9b3a8]">EXERCÍCIO<select value={modeloTeclado} onChange={e => setModeloTeclado(e.target.value as 'escala' | 'hanon')} className={`${CAMPO} mt-1`}><option value="escala">Escala</option><option value="hanon">Hanon</option></select></label>
+                    <label className="text-xs font-black text-[#c9b3a8]">TÔNICA<select value={tonicaTeclado} onChange={e => setTonicaTeclado(Number(e.target.value))} className={`${CAMPO} mt-1`}>{NOTAS.map((_, i) => <option key={i} value={i}>{nomeTonicaTeclado(i, tipoTeclado)}</option>)}</select></label>
+                    <label className="text-xs font-black text-[#c9b3a8]">MÃO<select value={maoTeclado} onChange={e => setMaoTeclado(e.target.value as MaoTeclado)} className={`${CAMPO} mt-1`}><option value="direita">Direita</option><option value="esquerda">Esquerda</option></select></label>
+                    <label className="text-xs font-black text-[#c9b3a8]">TIPO<select value={tipoTeclado} onChange={e => setTipoTeclado(e.target.value as TipoEscalaTeclado)} className={`${CAMPO} mt-1`}>{TIPOS_ESCALA_TECLADO.filter(t => t.valor === 'maior' || t.valor === 'menor_natural').map(t => <option key={t.valor} value={t.valor}>{t.nome}</option>)}</select></label>
+                    {modeloTeclado === 'escala' && <label className="text-xs font-black text-[#c9b3a8]">OITAVAS<select value={oitavasTeclado} onChange={e => setOitavasTeclado(Number(e.target.value))} className={`${CAMPO} mt-1`}>{[1, 2].map(n => <option key={n} value={n}>{n}</option>)}</select></label>}
                   </div>
-                  <button type="button" onClick={() => comecar(exercicioTeclado)} className={`${BOTAO_LARANJA} w-full mt-3`}>Começar</button>
-                  {podeEditar && <button type="button" disabled={salvandoEscala} onClick={() => salvarEscala(exercicioTeclado)} className={`${BOTAO_CLARO} w-full mt-3`}>{salvandoEscala ? 'Salvando...' : 'Salvar como exercício'}</button>}
+                  <button type="button" onClick={() => comecar(exercicioTeclado)} className="w-full mt-4 min-h-14 bg-[#ff6b00] text-white border-4 border-black shadow-[4px_4px_0_#ffcc22] font-['Press_Start_2P'] text-sm active:translate-y-1 active:shadow-none">▶ JOGAR</button>
+                  {podeEditar && <button type="button" disabled={salvandoEscala} onClick={() => salvarEscala(exercicioTeclado)} className="w-full mt-2 text-xs font-black underline text-[#c9b3a8]">{salvandoEscala ? 'Salvando...' : 'Salvar como exercício da escola'}</button>}
                 </section>}
-                {mostrandoExemplos && !falhaLista && <p className="text-base font-semibold">Ainda não há exercícios cadastrados. Use os exemplos para testar.</p>}
+
+                {/* fases (exercícios) */}
+                {mostrandoExemplos && !falhaLista && <p className="text-sm font-bold text-[#c9b3a8]">Ainda não há exercícios da escola. Estes são exemplos para testar.</p>}
                 {INSTRUMENTOS.map(({ valor, nome }) => {
                   if (filtroInstrumento !== 'todos' && filtroInstrumento !== valor) return null;
                   const doInstrumento = lista.filter((e) => e.instrumento === valor);
                   if (!doInstrumento.length) return null;
                   return (
-                    <section key={valor} className="space-y-4 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4 md:space-y-0">
-                      <h2 className="text-2xl font-black uppercase text-[#261812] md:col-span-full">{nome}</h2>
-                      {doInstrumento.map((exercicio) => (
-                        <article key={exercicio.id ?? exercicio.titulo} className={CARTAO}>
-                          <h3 className="text-xl font-black leading-tight">{exercicio.titulo}</h3>
-                          {exercicio.descricao && <p className="text-base mt-1">{exercicio.descricao}</p>}
-                          <p className="text-sm font-bold text-[#7b5647] mt-1">
-                            {exercicio.passos.length} {exercicio.passos.length === 1 ? 'passo' : 'passos'}
-                            {exercicio.bpm ? ` | ${exercicio.bpm} BPM` : ''}
-                            {exercicio.id ? '' : ' | exemplo'}
-                          </p>
-                          <button type="button" onClick={() => comecar(exercicio)} className={`${BOTAO_LARANJA} w-full mt-3`} aria-label={`Começar ${exercicio.titulo} no ${nomeInstrumento(exercicio.instrumento)}`}>
-                            <Play className="w-5 h-5" /> Começar
-                          </button>
-                          <button type="button" onClick={() => comecar(exercicio, true)} className={`${BOTAO_CLARO} w-full mt-3`}>Gravar diagnóstico e começar</button>
-                          {podeEditar && exercicio.id && (
-                            <div className="grid grid-cols-2 gap-3 mt-3">
-                              <button type="button" onClick={() => setTela({ nome: 'editor', exercicio })} className={BOTAO_CLARO}><Pencil className="w-4 h-4" /> Editar</button>
-                              <button type="button" onClick={() => desativar(exercicio)} className={BOTAO_CLARO}><Trash2 className="w-4 h-4" /> Desativar</button>
+                    <section key={valor} className="space-y-3">
+                      <h2 className="font-['Press_Start_2P'] text-[11px] text-[#ffcc22]">{valor === 'violao' ? '🎸' : '🎹'} FASES · {nome.toUpperCase()}</h2>
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        {doInstrumento.map((exercicio, n) => (
+                          <article key={exercicio.id ?? exercicio.titulo} className="bg-[#fff8f6] text-[#261812] border-4 border-black shadow-[6px_6px_0_#000] p-3 flex flex-col">
+                            <div className="flex items-start gap-3">
+                              <span className="shrink-0 w-11 h-11 grid place-items-center bg-[#ff6b00] text-white border-[3px] border-black font-['Press_Start_2P'] text-xs">{n + 1}</span>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="text-lg font-black leading-tight">{exercicio.titulo}</h3>
+                                {exercicio.descricao && <p className="text-sm mt-0.5 text-[#6b5448]">{exercicio.descricao}</p>}
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                  <span className="text-[10px] font-black bg-[#eadbd3] px-1.5 py-0.5">{exercicio.passos.length} NOTAS</span>
+                                  {exercicio.bpm ? <span className="text-[10px] font-black bg-[#eadbd3] px-1.5 py-0.5">{exercicio.bpm} BPM</span> : null}
+                                  {!exercicio.id && <span className="text-[10px] font-black bg-[#ffcc22] px-1.5 py-0.5">EXEMPLO</span>}
+                                </div>
+                              </div>
                             </div>
-                          )}
-                        </article>
-                      ))}
+                            <button type="button" onClick={() => comecar(exercicio)} className="w-full mt-3 min-h-12 bg-[#ff6b00] text-white border-4 border-black shadow-[3px_3px_0_#000] font-['Press_Start_2P'] text-xs active:translate-y-1 active:shadow-none" aria-label={`Jogar ${exercicio.titulo} no ${nomeInstrumento(exercicio.instrumento)}`}>▶ JOGAR</button>
+                            {podeEditar && (
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs font-black text-[#6b5448]">
+                                <button type="button" onClick={() => comecar(exercicio, true)} className="underline">Jogar gravando diagnóstico</button>
+                                {exercicio.id && <button type="button" onClick={() => setTela({ nome: 'editor', exercicio })} className="underline inline-flex items-center gap-1"><Pencil className="w-3 h-3" /> Editar</button>}
+                                {exercicio.id && <button type="button" onClick={() => desativar(exercicio)} className="underline inline-flex items-center gap-1"><Trash2 className="w-3 h-3" /> Desativar</button>}
+                              </div>
+                            )}
+                          </article>
+                        ))}
+                      </div>
                     </section>
                   );
                 })}
               </>
             )}
-          </>
+
+            {/* ferramentas da equipe, fora do caminho do aluno */}
+            {podeEditar && (
+              <details className="bg-[#2b1d17] border-4 border-black shadow-[6px_6px_0_#000] group">
+                <summary className="flex items-center justify-between p-3 cursor-pointer list-none font-['Press_Start_2P'] text-[10px]">🛠 FERRAMENTAS DO PROFESSOR <span className="group-open:rotate-180 transition-transform">▾</span></summary>
+                <div className="p-3 pt-0 grid gap-2">
+                  <button type="button" onClick={() => setTela({ nome: 'editor', exercicio: null })} className={`${BOTAO_LARANJA} w-full`}><Plus className="w-5 h-5" /> Novo exercício</button>
+                  <button type="button" onClick={abrirMapa} className={`${BOTAO_CLARO} w-full`}>Calibrar violão · testar mapa</button>
+                </div>
+              </details>
+            )}
+          </div>
         )}
       </main>
     </div>
