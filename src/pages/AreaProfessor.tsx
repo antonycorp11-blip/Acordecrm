@@ -274,6 +274,8 @@ const getAulaLocalDateStr = (aula: any) => {
 };
 
 import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
+import { useAppTheme } from '../utils/useAppTheme';
+import '../styles/area-app.css';
 
 export default function AreaProfessor() {
   const { user, logout } = useAuth();
@@ -317,7 +319,9 @@ export default function AreaProfessor() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Estados de navegação e Modo Apresentação do Professor
-  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos' | 'fichas'>('home');
+  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'alunos'>('home');
+  const [studentSection, setStudentSection] = useState<'fichas' | 'treinos'>('fichas');
+  const { theme, choice, setTheme } = useAppTheme();
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
 
   const [doublePointsGame, setDoublePointsGame] = useState<string | null>(null);
@@ -767,7 +771,7 @@ export default function AreaProfessor() {
     if (!alunoId || !alunosList.length || isHistoricoModalOpen) return;
     const aluno = alunosList.find((a: any) => String(a.id) === alunoId);
     if (aluno) {
-      setActiveProfessorTab('fichas');
+      setActiveProfessorTab('alunos'); setStudentSection('fichas');
       handleAbrirHistoricoAluno(aluno.id, aluno.nome);
       setAbaHistoricoAluno('treinos');
     }
@@ -3280,58 +3284,28 @@ export default function AreaProfessor() {
   );
 
   return (
-    <div className="min-h-screen bg-[#110804] flex items-center justify-center p-0 md:p-8 overflow-hidden font-['Space_Mono']">
+    <div className="area-app min-h-screen flex items-center justify-center p-0 md:p-8 overflow-hidden" data-theme={theme}>
       
       {/* MOBILE SIMULATOR WRAPPER */}
-      <div className="w-full h-full md:h-[844px] md:max-w-[390px] md:border-[12px] md:border-black md:rounded-[60px] md:shadow-[0_0_0_8px_#3d2d26,0_20px_50px_rgba(0,0,0,0.5)] bg-[#1a0a05] relative overflow-hidden flex flex-col">
+      <div className="app-shell w-full h-screen relative overflow-hidden flex flex-col">
         
         {/* Notch simulation */}
         <div className="hidden md:block absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-50"></div>
 
-        {/* TOP BAR */}
-        <header className="flex items-center justify-between px-6 py-4 pt-10 md:pt-10 shrink-0 bg-[#feccba] border-b-8 border-black z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-none border-4 border-black overflow-hidden bg-[#ff6b00] shadow-[4px_4px_0_#000]">
-              <div className="w-full h-full flex items-center justify-center text-white font-black text-lg">
-                {(professorData?.nome || 'P').charAt(0).toUpperCase()}
-              </div>
-            </div>
-            <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link to="/professor-virtual" className="text-black hover:text-[#ff6b00] transition-colors" title="Professor Virtual" aria-label="Professor Virtual">
-              <Mic className="w-6 h-6" />
-            </Link>
-            <button 
-              onClick={() => {
-                OneSignalService.forcePrompt();
-                setIsNotifDrawerOpen(true);
-                playRetroSound(587.33, 'square', 0.08); // som de chiptune de clique de notificação D5
-                setTimeout(() => {
-                  playRetroSound(880, 'square', 0.15); // A5
-                }, 70);
-                toast.success('Permissões de notificação verificadas!');
-              }}
-              className="text-black hover:text-[#ff6b00] transition-colors relative cursor-pointer"
-            >
-              <Bell className="w-6 h-6" />
-              {notificacoes.filter(n => !n.lida).length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white font-black text-[7px] w-4.5 h-4.5 rounded-full border-2 border-black flex items-center justify-center animate-bounce leading-none shadow-[1px_1px_0_#000]">
-                  {notificacoes.filter(n => !n.lida).length}
-                </span>
-              )}
-            </button>
-            <button onClick={logout} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+        <header className="app-header flex items-center justify-between shrink-0">
+          <img className="app-logo" src="/logo-studio-acorde.png" alt="Studio Acorde" />
+          <button type="button" onClick={() => setActiveProfessorTab('perfil')} aria-label="Abrir perfil" className="w-11 h-11 border-2 border-black bg-[#ffcc22] text-black font-bold">{String(professorData?.nome || 'P').charAt(0).toUpperCase()}</button>
         </header>
 
         {/* SCROLL CONTENT */}
-        <div className="flex-1 overflow-auto pb-24 scrollbar-hide">
+        <div className="app-scroll flex-1 overflow-auto pb-24 scrollbar-hide">
           <div className="px-4 py-5 space-y-5">
             {activeProfessorTab === 'home' && (
               <>
+                <div><p className="app-subtle text-xs font-bold">{format(new Date(), `EEEE, d 'de' MMMM`, { locale: ptBR })}</p><h1 className="app-section-title">Olá, {String(professorData?.nome || 'professor').split(' ')[0]}.</h1></div>
+                {(() => { const next = aulasHoje.find((a: any) => !['realizada','falta_aluno','falta','cancelada'].includes(a.status)) || agendaCompleta.find((a: any) => a.data >= format(new Date(), 'yyyy-MM-dd') && !['realizada','falta_aluno','falta','cancelada'].includes(a.status)); return next ? <div className="app-panel app-panel--orange"><p className="text-xs font-bold">Próxima aula</p><strong className="block text-4xl">{String(next.horario || '').slice(0,5)}</strong><h2 className="text-xl font-black">{next.nome || next.aluno_nome}</h2><button className="app-action app-action--light mt-3 w-full" onClick={() => openRegistroModal(next)}>Registrar aula →</button></div> : <div className="app-panel">Nenhuma aula pendente na agenda.</div>; })()}
+                <div className="grid grid-cols-2 gap-3"><button className="app-panel text-left" onClick={() => setActiveProfessorTab('agenda')}>📅 Agenda →</button><button className="app-panel text-left" onClick={() => {setActiveProfessorTab('alunos'); setStudentSection('treinos'); fetchTreinos();}}>🎬 Treinos dos alunos →</button><button className="app-panel text-left" onClick={() => setShowTools(true)}>🎸 Ferramentas →</button><button className="app-panel text-left" onClick={() => {setActiveProfessorTab('ranking'); fetchRanking(); fetchSolicitacoes();}}>🏆 Pendências e ranking →</button></div>
+                <details className="app-details app-legacy-section"><summary>Ver agenda e outros recursos de hoje</summary><div className="space-y-5">
                 {/* Resumo do Dia Card */}
                 <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] transform rotate-1">
                   <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[9px] uppercase border-l-4 border-b-4 border-black">
@@ -3507,11 +3481,13 @@ export default function AreaProfessor() {
                     Envie feedbacks das aulas, crie desafios e anexe mídias na hora. Tudo vai direto para a Área do Aluno!
                   </p>
                 </div>
+                </div></details>
               </>
             )}
 
             {activeProfessorTab === 'jogos' && (
               <div className="px-4 py-5 space-y-6">
+                <div className="app-panel app-panel--gold"><h1>Jogos</h1><p>Professores também entram na brincadeira.</p><button className="app-action app-action--light w-full mt-3" onClick={() => { setActiveProfessorTab('ranking'); fetchRanking(); fetchConquistas(); fetchSolicitacoes(); }}>🏆 Ranking da semana</button></div>
                 {/* Cabeçalho da Galeria */}
                 <div className="flex items-center gap-3">
                   <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
@@ -3783,6 +3759,7 @@ export default function AreaProfessor() {
 
             {activeProfessorTab === 'agenda' && (
               <div className="space-y-4 animate-fade-in">
+                <div className="app-panel"><h1>Agenda da semana</h1><p className="app-subtle">Escolha o dia e veja suas aulas.</p></div>
                 {/* Calendário Semanal 8-Bit */}
                 <div className="bg-[#261812] border-4 border-black p-3 shadow-[6px_6px_0_#000]">
                   <div className="flex justify-between items-center mb-2">
@@ -3991,6 +3968,9 @@ export default function AreaProfessor() {
 
             {activeProfessorTab === 'perfil' && (
               <div className="space-y-5 animate-fade-in">
+                {(() => { const month = format(new Date(), 'yyyy-MM'); const aulas = agendaCompleta.filter((a: any) => String(a.data || '').startsWith(month) && a.status === 'realizada').length; const bruto = aulas * 30; const teto = [2,17].includes(Number(professorData?.id)) ? 500 : null; const premio = Number(professorData?.valor_premios || 0); const total = (teto === null ? bruto : Math.min(bruto,teto)) + premio; return <div className="app-panel app-panel--brown"><p className="text-xs font-bold text-[#ffcc22]">Saldo a receber · {format(new Date(), 'MMMM', { locale: ptBR })}</p><strong className="block text-3xl mt-2">{total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong><p className="text-xs mt-2">Pago no mês seguinte</p><div className="text-xs mt-4 border-t border-white/30 pt-3 space-y-1"><p>{aulas} aulas realizadas × R$ 30 = {bruto.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</p>{teto !== null && <p>Teto mensal: R$ 500,00</p>}<p>Prêmios de matrícula: {premio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} fora do teto</p></div></div>; })()}
+                <div className="app-panel"><h2 className="app-section-title">Aparência</h2><div className="app-theme-control mt-3"><button aria-pressed={choice === null} onClick={() => setTheme(null)}>Celular</button><button aria-pressed={choice === 'light'} onClick={() => setTheme('light')}>Claro</button><button aria-pressed={choice === 'dark'} onClick={() => setTheme('dark')}>Escuro</button></div></div>
+                <details className="app-details app-legacy-section"><summary>Meus dados e disponibilidade</summary><div className="space-y-5">
                 {/* Card Principal de Cadastro */}
                 <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000]">
                   <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[8px] uppercase border-l-4 border-b-4 border-black">
@@ -4287,10 +4267,13 @@ export default function AreaProfessor() {
                 >
                   <LogOut className="w-5 h-5" /> SAIR DA MINHA CONTA
                 </button>
+                </div></details>
+                <button type="button" className="app-action w-full" onClick={logout}>Sair da conta</button>
               </div>
             )}
 
-            {activeProfessorTab === 'fichas' && (() => {
+            {activeProfessorTab === 'alunos' && <div className="app-panel"><h1>Meus alunos</h1><p className="app-subtle">Fichas, vídeos e treinos em um lugar.</p><div className="grid grid-cols-2 gap-2 mt-3"><button className="app-action" aria-pressed={studentSection === 'fichas'} onClick={() => setStudentSection('fichas')}>Fichas</button><button className="app-action" aria-pressed={studentSection === 'treinos'} onClick={() => {setStudentSection('treinos'); fetchTreinos();}}>Treinos</button></div></div>}
+            {activeProfessorTab === 'alunos' && studentSection === 'fichas' && (() => {
               // Resumo das aulas realizadas de cada aluno, a partir da agenda do professor
               const resumoPorAluno: Record<string, { total: number; ultima: string | null }> = {};
               agendaCompleta.forEach((a: any) => {
@@ -4356,7 +4339,7 @@ export default function AreaProfessor() {
               );
             })()}
 
-            {activeProfessorTab === 'treinos' && (
+            {activeProfessorTab === 'alunos' && studentSection === 'treinos' && (
               <div className="space-y-4 animate-fade-in pb-10">
                 {/* Cabeçalho da aba Treinos */}
                 <div className="bg-[#fff8f6] border-8 border-black p-5 relative shadow-[8px_8px_0_#000]">
@@ -4788,42 +4771,14 @@ export default function AreaProfessor() {
           </div>
         </div>
 
-        {/* BOTTOM NAV */}
-        <nav className="fixed md:absolute bottom-0 left-0 right-0 md:left-auto md:right-auto md:w-full h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-50">
+        <nav className="app-bottom-nav shrink-0" aria-label="Menu do professor">
           {[
-            { id: 'home', icon: Home, label: 'HOME' },
-            { id: 'jogos', icon: Gamepad2, label: 'JOGOS' },
-            { id: 'agenda', icon: Calendar, label: 'AGENDA' },
-            { id: 'fichas', icon: FileText, label: 'FICHAS' },
-            { id: 'treinos', icon: Flame, label: 'TREINOS' },
-            { id: 'ranking', icon: Trophy, label: 'RANKING' },
-            { id: 'perfil', icon: User, label: 'PERFIL' },
-          ].map((item, i) => {
-            const isActive = activeProfessorTab === item.id;
-            return (
-              <button 
-                key={i} 
-                onClick={() => {
-                  setActiveProfessorTab(item.id as any);
-                  if (item.id === 'ranking') {
-                    fetchRanking();
-                    fetchConquistas();
-                    fetchSolicitacoes();
-                  }
-                  if (item.id === 'treinos') {
-                    fetchTreinos();
-                  }
-                  playRetroSound(440, 'triangle', 0.04); // som de clique retrô sutil ao navegar
-                }}
-                className={`flex flex-col items-center gap-0.5 transition-all ${isActive ? 'translate-y-[-4px]' : 'opacity-50 hover:opacity-80'}`}
-              >
-                <div className={`p-1.5 border-4 border-black shadow-[4px_4px_0_#000] ${isActive ? 'bg-[#ff6b00]' : 'bg-white'}`}>
-                  <item.icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-black'}`} />
-                </div>
-                <span className="text-[5.5px] font-black text-white uppercase tracking-tighter">{item.label}</span>
-              </button>
-            );
-          })}
+            { id: 'home', icon: Home, label: 'Hoje' },
+            { id: 'agenda', icon: Calendar, label: 'Agenda' },
+            { id: 'alunos', icon: Users, label: 'Alunos' },
+            { id: 'jogos', icon: Gamepad2, label: 'Jogos' },
+            { id: 'perfil', icon: User, label: 'Perfil' },
+          ].map((item) => <button type="button" key={item.id} aria-current={activeProfessorTab === item.id ? 'page' : undefined} onClick={() => setActiveProfessorTab(item.id as typeof activeProfessorTab)}><item.icon aria-hidden="true" />{item.label}</button>)}
         </nav>
       </div>
 
@@ -5314,14 +5269,6 @@ export default function AreaProfessor() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Botão flutuante de Ferramentas (metrônomo, afinador, cronômetro) em qualquer aba */}
-      {!showTools && (
-        <button type="button" onClick={() => setShowTools(true)}
-          className="fixed bottom-24 right-4 z-40 bg-[#ff6b00] text-white border-4 border-black px-3 py-2.5 font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
-          🎸 Ferramentas
-        </button>
       )}
 
       {/* Modal de Ferramentas */}

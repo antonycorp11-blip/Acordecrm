@@ -32,6 +32,8 @@ import { Download } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { getMediaStreamUrl } from '../utils/mediaUtils';
 import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
+import { useAppTheme } from '../utils/useAppTheme';
+import '../styles/area-app.css';
 declare global {
   interface Window {
     YT: any;
@@ -449,6 +451,7 @@ export default function AreaAluno() {
   const [aulasRealizadas, setAulasRealizadas] = useState<any[]>(() => getStoredCache('aluno_aulas_realizadas', []));
   const [loading, setLoading] = useState(() => !alunoData);
   const [activeTab, setActiveTab] = useState<'home' | 'ranking' | 'aulas' | 'perfil' | 'jogos' | 'treino'>('home');
+  const { theme, choice, setTheme } = useAppTheme();
   const [rankingData, setRankingData] = useState<any[]>([]);
   const [isAlunoModalOpen, setIsAlunoModalOpen] = useState(false);
   const [selectedAluno, setSelectedAluno] = useState<any | null>(null);
@@ -1634,7 +1637,7 @@ export default function AreaAluno() {
       `}</style>
       <div className="flex flex-col items-center gap-6 max-w-[280px] w-full text-center">
         <img 
-          src="/assets/Logo Laranja.png" 
+          src="/logo-studio-acorde.png" 
           alt="Studio Acorde" 
           className="w-48 object-contain animate-pulse" 
         />
@@ -1652,10 +1655,10 @@ export default function AreaAluno() {
   );
 
   return (
-    <div className="min-h-screen bg-[#110804] flex items-center justify-center p-0 md:p-8 overflow-hidden font-['Space_Mono']">
+    <div className="area-app min-h-screen flex items-center justify-center p-0 md:p-8 overflow-hidden" data-theme={theme}>
       
       {/* MOBILE SIMULATOR WRAPPER */}
-      <div className="w-full h-full md:h-[844px] md:max-w-[390px] md:border-[12px] md:border-black md:rounded-[60px] md:shadow-[0_0_0_8px_#3d2d26,0_20px_50px_rgba(0,0,0,0.5)] bg-[#1a0a05] relative overflow-hidden flex flex-col">
+      <div className="app-shell w-full h-screen relative overflow-hidden flex flex-col">
         
         {needsUpdate && (
           <div className="bg-red-600 text-white border-b-8 border-black p-4 text-center font-black text-[9px] uppercase animate-pulse flex flex-col gap-2 z-[100] relative">
@@ -1686,61 +1689,15 @@ export default function AreaAluno() {
         {/* Notch simulation */}
         <div className="hidden md:block absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-50"></div>
 
-        {/* TOP BAR — Stitch style */}
-        <header className="flex items-center justify-between px-6 py-4 pt-10 md:pt-10 shrink-0 bg-[#feccba] border-b-8 border-black">
-          <div className="flex items-center gap-3">
-            <div className="relative group cursor-pointer" onClick={() => document.getElementById('photo-input')?.click()}>
-              <div className="w-12 h-12 rounded-none border-4 border-black overflow-hidden bg-[#ff6b00] shadow-[4px_4px_0_#000]">
-                {alunoData?.foto_url ? (
-                  <img src={alunoData.foto_url} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white font-black text-xl">
-                    {(alunoData?.nome || user?.nome || 'A').charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity">
-                <Camera className="w-4 h-4 text-white" />
-                <span className="text-[6px] text-white font-black mt-1">FOTO</span>
-              </div>
-              <input 
-                id="photo-input" 
-                type="file" 
-                className="hidden" 
-                accept="image/*" 
-                onChange={handlePhotoUpload} 
-              />
-            </div>
-            <div className="flex flex-col items-center justify-center -ml-2">
-              <img src="/assets/Logo%20Laranja.png" alt="Studio Acorde" className="h-5 object-contain" />
-              <span className="text-[7px] text-[#ff6b00] font-black uppercase text-center mt-0.5 tracking-widest">App v1.0.2</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => {
-                OneSignalService.forcePrompt();
-                toast.success('Permissão de notificações ativada! Verifique no painel.');
-              }}
-              className="text-black hover:text-[#ff6b00] transition-colors relative group"
-              title="Ativar Notificações"
-            >
-              <Bell className="w-6 h-6" />
-              <span className="absolute -bottom-8 right-0 bg-black text-white text-[8px] font-black p-1 uppercase hidden group-hover:block whitespace-nowrap">
-                ATIVAR PUSH
-              </span>
-            </button>
-            <button onClick={() => window.location.reload()} className="bg-white text-black p-2 border-2 border-black shadow-[4px_4px_0_#000] hover:bg-[#ff6b00] hover:text-white active:translate-y-1 active:shadow-none transition-all" title="Atualizar App">
-              <RefreshCw className="w-4 h-4" />
-            </button>
-            <button onClick={logout} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] hover:bg-red-600 active:translate-y-1 active:shadow-none transition-all">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+        <header className="app-header flex items-center justify-between shrink-0">
+          <img className="app-logo" src="/logo-studio-acorde.png" alt="Studio Acorde" />
+          <button type="button" onClick={() => setActiveTab('perfil')} aria-label="Abrir perfil" className="w-11 h-11 border-2 border-black bg-[#ffcc22] text-black font-bold flex items-center justify-center">
+            {alunoData?.foto_url ? <img src={alunoData.foto_url} alt="Minha foto" className="w-full h-full object-cover" /> : (alunoData?.nome || user?.nome || 'A').charAt(0).toUpperCase()}
+          </button>
         </header>
 
         {/* SCROLL CONTENT */}
-        <div className="flex-1 overflow-auto pb-24 scrollbar-hide">
+        <div className="app-scroll flex-1 overflow-auto pb-24 scrollbar-hide">
 
 
           {/* ===== ABA: RANKING ===== */}
@@ -2292,6 +2249,7 @@ export default function AreaAluno() {
           {/* ===== ABA: JOGOS ===== */}
           {activeTab === 'jogos' && (
             <div className="px-4 py-5 space-y-6">
+              <div className="app-panel app-panel--gold"><h1>Jogos</h1><p>Brinque com ritmo, notas e ouvido musical.</p><button className="app-action app-action--light mt-3 w-full" onClick={() => { setActiveTab('ranking'); fetchRanking(); }}>🏆 Ver ranking</button></div>
               {/* Cabeçalho da Galeria */}
               <div className="flex items-center gap-3">
                 <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
@@ -2644,6 +2602,7 @@ export default function AreaAluno() {
           {/* ===== ABA: TREINO (SISTEMA DE TREINO DIÁRIO) ===== */}
           {activeTab === 'treino' && (
             <div className="px-4 py-5 space-y-6">
+              <div className="app-panel app-panel--orange"><h1>Hora de praticar</h1><p>Um passo de cada vez, com apoio quando precisar.</p></div><button className="app-panel w-full text-left font-bold" onClick={() => setShowTools(true)}>🎸 Ferramentas · metrônomo e afinador →</button>
 
               {/* Header Retro */}
               <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden flex flex-col gap-2">
@@ -3070,7 +3029,12 @@ export default function AreaAluno() {
 
           {/* ===== ABA: HOME (HUB INTEGRADO DO JOGADOR) ===== */}
           {activeTab === 'home' && (
-            <div className="px-4 py-5 space-y-6">
+            <div className="app-content">
+              <div><p className="app-subtle text-xs font-bold">{format(new Date(), `EEEE, d 'de' MMMM`, { locale: ptBR })}</p><h1>Olá, {String(alunoData?.nome || user?.nome || 'aluno').split(' ')[0]}.</h1></div>
+              {aulasHoje[0] && <div className="app-panel app-panel--orange"><p className="text-xs font-bold">Sua próxima aula</p><p className="text-3xl font-black">{String(aulasHoje[0].horario || '').slice(0,5)}</p><h2 className="text-xl font-black">{alunoData?.matriculas?.[0]?.cursos?.nome || 'Aula de música'}</h2><p>{aulasHoje[0].data ? format(new Date(aulasHoje[0].data + 'T12:00:00'), `EEEE, d 'de' MMMM`, { locale: ptBR }) : ''}</p>{aulasHoje[0].status !== 'confirmada' && <button className="app-action app-action--light mt-3" onClick={() => handleConfirmarPresenca(aulasHoje[0].id)}>Confirmar presença</button>}</div>}
+              <div className="grid grid-cols-2 gap-3"><button className="app-panel app-panel--brown text-left" onClick={() => {setActiveTab('treino'); fetchTreinos();}}>Praticar hoje →</button><button className="app-panel text-left" onClick={() => {setActiveTab('ranking'); fetchRanking();}}>🏆 Ranking →</button></div>
+              {aulasRealizadas[0] && <button className="app-panel text-left w-full" onClick={() => setSelectedFicha(aulasRealizadas[0])}>Última ficha · {aulasRealizadas[0].data}<span className="block font-bold">Rever aula →</span></button>}
+              <details className="app-details app-legacy-section"><summary>Ver mais do meu início</summary><div className="space-y-6">
               {/* Próximas Aulas e Confirmação */}
               {aulasHoje.length > 0 && (
                 <div className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] space-y-3">
@@ -3353,7 +3317,7 @@ export default function AreaAluno() {
               </div>
 
               {/* Feed de Atividades / CRM */}
-              <div className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
+              {feed.length > 0 && <div className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-black font-black text-lg">🌍</span>
                   <h3 className="text-black font-black text-[11px] uppercase tracking-widest">Feed de Atividades</h3>
@@ -3387,13 +3351,18 @@ export default function AreaAluno() {
                     <p className="text-[10px] font-black uppercase text-center text-gray-500">Nenhuma atividade recente.</p>
                   )}
                 </div>
-              </div>
+              </div>}
 
+              </div></details>
             </div>
           )} {/* end activeTab === home */}
 
           {activeTab === 'perfil' && (
             <div className="px-4 py-5 space-y-6">
+              <h1 className="app-section-title">Meu perfil</h1>
+              <div className="app-panel"><h2 className="app-section-title">Meu personagem</h2><p>{alunoData?.nome} · {Number(alunoData?.xp || 0).toLocaleString('pt-BR')} XP</p><div className="grid grid-cols-2 gap-2 mt-3"><button className="app-action" onClick={() => setShowAvatarEditor(true)}>Avatar</button><button className="app-action" onClick={() => setShowAvatarStore(true)}>Loja</button><button className="app-action" onClick={() => setSelectedAluno(alunoData)}>Troféus</button><button className="app-action" onClick={() => document.getElementById('photo-input')?.click()}>Trocar foto</button></div><input id="photo-input" type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} /></div>
+              <div className="app-panel"><h2 className="app-section-title">Aparência</h2><div className="app-theme-control mt-3"><button aria-pressed={choice === null} onClick={() => setTheme(null)}>Celular</button><button aria-pressed={choice === 'light'} onClick={() => setTheme('light')}>Claro</button><button aria-pressed={choice === 'dark'} onClick={() => setTheme('dark')}>Escuro</button></div></div>
+              <h2 className="app-section-title">Minha matrícula</h2>
               
               {/* FICHA DO ESTUDANTE: DADOS & FINANCEIRO */}
               <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[12px_12px_0_#000] space-y-6">
@@ -3956,76 +3925,14 @@ export default function AreaAluno() {
           </div>
         </div>
       </div>
-        {/* BOTTOM NAV — Mobile Flutuante 8-Bit */}
-        <div className="fixed bottom-4 left-4 right-4 z-50 flex justify-center md:hidden">
-          <nav className="bg-[#261812] border-8 border-black flex items-center justify-around px-2 py-1 shadow-[8px_8px_0_#000] w-full max-w-[450px]">
-            {[
-              { icon: Home, label: 'INÍCIO', tab: 'home' as const },
-              { icon: Flame, label: 'TREINO', tab: 'treino' as const },
-              { icon: Trophy, label: 'RANKING', tab: 'ranking' as const },
-              { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
-              { icon: Gamepad2, label: 'JOGOS', tab: 'jogos' as const },
-              { icon: User, label: 'PERFIL', tab: 'perfil' as const },
-            ].map((item) => (
-              <button 
-                key={item.tab} 
-                onClick={() => { 
-                  setActiveTab(item.tab); 
-                  if (item.tab === 'ranking') fetchRanking(); 
-                  else if (item.tab === 'treino') fetchTreinos(); 
-                }} 
-                className={`flex flex-col items-center gap-1 transition-all ${
-                  activeTab === item.tab 
-                    ? 'translate-y-[-4px] scale-105' 
-                    : 'opacity-50 hover:opacity-80 active:scale-95'
-                }`}
-              >
-                <div className={`p-1.5 border-4 border-black shadow-[3px_3px_0_#000] ${
-                  activeTab === item.tab 
-                    ? 'bg-[#ff6b00] text-white shadow-none translate-x-[1px] translate-y-[1px]' 
-                    : 'bg-white text-black'
-                }`}>
-                  <item.icon className="w-4.5 h-4.5" />
-                </div>
-                <span className="text-[6.5px] font-black text-white uppercase tracking-tighter">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* BOTTOM NAV — Desktop / Tablet Lateral Fixada */}
-        <nav className="hidden md:flex fixed left-4 top-24 bottom-24 w-24 bg-[#261812] border-8 border-black flex-col items-center justify-center gap-6 py-4 shadow-[8px_8px_0_#000] z-50">
+        <nav className="app-bottom-nav shrink-0" aria-label="Menu do aluno">
           {[
-            { icon: Home, label: 'INÍCIO', tab: 'home' as const },
-            { icon: Flame, label: 'TREINO', tab: 'treino' as const },
-            { icon: Trophy, label: 'RANKING', tab: 'ranking' as const },
-            { icon: BookOpen, label: 'AULAS', tab: 'aulas' as const },
-            { icon: Gamepad2, label: 'JOGOS', tab: 'jogos' as const },
-            { icon: User, label: 'PERFIL', tab: 'perfil' as const },
-          ].map((item) => (
-            <button 
-              key={item.tab} 
-              onClick={() => { 
-                setActiveTab(item.tab); 
-                if (item.tab === 'ranking') fetchRanking(); 
-                else if (item.tab === 'treino') fetchTreinos(); 
-              }} 
-              className={`flex flex-col items-center gap-1 transition-all ${
-                activeTab === item.tab 
-                  ? 'scale-105' 
-                  : 'opacity-50 hover:opacity-80 active:scale-95'
-              }`}
-            >
-              <div className={`p-2 border-4 border-black shadow-[4px_4px_0_#000] ${
-                activeTab === item.tab 
-                  ? 'bg-[#ff6b00] text-white shadow-none translate-x-[1.5px] translate-y-[1.5px]' 
-                  : 'bg-white text-black'
-              }`}>
-                <item.icon className="w-5 h-5" />
-              </div>
-              <span className="text-[6.5px] font-black text-white uppercase tracking-tighter">{item.label}</span>
-            </button>
-          ))}
+            { icon: Home, label: 'Início', tab: 'home' as const },
+            { icon: BookOpen, label: 'Aulas', tab: 'aulas' as const },
+            { icon: Flame, label: 'Praticar', tab: 'treino' as const },
+            { icon: Gamepad2, label: 'Jogos', tab: 'jogos' as const },
+            { icon: User, label: 'Perfil', tab: 'perfil' as const },
+          ].map((item) => <button key={item.tab} type="button" aria-current={activeTab === item.tab ? 'page' : undefined} onClick={() => { setActiveTab(item.tab); if (item.tab === 'treino') fetchTreinos(); }}><item.icon aria-hidden="true" />{item.label}</button>)}
         </nav>
 
       </div>
