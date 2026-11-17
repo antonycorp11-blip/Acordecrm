@@ -2801,8 +2801,8 @@ export default function AreaAluno() {
                       <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider">
                         {format(new Date(aula.data + 'T12:00:00Z'), "dd 'de' MMMM", { locale: ptBR }).toUpperCase()}
                       </p>
-                      <h3 className="text-black font-black text-sm md:text-base uppercase italic">
-                        FICHA DE AULA: {aula.curso_nome || 'MUSICA'}
+                      <h3 className="text-black font-black text-xl leading-tight">
+                        Aula de {aula.curso_nome || currentInstrument}{aula.professor_nome ? ` · ${String(aula.professor_nome).split(' ')[0]}` : ''}
                       </h3>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -2810,38 +2810,38 @@ export default function AreaAluno() {
                         onClick={() => setPrintAula(aula)}
                         className="bg-[#4ade80] text-black border-2 border-black font-black text-[9px] px-3 py-1.5 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-[#22c55e] transition-all flex items-center gap-1"
                       >
-                        📥 PDF
+                        PDF
                       </button>
                       <button
                         onClick={() => setSelectedFicha(null)}
                         className="bg-red-600 text-white border-2 border-black font-black text-[11px] px-3.5 py-1.5 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none hover:bg-black hover:text-[#feccba] transition-all"
                       >
-                        X FECHAR
+                        ✕
                       </button>
                     </div>
                   </div>
                   <div className="space-y-4 flex-1 overflow-y-auto pr-1">
                     {!isRich ? (
                       <>
-                        <div className="bg-[#feccba]/20 border-2 border-black/10 p-2.5">
-                          <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEUDO TRABALHADO:</span>
-                          <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(aula.conteudo || 'Nenhum conteudo registrado')}</p>
+                        <div className="bg-white border-2 border-black p-3">
+                          <span className="text-xs font-black text-[#ff6b00] uppercase block mb-1">Hoje aprendemos</span>
+                          <p className="text-black text-[15px] font-semibold leading-snug whitespace-pre-wrap">{linkify(aula.conteudo || 'Nenhum conteudo registrado')}</p>
                         </div>
-                        <div className="bg-black/5 border-2 border-black/10 p-2.5">
-                          <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">⚔️ BOSS QUEST / DESAFIO:</span>
-                          <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(aula.tarefa_casa || 'Treinar repertorio livre')}</p>
+                        <div className="bg-[#ffcc22] border-2 border-black p-3 shadow-[3px_3px_0_#000]">
+                          <span className="text-xs font-black text-black uppercase block mb-1">📌 Tarefa de casa</span>
+                          <p className="text-black text-[15px] font-semibold leading-snug whitespace-pre-wrap">{linkify(aula.tarefa_casa || 'Treinar repertorio livre')}</p>
                         </div>
                       </>
                     ) : (
                       <div className="space-y-4">
-                        <div className="bg-[#feccba]/20 border-2 border-black/20 p-2.5">
-                          <span className="text-[8px] font-black text-[#8e7164] uppercase block mb-1">CONTEUDO TRABALHADO:</span>
-                          <p className="text-black text-[10px] font-bold uppercase whitespace-pre-wrap">{linkify(richData.conteudoText || 'AULA INTERATIVA DE MUSICA')}</p>
+                        <div className="bg-white border-2 border-black p-3">
+                          <span className="text-xs font-black text-[#ff6b00] uppercase block mb-1">Hoje aprendemos</span>
+                          <p className="text-black text-[15px] font-semibold leading-snug whitespace-pre-wrap">{linkify(richData.conteudoText || 'AULA INTERATIVA DE MUSICA')}</p>
                         </div>
                         {richData.tarefaCasaText && (
-                          <div className="bg-black/5 border-2 border-black/20 p-2.5">
-                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">⚔️ TAREFA DE CASA:</span>
-                            <p className="text-black text-[10px] font-bold uppercase italic whitespace-pre-wrap">{linkify(richData.tarefaCasaText)}</p>
+                          <div className="bg-[#ffcc22] border-2 border-black p-3 shadow-[3px_3px_0_#000]">
+                            <span className="text-xs font-black text-black uppercase block mb-1">📌 Tarefa de casa</span>
+                            <p className="text-black text-[15px] font-semibold leading-snug whitespace-pre-wrap">{linkify(richData.tarefaCasaText)}</p>
                           </div>
                         )}
                         {richData.chords && richData.chords.length > 0 && (
@@ -2849,7 +2849,7 @@ export default function AreaAluno() {
                         )}
                         {richData.scales && richData.scales.length > 0 && (
                           <div className="space-y-2 pt-2 border-t-2 border-black/10">
-                            <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">🎼 ESCALAS / HARMONIA:</span>
+                            <span className="text-xs font-black text-[#ff6b00] uppercase block mb-1">🎼 ESCALAS / HARMONIA:</span>
                             <div className="flex flex-wrap gap-2">
                               {richData.scales.map((s: any, i: number) => (
                                 <span key={i} className="px-2 py-1 bg-black text-white border border-black text-[10px] font-bold uppercase">{s.root} {s.type}</span>
@@ -2906,7 +2906,7 @@ export default function AreaAluno() {
                         )}
                         {richData.tablatures && richData.tablatures.length > 0 && (
                           <div className="space-y-2 pt-2 border-t-2 border-black/10">
-                             <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">📝 TABLATURA:</span>
+                             <span className="text-xs font-black text-[#ff6b00] uppercase block mb-1">📝 TABLATURA:</span>
                              {richData.tablatures.map((tab: any, idx: number) => (
                                <div key={idx} className="border-2 border-black p-2 bg-white space-y-2">
                                  <p className="text-[8px] font-black uppercase text-[#ff6b00]">{tab.name}</p>
@@ -2930,7 +2930,7 @@ export default function AreaAluno() {
                         )}
                         {richData.drums && richData.drums.length > 0 && (
                           <div className="space-y-2 pt-2 border-t-2 border-black/10">
-                             <span className="text-[8px] font-black text-[#ff6b00] uppercase block mb-1">🥁 GROOVES E RUDIMENTOS:</span>
+                             <span className="text-xs font-black text-[#ff6b00] uppercase block mb-1">🥁 GROOVES E RUDIMENTOS:</span>
                              <ul className="list-disc pl-4 text-[10px] font-bold uppercase text-black">
                                {richData.drums.map((d: any, i: number) => (
                                  <li key={i}>{d.pattern} a {d.bpm} BPM</li>
