@@ -3524,17 +3524,7 @@ export default function AreaProfessor() {
 
             {activeProfessorTab === 'jogos' && (
               <div className="px-4 py-5 space-y-6">
-                <div className="app-panel app-panel--gold"><h1>Jogos</h1><p>Professores também entram na brincadeira.</p><button className="app-action app-action--light w-full mt-3" onClick={() => { setActiveProfessorTab('ranking'); fetchRanking(); fetchConquistas(); fetchSolicitacoes(); }}>🏆 Ranking da semana</button></div>
-                {/* Cabeçalho da Galeria */}
-                <div className="flex items-center gap-3">
-                  <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
-                    <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
-                      🕹️ FLIPERAMA ACORDE
-                    </h3>
-                  </div>
-                  <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-                </div>
-
+                <div><h1 className="text-2xl font-black">Jogos</h1><p className="app-subtle text-sm">Professores também entram na brincadeira.</p></div>
                 {showAvatarStore ? (
                   <AvatarStore 
                     xp={acordeCoins}
@@ -3548,30 +3538,6 @@ export default function AreaProfessor() {
                   />
                 ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingRitmoPro && !isPlayingVoiceRush && !isPlayingMetronomeBird && !isPlayingCifrasMusicais ? (
                   <>
-                    {/* Botão de Acesso à Loja */}
-                    <div 
-                      onClick={() => setShowAvatarStore(true)}
-                      className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] transition-all relative group overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-[10px_10px_0_#000]"
-                    >
-                      <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-[#ffeb3b] border-4 border-black flex items-center justify-center text-2xl shadow-[2px_2px_0_#000]">
-                            🛒
-                          </div>
-                          <div>
-                            <h3 className="text-black font-black text-sm uppercase tracking-widest">LOJA DE ITENS</h3>
-                            <p className="text-[#8e7164] font-black text-[9px] uppercase mt-0.5">Compre cabelos, roupas e acessórios!</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="bg-[#feccba] border-4 border-black px-2 py-1 flex items-center justify-center font-black text-xs text-[#3d2d26] shadow-[2px_2px_0_#000]">
-                            💰 {acordeCoins} COINS
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Painel de Controle de Evento do Professor */}
                     <div className="bg-[#261812] border-4 border-black p-4 text-center relative overflow-hidden shadow-[4px_4px_0_#000]">
                       <p className="text-[#feccba] font-black text-[9px] uppercase tracking-widest mb-3">
@@ -3596,97 +3562,24 @@ export default function AreaProfessor() {
                       </div>
                     </div>
 
-                    {/* Grid de Aplicativos (Jogos) */}
-                    <div className="pt-2">
-                      <div className="flex items-center gap-3 mb-4">
-                        <h4 className="text-white font-black text-[10px] uppercase tracking-widest">MINI JOGOS (APPS)</h4>
-                        <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+                    {/* Jogos disponíveis */}
+                    <div className="space-y-3">
+                      <div className="feature gold-bg split-feature">
+                        <div><span className="tiny">Jogar agora</span><h4>Desafio do ritmo</h4><p>Ouça a batida e marque o compasso certo.</p><button className="btn dark" onClick={() => { setIsPlayingRitmoPro(true); playRetroSound(880, 'square', 0.1); }}>Começar →</button></div>
+                        <div className="feature-art" aria-hidden="true">🥁</div>
                       </div>
-
-                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
-                        
-                        {/* App 1: Genius */}
-                        <button 
-                          onClick={() => {
-                            setIsPlayingAcordeGenius(true);
-                            playRetroSound(880, 'square', 0.1);
-                          }}
-                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
-                        >
-                          <div className="w-full aspect-square bg-[#ff6b00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
-                            🕹️
-                          </div>
-                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Acorde Genius</span>
-                        </button>
-
-                        {/* App 2: Chord Rush */}
-                        <button 
-                          onClick={() => {
-                            setIsPlayingChordRush(true);
-                            playRetroSound(880, 'square', 0.1);
-                          }}
-                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
-                        >
-                          <div className="w-full aspect-square bg-[#00ff66] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
-                            🎸
-                          </div>
-                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Chord Rush</span>
-                        </button>
-
-                        {/* App 3: Triade Ninja */}
-                        <button 
-                          onClick={() => {
-                            setIsPlayingTriadeNinja(true);
-                            playRetroSound(880, 'square', 0.1);
-                          }}
-                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
-                        >
-                          <div className="w-full aspect-square bg-[#a855f7] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
-                            ⚔️
-                          </div>
-                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Triade Ninja</span>
-                        </button>
-
-                        {/* App 4: MetroBird */}
-                        <button 
-                          onClick={() => {
-                            setIsPlayingMetronomeBird(true);
-                            playRetroSound(880, 'square', 0.1);
-                          }}
-                          className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all relative"
-                        >
-                          <div className="w-full aspect-square bg-[#ff5f00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl relative">
-                            🐦
-                            <span className="absolute -top-1 -right-1 bg-[#00ff66] text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse">
-                              NOVO! 🔥
-                            </span>
-                          </div>
-                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
-                        </button>
-
-                        {/* App 5: Cifras Estelares */}
-                        <div 
-                          onClick={() => {
-                            setIsPlayingCifrasMusicais(true);
-                            playRetroSound(880, 'square', 0.1);
-                          }}
-                          className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-100 hover:scale-105 transition-all"
-                        >
-                          <div className="w-full aspect-square bg-[#0f172a] border-4 border-cyan-500 shadow-[4px_4px_0_#0ea5e9] rounded-xl flex items-center justify-center text-3xl relative">
-                            🚀
-                          </div>
-                          <span className="text-cyan-400 font-black text-[8px] uppercase tracking-widest text-center">Cifras Estelares</span>
-                        </div>
-
-                        {/* App 6: Rhythm Hero (Locked) */}
-                        <div className="flex flex-col items-center gap-2 opacity-50 grayscale cursor-not-allowed">
-                          <div className="w-full aspect-square bg-[#8e7164] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl">
-                            🔒
-                          </div>
-                          <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Rhythm Hero</span>
-                        </div>
-
+                      <div className="section-row"><h4>Escolha um jogo</h4></div>
+                      <div className="tile-grid">
+                        <button className="tile" onClick={() => { setIsPlayingChordRush(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎸</span><strong>Chord Rush</strong><small>Acerte os acordes</small></button>
+                        <button className="tile tint" onClick={() => { setIsPlayingAcordeGenius(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎹</span><strong>Acorde Genius</strong><small>Repita a sequência</small></button>
+                        <button className="tile tint" onClick={() => { setIsPlayingTriadeNinja(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">⚔️</span><strong>Tríade Ninja</strong><small>Encontre as notas</small></button>
+                        <button className="tile" onClick={() => { setIsPlayingMetronomeBird(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🐦</span><strong>MetroBird</strong><small>Siga o ritmo</small></button>
+                        <button className="tile" onClick={() => { setIsPlayingCifrasMusicais(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🚀</span><strong>Cifras Estelares</strong><small>Explore as cifras</small></button>
+                        <button className="tile tint" onClick={() => { setIsPlayingVoiceRush(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎤</span><strong>Voice Rush</strong><small>Treine o ouvido</small></button>
                       </div>
+                      <div className="section-row"><h4>Comunidade</h4></div>
+                      <button className="compact-row w-full text-left" onClick={() => { setActiveProfessorTab('ranking'); fetchRanking(); fetchConquistas(); fetchSolicitacoes(); }}><span className="icon-box">🏆</span><span className="flex-1"><strong>Ranking da semana</strong><small>Veja todos os jogadores</small></span><b>→</b></button>
+                      <button className="compact-row w-full text-left" onClick={() => setShowAvatarStore(true)}><span className="icon-box">🪙</span><span className="flex-1"><strong>Loja de moedas</strong><small>{acordeCoins} moedas · itens para o avatar</small></span><b>→</b></button>
                     </div>
                   </>
                 ) : isPlayingChordRush ? (
@@ -3796,30 +3689,30 @@ export default function AreaProfessor() {
 
             {activeProfessorTab === 'agenda' && (
               <div className="space-y-4 animate-fade-in">
-                <div className="app-panel"><h1>Agenda da semana</h1><p className="app-subtle">Escolha o dia e veja suas aulas.</p></div>
+                <div><h1 className="text-2xl font-black">Agenda da semana</h1><p className="app-subtle text-sm">Escolha o dia e veja suas aulas.</p></div>
                 {/* Calendário Semanal 8-Bit */}
-                <div className="bg-[#261812] border-4 border-black p-3 shadow-[6px_6px_0_#000]">
+                <div className="app-panel">
                   <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-white font-black text-[9px] uppercase tracking-widest flex items-center gap-1">
-                      📅 PLANEJAMENTO SEMANAL
+                    <h4 className="app-section-title">
+                      {format(getWeekDays(agendaWeekOffset)[0], "d 'a'", { locale: ptBR })} {format(getWeekDays(agendaWeekOffset)[6], "d 'de' MMMM", { locale: ptBR })}
                     </h4>
                     <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => handleMudarSemana(-1)} className="px-2 py-1 bg-stone-800 text-white text-[8px] font-black uppercase hover:bg-stone-700 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">&lt; ANT</button>
+                      <button type="button" onClick={() => handleMudarSemana(-1)} className="app-action app-action--light" aria-label="Semana anterior">‹</button>
                       
                       <span className="text-[#ff6b00] font-black text-[8px] uppercase px-1 hidden sm:inline">
                         {agendaWeekOffset === 0 ? 'Semana Atual' : agendaWeekOffset < 0 ? `${Math.abs(agendaWeekOffset)} Sem. Atrás` : `${agendaWeekOffset} Sem. Frente`}
                       </span>
                       
-                      <button type="button" onClick={() => handleMudarSemana(1)} className="px-2 py-1 bg-stone-800 text-white text-[8px] font-black uppercase hover:bg-stone-700 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">PRÓX &gt;</button>
+                      <button type="button" onClick={() => handleMudarSemana(1)} className="app-action app-action--light" aria-label="Próxima semana">›</button>
                       
                       {agendaWeekOffset !== 0 && (
-                         <button type="button" onClick={() => { setAgendaWeekOffset(0); setSelectedWeekDay(format(new Date(), 'yyyy-MM-dd')); }} className="px-2 py-1 ml-1 bg-[#ff6b00] text-white text-[8px] font-black uppercase hover:bg-orange-500 transition-all border border-black shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none">HOJE</button>
+                         <button type="button" onClick={() => { setAgendaWeekOffset(0); setSelectedWeekDay(format(new Date(), 'yyyy-MM-dd')); }} className="app-action text-xs">Hoje</button>
                       )}
                     </div>
                   </div>
                   
                   {/* Grid de 7 dias */}
-                  <div className="grid grid-cols-7 gap-1.5">
+                  <div className="week-strip mt-3 mb-0">
                     {getWeekDays(agendaWeekOffset).map((day) => {
                       const dayStr = format(day, 'yyyy-MM-dd');
                       const isSelected = selectedWeekDay === dayStr;
@@ -3838,29 +3731,24 @@ export default function AreaProfessor() {
                           key={dayStr}
                           type="button"
                           onClick={() => setSelectedWeekDay(dayStr)}
-                          className={`flex flex-col items-center justify-between p-1.5 border-2 transition-all active:translate-y-[1px] relative ${
-                            isSelected
-                              ? 'bg-[#ff6b00] border-white text-white shadow-[2px_2px_0_#000] z-10'
-                              : isToday
-                              ? 'bg-[#402a20] border-[#ff6b00] text-[#feccba]'
-                              : 'bg-[#1a0f0a] border-black text-stone-400 hover:bg-[#261812]'
-                          }`}
+                          className={`relative ${isSelected ? 'chosen' : ''} ${isToday && !isSelected ? 'outline outline-2 outline-[#ff6b00]' : ''}`}
+                          aria-pressed={isSelected}
                         >
                           {/* Badge de quantidade de aulas */}
                           {numAulas > 0 && (
                             <span className={`absolute -top-1.5 -right-1 px-1 min-w-[12px] h-3 text-[7px] font-black rounded-full border border-black flex items-center justify-center leading-none ${
-                              isSelected ? 'bg-white text-black' : 'bg-[#ff6b00] text-white'
+                              isSelected ? 'bg-white text-black' : 'bg-[#ff6b00] text-black'
                             }`}>
                               {numAulas}
                             </span>
                           )}
                           
-                          <span className="text-[7px] font-black tracking-tighter uppercase leading-none">
+                          <span className="text-[10px] font-black uppercase">
                             {labelDia}
                           </span>
-                          <span className="text-xs font-black italic mt-1 leading-none">
+                          <b>
                             {numDia}
-                          </span>
+                          </b>
                         </button>
                       );
                     })}
@@ -3868,7 +3756,7 @@ export default function AreaProfessor() {
                 </div>
 
                 {/* Filtros de Status */}
-                <div className="flex border-4 border-black bg-black p-1 gap-1 overflow-x-auto scrollbar-hide">
+                <div className="flex gap-2 overflow-x-auto pb-1">
                   {([
                     { id: 'todas', label: '🗂️ TODAS' },
                     { id: 'pendente', label: '⏳ PENDENTES' },
@@ -3879,11 +3767,12 @@ export default function AreaProfessor() {
                       key={filter.id}
                       type="button"
                       onClick={() => setFilterAgendaStatus(filter.id)}
-                      className={`flex-1 py-1.5 px-2 font-black text-[8px] uppercase tracking-wider text-center transition-all shrink-0 ${
+                      className={`min-h-11 border-2 border-black px-3 font-black text-xs text-center shrink-0 ${
                         filterAgendaStatus === filter.id
-                          ? 'bg-[#ff6b00] text-white'
-                          : 'bg-[#261812] text-[#feccba] hover:bg-stone-800'
+                          ? 'bg-[#ffcc22] text-black'
+                          : 'bg-[var(--app-card)] text-[var(--app-text)]'
                       }`}
+                      aria-pressed={filterAgendaStatus === filter.id}
                     >
                       {filter.label}
                     </button>
@@ -3906,11 +3795,7 @@ export default function AreaProfessor() {
 
                     if (aulasDoDia.length === 0) {
                       return (
-                        <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
-                          <p className="text-[#8e7164] font-black text-[9px] uppercase italic">
-                            &gt;&gt; NENHUMA AULA PARA ESTE DIA OU FILTRO
-                          </p>
-                        </div>
+                        <div className="app-panel text-center app-subtle text-sm">Nenhuma aula para este dia ou filtro.</div>
                       );
                     }
 
@@ -3931,38 +3816,17 @@ export default function AreaProfessor() {
                       return (
                         <div
                           key={aula.id}
-                          className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative overflow-hidden"
+                          className="agenda-slot"
                         >
-                          {/* Status Badges */}
-                          {isConcluida && (
-                            <div className="absolute top-0 right-0 px-2 py-0.5 bg-emerald-500 text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black">
-                              REALIZADA
-                            </div>
-                          )}
-                          {isFalta && (
-                            <div className="absolute top-0 right-0 px-2 py-0.5 bg-red-500 text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black">
-                              FALTA
-                            </div>
-                          )}
-                          {isConfirmada && (
-                            <div className="absolute top-0 right-0 px-2 py-0.5 bg-blue-500 text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black">
-                              CONFIRMADA
-                            </div>
-                          )}
-                          {isPendente && (
-                            <div className="absolute top-0 right-0 px-2 py-0.5 bg-[#ff6b00] text-white font-black text-[6px] uppercase border-l-2 border-b-2 border-black animate-pulse">
-                              AGUARDANDO
-                            </div>
-                          )}
+                          <time>{aula.horario?.substring(0, 5) || '—'}</time>
+                          <div className="agenda-card">
+                          <span className={`status-chip ${isConcluida ? 'done' : ''}`}>
+                            {isConcluida ? 'Realizada' : isFalta ? 'Falta' : isConfirmada ? 'Confirmada' : isPendente ? 'Aguardando' : aula.status}
+                          </span>
 
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-[#feccba] border-4 border-black text-black flex items-center justify-center shrink-0">
-                              <span className="font-black text-lg">♪</span>
-                            </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[#ff6b00] font-black text-[8px] uppercase tracking-wider flex items-center gap-1">
-                                <Clock className="w-2.5 h-2.5" /> {formattedDate} @ {aula.horario?.substring(0, 5)}
-                              </p>
+                              <p className="app-subtle text-xs font-bold">{formattedDate}</p>
                                <h4 
                                 onClick={() => {
                                   if (aula.aluno_id) {
@@ -3971,29 +3835,30 @@ export default function AreaProfessor() {
                                     toast.error('Aluno não vinculado a esta aula.');
                                   }
                                 }}
-                                className="text-black font-black text-sm uppercase italic leading-none my-1 truncate cursor-pointer hover:text-[#ff6b00] underline decoration-dashed decoration-2 hover:decoration-solid transition-colors"
+                                className="font-black text-sm my-1 truncate cursor-pointer underline"
                                 title="Clique para ver o histórico do aluno"
                               >
                                 {aula.nome || aula.aluno_nome || 'ALUNO'}
                               </h4>
-                              <p className="text-black/50 font-black text-[7px] uppercase">
+                              <p className="app-subtle text-xs font-bold">
                                 {aula.curso_nome || 'INSTRUMENTO'}
                               </p>
                             </div>
                           </div>
 
-                          <div className="mt-3 pt-3 border-t-2 border-black/10 flex justify-between items-center">
-                            <span className="text-[7px] font-black text-black/40 uppercase">
+                          <div className="mt-3 pt-3 border-t border-[var(--outline)] flex justify-between items-center gap-2">
+                            <span className="app-subtle text-xs font-bold">
                               XP: +{aula.xp_ganho || 50} XP
                             </span>
                             
                             <button
                               onClick={() => openRegistroModal(aula)}
-                              className="bg-[#ff6b00] text-white px-2.5 py-1.5 border-2 border-black font-black uppercase text-[7px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
+                              className="app-action text-xs"
                             >
                               <BookOpen className="w-3 h-3" /> 
-                              {isConcluida ? 'VER_DIARIO' : 'REGISTRAR_AULA'}
+                              {isConcluida ? 'Ver diário' : 'Registrar aula'}
                             </button>
+                          </div>
                           </div>
                         </div>
                       );
@@ -4309,7 +4174,24 @@ export default function AreaProfessor() {
               </div>
             )}
 
-            {activeProfessorTab === 'alunos' && <div className="app-panel"><h1>Meus alunos</h1><p className="app-subtle">Fichas, vídeos e treinos em um lugar.</p><div className="grid grid-cols-2 gap-2 mt-3"><button className="app-action" aria-pressed={studentSection === 'fichas'} onClick={() => setStudentSection('fichas')}>Fichas</button><button className="app-action" aria-pressed={studentSection === 'treinos'} onClick={() => {setStudentSection('treinos'); fetchTreinos();}}>Treinos</button></div></div>}
+            {activeProfessorTab === 'alunos' && <div className="space-y-4">
+              <div><h1 className="text-2xl font-black">Meus alunos</h1><p className="app-subtle text-sm">Veja fichas, vídeos de treino e pedidos de troféu.</p></div>
+              <input type="search" aria-label="Buscar aluno pelo nome" placeholder="Buscar aluno pelo nome" className="w-full min-h-11 border-2 border-black bg-[var(--app-card)] text-[var(--app-text)] px-3 text-sm" value={buscaFichas} onChange={e => setBuscaFichas(e.target.value)} />
+              <div className="feature gold-bg">
+                <span className="tiny">Para acompanhar</span>
+                <h4>{filteredTreinos.filter((t: any) => t.video_url && (!t.video_expira_em || new Date(t.video_expira_em).getTime() > Date.now())).length} vídeos de treino</h4>
+                <p>Ouça e assista aos trechos enviados pelos seus alunos.</p>
+                <button className="btn" onClick={() => { setStudentSection('treinos'); fetchTreinos(); }}>Ver treinos →</button>
+              </div>
+              <div className="section-row"><h4>Pedidos de troféu</h4><span className="pill">{filteredSolicitacoes.filter((s: any) => s.status === 'pendente').length} pendentes</span></div>
+              {filteredSolicitacoes.filter((s: any) => s.status === 'pendente').map((sol: any) => <div className="student-card" key={sol.id}>
+                <strong>🏅 {sol.aluno?.nome || 'Aluno'}</strong>
+                <small>{sol.conquista?.nome || 'Troféu'} · avaliar pedido</small>
+                <div className="mini-links"><button onClick={() => handleRevisarSolicitacao(sol.id, 'aprovada')}>Conceder</button><button onClick={() => handleRevisarSolicitacao(sol.id, 'rejeitada')}>Negar</button></div>
+              </div>)}
+              <div className="section-row"><h4>Alunos</h4><span className="app-subtle text-xs">{alunosList.length} no total</span></div>
+              <div className="grid grid-cols-2 gap-2"><button className="app-action" aria-pressed={studentSection === 'fichas'} onClick={() => setStudentSection('fichas')}>Fichas</button><button className="app-action" aria-pressed={studentSection === 'treinos'} onClick={() => {setStudentSection('treinos'); fetchTreinos();}}>Treinos</button></div>
+            </div>}
             {activeProfessorTab === 'alunos' && studentSection === 'fichas' && (() => {
               // Resumo das aulas realizadas de cada aluno, a partir da agenda do professor
               const resumoPorAluno: Record<string, { total: number; ultima: string | null }> = {};
@@ -4327,49 +4209,22 @@ export default function AreaProfessor() {
 
               return (
                 <div className="space-y-4 animate-fade-in pb-24">
-                  <div className="bg-[#fff8f6] border-8 border-black p-5 relative shadow-[8px_8px_0_#000]">
-                    <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-600 text-white font-black text-[8px] uppercase border-l-4 border-b-4 border-black">
-                      FICHAS
-                    </div>
-                    <h3 className="text-black font-black text-lg uppercase italic tracking-tighter mt-1 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-emerald-600" /> FICHAS DOS MEUS ALUNOS
-                    </h3>
-                    <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider mt-1">
-                      Toque em um aluno para ver todas as fichas de aula dele
-                    </p>
-                  </div>
-
-                  <input
-                    type="text"
-                    placeholder="PESQUISAR ALUNO..."
-                    className="w-full bg-white border-4 border-black p-3 font-black text-xs uppercase outline-none focus:bg-[#ffeae1] shadow-[4px_4px_0_#000]"
-                    value={buscaFichas}
-                    onChange={(e) => setBuscaFichas(e.target.value)}
-                  />
-
                   <div className="space-y-2">
-                    {alunosFiltrados.map((aluno: any) => (
-                      <button
-                        key={aluno.id}
-                        onClick={() => handleAbrirHistoricoAluno(aluno.id, aluno.nome)}
-                        className="w-full text-left bg-white border-4 border-black p-3 flex items-center justify-between gap-3 shadow-[4px_4px_0_#000] active:translate-y-[2px] active:shadow-none transition-all"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <h5 className="font-black text-xs uppercase truncate">{aluno.nome}</h5>
-                          <p className="text-[8px] font-bold text-black/60 uppercase">
-                            {aluno.resumo.total} {aluno.resumo.total === 1 ? 'ficha' : 'fichas'}
-                            {aluno.resumo.ultima ? ` • última aula ${format(new Date(aluno.resumo.ultima + 'T12:00:00'), 'dd/MM/yyyy')}` : ' • nenhuma aula realizada'}
-                          </p>
+                    {alunosFiltrados.map((aluno: any) => {
+                      const ultimaFicha = agendaCompleta.filter((a: any) => Number(a.aluno_id) === Number(aluno.id) && a.status === 'realizada').at(-1);
+                      const videos = filteredTreinos.filter((t: any) => Number(t.aluno_id) === Number(aluno.id) && t.video_url && (!t.video_expira_em || new Date(t.video_expira_em).getTime() > Date.now())).length;
+                      return <div className="student-card" key={aluno.id}>
+                        <div className="name-line"><strong>{aluno.nome}</strong><span className="app-subtle text-xs">{ultimaFicha?.curso_nome || aluno.curso || 'Música'}</span></div>
+                        <small>{ultimaFicha ? `Última ficha · ${format(new Date(ultimaFicha.data + 'T12:00:00'), 'dd/MM/yyyy')}` : 'Ainda sem ficha de aula'}</small>
+                        <div className="mini-links flex-wrap">
+                          {ultimaFicha && <button onClick={() => openPreviewModal(ultimaFicha)}>Ver última ficha →</button>}
+                          <button onClick={() => handleAbrirHistoricoAluno(aluno.id, aluno.nome)}>Todas as fichas</button>
+                          {videos > 0 && <button onClick={() => { setStudentSection('treinos'); fetchTreinos(); }}>{videos} vídeo{videos > 1 ? 's' : ''} recente{videos > 1 ? 's' : ''}</button>}
                         </div>
-                        <span className="bg-black text-white px-3 py-1.5 font-black text-[9px] uppercase flex items-center gap-1 shrink-0">
-                          <FileText className="w-3 h-3" /> VER FICHAS
-                        </span>
-                      </button>
-                    ))}
+                      </div>;
+                    })}
                     {alunosFiltrados.length === 0 && (
-                      <div className="py-6 text-center opacity-50 font-black text-[10px] uppercase border-4 border-dashed border-black/20 bg-white">
-                        NENHUM ALUNO ENCONTRADO.
-                      </div>
+                      <div className="app-panel app-subtle text-center text-sm">Nenhum aluno encontrado.</div>
                     )}
                   </div>
                 </div>
@@ -4379,28 +4234,21 @@ export default function AreaProfessor() {
             {activeProfessorTab === 'alunos' && studentSection === 'treinos' && (
               <div className="space-y-4 animate-fade-in pb-10">
                 {/* Cabeçalho da aba Treinos */}
-                <div className="bg-[#fff8f6] border-8 border-black p-5 relative shadow-[8px_8px_0_#000]">
-                  <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[8px] uppercase border-l-4 border-b-4 border-black">
-                    PRACTICE HUB
-                  </div>
-                  <h3 className="text-black font-black text-lg uppercase italic tracking-tighter mt-1 flex items-center gap-2">
-                    <Flame className="w-5 h-5 text-[#ff6b00] animate-pulse" /> TREINOS DOS ALUNOS
-                  </h3>
-                  <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider mt-1">
-                    Acompanhe os check-ins diários e assista às gravações recentes dos alunos!
-                  </p>
+                <div className="app-panel">
+                  <h3 className="app-section-title flex items-center gap-2"><Flame className="w-5 h-5 text-[#ff6b00]" /> Treinos dos alunos</h3>
+                  <p className="app-subtle text-sm">Acompanhe os treinos e assista aos vídeos recentes.</p>
                 </div>
 
                 {/* Pesquisa e Fichas de Aulas Passadas */}
-                <div className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000]">
-                  <h4 className="font-black text-black uppercase text-xs mb-3 flex items-center gap-2">
+                <div className="app-panel">
+                  <h4 className="font-black text-sm mb-3 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-emerald-600" /> FICHAS DE AULAS ANTERIORES
                   </h4>
                   <div className="flex gap-2 mb-4">
                     <input 
                       type="text" 
                       placeholder="PESQUISAR POR NOME DO ALUNO..." 
-                      className="flex-1 bg-white border-2 border-black p-2 font-black text-xs uppercase outline-none focus:bg-[#ffeae1]"
+                      className="flex-1 min-w-0 bg-[var(--app-card)] text-[var(--app-text)] border-2 border-black p-2 font-bold text-sm"
                       value={searchTreino}
                       onChange={(e) => setSearchTreino(e.target.value)}
                     />
@@ -4408,10 +4256,10 @@ export default function AreaProfessor() {
                   {searchTreino.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
                       {agendaCompleta.filter(a => a.status === 'realizada' && a.aluno_nome?.toLowerCase().includes(searchTreino.toLowerCase())).map(aula => (
-                        <div key={aula.id} className="bg-white border-2 border-black p-3 flex justify-between items-center shadow-[2px_2px_0_#000]">
+                        <div key={aula.id} className="app-details flex justify-between items-center gap-2">
                           <div className="min-w-0 flex-1 pr-2">
-                            <h5 className="font-black text-[10px] uppercase truncate">{aula.aluno_nome}</h5>
-                            <p className="text-[8px] font-bold text-black/60 uppercase">{format(new Date((aula.data || '2099-12-31') + 'T12:00:00'), 'dd/MM/yyyy')} - {aula.curso_nome || 'Música'}</p>
+                            <h5 className="font-black text-sm truncate">{aula.aluno_nome}</h5>
+                            <p className="app-subtle text-xs">{format(new Date((aula.data || '2099-12-31') + 'T12:00:00'), 'dd/MM/yyyy')} - {aula.curso_nome || 'Música'}</p>
                           </div>
                           <button
                             onClick={() => openPreviewModal(aula)}
@@ -4474,7 +4322,7 @@ export default function AreaProfessor() {
                       return (
                         <div
                           key={treino.id}
-                          className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] relative overflow-hidden"
+                          className="app-panel relative overflow-hidden"
                         >
                           <div className="flex items-center gap-3">
                             {/* Foto ou Inicial */}
@@ -4498,7 +4346,7 @@ export default function AreaProfessor() {
                                     handleAbrirHistoricoAluno(treino.aluno_id, (treino.alunos || treino.aluno)?.nome || 'ALUNO');
                                   }
                                 }}
-                                className="text-black font-black text-sm uppercase italic leading-none my-1.5 truncate cursor-pointer hover:text-[#ff6b00] underline decoration-dashed decoration-1 hover:decoration-solid transition-colors"
+                                className="font-black text-sm leading-none my-1.5 truncate cursor-pointer underline"
                               >
                                 {(treino.alunos || treino.aluno)?.nome || 'ALUNO DESCONHECIDO'}
                               </h4>
@@ -4515,12 +4363,12 @@ export default function AreaProfessor() {
 
                           {/* Seção do Vídeo demonstrativo curto */}
                           {treino.video_url && !isExpirado ? (
-                            <div className="mt-3 border-t-2 border-black/10 pt-3 flex justify-between items-center bg-[#261812]/5 p-2.5 border-2 border-black">
+                            <div className="mt-3 pt-3 flex justify-between items-center gap-2 bg-[var(--app-alt)] p-2.5 border-2 border-black">
                               <div className="min-w-0">
                                 <span className="text-[7.5px] font-black text-[#ff6b00] uppercase tracking-widest block leading-none">
                                   📹 VÍDEO DO TREINO
                                 </span>
-                                <span className="text-[6.5px] font-black text-black/55 uppercase tracking-wider block mt-1">
+                                <span className="app-subtle text-xs block mt-1">
                                   ⏳ {tempoRestanteStr}
                                 </span>
                               </div>
@@ -4537,10 +4385,10 @@ export default function AreaProfessor() {
                             </div>
                           ) : (
                             <div className="mt-3 border-t-2 border-black/10 pt-3 flex items-center justify-between">
-                              <span className="text-[7px] font-black text-black/40 uppercase">
+                              <span className="app-subtle text-xs font-bold">
                                 check-in simples de treino
                               </span>
-                              <span className="text-[6.5px] font-black text-[#8e7164] uppercase tracking-wider">
+                              <span className="app-subtle text-xs font-bold">
                                 sem vídeo enviado
                               </span>
                             </div>

@@ -1483,7 +1483,7 @@ export default function AreaAluno() {
   const ultimosSeteDias = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
-    const dataStr = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+    const dataStr = d.toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse().join('-');
     const label = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
     const diaNum = d.getDate();
     return { dataStr, label, diaNum };
@@ -2261,17 +2261,7 @@ export default function AreaAluno() {
           {/* ===== ABA: JOGOS ===== */}
           {activeTab === 'jogos' && (
             <div className="px-4 py-5 space-y-6">
-              <div className="app-panel app-panel--gold"><h1>Jogos</h1><p>Brinque com ritmo, notas e ouvido musical.</p><button className="app-action app-action--light mt-3 w-full" onClick={() => { setActiveTab('ranking'); fetchRanking(); }}>🏆 Ver ranking</button></div>
-              {/* Cabeçalho da Galeria */}
-              <div className="flex items-center gap-3">
-                <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
-                  <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
-                    🕹️ FLIPERAMA ACORDE
-                  </h3>
-                </div>
-                <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
-              </div>
-
+              <div><h1 className="text-2xl font-black">Jogos</h1><p className="app-subtle text-sm">Brinque com ritmo, notas e ouvido musical.</p></div>
               {showAvatarStore ? (
                 <AvatarStore 
                   xp={acordeCoins}
@@ -2286,125 +2276,26 @@ export default function AreaAluno() {
                 />
               ) : !isPlayingAcordeGenius && !isPlayingChordRush && !isPlayingTriadeNinja && !isPlayingRitmoPro && !isPlayingVoiceRush && !isPlayingMetronomeBird && !isPlayingCifrasMusicais ? (
                 <>
-                  {/* Botão de Acesso à Loja */}
-                  <div 
-                    onClick={() => setShowAvatarStore(true)}
-                    className="bg-[#fff8f6] border-8 border-black p-4 shadow-[8px_8px_0_#000] transition-all relative group overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-[10px_10px_0_#000]"
-                  >
-                    <div className="absolute top-0 left-0 w-full h-2 bg-[#ff6b00]"></div>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-[#ffeb3b] border-4 border-black flex items-center justify-center text-2xl shadow-[2px_2px_0_#000]">
-                          🛒
-                        </div>
-                        <div>
-                          <h3 className="text-black font-black text-sm uppercase tracking-widest">LOJA DE ITENS</h3>
-                          <p className="text-[#8e7164] font-black text-[9px] uppercase mt-0.5">Compre cabelos, roupas e acessórios!</p>
-                        </div>
-                      </div>
-                    <div className="flex gap-2">
-                      <div 
-                        className="bg-[#feccba] border-4 border-black px-2 py-1 flex items-center justify-center font-black text-xs text-[#3d2d26] shadow-[2px_2px_0_#000]"
-                      >
-                        💰 {acordeCoins} COINS
-                      </div>
-                    </div>
-                    </div>
-                  </div>
-
                   <DailyMissions onClaimReward={(reward) => handleAddXp(reward, 'Missão Diária')} />
 
-                  {/* Grid de Aplicativos (Jogos) */}
-                  <div className="pt-2">
-                    <div className="flex items-center gap-3 mb-4">
-                      <h4 className="text-white font-black text-[10px] uppercase tracking-widest">MINI JOGOS (APPS)</h4>
-                      <div className="flex-1 border-t-2 border-dashed border-[#3d2d26]"></div>
+                  {/* Jogos disponíveis */}
+                  <div className="space-y-3">
+                    <div className="feature gold-bg split-feature">
+                      <div><span className="tiny">Jogar agora</span><h4>Desafio do ritmo</h4><p>Ouça a batida e marque o compasso certo.</p><button className="btn dark" onClick={() => { setIsPlayingRitmoPro(true); playRetroSound(880, 'square', 0.1); }}>Começar →</button></div>
+                      <div className="feature-art" aria-hidden="true">🥁</div>
                     </div>
-
-                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
-                      
-                      {/* App 1: Genius */}
-                      <button 
-                        onClick={() => {
-                          setIsPlayingAcordeGenius(true);
-                          playRetroSound(880, 'square', 0.1);
-                        }}
-                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
-                      >
-                        <div className="w-full aspect-square bg-[#ff6b00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
-                          🕹️
-                        </div>
-                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Acorde Genius</span>
-                      </button>
-
-                      {/* App 2: Chord Rush */}
-                      <button 
-                        onClick={() => {
-                          setIsPlayingChordRush(true);
-                          playRetroSound(880, 'square', 0.1);
-                        }}
-                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
-                      >
-                        <div className="w-full aspect-square bg-[#00ff66] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
-                          🎸
-                        </div>
-                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Chord Rush</span>
-                      </button>
-
-                      {/* App 3: Triade Ninja */}
-                      <button 
-                        onClick={() => {
-                          setIsPlayingTriadeNinja(true);
-                          playRetroSound(880, 'square', 0.1);
-                        }}
-                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all"
-                      >
-                        <div className="w-full aspect-square bg-[#a855f7] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl">
-                          ⚔️
-                        </div>
-                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Triade Ninja</span>
-                      </button>
-
-                      {/* App 4: Metrônomo Bird (Disponível para todos os alunos!) */}
-                      <button 
-                        onClick={() => {
-                          setIsPlayingMetronomeBird(true);
-                          playRetroSound(880, 'square', 0.1);
-                        }}
-                        className="flex flex-col items-center gap-2 group cursor-pointer hover:-translate-y-1 transition-all relative"
-                      >
-                        <div className="w-full aspect-square bg-[#ff5f00] border-4 border-black shadow-[4px_4px_0_#000] group-active:translate-y-1 group-active:shadow-none transition-all rounded-xl flex items-center justify-center text-3xl relative">
-                          🐦
-                          <span className="absolute -top-1 -right-1 bg-[#00ff66] text-black text-[6px] font-black px-1 py-0.5 border border-black rounded uppercase animate-pulse">
-                            NOVO! 🔥
-                          </span>
-                        </div>
-                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">MetroBird</span>
-                      </button>
-
-                      {/* App 5: Cifras Estelares */}
-                      <div 
-                        onClick={() => {
-                          setIsPlayingCifrasMusicais(true);
-                          playRetroSound(880, 'square', 0.1);
-                        }}
-                        className="flex flex-col items-center gap-2 group cursor-pointer relative opacity-100 hover:scale-105 transition-all"
-                      >
-                        <div className="w-full aspect-square bg-[#0f172a] border-4 border-cyan-500 shadow-[4px_4px_0_#0ea5e9] rounded-xl flex items-center justify-center text-3xl relative">
-                          🚀
-                        </div>
-                        <span className="text-cyan-400 font-black text-[8px] uppercase tracking-widest text-center">Cifras Estelares</span>
-                      </div>
-
-                      {/* App 5: Rhythm Hero (Locked) */}
-                      <div className="flex flex-col items-center gap-2 opacity-50 grayscale cursor-not-allowed">
-                        <div className="w-full aspect-square bg-[#8e7164] border-4 border-black shadow-[4px_4px_0_#000] rounded-xl flex items-center justify-center text-3xl">
-                          🔒
-                        </div>
-                        <span className="text-white font-black text-[8px] uppercase tracking-widest text-center">Rhythm Hero</span>
-                      </div>
-
+                    <div className="section-row"><h4>Escolha um jogo</h4></div>
+                    <div className="tile-grid">
+                      <button className="tile" onClick={() => { setIsPlayingChordRush(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎸</span><strong>Chord Rush</strong><small>Acerte os acordes</small></button>
+                      <button className="tile tint" onClick={() => { setIsPlayingAcordeGenius(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎹</span><strong>Acorde Genius</strong><small>Repita a sequência</small></button>
+                      <button className="tile tint" onClick={() => { setIsPlayingTriadeNinja(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">⚔️</span><strong>Tríade Ninja</strong><small>Encontre as notas</small></button>
+                      <button className="tile" onClick={() => { setIsPlayingMetronomeBird(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🐦</span><strong>MetroBird</strong><small>Siga o ritmo</small></button>
+                      <button className="tile" onClick={() => { setIsPlayingCifrasMusicais(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🚀</span><strong>Cifras Estelares</strong><small>Explore as cifras</small></button>
+                      <button className="tile tint" onClick={() => { setIsPlayingVoiceRush(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎤</span><strong>Voice Rush</strong><small>Treine o ouvido</small></button>
                     </div>
+                    <div className="section-row"><h4>Meu espaço</h4></div>
+                    <button className="compact-row w-full text-left" onClick={() => { setActiveTab('ranking'); fetchRanking(); }}><span className="icon-box">🏆</span><span className="flex-1"><strong>Ranking da semana</strong><small>Veja todos os jogadores</small></span><b>→</b></button>
+                    <button className="compact-row w-full text-left" onClick={() => setShowAvatarStore(true)}><span className="icon-box">🪙</span><span className="flex-1"><strong>Loja de moedas</strong><small>{acordeCoins} moedas · itens para o avatar</small></span><b>→</b></button>
                   </div>
                 </>
               ) : isPlayingChordRush ? (
@@ -2613,22 +2504,24 @@ export default function AreaAluno() {
 
           {/* ===== ABA: TREINO (SISTEMA DE TREINO DIÁRIO) ===== */}
           {activeTab === 'treino' && (
-            <div className="px-4 py-5 space-y-6">
-              <div className="app-panel app-panel--orange"><h1>Hora de praticar</h1><p>Um passo de cada vez, com apoio quando precisar.</p></div><button className="app-panel w-full text-left font-bold" onClick={() => setShowTools(true)}>🎸 Ferramentas · metrônomo e afinador →</button>
+            <div className="app-content">
+              <div><h1>Hora de praticar</h1><p className="app-subtle text-sm">Um passo de cada vez, com apoio quando precisar.</p></div>
+              <div className="feature orange-bg split-feature">
+                <div>
+                  <span className="tiny">Sua última tarefa</span>
+                  <h4>{aulasRealizadas[0]?.tarefa_casa ? 'Pratique o que viu na aula' : 'Escolha seu exercício'}</h4>
+                  <p>{aulasRealizadas[0]?.tarefa_casa || 'Revise a última aula ou treine uma música de que você gosta.'}</p>
+                  {aulasRealizadas[0] && <button className="btn" onClick={() => setSelectedFicha(aulasRealizadas[0])}>Ver ficha da aula →</button>}
+                </div>
+                <div className="feature-art" aria-hidden="true">🎸</div>
+              </div>
+              <div className="section-row"><h4>Meu treino</h4></div>
 
               {/* Header Retro */}
-              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] relative overflow-hidden flex flex-col gap-2">
-                <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest">&gt;&gt; DIARY_STREAK_ACTIVE • SYNC_ON</p>
-                <h2 className="text-black font-black text-xl uppercase italic leading-tight">
-                  MEU DIÁRIO DE TREINO
-                </h2>
-                <p className="text-[10px] text-[#261812] font-black uppercase">
-                  Marque sua presença de estudo diária e envie um vídeo opcional estudando (fica disponível para o professor por alguns dias) para avisar seu professor!
-                </p>
-              </div>
+              <p className="app-subtle text-sm">Marque o treino de hoje. Se quiser, envie um vídeo para seu professor.</p>
 
               {/* Streak Tracker 8-bit */}
-              <div className="bg-[#261812] border-8 border-black p-5 shadow-[8px_8px_0_#000] space-y-4">
+              <div className="app-panel app-panel--brown space-y-4">
                 <div className="flex justify-between items-center">
                   <p className="text-white font-black text-[9px] uppercase tracking-widest">STREAK ÚLTIMOS 7 DIAS</p>
                   <span className="text-[#ff6b00] font-black text-[9px] uppercase tracking-widest">
@@ -2636,7 +2529,7 @@ export default function AreaAluno() {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-7 gap-1 sm:gap-2">
                   {ultimosSeteDias.map((dia) => {
                     const treinou = treinos.some((t: any) => t.data === dia.dataStr);
                     const temVideo = treinos.some((t: any) => t.data === dia.dataStr && t.video_url);
@@ -2644,7 +2537,7 @@ export default function AreaAluno() {
                     return (
                       <div 
                         key={dia.dataStr} 
-                        className={`border-4 border-black p-2 flex flex-col items-center justify-center gap-1.5 shadow-[2px_2px_0_#000] ${
+                        className={`border-2 border-black px-0.5 py-2 flex flex-col items-center justify-center gap-1 shadow-[2px_2px_0_#000] ${
                           treinou 
                             ? temVideo 
                               ? 'bg-[#00ffcc] text-black' 
@@ -2664,9 +2557,9 @@ export default function AreaAluno() {
               </div>
 
               {/* Ações de Treino */}
-              <div className="bg-[#fff8f6] border-8 border-black p-5 shadow-[8px_8px_0_#000] flex flex-col gap-4">
+              <div className="app-panel flex flex-col gap-4">
                 {/* Botão de Check-in */}
-                {treinos.some((t: any) => t.data === new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-')) ? (
+                {treinos.some((t: any) => t.data === new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Cuiaba' }).split('/').reverse().join('-')) ? (
                   <div className="bg-[#00ffcc] text-black border-4 border-black p-4 text-center font-black text-xs uppercase shadow-[4px_4px_0_#000]">
                     🔥 CHECK-IN DE HOJE REALIZADO! (+500 XP CREDITADOS)
                   </div>
@@ -2682,7 +2575,7 @@ export default function AreaAluno() {
                 {/* Upload / Gravação de Vídeo */}
                 {videoDisponivel && (
                 <div className="border-t-4 border-dashed border-black pt-4 space-y-4">
-                  <h3 className="text-black font-black text-[10px] uppercase tracking-wider flex items-center justify-between gap-2">
+                  <h3 className="font-black text-sm flex items-center justify-between gap-2">
                     <span>📹 COMPROVAR COM VÍDEO (MAX 45 SEGUNDOS)</span>
                     <span className="bg-[#ff6b00] text-white px-2 py-0.5 border-2 border-black rotate-3 shadow-[2px_2px_0_#000] animate-pulse">+500 XP</span>
                   </h3>
@@ -2725,7 +2618,7 @@ export default function AreaAluno() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
-                      <label className="bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black font-black text-[9px] uppercase py-3 border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-1 text-center">
+                      <label className="bg-[#feccba] hover:bg-[#ff6b00] text-black font-black text-xs py-3 px-1 border-2 border-black shadow-[3px_3px_0_#000] cursor-pointer flex flex-col items-center justify-center gap-1 text-center">
                         🎥 GRAVAR VÍDEO AGORA
                         <input
                           type="file"
@@ -2747,7 +2640,7 @@ export default function AreaAluno() {
                         />
                       </label>
                       
-                      <label className="bg-[#feccba] hover:bg-[#ff6b00] hover:text-white text-black font-black text-[9px] uppercase py-3 border-4 border-black shadow-[4px_4px_0_#000] active:translate-y-0.5 cursor-pointer flex flex-col items-center justify-center gap-1 text-center">
+                      <label className="bg-[#feccba] hover:bg-[#ff6b00] text-black font-black text-xs py-3 px-1 border-2 border-black shadow-[3px_3px_0_#000] cursor-pointer flex flex-col items-center justify-center gap-1 text-center">
                         📁 SELECIONAR ARQUIVO
                         <input
                           type="file"
@@ -2767,9 +2660,8 @@ export default function AreaAluno() {
                 </div>
                 )}
               </div>
-
-
-
+              <div className="section-row"><h4>Ferramentas</h4></div>
+              <button className="compact-row w-full text-left" onClick={() => setShowTools(true)}><span className="icon-box">♩</span><span className="flex-1"><strong>Metrônomo e afinador</strong><small>Abra as ferramentas para praticar</small></span><b>→</b></button>
             </div>
           )}
 
