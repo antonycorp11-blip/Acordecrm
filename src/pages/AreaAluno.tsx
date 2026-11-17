@@ -512,8 +512,20 @@ export default function AreaAluno() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [showContratoModal]);
+
   const [alunoFinanceiro, setAlunoFinanceiro] = useState<any[]>(() => getStoredCache('aluno_financeiro', []));
   const [alunoContrato, setAlunoContrato] = useState<any | null>(() => getStoredCache('aluno_contrato', null));
+  // Chegou pelo link de assinatura (/login?abrir=contrato): abre o contrato pendente direto.
+  const abrirContratoPeloLink = useRef(new URLSearchParams(window.location.search).get('abrir') === 'contrato');
+
+  useEffect(() => {
+    if (!abrirContratoPeloLink.current || !alunoContrato) return;
+    abrirContratoPeloLink.current = false;
+    try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignora */ }
+    setActiveTab('perfil');
+    if (alunoContrato.status !== 'assinado') { setContratoAtivo(alunoContrato); setShowContratoModal(true); }
+    else toast.success('Seu contrato já está assinado ✅');
+  }, [alunoContrato]);
   const [alunoEadProgresso, setAlunoEadProgresso] = useState<{aulasAssistidas: any[], questionariosAprovados: any[]} | null>(() => getStoredCache('aluno_ead_progresso', null));
   const [loadingFinanceiroEContrato, setLoadingFinanceiroEContrato] = useState(false);
 

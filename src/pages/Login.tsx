@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -11,6 +11,9 @@ export default function Login() {
   const [step, setStep] = useState<'email' | 'password' | 'setup'>('email');
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // Link de assinatura enviado pela escola: depois de entrar, abre direto o contrato.
+  const abrirContrato = params.get('abrir') === 'contrato';
 
   const handleNextStep = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -89,7 +92,7 @@ export default function Login() {
       const user = storedUser ? JSON.parse(storedUser) : null;
       
       if (user?.role === 'aluno') {
-        navigate('/area-aluno');
+        navigate(abrirContrato ? '/area-aluno?abrir=contrato' : '/area-aluno');
       } else {
         navigate('/');
       }
@@ -136,6 +139,12 @@ export default function Login() {
             </p>
           </div>
 
+          {abrirContrato && (
+            <div className="mb-5 border-4 border-black bg-[#ffcc22] p-3 text-black shadow-[4px_4px_0_#000]">
+              <p className="font-black text-sm uppercase">✍️ Assinatura do contrato</p>
+              <p className="text-xs font-bold mt-1">Entre com o seu e-mail. No primeiro acesso você cria uma senha e o contrato já abre para assinar.</p>
+            </div>
+          )}
           <form onSubmit={step === 'email' ? handleNextStep : handleLogin} className="space-y-5">
             
             {/* EMAIL STEP */}
