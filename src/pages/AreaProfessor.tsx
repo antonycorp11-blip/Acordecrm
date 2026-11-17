@@ -1642,32 +1642,34 @@ export default function AreaProfessor() {
     const selectedStudentObj = alunosList.find(a => a.id === (isAvulsa ? newAulaAlunoId : selectedAula?.aluno_id));
     const currentInstrument = selectedStudentObj?.curso_ativo || selectedAula?.curso_nome || newAulaCurso || 'Piano';
 
+    const isTeclado = /teclado|piano/i.test(currentInstrument);
+    const isBateria = /bateria|percuss/i.test(currentInstrument);
+    const isCanto = /canto|voz/i.test(currentInstrument);
+
+    const todasFerramentas = [
+      { tab: 'acordes', nome: 'Acorde', sugerido: !isBateria && !isCanto, count: mcChords.length, resumo: mcChords.length > 0 ? mcChords.map(c => c.root + (c.typeId || '')).slice(0, 4).join(', ') : '' },
+      { tab: 'tablatura', nome: 'Tablatura', sugerido: !isTeclado && !isBateria && !isCanto, count: mcTablatures.length, resumo: mcTablatures.length > 0 ? `${mcTablatures.length} trecho(s)` : '' },
+      { tab: 'melodia', nome: 'Melodia', sugerido: isTeclado || isCanto, count: mcMelody.length, resumo: mcMelody.length > 0 ? `${mcMelody.length} melodia(s)` : '' },
+      { tab: 'escalas', nome: 'Escala', sugerido: isTeclado, count: mcScales.length, resumo: mcScales.length > 0 ? `${mcScales.length} escala(s)` : '' },
+      { tab: 'bateria', nome: 'Bateria/Ritmo', sugerido: isBateria, count: mcDrums.length, resumo: mcDrums.length > 0 ? `${mcDrums.length} ritmo(s)` : '' },
+      { tab: 'studio', nome: 'Áudio/Studio', sugerido: isCanto, count: mcRecordings.length, resumo: mcRecordings.length > 0 ? `${mcRecordings.length} áudio(s)` : '' },
+      { tab: 'exercicios', nome: 'Desafio/Quest', sugerido: false, count: mcExercises.length, resumo: mcExercises.length > 0 ? `${mcExercises.length} desafio(s)` : '' },
+    ].sort((a, b) => (b.sugerido ? 1 : 0) - (a.sugerido ? 1 : 0));
+
+    const conteudosComAlgo = todasFerramentas.filter(f => f.count > 0);
+
     return (
       <div className="space-y-4">
-        {/* Navegação de Abas */}
-        <div className="flex border-4 border-black bg-black p-1 gap-1 mb-4 overflow-x-auto scrollbar-hide">
-          {(['geral', 'acordes', 'escalas', 'tablatura', 'bateria', 'melodia', 'exercicios', 'studio'] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setMcActiveTab(tab)}
-              className={`flex-1 py-1.5 px-2.5 font-black text-[8px] uppercase tracking-wider text-center transition-all shrink-0 ${
-                mcActiveTab === tab
-                  ? 'bg-[#ff6b00] text-white'
-                  : 'bg-[#261812] text-[#feccba] hover:bg-stone-800'
-              }`}
-            >
-              {tab === 'geral' && '📌 GERAL'}
-              {tab === 'acordes' && '🎸 ACORDES'}
-              {tab === 'escalas' && '🎼 ESCALAS'}
-              {tab === 'tablatura' && '📝 TABLATURA'}
-              {tab === 'bateria' && '🥁 BATERIA'}
-              {tab === 'melodia' && '🎹 MELODIA'}
-              {tab === 'exercicios' && '⚔️ DESAFIOS'}
-              {tab === 'studio' && '🎙️ STUDIO'}
-            </button>
-          ))}
-        </div>
+        {/* Se estiver editando uma ferramenta específica, mostra botão destacado para voltar */}
+        {mcActiveTab !== 'geral' && (
+          <button
+            type="button"
+            onClick={() => setMcActiveTab('geral')}
+            className="w-full bg-[#261812] text-[#feccba] hover:bg-black border-2 border-black font-black text-xs py-3 px-4 mb-2 flex items-center justify-center gap-2 shadow-[2px_2px_0_#000] active:translate-y-[1px] transition-all cursor-pointer"
+          >
+            ← Voltar ao resumo da aula
+          </button>
+        )}
 
         {/* Conteúdo da Aba Geral */}
         {mcActiveTab === 'geral' && (
@@ -1678,7 +1680,7 @@ export default function AreaProfessor() {
                 type="button"
                 onClick={() => handleGenerateAISuggestion(isAvulsa)}
                 disabled={isAILoading}
-                className="flex-1 bg-[#261812] text-white border-2 border-black py-1.5 text-[8px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px] disabled:opacity-50"
+                className="flex-1 bg-[#261812] text-white border-2 border-black py-2 text-[10px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px] disabled:opacity-50"
               >
                 <Sparkles className="w-3.5 h-3.5 text-[#ff6b00] animate-pulse" /> {isAILoading ? 'GERANDO...' : '💡 IA PEDAGÓGICA'}
               </button>
@@ -1687,108 +1689,147 @@ export default function AreaProfessor() {
                 <button
                   type="button"
                   onClick={() => setIsPreviewOpen(true)}
-                  className="flex-1 bg-[#ff6b00] text-white border-2 border-black py-1.5 text-[8px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px]"
+                  className="flex-1 bg-[#ff6b00] text-white border-2 border-black py-2 text-[10px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px]"
                 >
                   <span>👁️</span> VISUALIZAR AULA (PDF)
                 </button>
               )}
             </div>
 
-            {/* Tema da Aula */}
-            <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">CONTEÚDO TRABALHADO</label>
+            {/* O que vimos hoje */}
+            <div className="editor-card">
+              <label>O que vimos hoje · Resumo</label>
               <textarea
                 required
                 placeholder="O que o aluno aprendeu ou revisou nesta aula..."
                 rows={3}
-                className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                className="w-full p-2.5 bg-white text-black border-2 border-black text-xs font-bold uppercase placeholder:text-black/30 focus:outline-none"
                 value={valConteudo}
                 onChange={(e) => setValConteudo(e.target.value)}
               />
             </div>
 
-            {/* Tarefa de Casa */}
-            <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">DESAFIO / TAREFA DE CASA</label>
+            {/* Tarefa de Casa unificada com Desafio/Quest */}
+            <div className="editor-card">
+              <label>Tarefa de casa &amp; Desafio</label>
               <textarea
                 required
                 placeholder="Exercícios, músicas ou escalas que o aluno deve treinar..."
                 rows={3}
-                className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                className="w-full p-2.5 bg-white text-black border-2 border-black text-xs font-bold uppercase placeholder:text-black/30 focus:outline-none"
                 value={valTarefa}
                 onChange={(e) => setValTarefa(e.target.value)}
               />
+              <div className="mt-2.5 flex items-center justify-between text-xs pt-2 border-t border-black/10">
+                <span className="font-bold text-[10px] text-stone-600 uppercase">XP Bônus</span>
+                <div className="flex items-center gap-1.5">
+                  {[10000, 20000, 30000].map(xpVal => (
+                    <button
+                      key={xpVal}
+                      type="button"
+                      onClick={() => setValXp(xpVal)}
+                      className={`px-2.5 py-1 text-[10px] font-bold border-2 border-black transition-all ${
+                        valXp === xpVal ? 'bg-[#ffcc22] text-black shadow-[1px_1px_0_#000]' : 'bg-white text-stone-700'
+                      }`}
+                    >
+                      +{xpVal / 1000}k XP
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Conteúdo Anexado em blocos grandes */}
+            {conteudosComAlgo.length > 0 && (
+              <div>
+                <div className="material-heading">
+                  <strong>Conteúdo anexado</strong>
+                  <small>Toque para editar</small>
+                </div>
+                <div className="material-row">
+                  {conteudosComAlgo.map(c => (
+                    <div
+                      key={c.tab}
+                      className="material hover:border-[#ff6b00] transition-colors"
+                      onClick={() => setMcActiveTab(c.tab as any)}
+                    >
+                      <strong>{c.nome}</strong>
+                      <small>{c.resumo || `${c.count} item(ns)`}</small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Adicionar à ficha */}
+            <div>
+              <div className="material-heading">
+                <strong>Adicionar à ficha</strong>
+                <small>Instrumento do aluno: {currentInstrument}</small>
+              </div>
+              <div className="add-grid">
+                {todasFerramentas.map(f => (
+                  <button
+                    key={f.tab}
+                    type="button"
+                    onClick={() => setMcActiveTab(f.tab as any)}
+                    className={f.sugerido ? 'suggest' : ''}
+                  >
+                    + {f.nome}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Links e Mídias */}
-            <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">MÍDIAS / LINKS DE APOIO</label>
-              
-              <div className="space-y-2 mb-3 max-h-[120px] overflow-y-auto">
-                {valMidias.map((mid, idx) => (
-                  <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[9px] font-black uppercase text-black truncate">{mid.titulo}</p>
-                      <p className="text-[7px] font-mono text-black/60 truncate">{mid.url}</p>
+            <details className="app-details">
+              <summary className="text-xs font-bold uppercase cursor-pointer">
+                🔗 Links e Anexos Externos ({valMidias.length})
+              </summary>
+              <div className="pt-2 space-y-2">
+                <div className="space-y-2 max-h-[120px] overflow-y-auto">
+                  {valMidias.map((mid, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[9px] font-black uppercase text-black truncate">{mid.titulo}</p>
+                        <p className="text-[7px] font-mono text-black/60 truncate">{mid.url}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLinkLocal(idx)}
+                        className="text-red-500 hover:text-red-700 shrink-0 ml-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveLinkLocal(idx)}
-                      className="text-red-500 hover:text-red-700 shrink-0 ml-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              <div className="border-2 border-black/10 p-3 bg-black/5 space-y-2">
-                <input
-                  type="text"
-                  placeholder="NOME DO LINK (EX: PARTITURA)"
-                  className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/20 focus:outline-none"
-                  value={valLinkTitulo}
-                  onChange={(e) => setValLinkTitulo(e.target.value)}
-                />
-                <div className="flex gap-2">
+                <div className="border-2 border-black/10 p-2.5 bg-black/5 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="NOME DO LINK (EX: PARTITURA)"
+                    className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/30 focus:outline-none"
+                    value={valLinkTitulo}
+                    onChange={(e) => setValLinkTitulo(e.target.value)}
+                  />
                   <input
                     type="url"
                     placeholder="URL (HTTPS://...)"
-                    className="flex-1 px-2 py-1.5 bg-white border-2 border-black text-[9px] font-mono placeholder:text-black/20 focus:outline-none"
+                    className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black placeholder:text-black/30 focus:outline-none"
                     value={valLinkUrl}
                     onChange={(e) => setValLinkUrl(e.target.value)}
                   />
                   <button
                     type="button"
                     onClick={handleAddLinkLocal}
-                    className="bg-black text-white px-3 py-1.5 border-2 border-black font-black uppercase text-[9px] shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                    className="w-full bg-black text-[#feccba] py-1.5 text-[9px] font-black uppercase border border-black hover:bg-stone-900 transition-colors"
                   >
-                    ADD
+                    + ADICIONAR LINK
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Concessão de XP */}
-            <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">PONTOS DA AULA PARA O ALUNO (DESEMPENHO EM SALA DE AULA)</label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {[5000, 10000, 20000, 30000, 40000, 50000].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setValXp(val)}
-                    className={`py-2 px-1 border-2 border-black font-black text-[10px] sm:text-xs transition-all ${
-                      valXp === val
-                        ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
-                        : 'bg-white text-black/60 hover:border-black'
-                    }`}
-                  >
-                    +{val.toLocaleString('pt-BR')} PTS
-                  </button>
-                ))}
-              </div>
-            </div>
+            </details>
           </div>
         )}
 
@@ -3300,190 +3341,186 @@ export default function AreaProfessor() {
         {/* SCROLL CONTENT */}
         <div className="app-scroll flex-1 overflow-auto pb-24 scrollbar-hide">
           <div className="px-4 py-5 space-y-5">
-            {activeProfessorTab === 'home' && (
-              <>
-                <div><p className="app-subtle text-xs font-bold">{format(new Date(), `EEEE, d 'de' MMMM`, { locale: ptBR })}</p><h1 className="app-section-title">Olá, {String(professorData?.nome || 'professor').split(' ')[0]}.</h1></div>
-                {(() => { const next = aulasHoje.find((a: any) => !['realizada','falta_aluno','falta','cancelada'].includes(a.status)) || agendaCompleta.find((a: any) => a.data >= format(new Date(), 'yyyy-MM-dd') && !['realizada','falta_aluno','falta','cancelada'].includes(a.status)); return next ? <div className="app-panel app-panel--orange"><p className="text-xs font-bold">Próxima aula</p><strong className="block text-4xl">{String(next.horario || '').slice(0,5)}</strong><h2 className="text-xl font-black">{next.nome || next.aluno_nome}</h2><button className="app-action app-action--light mt-3 w-full" onClick={() => openRegistroModal(next)}>Registrar aula →</button></div> : <div className="app-panel">Nenhuma aula pendente na agenda.</div>; })()}
-                <div className="grid grid-cols-2 gap-3"><button className="app-panel text-left" onClick={() => setActiveProfessorTab('agenda')}>📅 Agenda →</button><button className="app-panel text-left" onClick={() => {setActiveProfessorTab('alunos'); setStudentSection('treinos'); fetchTreinos();}}>🎬 Treinos dos alunos →</button><button className="app-panel text-left" onClick={() => setShowTools(true)}>🎸 Ferramentas →</button><button className="app-panel text-left" onClick={() => {setActiveProfessorTab('ranking'); fetchRanking(); fetchSolicitacoes();}}>🏆 Pendências e ranking →</button></div>
-                <details className="app-details app-legacy-section"><summary>Ver agenda e outros recursos de hoje</summary><div className="space-y-5">
-                {/* Resumo do Dia Card */}
-                <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] transform rotate-1">
-                  <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[9px] uppercase border-l-4 border-b-4 border-black">
-                    MASTER_INSTRUCTOR
-                  </div>
-                  
-                  <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-1">&gt;&gt; INSTRUCTOR_STATS</p>
-                  <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 truncate text-ellipsis overflow-hidden">
-                    {professorData?.nome || 'INSTRUTOR'}
-                  </h2>
-                  
-                  <div className="space-y-3 mb-5">
-                    <div className="flex justify-between items-center text-[10px] font-black text-black">
-                      <span>LEVEL {nivel}</span>
-                      <span>XP: {xp.toLocaleString()} / {xpMax.toLocaleString()}</span>
-                    </div>
-                    <div className="h-5 bg-black p-1 border-4 border-black overflow-hidden">
-                      <div className="h-full bg-[#ff6b00] transition-all duration-1000 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]" style={{ width: `${xpPct}%` }}></div>
-                    </div>
+            {activeProfessorTab === 'home' && (() => {
+              const todayDateStr = format(new Date(), 'yyyy-MM-dd');
+              const presencasPendentes = agendaCompleta.filter((a: any) => {
+                const d = a.data ? String(a.data).split('T')[0] : '';
+                return d <= todayDateStr && ['pendente', 'aguardando_confirmacao'].includes(a.status);
+              });
+              const fichasPendentes = agendaCompleta.filter((a: any) => {
+                return a.status === 'realizada' && (!a.conteudo || a.conteudo.trim() === '' || a.conteudo === '{}');
+              });
+              const trofeusCount = filteredSolicitacoes.length;
+
+              return (
+                <div className="space-y-4">
+                  {/* Saudação do Professor */}
+                  <div>
+                    <p className="app-subtle text-xs font-bold uppercase tracking-wide">
+                      {format(new Date(), `EEEE, d 'de' MMMM`, { locale: ptBR })}
+                    </p>
+                    <h1 className="app-section-title">
+                      Olá, {String(professorData?.nome || 'professor').split(' ')[0]}.
+                    </h1>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
-                      <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">AULAS HOJE</p>
-                      <span className="text-black font-black text-2xl italic leading-none">
-                        {String(aulasHoje.length).padStart(2, '0')}
-                      </span>
+                  {/* 1. Pendências em 3 blocos com número */}
+                  <div>
+                    <div className="section-row" style={{ margin: '0 0 8px' }}>
+                      <h4>Pendências</h4>
+                      <button 
+                        type="button" 
+                        className="link bg-transparent border-0 p-0 text-xs font-bold" 
+                        onClick={() => setActiveProfessorTab('agenda')}
+                      >
+                        Ver agenda →
+                      </button>
                     </div>
-                    <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
-                      <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">XP ACUMULADO</p>
-                      <p className="text-[#ff6b00] font-black text-xl italic leading-none">+{xp} XP</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Botão de Ferramentas Inline no Fluxo */}
-                <div className="p-1">
-                  <button
-                    onClick={() => setShowTools(true)}
-                    className="w-full bg-[#ff6b00] text-white py-3.5 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2.5 hover:bg-[#ff8c3a] cursor-pointer"
-                  >
-                    🎸 ABRIR MUSICLASS TOOLS (METRÔNOMO & AFINADOR)
-                  </button>
-                </div>
-
-
-                {/* Criar Aula Avulsa - Musiclass Fiel */}
-                {localStorage.getItem('acorde_role') === 'admin' && (
-                  <div className="p-1">
-                    <button
-                      onClick={openCreateModal}
-                      className="w-full bg-[#ff6b00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 hover:bg-[#ff8c3a]"
-                    >
-                      ⚔️ REGISTRAR NOVA AULA MUSICLASS
-                    </button>
-                  </div>
-                )}
-
-                {/* Agenda do Dia */}
-                <div className="pt-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-2">
-                      <button onClick={() => setDiaOffset(o => o - 1)} className="p-1.5 bg-[#ff6b00] text-white rounded hover:bg-[#ff8c3a] transition-all"><ChevronLeft className="w-4 h-4" /></button>
-                      MINHA_AGENDA
-                      <button onClick={() => setDiaOffset(o => o + 1)} className="p-1.5 bg-[#ff6b00] text-white rounded hover:bg-[#ff8c3a] transition-all"><ChevronRight className="w-4 h-4" /></button>
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      {diaOffset !== 0 && (
-                        <button onClick={() => setDiaOffset(0)} className="bg-[#1a0a05] border-2 border-white text-white font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#fff] active:translate-y-1 active:shadow-none hover:bg-black transition-all">HOJE</button>
-                      )}
-                      <span className="bg-[#feccba] border-2 border-black text-black font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#000]">
-                        {format(new Date(Date.now() + diaOffset * 24 * 60 * 60 * 1000), 'MMM dd', { locale: ptBR })}
-                      </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div 
+                        onClick={() => setActiveProfessorTab('agenda')}
+                        className="pending-card flex-col items-center justify-center text-center p-2.5 cursor-pointer hover:border-[#ff6b00] transition-colors"
+                      >
+                        <span className="count">{String(presencasPendentes.length).padStart(2, '0')}</span>
+                        <strong className="mt-2 text-xs">Presenças</strong>
+                        <p className="text-[10px]">A marcar</p>
+                      </div>
+                      <div 
+                        onClick={() => setActiveProfessorTab('agenda')}
+                        className="pending-card flex-col items-center justify-center text-center p-2.5 cursor-pointer hover:border-[#ff6b00] transition-colors"
+                      >
+                        <span className="count">{String(fichasPendentes.length).padStart(2, '0')}</span>
+                        <strong className="mt-2 text-xs">Fichas</strong>
+                        <p className="text-[10px]">Para concluir</p>
+                      </div>
+                      <div 
+                        onClick={() => { setActiveProfessorTab('jogos'); fetchSolicitacoes(); }}
+                        className="pending-card flex-col items-center justify-center text-center p-2.5 cursor-pointer hover:border-[#ff6b00] transition-colors"
+                      >
+                        <span className="count">{String(trofeusCount).padStart(2, '0')}</span>
+                        <strong className="mt-2 text-xs">Troféus</strong>
+                        <p className="text-[10px]">Pedidos</p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    {aulasHoje.map((aula: any) => {
-                      const isConcluida = aula.status === 'realizada';
-                      const isFalta = aula.status === 'falta_aluno' || aula.status === 'ausente';
-                      const isConfirmada = aula.status === 'confirmada';
-                      const isPendente = !isConcluida && !isFalta && !isConfirmada;
-                      
-                      return (
-                        <div
-                          key={aula.id}
-                          className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all relative overflow-hidden"
+                  {/* 2. Aulas do dia em cartões com horário grande (sem sala e sem instrumento) e Registrar aula */}
+                  <div>
+                    <div className="section-row">
+                      <h4>Aulas de hoje</h4>
+                      <span className="pill">{aulasHoje.length} {aulasHoje.length === 1 ? 'aula' : 'aulas'}</span>
+                    </div>
+
+                    {aulasHoje.length > 0 ? (
+                      <div className="space-y-3">
+                        {aulasHoje.map((aula: any, idx: number) => {
+                          const isDone = aula.status === 'realizada';
+                          const isFalta = aula.status === 'falta' || aula.status === 'falta_aluno';
+                          const isPrimeira = idx === 0;
+
+                          return (
+                            <div key={aula.id || idx} className="today-card">
+                              <span className="tiny">{isPrimeira ? 'Hoje · Próxima aula' : 'Hoje'}</span>
+                              <div className="time-huge">{String(aula.horario || '').slice(0, 5)}</div>
+                              <div>
+                                <h4>{aula.nome || aula.aluno_nome || 'Aluno'}</h4>
+                                <p>
+                                  {isDone ? 'Aula realizada ✓' : isFalta ? 'Falta registrada' : 'Aguardando registro'}
+                                </p>
+                                <button 
+                                  type="button"
+                                  className="btn w-full mt-1" 
+                                  onClick={() => openRegistroModal(aula)}
+                                >
+                                  {isDone ? 'Ver / Editar ficha →' : 'Registrar aula →'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="app-panel text-center py-6">
+                        <p className="font-bold text-sm">Nenhuma aula pendente na agenda hoje.</p>
+                        <button 
+                          type="button" 
+                          className="btn mt-3" 
+                          onClick={() => setActiveProfessorTab('agenda')}
                         >
-                          {/* Status Badges */}
-                          {isConcluida && (
-                            <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
-                              CONCLUÍDA
-                            </div>
-                          )}
-                          {isFalta && (
-                            <div className="absolute top-0 right-0 px-3 py-1 bg-red-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
-                              FALTA
-                            </div>
-                          )}
-                          {isConfirmada && (
-                            <div className="absolute top-0 right-0 px-3 py-1 bg-blue-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
-                              CONFIRMADA
-                            </div>
-                          )}
-                          {isPendente && (
-                            <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black animate-pulse">
-                              AGUARDANDO
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-[#feccba] border-4 border-black text-black flex items-center justify-center shrink-0">
-                              <span className="font-black text-xl">♪</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> {aula.horario?.substring(0, 5)}
-                              </p>
-                              <h4 
-                                onClick={() => {
-                                  if (aula.aluno_id) {
-                                    handleAbrirHistoricoAluno(aula.aluno_id, aula.nome || aula.aluno_nome);
-                                  } else {
-                                    toast.error('Aluno não vinculado a esta aula.');
-                                  }
-                                }}
-                                className="text-black font-black text-base uppercase italic leading-none my-1 truncate text-ellipsis overflow-hidden cursor-pointer hover:text-[#ff6b00] underline decoration-dashed decoration-2 hover:decoration-solid transition-colors"
-                                title="Clique para ver o histórico do aluno"
-                              >
-                                {aula.nome || aula.aluno_nome || 'ALUNO NÃO VINCULADO'}
-                              </h4>
-                              <p className="text-black/50 font-black text-[8px] uppercase">
-                                {aula.curso_nome || 'CURSO REGULAR'}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Botão de Registro / Criação de Aula */}
-                          <div className="mt-4 border-t-2 border-black/10 pt-3 flex justify-between items-center">
-                            <span className="text-[8px] font-black text-black/40 uppercase">
-                              XP ALUNO: +{aula.xp_ganho || 50} XP
-                            </span>
-                            
-                            <button
-                              onClick={() => openRegistroModal(aula)}
-                              className="bg-[#ff6b00] text-white px-3 py-2 border-2 border-black font-black uppercase text-[8px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
-                            >
-                              <BookOpen className="w-3 h-3" /> 
-                              {isConcluida ? 'VER_DIARIO' : 'REGISTRAR_AULA'}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {aulasHoje.length === 0 && (
-                      <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
-                        <p className="text-[#8e7164] font-black text-[10px] uppercase italic">
-                          &gt;&gt; NENHUMA_AULA_AGENDADA_HOJE
-                        </p>
+                          Ver agenda da semana →
+                        </button>
                       </div>
                     )}
                   </div>
-                </div>
 
-                {/* Banner Decorativo */}
-                <div className="bg-[#feccba] border-8 border-black p-6 rounded-none text-center transform -rotate-1 shadow-[8px_8px_0_#000]">
-                  <div className="w-12 h-12 bg-black text-[#ff6b00] rounded-none border-4 border-black flex items-center justify-center mx-auto mb-3 shadow-[4px_4px_0_#000]">
-                    <Sparkles className="w-6 h-6 text-[#ff6b00]" />
+                  {/* 3. Atalhos (Professor Virtual, Ferramentas, Jogos) */}
+                  <div>
+                    <div className="section-row">
+                      <h4>Atalhos rápidos</h4>
+                    </div>
+                    <div className="tools-row">
+                      <button type="button" onClick={() => { window.location.href = '/professor-virtual'; }}>
+                        <span>🤖</span> Professor Virtual
+                      </button>
+                      <button type="button" onClick={() => setShowTools(true)}>
+                        <span>🎸</span> Ferramentas
+                      </button>
+                      <button type="button" onClick={() => setActiveProfessorTab('jogos')}>
+                        <span>🕹️</span> Jogos
+                      </button>
+                    </div>
                   </div>
-                  <h3 className="font-black text-black text-sm uppercase italic">DIÁRIO MUSICLASS ⚡</h3>
-                  <p className="text-[#8e7164] font-bold text-[9px] uppercase tracking-wider mt-2">
-                    Envie feedbacks das aulas, crie desafios e anexe mídias na hora. Tudo vai direto para a Área do Aluno!
-                  </p>
+
+                  {/* Detalhes / Estatísticas do instrutor recolhíveis */}
+                  <details className="app-details app-legacy-section mt-4">
+                    <summary className="cursor-pointer font-bold text-xs uppercase">
+                      Ver estatísticas e recursos extras
+                    </summary>
+                    <div className="space-y-4 pt-3">
+                      {/* Resumo do Dia Card */}
+                      <div className="bg-[#fff8f6] border-4 border-black p-4 relative overflow-hidden shadow-[6px_6px_0_#000]">
+                        <h2 className="text-black font-black text-lg uppercase italic leading-none mb-3 truncate">
+                          {professorData?.nome || 'INSTRUTOR'}
+                        </h2>
+                        
+                        <div className="space-y-2 mb-3">
+                          <div className="flex justify-between items-center text-[10px] font-black text-black">
+                            <span>LEVEL {nivel}</span>
+                            <span>XP: {xp.toLocaleString()} / {xpMax.toLocaleString()}</span>
+                          </div>
+                          <div className="h-4 bg-black p-0.5 border-2 border-black overflow-hidden">
+                            <div className="h-full bg-[#ff6b00]" style={{ width: `${xpPct}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-[#feccba] border-2 border-black p-2.5">
+                            <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">AULAS HOJE</p>
+                            <span className="text-black font-black text-xl italic leading-none">
+                              {String(aulasHoje.length).padStart(2, '0')}
+                            </span>
+                          </div>
+                          <div className="bg-[#feccba] border-2 border-black p-2.5">
+                            <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">XP ACUMULADO</p>
+                            <p className="text-[#ff6b00] font-black text-lg italic leading-none">+{xp} XP</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Criar Aula Avulsa - Musiclass */}
+                      {localStorage.getItem('acorde_role') === 'admin' && (
+                        <button
+                          onClick={openCreateModal}
+                          className="w-full bg-[#ff6b00] text-white py-3 border-2 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2"
+                        >
+                          ⚔️ REGISTRAR NOVA AULA MUSICLASS
+                        </button>
+                      )}
+                    </div>
+                  </details>
                 </div>
-                </div></details>
-              </>
-            )}
+              );
+            })()}
 
             {activeProfessorTab === 'jogos' && (
               <div className="px-4 py-5 space-y-6">
@@ -4920,54 +4957,60 @@ export default function AreaProfessor() {
 
       {/* MUSICLASS: MODAL DE REGISTRO DE AULA EXISTENTE */}
       {isModalOpen && selectedAula && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto font-['Space_Mono']">
-          <div className={`bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-h-[90vh] overflow-y-auto font-['Space_Mono'] transition-all duration-300 ${mcActiveTab === 'geral' ? 'max-w-md' : 'max-w-4xl'}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
+          <div className={`bg-[#fff8f6] border-0 sm:border-8 border-black p-4 sm:p-6 relative shadow-none sm:shadow-[12px_12px_0_#000] w-full min-h-screen sm:min-h-0 sm:max-h-[92vh] overflow-y-auto transition-all duration-300 ${mcActiveTab === 'geral' ? 'max-w-md' : 'max-w-4xl'}`}>
             
-            {/* Fechar botão */}
-            <div className="absolute top-4 right-4">
+            {/* Header da proposta aprovada */}
+            <div className="editor-head justify-between -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)}
+                  className="back"
+                  aria-label="Voltar"
+                >
+                  ‹
+                </button>
+                <div className="min-w-0">
+                  <strong className="truncate">Registrar aula</strong>
+                  <small className="truncate block">
+                    {selectedAula.nome || selectedAula.aluno_nome || 'Aluno'} · {selectedAula.curso_nome || 'Música'} · {String(selectedAula.horario || '').slice(0, 5)}
+                  </small>
+                </div>
+              </div>
               <button 
+                type="button"
                 onClick={() => setIsModalOpen(false)} 
-                className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                className="text-white hover:text-stone-300 font-bold p-1 text-base ml-2 shrink-0"
+                aria-label="Fechar"
               >
-                <XCircle className="w-4 h-4" />
+                ✕
               </button>
-            </div>
-
-            <div className="mb-6">
-              <span className="font-black bg-[#ff6b00] text-white text-[8px] px-2 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
-                MUSICLASS FEEDBACK
-              </span>
-              <h2 className="text-xl font-black text-black uppercase italic tracking-tighter mt-3 text-ellipsis overflow-hidden">
-                {selectedAula.nome || selectedAula.aluno_nome || 'REGISTRAR AULA'}
-              </h2>
-              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider">
-                {selectedAula.curso_nome || 'CURSO REGULAR'} @ {selectedAula.horario?.substring(0, 5)}
-              </p>
             </div>
 
             <form onSubmit={salvarDiarioAula} className="space-y-4">
               
               {showFichaChoice && (
-                <div className="border-4 border-dashed border-[#ff6b00] bg-[#feccba]/10 p-4 space-y-3.5 mb-4 shadow-[4px_4px_0_rgba(0,0,0,0.05)] rounded-none font-mono">
+                <div className="border-4 border-dashed border-[#ff6b00] bg-[#feccba]/10 p-4 space-y-3 mb-4 font-mono">
                   <div className="flex items-center gap-2 text-[#ff6b00] font-black text-[10px] uppercase tracking-widest">
-                    <span>🔄</span> DETECTAMOS UMA NOVA FICHA DE AULA
+                    <span>🔄</span> NOVA FICHA DE AULA DETECTADA
                   </div>
-                  <p className="text-[9px] text-[#8e7164] uppercase leading-relaxed font-black">
-                    Deseja iniciar esta ficha totalmente do zero ou copiar os dados da aula anterior realizada deste aluno para reaproveitar?
+                  <p className="text-[10px] text-stone-700 font-bold uppercase leading-relaxed">
+                    Deseja iniciar esta ficha do zero ou copiar os dados da última aula realizada deste aluno?
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setShowFichaChoice(false)}
-                      className="py-2.5 bg-black text-white hover:bg-stone-900 border-2 border-black text-[9px] font-black uppercase tracking-wider shadow-[2px_2px_0_rgba(0,0,0,0.2)] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5"
+                      className="py-2.5 bg-black text-white hover:bg-stone-900 border-2 border-black text-[9px] font-black uppercase tracking-wider"
                     >
-                      ✨ FICHA DO ZERO
+                      ✨ DO ZERO
                     </button>
                     <button
                       type="button"
                       disabled={loadingUltimaAula}
                       onClick={() => copiarUltimaAula(selectedAula.aluno_id)}
-                      className="py-2.5 bg-[#ff6b00] text-white hover:bg-[#e05e00] border-2 border-black text-[9px] font-black uppercase tracking-wider shadow-[2px_2px_0_rgba(0,0,0,0.2)] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      className="py-2.5 bg-[#ff6b00] text-white hover:bg-[#e05e00] border-2 border-black text-[9px] font-black uppercase tracking-wider disabled:opacity-50"
                     >
                       {loadingUltimaAula ? '⏳ CARREGANDO...' : '🔄 COPIAR ANTERIOR'}
                     </button>
@@ -4975,44 +5018,51 @@ export default function AreaProfessor() {
                 </div>
               )}
 
-              {/* Presença/Falta */}
+              {/* 1. Presença em botões grandes */}
               <div>
-                <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">STATUS DA AULA</label>
-                <div className="grid grid-cols-2 gap-3">
+                <p className="editor-title">1. Presença</p>
+                <div className="presence">
                   <button
                     type="button"
                     onClick={() => setStatusAula('realizada')}
-                    className={`py-3 px-4 border-4 border-black font-black text-xs uppercase transition-all flex items-center justify-center gap-2 ${
-                      statusAula === 'realizada' 
-                        ? 'bg-emerald-500 text-white shadow-[4px_4px_0_#000] -translate-y-[2px]' 
-                        : 'bg-white text-black/50 hover:text-black'
-                    }`}
+                    className={statusAula === 'realizada' ? 'selected' : ''}
                   >
-                    <CheckCircle2 className="w-4 h-4" /> PRESENTE
+                    ✓ Realizada
                   </button>
                   <button
                     type="button"
                     onClick={() => setStatusAula('falta_aluno')}
-                    className={`py-3 px-4 border-4 border-black font-black text-xs uppercase transition-all flex items-center justify-center gap-2 ${
-                      statusAula === 'falta_aluno' 
-                        ? 'bg-red-500 text-white shadow-[4px_4px_0_#000] -translate-y-[2px]' 
-                        : 'bg-white text-black/50 hover:text-black'
-                    }`}
+                    className={statusAula === 'falta_aluno' ? 'selected' : ''}
                   >
-                    <XCircle className="w-4 h-4" /> FALTA DO ALUNO
+                    Falta aluno
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusAula('reposicao')}
+                    className={statusAula === 'reposicao' || statusAula === 'a_repor' ? 'selected' : ''}
+                  >
+                    Repor
                   </button>
                 </div>
               </div>
 
-              {statusAula === 'realizada' && renderMusiclassTabs(false)}
+              {/* Montadores de conteúdo Musiclass */}
+              {renderMusiclassTabs(false)}
 
-              {/* Botão de Envio */}
-              <div className="pt-2">
+              {/* Barra inferior de ações */}
+              <div className="editor-bottom -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewOpen(true)}
+                  className="btn"
+                >
+                  👁️ Ver como aluno
+                </button>
                 <button
                   type="submit"
-                  className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
+                  className="btn orange"
                 >
-                  <CheckCircle2 className="w-5 h-5" /> CONCLUIR E REGISTRAR AULA
+                  Salvar ficha →
                 </button>
               </div>
             </form>
