@@ -274,6 +274,8 @@ const getAulaLocalDateStr = (aula: any) => {
 };
 
 import { getStoredCache, setStoredCache, APP_RESUMED_EVENT, apiFetch } from '../services/apiClient';
+import { useAppTheme } from '../utils/useAppTheme';
+import '../styles/area-app.css';
 
 export default function AreaProfessor() {
   const { user, logout } = useAuth();
@@ -317,7 +319,9 @@ export default function AreaProfessor() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Estados de navegação e Modo Apresentação do Professor
-  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'treinos' | 'fichas'>('home');
+  const [activeProfessorTab, setActiveProfessorTab] = useState<'home' | 'jogos' | 'agenda' | 'perfil' | 'playground' | 'ranking' | 'alunos'>('home');
+  const [studentSection, setStudentSection] = useState<'fichas' | 'treinos'>('fichas');
+  const { theme, choice, setTheme } = useAppTheme();
   const [isPresentationOpen, setIsPresentationOpen] = useState(false);
 
   const [doublePointsGame, setDoublePointsGame] = useState<string | null>(null);
@@ -767,7 +771,7 @@ export default function AreaProfessor() {
     if (!alunoId || !alunosList.length || isHistoricoModalOpen) return;
     const aluno = alunosList.find((a: any) => String(a.id) === alunoId);
     if (aluno) {
-      setActiveProfessorTab('fichas');
+      setActiveProfessorTab('alunos'); setStudentSection('fichas');
       handleAbrirHistoricoAluno(aluno.id, aluno.nome);
       setAbaHistoricoAluno('treinos');
     }
@@ -1638,32 +1642,34 @@ export default function AreaProfessor() {
     const selectedStudentObj = alunosList.find(a => a.id === (isAvulsa ? newAulaAlunoId : selectedAula?.aluno_id));
     const currentInstrument = selectedStudentObj?.curso_ativo || selectedAula?.curso_nome || newAulaCurso || 'Piano';
 
+    const isTeclado = /teclado|piano/i.test(currentInstrument);
+    const isBateria = /bateria|percuss/i.test(currentInstrument);
+    const isCanto = /canto|voz/i.test(currentInstrument);
+
+    const todasFerramentas = [
+      { tab: 'acordes', nome: 'Acorde', sugerido: !isBateria && !isCanto, count: mcChords.length, resumo: mcChords.length > 0 ? mcChords.map(c => c.root + (c.typeId || '')).slice(0, 4).join(', ') : '' },
+      { tab: 'tablatura', nome: 'Tablatura', sugerido: !isTeclado && !isBateria && !isCanto, count: mcTablatures.length, resumo: mcTablatures.length > 0 ? `${mcTablatures.length} trecho(s)` : '' },
+      { tab: 'melodia', nome: 'Melodia', sugerido: isTeclado || isCanto, count: mcMelody.length, resumo: mcMelody.length > 0 ? `${mcMelody.length} melodia(s)` : '' },
+      { tab: 'escalas', nome: 'Escala', sugerido: isTeclado, count: mcScales.length, resumo: mcScales.length > 0 ? `${mcScales.length} escala(s)` : '' },
+      { tab: 'bateria', nome: 'Bateria/Ritmo', sugerido: isBateria, count: mcDrums.length, resumo: mcDrums.length > 0 ? `${mcDrums.length} ritmo(s)` : '' },
+      { tab: 'studio', nome: 'Áudio/Studio', sugerido: isCanto, count: mcRecordings.length, resumo: mcRecordings.length > 0 ? `${mcRecordings.length} áudio(s)` : '' },
+      { tab: 'exercicios', nome: 'Desafio/Quest', sugerido: false, count: mcExercises.length, resumo: mcExercises.length > 0 ? `${mcExercises.length} desafio(s)` : '' },
+    ].sort((a, b) => (b.sugerido ? 1 : 0) - (a.sugerido ? 1 : 0));
+
+    const conteudosComAlgo = todasFerramentas.filter(f => f.count > 0);
+
     return (
       <div className="space-y-4">
-        {/* Navegação de Abas */}
-        <div className="flex border-4 border-black bg-black p-1 gap-1 mb-4 overflow-x-auto scrollbar-hide">
-          {(['geral', 'acordes', 'escalas', 'tablatura', 'bateria', 'melodia', 'exercicios', 'studio'] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setMcActiveTab(tab)}
-              className={`flex-1 py-1.5 px-2.5 font-black text-[8px] uppercase tracking-wider text-center transition-all shrink-0 ${
-                mcActiveTab === tab
-                  ? 'bg-[#ff6b00] text-white'
-                  : 'bg-[#261812] text-[#feccba] hover:bg-stone-800'
-              }`}
-            >
-              {tab === 'geral' && '📌 GERAL'}
-              {tab === 'acordes' && '🎸 ACORDES'}
-              {tab === 'escalas' && '🎼 ESCALAS'}
-              {tab === 'tablatura' && '📝 TABLATURA'}
-              {tab === 'bateria' && '🥁 BATERIA'}
-              {tab === 'melodia' && '🎹 MELODIA'}
-              {tab === 'exercicios' && '⚔️ DESAFIOS'}
-              {tab === 'studio' && '🎙️ STUDIO'}
-            </button>
-          ))}
-        </div>
+        {/* Se estiver editando uma ferramenta específica, mostra botão destacado para voltar */}
+        {mcActiveTab !== 'geral' && (
+          <button
+            type="button"
+            onClick={() => setMcActiveTab('geral')}
+            className="w-full bg-[#261812] text-[#feccba] hover:bg-black border-2 border-black font-black text-xs py-3 px-4 mb-2 flex items-center justify-center gap-2 shadow-[2px_2px_0_#000] active:translate-y-[1px] transition-all cursor-pointer"
+          >
+            ← Voltar ao resumo da aula
+          </button>
+        )}
 
         {/* Conteúdo da Aba Geral */}
         {mcActiveTab === 'geral' && (
@@ -1674,7 +1680,7 @@ export default function AreaProfessor() {
                 type="button"
                 onClick={() => handleGenerateAISuggestion(isAvulsa)}
                 disabled={isAILoading}
-                className="flex-1 bg-[#261812] text-white border-2 border-black py-1.5 text-[8px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px] disabled:opacity-50"
+                className="flex-1 bg-[#261812] text-white border-2 border-black py-2 text-[10px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px] disabled:opacity-50"
               >
                 <Sparkles className="w-3.5 h-3.5 text-[#ff6b00] animate-pulse" /> {isAILoading ? 'GERANDO...' : '💡 IA PEDAGÓGICA'}
               </button>
@@ -1683,108 +1689,147 @@ export default function AreaProfessor() {
                 <button
                   type="button"
                   onClick={() => setIsPreviewOpen(true)}
-                  className="flex-1 bg-[#ff6b00] text-white border-2 border-black py-1.5 text-[8px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px]"
+                  className="flex-1 bg-[#ff6b00] text-white border-2 border-black py-2 text-[10px] font-black uppercase flex items-center justify-center gap-1 active:translate-y-[1px]"
                 >
                   <span>👁️</span> VISUALIZAR AULA (PDF)
                 </button>
               )}
             </div>
 
-            {/* Tema da Aula */}
-            <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">CONTEÚDO TRABALHADO</label>
+            {/* O que vimos hoje */}
+            <div className="editor-card">
+              <label>O que vimos hoje · Resumo</label>
               <textarea
                 required
                 placeholder="O que o aluno aprendeu ou revisou nesta aula..."
                 rows={3}
-                className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                className="w-full p-2.5 bg-white text-black border-2 border-black text-xs font-bold uppercase placeholder:text-black/30 focus:outline-none"
                 value={valConteudo}
                 onChange={(e) => setValConteudo(e.target.value)}
               />
             </div>
 
-            {/* Tarefa de Casa */}
-            <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">DESAFIO / TAREFA DE CASA</label>
+            {/* Tarefa de Casa unificada com Desafio/Quest */}
+            <div className="editor-card">
+              <label>Tarefa de casa &amp; Desafio</label>
               <textarea
                 required
                 placeholder="Exercícios, músicas ou escalas que o aluno deve treinar..."
                 rows={3}
-                className="w-full p-3 bg-white border-4 border-black text-xs font-black uppercase placeholder:text-black/20 focus:outline-none"
+                className="w-full p-2.5 bg-white text-black border-2 border-black text-xs font-bold uppercase placeholder:text-black/30 focus:outline-none"
                 value={valTarefa}
                 onChange={(e) => setValTarefa(e.target.value)}
               />
+              <div className="mt-2.5 flex items-center justify-between text-xs pt-2 border-t border-black/10">
+                <span className="font-bold text-[10px] text-stone-600 uppercase">XP Bônus</span>
+                <div className="flex items-center gap-1.5">
+                  {[10000, 20000, 30000].map(xpVal => (
+                    <button
+                      key={xpVal}
+                      type="button"
+                      onClick={() => setValXp(xpVal)}
+                      className={`px-2.5 py-1 text-[10px] font-bold border-2 border-black transition-all ${
+                        valXp === xpVal ? 'bg-[#ffcc22] text-black shadow-[1px_1px_0_#000]' : 'bg-white text-stone-700'
+                      }`}
+                    >
+                      +{xpVal / 1000}k XP
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Conteúdo Anexado em blocos grandes */}
+            {conteudosComAlgo.length > 0 && (
+              <div>
+                <div className="material-heading">
+                  <strong>Conteúdo anexado</strong>
+                  <small>Toque para editar</small>
+                </div>
+                <div className="material-row">
+                  {conteudosComAlgo.map(c => (
+                    <div
+                      key={c.tab}
+                      className="material hover:border-[#ff6b00] transition-colors"
+                      onClick={() => setMcActiveTab(c.tab as any)}
+                    >
+                      <strong>{c.nome}</strong>
+                      <small>{c.resumo || `${c.count} item(ns)`}</small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Adicionar à ficha */}
+            <div>
+              <div className="material-heading">
+                <strong>Adicionar à ficha</strong>
+                <small>Instrumento do aluno: {currentInstrument}</small>
+              </div>
+              <div className="add-grid">
+                {todasFerramentas.map(f => (
+                  <button
+                    key={f.tab}
+                    type="button"
+                    onClick={() => setMcActiveTab(f.tab as any)}
+                    className={f.sugerido ? 'suggest' : ''}
+                  >
+                    + {f.nome}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Links e Mídias */}
-            <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">MÍDIAS / LINKS DE APOIO</label>
-              
-              <div className="space-y-2 mb-3 max-h-[120px] overflow-y-auto">
-                {valMidias.map((mid, idx) => (
-                  <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[9px] font-black uppercase text-black truncate">{mid.titulo}</p>
-                      <p className="text-[7px] font-mono text-black/60 truncate">{mid.url}</p>
+            <details className="app-details">
+              <summary className="text-xs font-bold uppercase cursor-pointer">
+                🔗 Links e Anexos Externos ({valMidias.length})
+              </summary>
+              <div className="pt-2 space-y-2">
+                <div className="space-y-2 max-h-[120px] overflow-y-auto">
+                  {valMidias.map((mid, idx) => (
+                    <div key={idx} className="flex items-center justify-between bg-[#feccba]/40 border-2 border-black p-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[9px] font-black uppercase text-black truncate">{mid.titulo}</p>
+                        <p className="text-[7px] font-mono text-black/60 truncate">{mid.url}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLinkLocal(idx)}
+                        className="text-red-500 hover:text-red-700 shrink-0 ml-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveLinkLocal(idx)}
-                      className="text-red-500 hover:text-red-700 shrink-0 ml-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              <div className="border-2 border-black/10 p-3 bg-black/5 space-y-2">
-                <input
-                  type="text"
-                  placeholder="NOME DO LINK (EX: PARTITURA)"
-                  className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/20 focus:outline-none"
-                  value={valLinkTitulo}
-                  onChange={(e) => setValLinkTitulo(e.target.value)}
-                />
-                <div className="flex gap-2">
+                <div className="border-2 border-black/10 p-2.5 bg-black/5 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="NOME DO LINK (EX: PARTITURA)"
+                    className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black uppercase placeholder:text-black/30 focus:outline-none"
+                    value={valLinkTitulo}
+                    onChange={(e) => setValLinkTitulo(e.target.value)}
+                  />
                   <input
                     type="url"
                     placeholder="URL (HTTPS://...)"
-                    className="flex-1 px-2 py-1.5 bg-white border-2 border-black text-[9px] font-mono placeholder:text-black/20 focus:outline-none"
+                    className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black placeholder:text-black/30 focus:outline-none"
                     value={valLinkUrl}
                     onChange={(e) => setValLinkUrl(e.target.value)}
                   />
                   <button
                     type="button"
                     onClick={handleAddLinkLocal}
-                    className="bg-black text-white px-3 py-1.5 border-2 border-black font-black uppercase text-[9px] shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                    className="w-full bg-black text-[#feccba] py-1.5 text-[9px] font-black uppercase border border-black hover:bg-stone-900 transition-colors"
                   >
-                    ADD
+                    + ADICIONAR LINK
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Concessão de XP */}
-            <div>
-              <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">PONTOS DA AULA PARA O ALUNO (DESEMPENHO EM SALA DE AULA)</label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {[5000, 10000, 20000, 30000, 40000, 50000].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setValXp(val)}
-                    className={`py-2 px-1 border-2 border-black font-black text-[10px] sm:text-xs transition-all ${
-                      valXp === val
-                        ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000] -translate-y-[1px]'
-                        : 'bg-white text-black/60 hover:border-black'
-                    }`}
-                  >
-                    +{val.toLocaleString('pt-BR')} PTS
-                  </button>
-                ))}
-              </div>
-            </div>
+            </details>
           </div>
         )}
 
@@ -3280,238 +3325,206 @@ export default function AreaProfessor() {
   );
 
   return (
-    <div className="min-h-screen bg-[#110804] flex items-center justify-center p-0 md:p-8 overflow-hidden font-['Space_Mono']">
+    <div className="area-app min-h-screen flex items-center justify-center p-0 md:p-8 overflow-hidden" data-theme={theme}>
       
       {/* MOBILE SIMULATOR WRAPPER */}
-      <div className="w-full h-full md:h-[844px] md:max-w-[390px] md:border-[12px] md:border-black md:rounded-[60px] md:shadow-[0_0_0_8px_#3d2d26,0_20px_50px_rgba(0,0,0,0.5)] bg-[#1a0a05] relative overflow-hidden flex flex-col">
+      <div className="app-shell w-full h-screen relative overflow-hidden flex flex-col">
         
         {/* Notch simulation */}
         <div className="hidden md:block absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-50"></div>
 
-        {/* TOP BAR */}
-        <header className="flex items-center justify-between px-6 py-4 pt-10 md:pt-10 shrink-0 bg-[#feccba] border-b-8 border-black z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-none border-4 border-black overflow-hidden bg-[#ff6b00] shadow-[4px_4px_0_#000]">
-              <div className="w-full h-full flex items-center justify-center text-white font-black text-lg">
-                {(professorData?.nome || 'P').charAt(0).toUpperCase()}
-              </div>
-            </div>
-            <h1 className="text-black font-black text-lg uppercase italic tracking-tighter">MUSIC_HUB</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link to="/professor-virtual" className="text-black hover:text-[#ff6b00] transition-colors" title="Professor Virtual" aria-label="Professor Virtual">
-              <Mic className="w-6 h-6" />
-            </Link>
-            <button 
-              onClick={() => {
-                OneSignalService.forcePrompt();
-                setIsNotifDrawerOpen(true);
-                playRetroSound(587.33, 'square', 0.08); // som de chiptune de clique de notificação D5
-                setTimeout(() => {
-                  playRetroSound(880, 'square', 0.15); // A5
-                }, 70);
-                toast.success('Permissões de notificação verificadas!');
-              }}
-              className="text-black hover:text-[#ff6b00] transition-colors relative cursor-pointer"
-            >
-              <Bell className="w-6 h-6" />
-              {notificacoes.filter(n => !n.lida).length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white font-black text-[7px] w-4.5 h-4.5 rounded-full border-2 border-black flex items-center justify-center animate-bounce leading-none shadow-[1px_1px_0_#000]">
-                  {notificacoes.filter(n => !n.lida).length}
-                </span>
-              )}
-            </button>
-            <button onClick={logout} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+        <header className="app-header flex items-center justify-between shrink-0">
+          <img className="app-logo" src="/logo-studio-acorde.png" alt="Studio Acorde" />
+          <button type="button" onClick={() => setActiveProfessorTab('perfil')} aria-label="Abrir perfil" className="w-11 h-11 border-2 border-black bg-[#ffcc22] text-black font-bold">{String(professorData?.nome || 'P').charAt(0).toUpperCase()}</button>
         </header>
 
         {/* SCROLL CONTENT */}
-        <div className="flex-1 overflow-auto pb-24 scrollbar-hide">
+        <div className="app-scroll flex-1 overflow-auto pb-24 scrollbar-hide">
           <div className="px-4 py-5 space-y-5">
-            {activeProfessorTab === 'home' && (
-              <>
-                {/* Resumo do Dia Card */}
-                <div className="bg-[#fff8f6] border-8 border-black p-6 relative overflow-hidden shadow-[12px_12px_0_#000] transform rotate-1">
-                  <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[9px] uppercase border-l-4 border-b-4 border-black">
-                    MASTER_INSTRUCTOR
+            {activeProfessorTab === 'home' && (() => {
+              const todayDateStr = format(new Date(), 'yyyy-MM-dd');
+              const presencasPendentes = agendaCompleta.filter((a: any) => {
+                const d = a.data ? String(a.data).split('T')[0] : '';
+                return d <= todayDateStr && ['pendente', 'aguardando_confirmacao'].includes(a.status);
+              });
+              const fichasPendentes = agendaCompleta.filter((a: any) => {
+                return a.status === 'realizada' && (!a.conteudo || a.conteudo.trim() === '' || a.conteudo === '{}');
+              });
+              const trofeusCount = filteredSolicitacoes.length;
+
+              return (
+                <div className="space-y-4">
+                  {/* Saudação do Professor */}
+                  <div>
+                    <p className="app-subtle text-xs font-bold uppercase tracking-wide">
+                      {format(new Date(), `EEEE, d 'de' MMMM`, { locale: ptBR })}
+                    </p>
+                    <h1 className="app-section-title">
+                      Olá, {String(professorData?.nome || 'professor').split(' ')[0]}.
+                    </h1>
                   </div>
-                  
-                  <p className="text-[#8e7164] text-[8px] font-black uppercase tracking-widest mb-1">&gt;&gt; INSTRUCTOR_STATS</p>
-                  <h2 className="text-black font-black text-2xl uppercase italic leading-none mb-6 truncate text-ellipsis overflow-hidden">
-                    {professorData?.nome || 'INSTRUTOR'}
-                  </h2>
-                  
-                  <div className="space-y-3 mb-5">
-                    <div className="flex justify-between items-center text-[10px] font-black text-black">
-                      <span>LEVEL {nivel}</span>
-                      <span>XP: {xp.toLocaleString()} / {xpMax.toLocaleString()}</span>
+
+                  {/* 1. Pendências em 3 blocos com número */}
+                  <div>
+                    <div className="section-row" style={{ margin: '0 0 8px' }}>
+                      <h4>Pendências</h4>
+                      <button 
+                        type="button" 
+                        className="link bg-transparent border-0 p-0 text-xs font-bold" 
+                        onClick={() => setActiveProfessorTab('agenda')}
+                      >
+                        Ver agenda →
+                      </button>
                     </div>
-                    <div className="h-5 bg-black p-1 border-4 border-black overflow-hidden">
-                      <div className="h-full bg-[#ff6b00] transition-all duration-1000 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]" style={{ width: `${xpPct}%` }}></div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
-                      <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">AULAS HOJE</p>
-                      <span className="text-black font-black text-2xl italic leading-none">
-                        {String(aulasHoje.length).padStart(2, '0')}
-                      </span>
-                    </div>
-                    <div className="bg-[#feccba] border-4 border-black p-3 shadow-[4px_4px_0_#000]">
-                      <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">XP ACUMULADO</p>
-                      <p className="text-[#ff6b00] font-black text-xl italic leading-none">+{xp} XP</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Botão de Ferramentas Inline no Fluxo */}
-                <div className="p-1">
-                  <button
-                    onClick={() => setShowTools(true)}
-                    className="w-full bg-[#ff6b00] text-white py-3.5 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2.5 hover:bg-[#ff8c3a] cursor-pointer"
-                  >
-                    🎸 ABRIR MUSICLASS TOOLS (METRÔNOMO & AFINADOR)
-                  </button>
-                </div>
-
-
-                {/* Criar Aula Avulsa - Musiclass Fiel */}
-                {localStorage.getItem('acorde_role') === 'admin' && (
-                  <div className="p-1">
-                    <button
-                      onClick={openCreateModal}
-                      className="w-full bg-[#ff6b00] text-white py-3 border-4 border-black font-black uppercase text-xs shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2 hover:bg-[#ff8c3a]"
-                    >
-                      ⚔️ REGISTRAR NOVA AULA MUSICLASS
-                    </button>
-                  </div>
-                )}
-
-                {/* Agenda do Dia */}
-                <div className="pt-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-2">
-                      <button onClick={() => setDiaOffset(o => o - 1)} className="p-1.5 bg-[#ff6b00] text-white rounded hover:bg-[#ff8c3a] transition-all"><ChevronLeft className="w-4 h-4" /></button>
-                      MINHA_AGENDA
-                      <button onClick={() => setDiaOffset(o => o + 1)} className="p-1.5 bg-[#ff6b00] text-white rounded hover:bg-[#ff8c3a] transition-all"><ChevronRight className="w-4 h-4" /></button>
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      {diaOffset !== 0 && (
-                        <button onClick={() => setDiaOffset(0)} className="bg-[#1a0a05] border-2 border-white text-white font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#fff] active:translate-y-1 active:shadow-none hover:bg-black transition-all">HOJE</button>
-                      )}
-                      <span className="bg-[#feccba] border-2 border-black text-black font-black text-[8px] px-2 py-1 uppercase shadow-[2px_2px_0_#000]">
-                        {format(new Date(Date.now() + diaOffset * 24 * 60 * 60 * 1000), 'MMM dd', { locale: ptBR })}
-                      </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div 
+                        onClick={() => setActiveProfessorTab('agenda')}
+                        className="pending-card flex-col items-center justify-center text-center p-2.5 cursor-pointer hover:border-[#ff6b00] transition-colors"
+                      >
+                        <span className="count">{String(presencasPendentes.length).padStart(2, '0')}</span>
+                        <strong className="mt-2 text-xs">Presenças</strong>
+                        <p className="text-[10px]">A marcar</p>
+                      </div>
+                      <div 
+                        onClick={() => setActiveProfessorTab('agenda')}
+                        className="pending-card flex-col items-center justify-center text-center p-2.5 cursor-pointer hover:border-[#ff6b00] transition-colors"
+                      >
+                        <span className="count">{String(fichasPendentes.length).padStart(2, '0')}</span>
+                        <strong className="mt-2 text-xs">Fichas</strong>
+                        <p className="text-[10px]">Para concluir</p>
+                      </div>
+                      <div 
+                        onClick={() => { setActiveProfessorTab('jogos'); fetchSolicitacoes(); }}
+                        className="pending-card flex-col items-center justify-center text-center p-2.5 cursor-pointer hover:border-[#ff6b00] transition-colors"
+                      >
+                        <span className="count">{String(trofeusCount).padStart(2, '0')}</span>
+                        <strong className="mt-2 text-xs">Troféus</strong>
+                        <p className="text-[10px]">Pedidos</p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    {aulasHoje.map((aula: any) => {
-                      const isConcluida = aula.status === 'realizada';
-                      const isFalta = aula.status === 'falta_aluno' || aula.status === 'ausente';
-                      const isConfirmada = aula.status === 'confirmada';
-                      const isPendente = !isConcluida && !isFalta && !isConfirmada;
-                      
-                      return (
-                        <div
-                          key={aula.id}
-                          className="bg-[#fff8f6] border-4 border-black p-4 shadow-[4px_4px_0_#000] hover:translate-y-[-2px] transition-all relative overflow-hidden"
+                  {/* 2. Aulas do dia em cartões com horário grande (sem sala e sem instrumento) e Registrar aula */}
+                  <div>
+                    <div className="section-row">
+                      <h4>Aulas de hoje</h4>
+                      <span className="pill">{aulasHoje.length} {aulasHoje.length === 1 ? 'aula' : 'aulas'}</span>
+                    </div>
+
+                    {aulasHoje.length > 0 ? (
+                      <div className="space-y-3">
+                        {aulasHoje.map((aula: any, idx: number) => {
+                          const isDone = aula.status === 'realizada';
+                          const isFalta = aula.status === 'falta' || aula.status === 'falta_aluno';
+                          const isPrimeira = idx === 0;
+
+                          return (
+                            <div key={aula.id || idx} className="today-card">
+                              <span className="tiny">{isPrimeira ? 'Hoje · Próxima aula' : 'Hoje'}</span>
+                              <div className="time-huge">{String(aula.horario || '').slice(0, 5)}</div>
+                              <div>
+                                <h4>{aula.nome || aula.aluno_nome || 'Aluno'}</h4>
+                                <p>
+                                  {isDone ? 'Aula realizada ✓' : isFalta ? 'Falta registrada' : 'Aguardando registro'}
+                                </p>
+                                <button 
+                                  type="button"
+                                  className="btn w-full mt-1" 
+                                  onClick={() => openRegistroModal(aula)}
+                                >
+                                  {isDone ? 'Ver / Editar ficha →' : 'Registrar aula →'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="app-panel text-center py-6">
+                        <p className="font-bold text-sm">Nenhuma aula pendente na agenda hoje.</p>
+                        <button 
+                          type="button" 
+                          className="btn mt-3" 
+                          onClick={() => setActiveProfessorTab('agenda')}
                         >
-                          {/* Status Badges */}
-                          {isConcluida && (
-                            <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
-                              CONCLUÍDA
-                            </div>
-                          )}
-                          {isFalta && (
-                            <div className="absolute top-0 right-0 px-3 py-1 bg-red-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
-                              FALTA
-                            </div>
-                          )}
-                          {isConfirmada && (
-                            <div className="absolute top-0 right-0 px-3 py-1 bg-blue-500 text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black">
-                              CONFIRMADA
-                            </div>
-                          )}
-                          {isPendente && (
-                            <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[7px] uppercase border-l-2 border-b-2 border-black animate-pulse">
-                              AGUARDANDO
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-[#feccba] border-4 border-black text-black flex items-center justify-center shrink-0">
-                              <span className="font-black text-xl">♪</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[#ff6b00] font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> {aula.horario?.substring(0, 5)}
-                              </p>
-                              <h4 
-                                onClick={() => {
-                                  if (aula.aluno_id) {
-                                    handleAbrirHistoricoAluno(aula.aluno_id, aula.nome || aula.aluno_nome);
-                                  } else {
-                                    toast.error('Aluno não vinculado a esta aula.');
-                                  }
-                                }}
-                                className="text-black font-black text-base uppercase italic leading-none my-1 truncate text-ellipsis overflow-hidden cursor-pointer hover:text-[#ff6b00] underline decoration-dashed decoration-2 hover:decoration-solid transition-colors"
-                                title="Clique para ver o histórico do aluno"
-                              >
-                                {aula.nome || aula.aluno_nome || 'ALUNO NÃO VINCULADO'}
-                              </h4>
-                              <p className="text-black/50 font-black text-[8px] uppercase">
-                                {aula.curso_nome || 'CURSO REGULAR'}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Botão de Registro / Criação de Aula */}
-                          <div className="mt-4 border-t-2 border-black/10 pt-3 flex justify-between items-center">
-                            <span className="text-[8px] font-black text-black/40 uppercase">
-                              XP ALUNO: +{aula.xp_ganho || 50} XP
-                            </span>
-                            
-                            <button
-                              onClick={() => openRegistroModal(aula)}
-                              className="bg-[#ff6b00] text-white px-3 py-2 border-2 border-black font-black uppercase text-[8px] shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-1"
-                            >
-                              <BookOpen className="w-3 h-3" /> 
-                              {isConcluida ? 'VER_DIARIO' : 'REGISTRAR_AULA'}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {aulasHoje.length === 0 && (
-                      <div className="p-8 text-center bg-[#261812]/50 border-4 border-dashed border-[#3d2d26] rounded-none">
-                        <p className="text-[#8e7164] font-black text-[10px] uppercase italic">
-                          &gt;&gt; NENHUMA_AULA_AGENDADA_HOJE
-                        </p>
+                          Ver agenda da semana →
+                        </button>
                       </div>
                     )}
                   </div>
-                </div>
 
-                {/* Banner Decorativo */}
-                <div className="bg-[#feccba] border-8 border-black p-6 rounded-none text-center transform -rotate-1 shadow-[8px_8px_0_#000]">
-                  <div className="w-12 h-12 bg-black text-[#ff6b00] rounded-none border-4 border-black flex items-center justify-center mx-auto mb-3 shadow-[4px_4px_0_#000]">
-                    <Sparkles className="w-6 h-6 text-[#ff6b00]" />
+                  {/* 3. Atalhos (Professor Virtual, Ferramentas, Jogos) */}
+                  <div>
+                    <div className="section-row">
+                      <h4>Atalhos rápidos</h4>
+                    </div>
+                    <div className="tools-row">
+                      <button type="button" onClick={() => { window.location.href = '/professor-virtual'; }}>
+                        <span>🤖</span> Professor Virtual
+                      </button>
+                      <button type="button" onClick={() => setShowTools(true)}>
+                        <span>🎸</span> Ferramentas
+                      </button>
+                      <button type="button" onClick={() => setActiveProfessorTab('jogos')}>
+                        <span>🕹️</span> Jogos
+                      </button>
+                    </div>
                   </div>
-                  <h3 className="font-black text-black text-sm uppercase italic">DIÁRIO MUSICLASS ⚡</h3>
-                  <p className="text-[#8e7164] font-bold text-[9px] uppercase tracking-wider mt-2">
-                    Envie feedbacks das aulas, crie desafios e anexe mídias na hora. Tudo vai direto para a Área do Aluno!
-                  </p>
+
+                  {/* Detalhes / Estatísticas do instrutor recolhíveis */}
+                  <details className="app-details app-legacy-section mt-4">
+                    <summary className="cursor-pointer font-bold text-xs uppercase">
+                      Ver estatísticas e recursos extras
+                    </summary>
+                    <div className="space-y-4 pt-3">
+                      {/* Resumo do Dia Card */}
+                      <div className="bg-[#fff8f6] border-4 border-black p-4 relative overflow-hidden shadow-[6px_6px_0_#000]">
+                        <h2 className="text-black font-black text-lg uppercase italic leading-none mb-3 truncate">
+                          {professorData?.nome || 'INSTRUTOR'}
+                        </h2>
+                        
+                        <div className="space-y-2 mb-3">
+                          <div className="flex justify-between items-center text-[10px] font-black text-black">
+                            <span>LEVEL {nivel}</span>
+                            <span>XP: {xp.toLocaleString()} / {xpMax.toLocaleString()}</span>
+                          </div>
+                          <div className="h-4 bg-black p-0.5 border-2 border-black overflow-hidden">
+                            <div className="h-full bg-[#ff6b00]" style={{ width: `${xpPct}%` }}></div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-[#feccba] border-2 border-black p-2.5">
+                            <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">AULAS HOJE</p>
+                            <span className="text-black font-black text-xl italic leading-none">
+                              {String(aulasHoje.length).padStart(2, '0')}
+                            </span>
+                          </div>
+                          <div className="bg-[#feccba] border-2 border-black p-2.5">
+                            <p className="text-[7px] font-black text-[#8e7164] uppercase mb-1">XP ACUMULADO</p>
+                            <p className="text-[#ff6b00] font-black text-lg italic leading-none">+{xp} XP</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Criar Aula Avulsa - Musiclass */}
+                      {localStorage.getItem('acorde_role') === 'admin' && (
+                        <button
+                          onClick={openCreateModal}
+                          className="w-full bg-[#ff6b00] text-white py-3 border-2 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2"
+                        >
+                          ⚔️ REGISTRAR NOVA AULA MUSICLASS
+                        </button>
+                      )}
+                    </div>
+                  </details>
                 </div>
-              </>
-            )}
+              );
+            })()}
 
             {activeProfessorTab === 'jogos' && (
               <div className="px-4 py-5 space-y-6">
+                <div className="app-panel app-panel--gold"><h1>Jogos</h1><p>Professores também entram na brincadeira.</p><button className="app-action app-action--light w-full mt-3" onClick={() => { setActiveProfessorTab('ranking'); fetchRanking(); fetchConquistas(); fetchSolicitacoes(); }}>🏆 Ranking da semana</button></div>
                 {/* Cabeçalho da Galeria */}
                 <div className="flex items-center gap-3">
                   <div className="bg-[#ff6b00] border-4 border-black px-3 py-1 shadow-[4px_4px_0_#000]">
@@ -3783,6 +3796,7 @@ export default function AreaProfessor() {
 
             {activeProfessorTab === 'agenda' && (
               <div className="space-y-4 animate-fade-in">
+                <div className="app-panel"><h1>Agenda da semana</h1><p className="app-subtle">Escolha o dia e veja suas aulas.</p></div>
                 {/* Calendário Semanal 8-Bit */}
                 <div className="bg-[#261812] border-4 border-black p-3 shadow-[6px_6px_0_#000]">
                   <div className="flex justify-between items-center mb-2">
@@ -3991,6 +4005,9 @@ export default function AreaProfessor() {
 
             {activeProfessorTab === 'perfil' && (
               <div className="space-y-5 animate-fade-in">
+                {(() => { const month = format(new Date(), 'yyyy-MM'); const aulas = agendaCompleta.filter((a: any) => String(a.data || '').startsWith(month) && a.status === 'realizada').length; const bruto = aulas * 30; const teto = [2,17].includes(Number(professorData?.id)) ? 500 : null; const premio = Number(professorData?.valor_premios || 0); const total = (teto === null ? bruto : Math.min(bruto,teto)) + premio; return <div className="app-panel app-panel--brown"><p className="text-xs font-bold text-[#ffcc22]">Saldo a receber · {format(new Date(), 'MMMM', { locale: ptBR })}</p><strong className="block text-3xl mt-2">{total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong><p className="text-xs mt-2">Pago no mês seguinte</p><div className="text-xs mt-4 border-t border-white/30 pt-3 space-y-1"><p>{aulas} aulas realizadas × R$ 30 = {bruto.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</p>{teto !== null && <p>Teto mensal: R$ 500,00</p>}<p>Prêmios de matrícula: {premio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} fora do teto</p></div></div>; })()}
+                <div className="app-panel"><h2 className="app-section-title">Aparência</h2><div className="app-theme-control mt-3"><button aria-pressed={choice === null} onClick={() => setTheme(null)}>Celular</button><button aria-pressed={choice === 'light'} onClick={() => setTheme('light')}>Claro</button><button aria-pressed={choice === 'dark'} onClick={() => setTheme('dark')}>Escuro</button></div></div>
+                <details className="app-details app-legacy-section"><summary>Meus dados e disponibilidade</summary><div className="space-y-5">
                 {/* Card Principal de Cadastro */}
                 <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000]">
                   <div className="absolute top-0 right-0 px-3 py-1 bg-[#ff6b00] text-white font-black text-[8px] uppercase border-l-4 border-b-4 border-black">
@@ -4287,10 +4304,13 @@ export default function AreaProfessor() {
                 >
                   <LogOut className="w-5 h-5" /> SAIR DA MINHA CONTA
                 </button>
+                </div></details>
+                <button type="button" className="app-action w-full" onClick={logout}>Sair da conta</button>
               </div>
             )}
 
-            {activeProfessorTab === 'fichas' && (() => {
+            {activeProfessorTab === 'alunos' && <div className="app-panel"><h1>Meus alunos</h1><p className="app-subtle">Fichas, vídeos e treinos em um lugar.</p><div className="grid grid-cols-2 gap-2 mt-3"><button className="app-action" aria-pressed={studentSection === 'fichas'} onClick={() => setStudentSection('fichas')}>Fichas</button><button className="app-action" aria-pressed={studentSection === 'treinos'} onClick={() => {setStudentSection('treinos'); fetchTreinos();}}>Treinos</button></div></div>}
+            {activeProfessorTab === 'alunos' && studentSection === 'fichas' && (() => {
               // Resumo das aulas realizadas de cada aluno, a partir da agenda do professor
               const resumoPorAluno: Record<string, { total: number; ultima: string | null }> = {};
               agendaCompleta.forEach((a: any) => {
@@ -4356,7 +4376,7 @@ export default function AreaProfessor() {
               );
             })()}
 
-            {activeProfessorTab === 'treinos' && (
+            {activeProfessorTab === 'alunos' && studentSection === 'treinos' && (
               <div className="space-y-4 animate-fade-in pb-10">
                 {/* Cabeçalho da aba Treinos */}
                 <div className="bg-[#fff8f6] border-8 border-black p-5 relative shadow-[8px_8px_0_#000]">
@@ -4788,42 +4808,14 @@ export default function AreaProfessor() {
           </div>
         </div>
 
-        {/* BOTTOM NAV */}
-        <nav className="fixed md:absolute bottom-0 left-0 right-0 md:left-auto md:right-auto md:w-full h-20 bg-[#261812] border-t-8 border-black flex items-center justify-around px-2 z-50">
+        <nav className="app-bottom-nav shrink-0" aria-label="Menu do professor">
           {[
-            { id: 'home', icon: Home, label: 'HOME' },
-            { id: 'jogos', icon: Gamepad2, label: 'JOGOS' },
-            { id: 'agenda', icon: Calendar, label: 'AGENDA' },
-            { id: 'fichas', icon: FileText, label: 'FICHAS' },
-            { id: 'treinos', icon: Flame, label: 'TREINOS' },
-            { id: 'ranking', icon: Trophy, label: 'RANKING' },
-            { id: 'perfil', icon: User, label: 'PERFIL' },
-          ].map((item, i) => {
-            const isActive = activeProfessorTab === item.id;
-            return (
-              <button 
-                key={i} 
-                onClick={() => {
-                  setActiveProfessorTab(item.id as any);
-                  if (item.id === 'ranking') {
-                    fetchRanking();
-                    fetchConquistas();
-                    fetchSolicitacoes();
-                  }
-                  if (item.id === 'treinos') {
-                    fetchTreinos();
-                  }
-                  playRetroSound(440, 'triangle', 0.04); // som de clique retrô sutil ao navegar
-                }}
-                className={`flex flex-col items-center gap-0.5 transition-all ${isActive ? 'translate-y-[-4px]' : 'opacity-50 hover:opacity-80'}`}
-              >
-                <div className={`p-1.5 border-4 border-black shadow-[4px_4px_0_#000] ${isActive ? 'bg-[#ff6b00]' : 'bg-white'}`}>
-                  <item.icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-black'}`} />
-                </div>
-                <span className="text-[5.5px] font-black text-white uppercase tracking-tighter">{item.label}</span>
-              </button>
-            );
-          })}
+            { id: 'home', icon: Home, label: 'Hoje' },
+            { id: 'agenda', icon: Calendar, label: 'Agenda' },
+            { id: 'alunos', icon: Users, label: 'Alunos' },
+            { id: 'jogos', icon: Gamepad2, label: 'Jogos' },
+            { id: 'perfil', icon: User, label: 'Perfil' },
+          ].map((item) => <button type="button" key={item.id} aria-current={activeProfessorTab === item.id ? 'page' : undefined} onClick={() => setActiveProfessorTab(item.id as typeof activeProfessorTab)}><item.icon aria-hidden="true" />{item.label}</button>)}
         </nav>
       </div>
 
@@ -4965,54 +4957,60 @@ export default function AreaProfessor() {
 
       {/* MUSICLASS: MODAL DE REGISTRO DE AULA EXISTENTE */}
       {isModalOpen && selectedAula && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto font-['Space_Mono']">
-          <div className={`bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000] w-full max-h-[90vh] overflow-y-auto font-['Space_Mono'] transition-all duration-300 ${mcActiveTab === 'geral' ? 'max-w-md' : 'max-w-4xl'}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
+          <div className={`bg-[#fff8f6] border-0 sm:border-8 border-black p-4 sm:p-6 relative shadow-none sm:shadow-[12px_12px_0_#000] w-full min-h-screen sm:min-h-0 sm:max-h-[92vh] overflow-y-auto transition-all duration-300 ${mcActiveTab === 'geral' ? 'max-w-md' : 'max-w-4xl'}`}>
             
-            {/* Fechar botão */}
-            <div className="absolute top-4 right-4">
+            {/* Header da proposta aprovada */}
+            <div className="editor-head justify-between -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)}
+                  className="back"
+                  aria-label="Voltar"
+                >
+                  ‹
+                </button>
+                <div className="min-w-0">
+                  <strong className="truncate">Registrar aula</strong>
+                  <small className="truncate block">
+                    {selectedAula.nome || selectedAula.aluno_nome || 'Aluno'} · {selectedAula.curso_nome || 'Música'} · {String(selectedAula.horario || '').slice(0, 5)}
+                  </small>
+                </div>
+              </div>
               <button 
+                type="button"
                 onClick={() => setIsModalOpen(false)} 
-                className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
+                className="text-white hover:text-stone-300 font-bold p-1 text-base ml-2 shrink-0"
+                aria-label="Fechar"
               >
-                <XCircle className="w-4 h-4" />
+                ✕
               </button>
-            </div>
-
-            <div className="mb-6">
-              <span className="font-black bg-[#ff6b00] text-white text-[8px] px-2 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
-                MUSICLASS FEEDBACK
-              </span>
-              <h2 className="text-xl font-black text-black uppercase italic tracking-tighter mt-3 text-ellipsis overflow-hidden">
-                {selectedAula.nome || selectedAula.aluno_nome || 'REGISTRAR AULA'}
-              </h2>
-              <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-wider">
-                {selectedAula.curso_nome || 'CURSO REGULAR'} @ {selectedAula.horario?.substring(0, 5)}
-              </p>
             </div>
 
             <form onSubmit={salvarDiarioAula} className="space-y-4">
               
               {showFichaChoice && (
-                <div className="border-4 border-dashed border-[#ff6b00] bg-[#feccba]/10 p-4 space-y-3.5 mb-4 shadow-[4px_4px_0_rgba(0,0,0,0.05)] rounded-none font-mono">
+                <div className="border-4 border-dashed border-[#ff6b00] bg-[#feccba]/10 p-4 space-y-3 mb-4 font-mono">
                   <div className="flex items-center gap-2 text-[#ff6b00] font-black text-[10px] uppercase tracking-widest">
-                    <span>🔄</span> DETECTAMOS UMA NOVA FICHA DE AULA
+                    <span>🔄</span> NOVA FICHA DE AULA DETECTADA
                   </div>
-                  <p className="text-[9px] text-[#8e7164] uppercase leading-relaxed font-black">
-                    Deseja iniciar esta ficha totalmente do zero ou copiar os dados da aula anterior realizada deste aluno para reaproveitar?
+                  <p className="text-[10px] text-stone-700 font-bold uppercase leading-relaxed">
+                    Deseja iniciar esta ficha do zero ou copiar os dados da última aula realizada deste aluno?
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setShowFichaChoice(false)}
-                      className="py-2.5 bg-black text-white hover:bg-stone-900 border-2 border-black text-[9px] font-black uppercase tracking-wider shadow-[2px_2px_0_rgba(0,0,0,0.2)] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5"
+                      className="py-2.5 bg-black text-white hover:bg-stone-900 border-2 border-black text-[9px] font-black uppercase tracking-wider"
                     >
-                      ✨ FICHA DO ZERO
+                      ✨ DO ZERO
                     </button>
                     <button
                       type="button"
                       disabled={loadingUltimaAula}
                       onClick={() => copiarUltimaAula(selectedAula.aluno_id)}
-                      className="py-2.5 bg-[#ff6b00] text-white hover:bg-[#e05e00] border-2 border-black text-[9px] font-black uppercase tracking-wider shadow-[2px_2px_0_rgba(0,0,0,0.2)] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      className="py-2.5 bg-[#ff6b00] text-white hover:bg-[#e05e00] border-2 border-black text-[9px] font-black uppercase tracking-wider disabled:opacity-50"
                     >
                       {loadingUltimaAula ? '⏳ CARREGANDO...' : '🔄 COPIAR ANTERIOR'}
                     </button>
@@ -5020,44 +5018,51 @@ export default function AreaProfessor() {
                 </div>
               )}
 
-              {/* Presença/Falta */}
+              {/* 1. Presença em botões grandes */}
               <div>
-                <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-2">STATUS DA AULA</label>
-                <div className="grid grid-cols-2 gap-3">
+                <p className="editor-title">1. Presença</p>
+                <div className="presence">
                   <button
                     type="button"
                     onClick={() => setStatusAula('realizada')}
-                    className={`py-3 px-4 border-4 border-black font-black text-xs uppercase transition-all flex items-center justify-center gap-2 ${
-                      statusAula === 'realizada' 
-                        ? 'bg-emerald-500 text-white shadow-[4px_4px_0_#000] -translate-y-[2px]' 
-                        : 'bg-white text-black/50 hover:text-black'
-                    }`}
+                    className={statusAula === 'realizada' ? 'selected' : ''}
                   >
-                    <CheckCircle2 className="w-4 h-4" /> PRESENTE
+                    ✓ Realizada
                   </button>
                   <button
                     type="button"
                     onClick={() => setStatusAula('falta_aluno')}
-                    className={`py-3 px-4 border-4 border-black font-black text-xs uppercase transition-all flex items-center justify-center gap-2 ${
-                      statusAula === 'falta_aluno' 
-                        ? 'bg-red-500 text-white shadow-[4px_4px_0_#000] -translate-y-[2px]' 
-                        : 'bg-white text-black/50 hover:text-black'
-                    }`}
+                    className={statusAula === 'falta_aluno' ? 'selected' : ''}
                   >
-                    <XCircle className="w-4 h-4" /> FALTA DO ALUNO
+                    Falta aluno
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusAula('reposicao')}
+                    className={statusAula === 'reposicao' || statusAula === 'a_repor' ? 'selected' : ''}
+                  >
+                    Repor
                   </button>
                 </div>
               </div>
 
-              {statusAula === 'realizada' && renderMusiclassTabs(false)}
+              {/* Montadores de conteúdo Musiclass */}
+              {renderMusiclassTabs(false)}
 
-              {/* Botão de Envio */}
-              <div className="pt-2">
+              {/* Barra inferior de ações */}
+              <div className="editor-bottom -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewOpen(true)}
+                  className="btn"
+                >
+                  👁️ Ver como aluno
+                </button>
                 <button
                   type="submit"
-                  className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
+                  className="btn orange"
                 >
-                  <CheckCircle2 className="w-5 h-5" /> CONCLUIR E REGISTRAR AULA
+                  Salvar ficha →
                 </button>
               </div>
             </form>
@@ -5314,14 +5319,6 @@ export default function AreaProfessor() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Botão flutuante de Ferramentas (metrônomo, afinador, cronômetro) em qualquer aba */}
-      {!showTools && (
-        <button type="button" onClick={() => setShowTools(true)}
-          className="fixed bottom-24 right-4 z-40 bg-[#ff6b00] text-white border-4 border-black px-3 py-2.5 font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
-          🎸 Ferramentas
-        </button>
       )}
 
       {/* Modal de Ferramentas */}
