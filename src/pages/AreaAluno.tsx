@@ -1658,7 +1658,7 @@ export default function AreaAluno() {
     <div className="area-app min-h-screen flex items-center justify-center p-0 md:p-8 overflow-hidden" data-theme={theme}>
       
       {/* MOBILE SIMULATOR WRAPPER */}
-      <div className="app-shell w-full h-screen relative overflow-hidden flex flex-col">
+      <div className="app-shell w-full h-[100dvh] relative overflow-hidden flex flex-col">
         
         {needsUpdate && (
           <div className="bg-red-600 text-white border-b-8 border-black p-4 text-center font-black text-[9px] uppercase animate-pulse flex flex-col gap-2 z-[100] relative">
@@ -3031,9 +3031,36 @@ export default function AreaAluno() {
           {activeTab === 'home' && (
             <div className="app-content">
               <div><p className="app-subtle text-xs font-bold">{format(new Date(), `EEEE, d 'de' MMMM`, { locale: ptBR })}</p><h1>Olá, {String(alunoData?.nome || user?.nome || 'aluno').split(' ')[0]}.</h1></div>
-              {aulasHoje[0] && <div className="app-panel app-panel--orange"><p className="text-xs font-bold">Sua próxima aula</p><p className="text-3xl font-black">{String(aulasHoje[0].horario || '').slice(0,5)}</p><h2 className="text-xl font-black">{alunoData?.matriculas?.[0]?.cursos?.nome || 'Aula de música'}</h2><p>{aulasHoje[0].data ? format(new Date(aulasHoje[0].data + 'T12:00:00'), `EEEE, d 'de' MMMM`, { locale: ptBR }) : ''}</p>{aulasHoje[0].status !== 'confirmada' && <button className="app-action app-action--light mt-3" onClick={() => handleConfirmarPresenca(aulasHoje[0].id)}>Confirmar presença</button>}</div>}
-              <div className="grid grid-cols-2 gap-3"><button className="app-panel app-panel--brown text-left" onClick={() => {setActiveTab('treino'); fetchTreinos();}}>Praticar hoje →</button><button className="app-panel text-left" onClick={() => {setActiveTab('ranking'); fetchRanking();}}>🏆 Ranking →</button></div>
-              {aulasRealizadas[0] && <button className="app-panel text-left w-full" onClick={() => setSelectedFicha(aulasRealizadas[0])}>Última ficha · {aulasRealizadas[0].data}<span className="block font-bold">Rever aula →</span></button>}
+              {aulasHoje[0] ? (() => {
+                const prox = aulasHoje[0];
+                const dt = prox.data ? new Date(prox.data + 'T12:00:00') : null;
+                return <div className="app-panel app-panel--orange flex gap-3 items-stretch">
+                  {dt && <div className="shrink-0 w-16 bg-[#fff8f6] text-[#1a0f0a] border-2 border-black text-center flex flex-col">
+                    <span className="bg-black text-white text-[10px] font-black py-1 uppercase">{format(dt, 'EEE', { locale: ptBR }).replace('.', '')}</span>
+                    <span className="text-3xl font-black leading-none flex-1 grid place-items-center">{format(dt, 'd')}</span>
+                    <span className="text-[10px] font-black pb-1 uppercase">{format(dt, 'MMM', { locale: ptBR }).replace('.', '')}</span>
+                  </div>}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-black uppercase tracking-wide">Sua próxima aula · {String(prox.horario || '').slice(0, 5)}</p>
+                    <h2 className="text-xl font-black leading-tight">{prox.curso_nome || alunoData?.matriculas?.[0]?.cursos?.nome || 'Aula'}{prox.professor_nome ? ` com ${String(prox.professor_nome).split(' ')[0]}` : ''}</h2>
+                    {prox.status === 'confirmada'
+                      ? <p className="mt-2 inline-block bg-[#1a0f0a] text-[#ffcc22] text-xs font-black px-2 py-1">✓ Presença confirmada</p>
+                      : <button className="app-action app-action--light mt-2" onClick={() => handleConfirmarPresenca(prox.id)}>Confirmar presença</button>}
+                  </div>
+                </div>;
+              })() : <div className="app-panel"><p className="font-black">Nenhuma aula marcada</p><p className="app-subtle text-sm">Quando a escola agendar, ela aparece aqui.</p></div>}
+              <div className="grid grid-cols-2 gap-3">
+                <button className="app-panel app-panel--brown text-left flex flex-col justify-between min-h-[104px]" onClick={() => { setActiveTab('treino'); fetchTreinos(); }}>
+                  <span className="text-2xl" aria-hidden="true">🎸</span><span><b className="block">Praticar</b><span className="text-xs opacity-80">treino, metrônomo, afinador</span></span>
+                </button>
+                <button className="app-panel text-left flex flex-col justify-between min-h-[104px]" onClick={() => { setActiveTab('ranking'); fetchRanking(); }}>
+                  <span className="text-2xl" aria-hidden="true">🏆</span><span><b className="block">Ranking</b><span className="app-subtle text-xs">nível {nivel} · {Number(xp).toLocaleString('pt-BR')} XP</span></span>
+                </button>
+              </div>
+              {aulasRealizadas[0] && <button className="app-panel text-left w-full flex items-center gap-3" onClick={() => setSelectedFicha(aulasRealizadas[0])}>
+                <span className="shrink-0 w-12 h-12 grid place-items-center bg-[#ffcc22] text-[#1a0f0a] border-2 border-black text-xl" aria-hidden="true">📒</span>
+                <span className="min-w-0"><span className="app-subtle text-xs font-bold block">Última aula · {aulasRealizadas[0].data ? format(new Date(aulasRealizadas[0].data + 'T12:00:00'), "d 'de' MMMM", { locale: ptBR }) : ''}</span><b className="block truncate">Rever o que vimos →</b></span>
+              </button>}
               <details className="app-details app-legacy-section"><summary>Ver mais do meu início</summary><div className="space-y-6">
               {/* Próximas Aulas e Confirmação */}
               {aulasHoje.length > 0 && (
@@ -3750,14 +3777,6 @@ export default function AreaAluno() {
 
             </div>
           )}
-
-          {/* Botão Flutuante Musiclass Tools */}
-          <button
-            onClick={() => setShowTools(true)}
-            className="fixed md:absolute bottom-24 right-4 z-40 bg-[#ff6b00] text-white border-4 border-black p-2.5 shadow-[4px_4px_0_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none font-black text-[8px] uppercase tracking-wider hover:bg-[#ff8c3a] flex items-center gap-1 cursor-pointer"
-          >
-            🎸 FERRAMENTAS
-          </button>
 
           {/* Modal de Ferramentas */}
           {showTools && (
