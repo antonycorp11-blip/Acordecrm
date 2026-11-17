@@ -1342,13 +1342,11 @@ export default function AlunoPerfil() {
                         <span className="text-[10px] font-black text-[#b49e00] uppercase tracking-widest block border-b border-[#ffeb3b]/30 pb-2">⚠️ CONTRATO_PENDENTE</span>
                         <p className="text-[10px] font-bold text-white uppercase leading-tight">O aluno ainda não assinou o contrato eletrônico pelo portal.</p>
                         {(() => {
-                          const temContrato = (aluno?.contratos || []).some((c: any) => c.status !== 'assinado');
                           const link = `${window.location.origin}/login?abrir=contrato`;
                           const tel = String(aluno?.responsavel_telefone || aluno?.telefone || '').replace(/\D/g, '');
                           const numero = tel.length >= 12 && tel.startsWith('55') ? tel : tel ? `55${tel}` : '';
                           const nome = String(aluno?.responsavel_nome || aluno?.nome || '').trim().split(/\s+/)[0] || '';
                           const mensagem = `Olá${nome ? `, ${nome}` : ''}! Aqui é do Studio Acorde 🎶 Seu contrato está pronto para assinar pelo celular. Toque no link, entre com o e-mail ${aluno?.email || 'cadastrado na escola'} e crie sua senha (no primeiro acesso). O contrato já abre para você assinar: ${link}`;
-                          if (!temContrato) return <p className="text-[10px] font-black text-[#ffeb3b] uppercase">Gere o contrato primeiro (botão GERAR CONTRATO) para liberar o link de assinatura.</p>;
                           return <div className="space-y-2 pt-1">
                             {!aluno?.email && <p className="text-[10px] font-black text-[#ff8a8a] uppercase">Cadastre o e-mail do aluno: é com ele que o cliente entra para assinar.</p>}
                             <div className="grid grid-cols-2 gap-2">
