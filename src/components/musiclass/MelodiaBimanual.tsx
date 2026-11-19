@@ -5,6 +5,11 @@ import React from 'react';
 // Formato salvo: { name, notes: string[], phrases?: string[][], left?: string[][], phrasesLeft?: string[][][] }
 
 const nomeNota = (n: string) => String(n || '').replace(/[\d*]+$/, '');
+const ESCALA = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const alturaNota = (n: string) => {
+  const m = String(n || '').match(/^([A-G]#?)(\d+)?/);
+  return m ? Number(m[2] ?? 4) * 12 + ESCALA.indexOf(m[1]) : 0;
+};
 
 export function partesDaMelodia(mel: any): { direita: string[]; esquerda: string[][] }[] {
   const notes: string[] = Array.isArray(mel?.notes) ? mel.notes : [];
@@ -55,7 +60,8 @@ export default function MelodiaBimanual({ mel, tamanho = 'normal' }: { mel: any;
           </div>
           <div className="flex flex-wrap gap-x-2 gap-y-3 items-end">
             {parte.direita.map((nota, nIdx) => {
-              const esq = Array.isArray(parte.esquerda[nIdx]) ? parte.esquerda[nIdx] : [];
+              // a nota mais aguda fica em cima
+              const esq = (Array.isArray(parte.esquerda[nIdx]) ? [...parte.esquerda[nIdx]] : []).sort((a, b) => alturaNota(b) - alturaNota(a));
               return (
                 <div key={nIdx} className="flex flex-col items-center gap-1">
                   {esq.length > 0 ? (

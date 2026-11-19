@@ -1,5 +1,6 @@
 import React from 'react';
-import { MusicEngine } from '../../lib/musicEngine';
+import { MusicEngine, GUITAR_CHORD_LIBRARY } from '../../lib/musicEngine';
+import { NOTAS, normalizarNota, ordenarVoz, vozViolao } from '../../lib/acordes';
 
 interface ChordVisualizerProps {
   instrument: string;
@@ -10,6 +11,7 @@ interface ChordVisualizerProps {
   bass?: string;
   notesWithIndices?: any[];
   isCustom?: boolean;
+  name?: string;
 }
 
 export const DrumsVisualizer: React.FC<{ rhythmName: string }> = ({ rhythmName }) => {
@@ -75,6 +77,17 @@ export const DrumsVisualizer: React.FC<{ rhythmName: string }> = ({ rhythmName }
   );
 };
 
+const nomeCompleto = (root: string, type = 'maj', ext = '', bass = 'none', isCustom?: boolean, name?: string) => {
+  if (name) return name;
+  if (isCustom) return root;
+  const displayType = type === 'min' ? 'm' : (type === 'maj' ? '' : type);
+  const displayExt = ext === 'none' || !ext ? '' : ext;
+  const displayBass = bass && bass !== 'none' ? `/${bass}` : '';
+  return `${root}${displayType}${displayExt}${displayBass}`;
+};
+
+const ehBranca = (abs: number) => !NOTAS[((abs % 12) + 12) % 12].includes('#');
+
 export const KeyboardVisualizer: React.FC<{
   chordNotes: string[];
   root: string;
@@ -83,176 +96,100 @@ export const KeyboardVisualizer: React.FC<{
   bass?: string;
   notesWithIndices?: any[];
   isCustom?: boolean;
-}> = ({ chordNotes, root, type = 'maj', ext = '', bass = 'none', notesWithIndices, isCustom }) => {
-  const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const WHITE_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  name?: string;
+}> = ({ chordNotes, root, type = 'maj', ext = '', bass = 'none', notesWithIndices, isCustom, name }) => {
+  const temBaixo = !!bass && bass !== 'none';
+  // Teclas exatas (índice 0 = Dó 3) quando o acorde foi montado tecla por tecla
+  const exatas = isCustom && Array.isArray(notesWithIndices) && notesWithIndices.length > 0
+    && notesWithIndices.length === (chordNotes || []).length && notesWithIndices.every(n => typeof n === 'number');
 
-  const translateNote = (note: string) => note.replace('b', 'b');
-  const simplify = (n: string) => n.replace('Ab','G#').replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Bb','A#');
-  
-  const rootClean = simplify((root || '').match(/^([A-G][#b]?)/)?.[1] || 'C');
-  const rootLetter = rootClean.charAt(0);
-
-  // Encontra o índice da letra raiz na escala de notas brancas
-  const rootWhiteIdx = WHITE_NOTES.indexOf(rootLetter);
-  // O teclado começa 2 notas brancas antes da raiz
-  const startWhiteIdx = (rootWhiteIdx - 2 + 7) % 7;
-
-  // Gera 10 teclas brancas
-  const WHITE_KEYS: string[] = [];
-  for (let i = 0; i < 10; i++) {
-    WHITE_KEYS.push(WHITE_NOTES[(startWhiteIdx + i) % 7]);
+  let teclas: number[] = [];
+  if (exatas) {
+    teclas = [...(notesWithIndices as number[])].map(n => n + 12).sort((a, b) => a - b);
+  } else {
+    const rootClean = normalizarNota((root || '').match(/^([A-Ga-g][#b]?)/)?.[1] || chordNotes?.[0] || 'C');
+    const ordem = ordenarVoz(chordNotes || [], temBaixo ? bass : null, rootClean);
+    let ultimo = -1;
+    ordem.forEach((n, i) => {
+      const p = NOTAS.indexOf(n);
+      if (p < 0) return;
+      let abs = (i === 0 ? 12 : 0) + p; // começa na oitava 4 (índice 12 = Dó 4)
+      while (abs <= ultimo) abs += 12;
+      teclas.push(abs);
+      ultimo = abs;
+    });
   }
+  const grave = teclas.length ? Math.min(...teclas) : 12;
+  const agudo = teclas.length ? Math.max(...teclas) : 24;
 
-  // Descobre quais teclas brancas têm uma tecla preta à direita
-  const hasBlackKeyAfter = (note: string) => !['E', 'B'].includes(note);
+  // Faixa visível: começa numa tecla branca abaixo da mais grave e tem no mínimo 10 brancas
+  // Acorde centralizado: pelo menos 2 teclas brancas de folga de cada lado (assim aparecem as pretas vizinhas)
+  const descer = (x: number) => { x--; while (!ehBranca(x)) x--; return x; };
+  const subir = (x: number) => { x++; while (!ehBranca(x)) x++; return x; };
+  let inicio = grave; while (!ehBranca(inicio)) inicio--;
+  if (inicio === grave) inicio = descer(inicio);
+  inicio = descer(inicio);
+  let fim = agudo; while (!ehBranca(fim)) fim++;
+  if (fim === agudo) fim = subir(fim);
+  fim = subir(fim);
+  const contarBrancas = (a: number, b: number) => { let c = 0; for (let x = a; x <= b; x++) if (ehBranca(x)) c++; return c; };
+  let ladoBaixo = true;
+  while (contarBrancas(inicio, fim) < 10) { if (ladoBaixo) inicio = descer(inicio); else fim = subir(fim); ladoBaixo = !ladoBaixo; }
 
-  const BLACK_KEYS: { note: string, afterWhiteIdx: number }[] = [];
-  for (let i = 0; i < WHITE_KEYS.length - 1; i++) {
-    if (hasBlackKeyAfter(WHITE_KEYS[i])) {
-      const whiteNoteIndex = CHROMATIC_SCALE.indexOf(WHITE_KEYS[i]);
-      const blackNote = CHROMATIC_SCALE[(whiteNoteIndex + 1) % 12];
-      BLACK_KEYS.push({ note: blackNote, afterWhiteIdx: i });
-    }
+  const brancas: number[] = [];
+  const pretas: { abs: number; depoisDe: number }[] = [];
+  for (let x = inicio; x <= fim; x++) {
+    if (ehBranca(x)) brancas.push(x);
+    else pretas.push({ abs: x, depoisDe: brancas.length - 1 });
   }
-
-  const targetNotes = chordNotes.map(simplify);
-
-  const highlightedWhite = new Set<number>();
-  const highlightedBlack = new Set<number>();
-
-  // Constroi ALL_KEYS ordenado
-  const ALL_KEYS: { type: 'white' | 'black', note: string, wIdx: number, bIdx: number }[] = [];
-  let wIdx = 0;
-  let bIdx = 0;
-  
-  for (let i = 0; i < WHITE_KEYS.length; i++) {
-    ALL_KEYS.push({ type: 'white', note: WHITE_KEYS[i], wIdx: i, bIdx: -1 });
-    if (i < WHITE_KEYS.length - 1 && hasBlackKeyAfter(WHITE_KEYS[i])) {
-      const whiteNoteIndex = CHROMATIC_SCALE.indexOf(WHITE_KEYS[i]);
-      const blackNote = CHROMATIC_SCALE[(whiteNoteIndex + 1) % 12];
-      ALL_KEYS.push({ type: 'black', note: blackNote, wIdx: -1, bIdx: bIdx });
-      bIdx++;
-    }
-  }
-
-  let currentKeyIndex = 0;
-
-  // Try to place root first
-  let rootFoundIndex = -1;
-  for (let i = 0; i < ALL_KEYS.length; i++) {
-    if (ALL_KEYS[i].note === rootClean) {
-      if (ALL_KEYS[i].type === 'white') highlightedWhite.add(ALL_KEYS[i].wIdx);
-      if (ALL_KEYS[i].type === 'black') highlightedBlack.add(ALL_KEYS[i].bIdx);
-      rootFoundIndex = i;
-      break;
-    }
-  }
-
-  currentKeyIndex = rootFoundIndex !== -1 ? rootFoundIndex : 0;
-  
-  targetNotes.forEach(target => {
-    // Skip if it's the root we already placed
-    if (target === rootClean && rootFoundIndex !== -1 && currentKeyIndex === rootFoundIndex) {
-      currentKeyIndex++; // move past it
-      return;
-    }
-
-    let placed = false;
-    // Look for the note starting from currentKeyIndex
-    for (let i = currentKeyIndex; i < ALL_KEYS.length; i++) {
-      if (ALL_KEYS[i].note === target) {
-        if (ALL_KEYS[i].type === 'white') highlightedWhite.add(ALL_KEYS[i].wIdx);
-        if (ALL_KEYS[i].type === 'black') highlightedBlack.add(ALL_KEYS[i].bIdx);
-        currentKeyIndex = i + 1;
-        placed = true;
-        break;
-      }
-    }
-    
-    // Fallback se faltar espaço (inversão)
-    if (!placed) {
-      for (let i = 0; i < currentKeyIndex; i++) {
-        if (ALL_KEYS[i].note === target) {
-          if (ALL_KEYS[i].type === 'white') highlightedWhite.add(ALL_KEYS[i].wIdx);
-          if (ALL_KEYS[i].type === 'black') highlightedBlack.add(ALL_KEYS[i].bIdx);
-          break;
-        }
-      }
-    }
-  });
-
-  const displayType = type === 'min' ? 'm' : (type === 'maj' ? '' : type);
-  const displayExt = ext === 'none' || !ext ? '' : ext;
-  const displayBass = bass && bass !== 'none' ? `/${bass}` : '';
-  const fullChordName = isCustom ? root : `${root}${displayType}${displayExt}${displayBass}`;
+  const ativas = new Set(teclas);
+  const largura = 100 / brancas.length;
+  const nomeNota = (abs: number) => NOTAS[((abs % 12) + 12) % 12];
+  const fullChordName = nomeCompleto(root, type, ext, bass, isCustom, name);
+  const ehBaixo = (abs: number) => temBaixo && abs === grave && nomeNota(abs) === normalizarNota(bass);
 
   return (
     <div className="flex flex-col bg-[#fcfcfc] border-2 border-black shadow-[3px_3px_0_#000] rounded-lg w-full max-w-[480px] mx-auto font-['Space_Mono'] overflow-hidden">
-      {/* Header Compactado */}
-      <div className="bg-[#261812] py-1.5 px-3.5 flex justify-between items-center">
+      <div className="bg-[#261812] py-1.5 px-3.5 flex justify-between items-center gap-2">
         <h5 className="text-sm font-black text-[#ff6b00] tracking-tight leading-none">{fullChordName}</h5>
-        <div className="flex gap-1.5">
-          {chordNotes.map((n, i) => (
-            <span key={i} className="text-[10px] font-black text-white/90 uppercase leading-none">{translateNote(n)}</span>
+        <div className="flex gap-1.5 flex-wrap justify-end">
+          {teclas.map((t, i) => (
+            <span key={i} className={`text-[10px] font-black uppercase leading-none ${ehBaixo(t) ? 'text-sky-300' : 'text-white/90'}`}>{nomeNota(t)}</span>
           ))}
         </div>
       </div>
-
-      <div className="flex flex-col items-center">
-        <div className="relative w-full aspect-[3.4/1] bg-[#1a1a1a] border-t-2 border-black">
-          {/* Teclado */}
-          <div className="relative w-full h-full flex bg-[#261812] overflow-hidden">
-            {/* White Keys */}
-            {WHITE_KEYS.map((noteName, i) => {
-              const active = highlightedWhite.has(i);
-              return (
-                <div
-                  key={`w-${i}`}
-                  style={{ width: `${100 / WHITE_KEYS.length}%` }}
-                  className={`h-full border-r-2 border-black relative transition-all ${
-                    active ? 'bg-[#fff5f0]' : 'bg-white'
-                  }`}
-                >
-                  {active && (
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-4 h-4 sm:w-6 sm:h-6 rounded-full bg-[#261812] flex items-center justify-center shadow-md">
-                      <span className="text-[7px] sm:text-[9px] font-black text-white uppercase">{translateNote(noteName)}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Black Keys */}
-            {BLACK_KEYS.map((bk, i) => {
-              const whiteKeyWidth = 100 / WHITE_KEYS.length;
-              const left = (bk.afterWhiteIdx + 1) * whiteKeyWidth;
-              const active = highlightedBlack.has(i);
-
-              return (
-                <div
-                  key={`b-${i}`}
-                  className={`absolute top-0 h-[60%] z-30 flex items-end justify-center pb-2 shadow-xl transition-all border-x-2 border-b-2 border-black ${
-                    active ? 'bg-[#402a20]' : 'bg-[#1a1a1a]'
-                  }`}
-                  style={{
-                    left: `${left}%`,
-                    width: `${whiteKeyWidth * 0.7}%`,
-                    marginLeft: `-${(whiteKeyWidth * 0.7) / 2}%`
-                  }}
-                >
-                  {active && (
-                    <div className="w-3 h-3 sm:w-5 sm:h-5 rounded-full bg-white flex items-center justify-center shadow-md">
-                      <span className="text-[6px] sm:text-[8px] font-black text-[#ff6b00] uppercase">{translateNote(bk.note)}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      <div className="relative w-full aspect-[3.4/1] bg-[#1a1a1a] border-t-2 border-black">
+        <div className="relative w-full h-full flex bg-[#261812] overflow-hidden">
+          {brancas.map((abs, i) => {
+            const active = ativas.has(abs);
+            return (
+              <div key={`w-${i}`} style={{ width: `${largura}%` }} className={`h-full border-r-2 border-black relative ${active ? 'bg-[#fff5f0]' : 'bg-white'}`}>
+                {active && (
+                  <div className={`absolute bottom-3 left-1/2 -translate-x-1/2 w-4 h-4 sm:w-6 sm:h-6 rounded-full flex items-center justify-center shadow-md ${ehBaixo(abs) ? 'bg-sky-600' : 'bg-[#261812]'}`}>
+                    <span className="text-[7px] sm:text-[9px] font-black text-white uppercase">{nomeNota(abs)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {pretas.map((bk, i) => {
+            if (bk.depoisDe < 0) return null;
+            const active = ativas.has(bk.abs);
+            return (
+              <div key={`b-${i}`}
+                className={`absolute top-0 h-[60%] z-30 flex items-end justify-center pb-2 shadow-xl border-x-2 border-b-2 border-black ${active ? (ehBaixo(bk.abs) ? 'bg-sky-800' : 'bg-[#402a20]') : 'bg-[#1a1a1a]'}`}
+                style={{ left: `${(bk.depoisDe + 1) * largura}%`, width: `${largura * 0.7}%`, marginLeft: `-${(largura * 0.7) / 2}%` }}>
+                {active && (
+                  <div className="w-3 h-3 sm:w-5 sm:h-5 rounded-full bg-white flex items-center justify-center shadow-md">
+                    <span className="text-[6px] sm:text-[8px] font-black text-[#ff6b00] uppercase">{nomeNota(bk.abs)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-        
       </div>
+      {temBaixo && <p className="text-[9px] font-bold text-sky-700 px-2 py-0.5 bg-sky-50">● Nota azul = baixo ({bass})</p>}
     </div>
   );
 };
@@ -265,7 +202,8 @@ export const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
   ext = '',
   bass = 'none',
   notesWithIndices,
-  isCustom
+  isCustom,
+  name
 }) => {
   const isTeclado =
     instrument?.toLowerCase().includes('teclado') ||
@@ -284,6 +222,7 @@ export const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
         bass={bass}
         notesWithIndices={notesWithIndices}
         isCustom={isCustom}
+        name={name}
       />
     );
   }
@@ -311,7 +250,11 @@ export const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
     }
     shape = { frets, fingers, barre: null };
   } else {
-    shape = MusicEngine.getGuitarShape(root, type, ext);
+    const temBaixo = !!bass && bass !== 'none';
+    const chave = `${root}${type}${ext && ext !== 'none' ? ext : ''}`;
+    const naBiblioteca = !temBaixo && !isCustom && (GUITAR_CHORD_LIBRARY[chave] || (!ext || ext === 'none') && GUITAR_CHORD_LIBRARY[`${root}${type}`]);
+    const gerada = !naBiblioteca && !isBass ? vozViolao(chordNotes || [], temBaixo ? bass : (chordNotes || [])[0]) : null;
+    shape = naBiblioteca ? MusicEngine.getGuitarShape(root, type, ext) : (gerada || MusicEngine.getGuitarShape(root, type, ext));
   }
 
   const nonNullFrets = shape.frets.filter((f: any) => f !== null && f > 0) as number[];
@@ -322,17 +265,14 @@ export const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
   const numFretsToShow = Math.max(5, maxFret - startFret + 1);
   const fretIndices = Array.from({ length: numFretsToShow + 1 }, (_, i) => i);
 
-  const displayType = type === 'min' ? 'm' : (type === 'maj' ? '' : type);
-  const displayExt = ext === 'none' || !ext ? '' : ext;
-  const displayBass = bass && bass !== 'none' ? `/${bass}` : '';
-  const fullChordName = isCustom ? root : `${root}${displayType}${displayExt}${displayBass}`;
+  const fullChordName = nomeCompleto(root, type, ext, bass, isCustom, name);
 
   return (
     <div className="flex flex-col bg-[#fff8f6] border-4 border-black shadow-[4px_4px_0_#000] w-full max-w-[200px] mx-auto font-['Space_Mono'] overflow-hidden">
       <div className="bg-[#261812] py-2 px-3 flex justify-between items-center border-b-4 border-black">
         <h5 className="text-[11px] font-black text-[#ff6b00] uppercase leading-none">{fullChordName}</h5>
         <div className="flex gap-1">
-          {chordNotes.slice(0, 3).map((n, i) => (
+          {chordNotes.slice(0, 4).map((n, i) => (
             <span key={i} className="text-[7px] font-black text-white/80 uppercase">{n}</span>
           ))}
         </div>

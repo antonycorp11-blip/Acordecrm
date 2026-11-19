@@ -2208,6 +2208,7 @@ function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string
                              bass={c.bass}
                              notesWithIndices={c.notesWithIndices}
                              isCustom={c.isCustom}
+                             name={c.name}
                            />
                          </div>
                        ))}

@@ -96,6 +96,7 @@ function LessonChords({ chords, currentInstrument }: { chords: any[], currentIns
                     bass={ch.bass}
                     notesWithIndices={ch.notesWithIndices}
                     isCustom={ch.isCustom}
+                    name={ch.name}
                   />
                 </div>
               </div>
