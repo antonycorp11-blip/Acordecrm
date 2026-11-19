@@ -108,35 +108,20 @@ function LessonChords({ chords, currentInstrument }: { chords: any[], currentIns
   );
 }
 
-// Gera o PDF da ficha (A4, sem cortar blocos) a partir de uma versão limpa desenhada fora da tela
+// Gera o PDF da ficha desenhado direto (igual em iPhone, Android e computador)
 function PrintModal({ aula, alunoNome, onClose }: { aula: any, alunoNome: string, onClose: () => void }) {
-  const pdfRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    let cancelado = false;
-    const toastId = toast.loading('Gerando o PDF da ficha...');
-    const t = setTimeout(async () => {
-      try {
-        if (pdfRef.current && !cancelado) {
-          await baixarFichaPdf(pdfRef.current, nomeArquivoFicha(alunoNome, aula?.data));
-          toast.success('PDF baixado!', { id: toastId });
-        }
-      } catch (err) {
-        console.error('Erro ao gerar PDF:', err);
-        toast.error('Não foi possível gerar o PDF agora. Tente de novo.', { id: toastId });
-      } finally {
-        if (!cancelado) onClose();
-      }
-    }, 400);
-    return () => { cancelado = true; clearTimeout(t); };
+    try {
+      baixarFichaPdf({ aula, alunoNome, professorNome: aula?.professor_nome || aula?.professores?.nome, instrumento: aula?.curso_nome || aula?.cursos?.nome }, nomeArquivoFicha(alunoNome, aula?.data));
+      toast.success('PDF baixado!');
+    } catch (err) {
+      console.error('Erro ao gerar PDF:', err);
+      toast.error('Não foi possível gerar o PDF agora. Tente de novo.');
+    } finally {
+      onClose();
+    }
   }, []);
-
-  return (
-    <div aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, width: 760, background: '#fafaf9', padding: 16, zIndex: -1 }}>
-      <div ref={pdfRef}>
-        <FichaAula aula={aula} alunoNome={alunoNome} professorNome={aula?.professor_nome || aula?.professores?.nome} instrumento={aula?.curso_nome || aula?.cursos?.nome} modoPdf />
-      </div>
-    </div>
-  );
+  return null;
 }
 
 export default function AreaAluno() {

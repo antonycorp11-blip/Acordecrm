@@ -1522,23 +1522,7 @@ export default function AreaProfessor() {
   };
 
   const [gerandoPdfFicha, setGerandoPdfFicha] = useState(false);
-  const [arquivoFicha, setArquivoFicha] = useState<File | null>(null);
   const [enviandoWhats, setEnviandoWhats] = useState(false);
-  // Ao abrir "Ver como aluno", já prepara o PDF para o envio pelo WhatsApp sair na hora
-  useEffect(() => {
-    setArquivoFicha(null);
-    if (!isPreviewOpen) return;
-    let cancelado = false;
-    const t = setTimeout(async () => {
-      try {
-        if (!pdfRef.current || cancelado) return;
-        const nome = (pdfRef.current.getAttribute('data-nome-arquivo') || 'Ficha.pdf');
-        const arq = await gerarArquivoFicha(pdfRef.current, nome);
-        if (!cancelado) setArquivoFicha(arq);
-      } catch (err) { console.error('Erro ao preparar PDF:', err); }
-    }, 700);
-    return () => { cancelado = true; clearTimeout(t); };
-  }, [isPreviewOpen]);
 
   const [salvandoFicha, setSalvandoFicha] = useState(false);
 
@@ -5189,18 +5173,14 @@ export default function AreaProfessor() {
         const instFicha = isCreateModalOpen ? newAulaCurso : selectedAula?.curso_nome;
         const alunoObjFicha = alunosList.find(a => String(a.id) === String(isCreateModalOpen ? newAulaAlunoId : selectedAula?.aluno_id));
         const telefoneFicha = selectedAula?.telefone || alunoObjFicha?.telefone || alunoObjFicha?.responsavel_telefone || '';
+        const dadosFicha = { aula: fichaAula, alunoNome: alunoNomeFicha, professorNome: profNomeFicha, instrumento: instFicha };
         const enviarWhats = async () => {
-          if (!pdfRef.current || enviandoWhats) return;
-          setEnviandoWhats(true);
+          if (enviandoWhats) return;
           const texto = `Olá, ${String(alunoNomeFicha).split(' ')[0]}! Segue a ficha da nossa aula de ${instFicha || 'música'} 🎵 Bons estudos! — Studio Acorde`;
           try {
-            let arq = arquivoFicha;
-            if (!arq) {
-              const id = toast.loading('Preparando o PDF...');
-              arq = await gerarArquivoFicha(pdfRef.current, nomeArquivoFicha(alunoNomeFicha, fichaAula.data));
-              setArquivoFicha(arq);
-              toast.dismiss(id);
-            }
+            // gerado na hora (sem esperar), para o celular aceitar abrir o Compartilhar
+            const arq = gerarArquivoFicha(dadosFicha, nomeArquivoFicha(alunoNomeFicha, fichaAula.data));
+            setEnviandoWhats(true);
             const r = await enviarArquivoWhatsApp(arq, telefoneFicha, texto);
             if (r === 'baixado') toast.success('PDF baixado e WhatsApp do aluno aberto: é só anexar o PDF na conversa.');
           } catch (err) {
@@ -5221,17 +5201,16 @@ export default function AreaProfessor() {
                   disabled={enviandoWhats}
                   className="bg-[#25D366] text-white font-extrabold text-sm px-4 py-2.5 rounded-lg disabled:opacity-60 shadow"
                 >
-                  {enviandoWhats ? 'Abrindo…' : arquivoFicha ? '📲 Enviar no WhatsApp' : '📲 WhatsApp (preparando…)'}
+                  {enviandoWhats ? 'Abrindo…' : '📲 Enviar no WhatsApp'}
                 </button>
                 <button
                   type="button"
                   disabled={gerandoPdfFicha}
                   onClick={async () => {
-                    if (!pdfRef.current) return;
                     setGerandoPdfFicha(true);
                     const id = toast.loading('Gerando o PDF da ficha...');
                     try {
-                      await baixarFichaPdf(pdfRef.current, nomeArquivoFicha(alunoNomeFicha, fichaAula.data));
+                      baixarFichaPdf(dadosFicha, nomeArquivoFicha(alunoNomeFicha, fichaAula.data));
                       toast.success('PDF baixado!', { id });
                     } catch (err) {
                       console.error(err);
@@ -5248,12 +5227,6 @@ export default function AreaProfessor() {
               </div>
               <div className="flex-1 overflow-y-auto p-3 md:p-4">
                 <FichaAula aula={fichaAula} alunoNome={alunoNomeFicha} professorNome={profNomeFicha} instrumento={instFicha} />
-              </div>
-            </div>
-            {/* Versão para o PDF (fora da tela, largura fixa) */}
-            <div aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, width: 760, background: '#fafaf9', padding: 16 }}>
-              <div ref={pdfRef} data-nome-arquivo={nomeArquivoFicha(alunoNomeFicha, fichaAula.data)}>
-                <FichaAula aula={fichaAula} alunoNome={alunoNomeFicha} professorNome={profNomeFicha} instrumento={instFicha} modoPdf />
               </div>
             </div>
           </div>
