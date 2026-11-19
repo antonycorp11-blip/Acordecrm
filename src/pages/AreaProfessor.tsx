@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MelodiaBimanual from '../components/musiclass/MelodiaBimanual';
 import FichaAula from '../components/musiclass/FichaAula';
-import { baixarFichaPdf, nomeArquivoFicha } from '../utils/fichaPdf';
+import { baixarFichaPdf, nomeArquivoFicha, gerarArquivoFicha, enviarArquivoWhatsApp } from '../utils/fichaPdf';
+import { lerCifra, normalizarNota } from '../lib/acordes';
 import { useReactToPrint } from 'react-to-print';
 import { getMediaStreamUrl, getGoogleDrivePreviewUrl } from '../utils/mediaUtils';
 import { 
@@ -527,6 +528,7 @@ export default function AreaProfessor() {
   const [selType, setSelType] = useState('maj');
   const [selExt, setSelExt] = useState('none');
   const [selBass, setSelBass] = useState('none');
+  const [cifraDigitada, setCifraDigitada] = useState('');
   const [mcPlaygroundInstrument, setMcPlaygroundInstrument] = useState<string>('Teclado');
   
   // Estados para seleção de escala
@@ -1086,7 +1088,7 @@ export default function AreaProfessor() {
   const resumoFicha = (aula: any) => {
     const r = lerFicha(aula.conteudo);
     const itens: string[] = [];
-    if (r.chords?.length) itens.push(`🎸 Acordes: ${r.chords.map((c: any) => c.name || ((c.root || '') + (c.typeId === 'min' ? 'm' : c.typeId && c.typeId !== 'maj' ? c.typeId : '') + (c.bass && c.bass !== 'none' ? '/' + c.bass : ''))).slice(0, 10).join(', ')}`);
+    if (r.chords?.length) itens.push(`🎸 Acordes: ${r.chords.map((c: any) => c.name || (c.isCustom ? (c.root || '') : (c.root || '') + (c.typeId === 'min' ? 'm' : c.typeId && !['maj', 'custom', 'cifra'].includes(c.typeId) ? c.typeId : '') + (c.bass && c.bass !== 'none' ? '/' + c.bass : ''))).slice(0, 10).join(', ')}`);
     if (r.melody?.length) itens.push(`🎹 Melodia: ${r.melody.length} trecho(s)`);
     if (r.scales?.length) itens.push(`🎼 Escalas: ${r.scales.map((x: any) => x.name || x.nome || [x.root, x.type].filter(Boolean).join(' ')).filter(Boolean).slice(0, 6).join(', ') || r.scales.length}`);
     if (r.tablatures?.length) itens.push(`🎶 Tablatura: ${r.tablatures.length} trecho(s)`);
@@ -1414,14 +1416,13 @@ export default function AreaProfessor() {
         }
       };
 
-      if (safeIsTypeSupported('audio/webm;codecs=opus')) {
-        options = { mimeType: 'audio/webm;codecs=opus' };
+      // mp4 toca no iPhone e no Android; qualidade 48 kbps para caber ~12 min no limite de envio (4,5 MB)
+      if (safeIsTypeSupported('audio/mp4')) {
+        options = { mimeType: 'audio/mp4', audioBitsPerSecond: 48000 };
+      } else if (safeIsTypeSupported('audio/webm;codecs=opus')) {
+        options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 48000 };
       } else if (safeIsTypeSupported('audio/webm')) {
-        options = { mimeType: 'audio/webm' };
-      } else if (safeIsTypeSupported('audio/ogg')) {
-        options = { mimeType: 'audio/ogg' };
-      } else if (safeIsTypeSupported('audio/mp4')) {
-        options = { mimeType: 'audio/mp4' };
+        options = { mimeType: 'audio/webm', audioBitsPerSecond: 48000 };
       }
 
       const recorder = new MediaRecorder(stream, options);
@@ -1458,6 +1459,10 @@ export default function AreaProfessor() {
   };
 
   const uploadStudioFile = async (file: File) => {
+    if (file.size > 4.4 * 1024 * 1024) {
+      toast.error(`O áudio tem ${(file.size / 1024 / 1024).toFixed(1)} MB e o limite é 4,4 MB. Grave em partes menores (até uns 10 minutos cada).`);
+      return;
+    }
     setStudioLoading(true);
     const formData = new FormData();
     formData.append('file', file);
@@ -1476,8 +1481,10 @@ export default function AreaProfessor() {
           name: file.name.toUpperCase(),
           url: data.url
         }]);
+        toast.success('Áudio adicionado à ficha. Lembre de tocar em Salvar ficha no final.');
       } else {
-        alert('Erro ao enviar arquivo do estúdio.');
+        const err = await res.json().catch(() => ({}));
+        toast.error(`Não foi possível enviar o áudio: ${err.error || (res.status === 413 ? 'arquivo grande demais' : 'erro no servidor')}.`);
       }
     } catch (err) {
       console.error(err);
@@ -1515,6 +1522,23 @@ export default function AreaProfessor() {
   };
 
   const [gerandoPdfFicha, setGerandoPdfFicha] = useState(false);
+  const [arquivoFicha, setArquivoFicha] = useState<File | null>(null);
+  const [enviandoWhats, setEnviandoWhats] = useState(false);
+  // Ao abrir "Ver como aluno", já prepara o PDF para o envio pelo WhatsApp sair na hora
+  useEffect(() => {
+    setArquivoFicha(null);
+    if (!isPreviewOpen) return;
+    let cancelado = false;
+    const t = setTimeout(async () => {
+      try {
+        if (!pdfRef.current || cancelado) return;
+        const nome = (pdfRef.current.getAttribute('data-nome-arquivo') || 'Ficha.pdf');
+        const arq = await gerarArquivoFicha(pdfRef.current, nome);
+        if (!cancelado) setArquivoFicha(arq);
+      } catch (err) { console.error('Erro ao preparar PDF:', err); }
+    }, 700);
+    return () => { cancelado = true; clearTimeout(t); };
+  }, [isPreviewOpen]);
 
   const [salvandoFicha, setSalvandoFicha] = useState(false);
 
@@ -1547,6 +1571,12 @@ export default function AreaProfessor() {
     return () => clearTimeout(t);
   }, [isModalOpen, selectedAula, conteudo, tarefaCasa, mcChords, mcScales, mcExercises, mcRecordings, mcTablatures, mcDrums, mcMelody, mcImages, mcChecklist]);
 
+  const normalizarLink = (u: string) => {
+    const t = String(u || '').trim();
+    if (!t) return '';
+    return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  };
+
   const salvarDiarioAula = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAula || salvandoFicha) return;
@@ -1562,9 +1592,13 @@ export default function AreaProfessor() {
 
     const richContent = montarFichaRica();
     const isExperimental = selectedAula.type === 'experimental';
+    // Link digitado mas não adicionado: entra junto ao salvar
+    const linkPendente = normalizarLink(linkUrl);
+    const midiasFinal = linkPendente ? [...midias, { titulo: linkTitulo.trim() || 'Link da aula', url: linkPendente }] : midias;
+    if (linkPendente) { setMidias(midiasFinal); setLinkUrl(''); setLinkTitulo(''); }
     const body: any = isExperimental
       ? { status: statusAula, type: 'experimental' }
-      : { status: statusAula, conteudo: richContent, tarefa_casa: tarefaCasa, midias, xp_ganho: xpGanho };
+      : { status: statusAula, conteudo: richContent, tarefa_casa: tarefaCasa, midias: midiasFinal, xp_ganho: xpGanho };
 
     setSalvandoFicha(true);
     try {
@@ -1577,7 +1611,7 @@ export default function AreaProfessor() {
       if (res.ok) {
         // Atualiza a agenda na hora, para a ficha aparecer certa ao reabrir
         setAgendaCompleta((prev: any[]) => prev.map((a: any) => a.id === selectedAula.id
-          ? { ...a, status: statusAula, ...(isExperimental ? {} : { conteudo: richContent, tarefa_casa: tarefaCasa, midias, xp_ganho: xpGanho }) }
+          ? { ...a, status: statusAula, ...(isExperimental ? {} : { conteudo: richContent, tarefa_casa: tarefaCasa, midias: midiasFinal, xp_ganho: xpGanho }) }
           : a));
         try { localStorage.removeItem(chaveRascunho(selectedAula)); } catch { /* ignora */ }
         toast.success(statusAula === 'realizada' ? 'Aula registrada e ficha salva ✓' : 'Presença salva ✓');
@@ -1743,10 +1777,12 @@ export default function AreaProfessor() {
     const setValLinkUrl = isAvulsa ? setNewLinkUrl : setLinkUrl;
     
     const handleAddLinkLocal = () => {
-      if (!valLinkTitulo || !valLinkUrl) return;
-      setValMidias(prev => [...prev, { titulo: valLinkTitulo, url: valLinkUrl }]);
+      const url = normalizarLink(valLinkUrl);
+      if (!url) { toast.error('Cole o endereço do link (ex.: youtube.com/...).'); return; }
+      setValMidias(prev => [...prev, { titulo: valLinkTitulo.trim() || 'Link da aula', url }]);
       setValLinkTitulo('');
       setValLinkUrl('');
+      toast.success('Link adicionado à ficha.');
     };
 
     const handleRemoveLinkLocal = (idx: number) => {
@@ -1815,8 +1851,8 @@ export default function AreaProfessor() {
               <label>O que vimos hoje · Resumo</label>
               <textarea
                 placeholder="O que o aluno aprendeu ou revisou nesta aula..."
-                rows={3}
-                className="w-full p-2.5 bg-white text-black border-2 border-black text-xs font-bold uppercase placeholder:text-black/30 focus:outline-none"
+                rows={4}
+                className="w-full p-3 bg-white text-black border-2 border-black text-base font-medium leading-relaxed placeholder:text-black/40 focus:outline-none focus:border-[#ff6b00]"
                 value={valConteudo}
                 onChange={(e) => setValConteudo(e.target.value)}
               />
@@ -1827,8 +1863,8 @@ export default function AreaProfessor() {
               <label>Tarefa de casa &amp; Desafio</label>
               <textarea
                 placeholder="Exercícios, músicas ou escalas que o aluno deve treinar..."
-                rows={3}
-                className="w-full p-2.5 bg-white text-black border-2 border-black text-xs font-bold uppercase placeholder:text-black/30 focus:outline-none"
+                rows={4}
+                className="w-full p-3 bg-white text-black border-2 border-black text-base font-medium leading-relaxed placeholder:text-black/40 focus:outline-none focus:border-[#ff6b00]"
                 value={valTarefa}
                 onChange={(e) => setValTarefa(e.target.value)}
               />
@@ -1926,7 +1962,8 @@ export default function AreaProfessor() {
                     onChange={(e) => setValLinkTitulo(e.target.value)}
                   />
                   <input
-                    type="url"
+                    type="text"
+                    inputMode="url"
                     placeholder="URL (HTTPS://...)"
                     className="w-full px-2 py-1.5 bg-white border-2 border-black text-[9px] font-black placeholder:text-black/30 focus:outline-none"
                     value={valLinkUrl}
@@ -1985,6 +2022,50 @@ export default function AreaProfessor() {
                 </button>
               </div>
             </div>
+
+            {/* Digitar o acorde (ex.: E/G#, C7M(9), F#m7(b5)) */}
+            {(() => {
+              const lida = cifraDigitada.trim() ? lerCifra(cifraDigitada) : null;
+              const adicionar = () => {
+                if (!lida || !lida.root || lida.notes.length === 0) { toast.error('Digite um acorde, por exemplo E/G# ou Am7.'); return; }
+                setMcChords(prev => [...prev, {
+                  name: lida.nome,
+                  root: lida.root,
+                  typeId: 'cifra',
+                  extId: 'none',
+                  bass: lida.bass || 'none',
+                  notes: lida.notes,
+                  isCustom: false,
+                  instrument: mcPlaygroundInstrument,
+                  group: currentGroupName || 'GERAL'
+                }]);
+                toast.success(`Acorde ${lida.nome} adicionado.`);
+                setCifraDigitada('');
+              };
+              return (
+                <div className="border-4 border-black bg-white p-4 space-y-2 shadow-[4px_4px_0_#000]">
+                  <label className="text-xs font-black text-black uppercase block">✍️ Digite o acorde</label>
+                  <p className="text-[11px] text-stone-600">Ex.: E/G#, C7M(9), Am7, F#m7(b5), Bb/D, Dsus4. A nota depois da barra vira o baixo.</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={cifraDigitada}
+                      onChange={(e) => setCifraDigitada(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); adicionar(); } }}
+                      placeholder="E/G#"
+                      autoCapitalize="characters"
+                      className="flex-1 min-w-0 px-3 py-2.5 bg-white text-black border-2 border-black text-base font-black focus:outline-none"
+                    />
+                    <button type="button" onClick={adicionar} className="px-4 bg-[#ff6b00] text-white border-2 border-black font-black text-sm shadow-[2px_2px_0_#000] active:translate-y-[1px]">+ Adicionar</button>
+                  </div>
+                  {lida && (
+                    <p className={`text-xs font-bold ${lida.erro ? 'text-red-600' : 'text-emerald-700'}`}>
+                      {lida.root ? `Notas: ${lida.notes.join(' · ')}${lida.bass ? `  (baixo: ${lida.bass})` : ''}` : ''}{lida.erro ? ` ${lida.erro}` : ''}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Nova Interface com Cards de 12 Notas */}
             <div className="border-4 border-black bg-white p-4 space-y-4 shadow-[4px_4px_0_#000]">
@@ -2086,6 +2167,23 @@ export default function AreaProfessor() {
                     );
                   })}
                 </div>
+              </div>
+            </div>
+
+            {/* Baixo (acorde invertido / com baixo) */}
+            <div className="border-4 border-black bg-white p-4 space-y-2 shadow-[4px_4px_0_#000]">
+              <label className="text-[8px] font-black text-black uppercase tracking-widest block">4. BAIXO (OPCIONAL) — EX.: {selRoot}/{selBass !== 'none' ? selBass : '…'}</label>
+              <div className="grid grid-cols-7 gap-1.5">
+                {['none', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'].map(b => (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => setSelBass(b)}
+                    className={`py-2 border-2 border-black font-black text-[10px] ${selBass === b ? 'bg-sky-600 text-white shadow-[2px_2px_0_#000]' : 'bg-stone-50 text-black'} ${b === 'none' ? 'col-span-1' : ''}`}
+                  >
+                    {b === 'none' ? 'Sem' : b}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -2191,6 +2289,7 @@ export default function AreaProfessor() {
                               bass={ch.bass}
                               notesWithIndices={ch.notesWithIndices}
                               isCustom={ch.isCustom}
+                              name={ch.name}
                             />
                             <button
                               type="button"
@@ -2345,18 +2444,19 @@ export default function AreaProfessor() {
                           }
 
                           const chromaticScale = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-                          const chordNotes = customTecladoActiveKeys.map(idx => {
-                            const normalized = ((idx % 12) + 12) % 12;
-                            return chromaticScale[normalized];
-                          });
+                          const teclasOrdenadas = [...customTecladoActiveKeys].sort((a, b) => a - b);
+                          const chordNotes = teclasOrdenadas.map(idx => chromaticScale[((idx % 12) + 12) % 12]);
+                          const nomeDigitado = customTecladoName.trim();
+                          const baixoNome = nomeDigitado.includes('/') ? normalizarNota(nomeDigitado.split('/').pop() || '') : '';
 
                           setMcChords(prev => [...prev, {
-                            root: customTecladoName.toUpperCase(),
+                            name: nomeDigitado,
+                            root: nomeDigitado.toUpperCase(),
                             typeId: 'custom',
                             extId: 'none',
-                            bass: 'none',
+                            bass: baixoNome || 'none',
                             notes: chordNotes,
-                            notesWithIndices: [...customTecladoActiveKeys],
+                            notesWithIndices: teclasOrdenadas,
                             group: currentGroupName || 'GERAL',
                             isCustom: true,
                             instrument: 'Teclado'
@@ -4831,7 +4931,7 @@ export default function AreaProfessor() {
               </p>
             </div>
 
-            <form onSubmit={criarNovaAulaAvulsa} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault(); }} className="space-y-4">
+            <form noValidate onSubmit={criarNovaAulaAvulsa} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault(); }} className="space-y-4">
               
               {/* Seleção de Aluno */}
               <div>
@@ -4943,11 +5043,9 @@ export default function AreaProfessor() {
 
       {/* MUSICLASS: MODAL DE REGISTRO DE AULA EXISTENTE */}
       {isModalOpen && selectedAula && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className={`bg-[#fff8f6] border-0 sm:border-8 border-black p-4 sm:p-6 relative shadow-none sm:shadow-[12px_12px_0_#000] w-full min-h-screen sm:min-h-0 sm:max-h-[92vh] overflow-y-auto transition-all duration-300 ${mcActiveTab === 'geral' ? 'max-w-md' : 'max-w-4xl'}`}>
-            
-            {/* Header da proposta aprovada */}
-            <div className="editor-head justify-between -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-4">
+        <div className="registro-aula fixed inset-0 z-50 bg-[#fff8f6] flex flex-col" style={{ height: '100dvh' }}>
+            {/* Cabeçalho fixo */}
+            <div className="editor-head justify-between shrink-0" style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}>
               <div className="flex items-center gap-3 min-w-0">
                 <button 
                   type="button" 
@@ -4974,7 +5072,8 @@ export default function AreaProfessor() {
               </button>
             </div>
 
-            <form onSubmit={salvarDiarioAula} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault(); }} className="space-y-4">
+            <form id="form-registro-aula" noValidate onSubmit={salvarDiarioAula} className="flex-1 min-h-0 flex flex-col" onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault(); }}>
+              <div className="flex-1 overflow-y-auto"><div className="w-full max-w-3xl mx-auto px-4 py-4 sm:px-6 space-y-4">
               
               {showFichaChoice && (
                 <div className="border-4 border-dashed border-[#ff6b00] bg-[#feccba]/10 p-4 space-y-3 mb-4 font-mono">
@@ -5045,8 +5144,10 @@ export default function AreaProfessor() {
               {/* Montadores de conteúdo Musiclass */}
               {renderMusiclassTabs(false)}
 
-              {/* Barra inferior de ações */}
-              <div className="editor-bottom -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 mt-4">
+              </div></div>
+
+              {/* Barra inferior fixa */}
+              <div className="editor-bottom shrink-0" style={{ paddingBottom: 'max(14px, env(safe-area-inset-bottom))' }}>
                 <button
                   type="button"
                   onClick={() => setIsPreviewOpen(true)}
@@ -5064,7 +5165,6 @@ export default function AreaProfessor() {
                 </button>
               </div>
             </form>
-          </div>
         </div>
       )}
 
@@ -5087,12 +5187,42 @@ export default function AreaProfessor() {
           : (selectedAula?.nome || selectedAula?.aluno_nome || 'Aluno');
         const profNomeFicha = selectedAula?.professor_nome || professorData?.nome;
         const instFicha = isCreateModalOpen ? newAulaCurso : selectedAula?.curso_nome;
+        const alunoObjFicha = alunosList.find(a => String(a.id) === String(isCreateModalOpen ? newAulaAlunoId : selectedAula?.aluno_id));
+        const telefoneFicha = selectedAula?.telefone || alunoObjFicha?.telefone || alunoObjFicha?.responsavel_telefone || '';
+        const enviarWhats = async () => {
+          if (!pdfRef.current || enviandoWhats) return;
+          setEnviandoWhats(true);
+          const texto = `Olá, ${String(alunoNomeFicha).split(' ')[0]}! Segue a ficha da nossa aula de ${instFicha || 'música'} 🎵 Bons estudos! — Studio Acorde`;
+          try {
+            let arq = arquivoFicha;
+            if (!arq) {
+              const id = toast.loading('Preparando o PDF...');
+              arq = await gerarArquivoFicha(pdfRef.current, nomeArquivoFicha(alunoNomeFicha, fichaAula.data));
+              setArquivoFicha(arq);
+              toast.dismiss(id);
+            }
+            const r = await enviarArquivoWhatsApp(arq, telefoneFicha, texto);
+            if (r === 'baixado') toast.success('PDF baixado e WhatsApp do aluno aberto: é só anexar o PDF na conversa.');
+          } catch (err) {
+            console.error(err);
+            toast.error('Não foi possível enviar agora. Tente de novo.');
+          } finally {
+            setEnviandoWhats(false);
+          }
+        };
         return (
           <div className="fixed inset-0 z-[60] bg-black/70 flex items-stretch md:items-center justify-center md:p-4">
             <div className="bg-[#fafaf9] w-full md:max-w-[640px] h-full md:h-auto md:max-h-[92vh] md:rounded-2xl flex flex-col overflow-hidden" style={{ colorScheme: 'light' }}>
               <div className="flex items-center justify-between gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 bg-white border-b border-gray-200">
                 <button type="button" onClick={() => setIsPreviewOpen(false)} className="text-gray-900 font-bold text-base px-2 py-1">‹ Voltar</button>
-                <span className="text-xs font-bold text-gray-500 hidden sm:inline">Assim o aluno vê a ficha</span>
+                <button
+                  type="button"
+                  onClick={enviarWhats}
+                  disabled={enviandoWhats}
+                  className="bg-[#25D366] text-white font-extrabold text-sm px-4 py-2.5 rounded-lg disabled:opacity-60 shadow"
+                >
+                  {enviandoWhats ? 'Abrindo…' : arquivoFicha ? '📲 Enviar no WhatsApp' : '📲 WhatsApp (preparando…)'}
+                </button>
                 <button
                   type="button"
                   disabled={gerandoPdfFicha}
@@ -5110,9 +5240,10 @@ export default function AreaProfessor() {
                       setGerandoPdfFicha(false);
                     }
                   }}
-                  className="bg-[#16a34a] text-white font-bold text-sm px-4 py-2 rounded-lg disabled:opacity-60"
+                  className="bg-white text-gray-800 border border-gray-300 font-bold text-xs px-3 py-2 rounded-lg disabled:opacity-60"
+                  title="Baixar PDF"
                 >
-                  {gerandoPdfFicha ? 'Gerando…' : '⬇ Baixar PDF'}
+                  {gerandoPdfFicha ? '…' : '⬇ PDF'}
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-3 md:p-4">
@@ -5121,7 +5252,7 @@ export default function AreaProfessor() {
             </div>
             {/* Versão para o PDF (fora da tela, largura fixa) */}
             <div aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, width: 760, background: '#fafaf9', padding: 16 }}>
-              <div ref={pdfRef}>
+              <div ref={pdfRef} data-nome-arquivo={nomeArquivoFicha(alunoNomeFicha, fichaAula.data)}>
                 <FichaAula aula={fichaAula} alunoNome={alunoNomeFicha} professorNome={profNomeFicha} instrumento={instFicha} modoPdf />
               </div>
             </div>

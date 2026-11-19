@@ -239,3 +239,27 @@
 .area-app .agenda-card.faltou .status-chip { background: #ef4444; color: #fff; border-color: #b91c1c; }
 .area-app .today-card.feita { background: #22c55e; color: #052e16; }
 .area-app .today-card.faltou { background: #fca5a5; color: #450a0a; }
+
+/* Tela de registrar aula: tela cheia, letras maiores e botões fáceis de tocar */
+.area-app .registro-aula .editor-head strong { font-size: 20px; }
+.area-app .registro-aula .editor-head small { font-size: 13px; }
+.area-app .registro-aula .editor-title { font-size: 13px; margin: 4px 0 8px; }
+.area-app .registro-aula .presence { gap: 10px; }
+.area-app .registro-aula .presence button { font-size: 15px; padding: 16px 6px; border-radius: 10px; }
+.area-app .registro-aula .editor-card { padding: 14px; border-radius: 12px; }
+.area-app .registro-aula .editor-card label { font-size: 13px; margin-bottom: 8px; }
+.area-app .registro-aula .editor-card textarea { border-radius: 8px; }
+.area-app .registro-aula .material-heading strong { font-size: 16px; }
+.area-app .registro-aula .material-heading small { font-size: 12px; }
+.area-app .registro-aula .material { border-radius: 10px; min-height: 60px; }
+.area-app .registro-aula .material strong { font-size: 14px; }
+.area-app .registro-aula .material small { font-size: 12px; }
+.area-app .registro-aula .add-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.area-app .registro-aula .add-grid button { font-size: 14px; min-height: 54px; border-radius: 10px; }
+.area-app .registro-aula .editor-bottom { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.area-app .registro-aula .editor-bottom .btn { font-size: 15px; padding: 14px 6px; border-radius: 10px; }
+@media (min-width: 640px) {
+  .area-app .registro-aula .add-grid { grid-template-columns: repeat(4, 1fr); }
+  .area-app .registro-aula .editor-bottom { justify-content: center; }
+  .area-app .registro-aula .editor-bottom .btn { max-width: 340px; }
+}

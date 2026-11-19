@@ -16,7 +16,8 @@ export function lerFichaAula(conteudo: any): any {
 
 const nomeAcorde = (c: any) => {
   if (c?.name) return c.name;
-  const tipo = c?.typeId === 'min' ? 'm' : c?.typeId && c.typeId !== 'maj' ? c.typeId : '';
+  if (c?.isCustom) return c.root || '';
+  const tipo = c?.typeId === 'min' ? 'm' : c?.typeId && !['maj', 'custom', 'cifra'].includes(c.typeId) ? c.typeId : '';
   const ext = c?.extId && c.extId !== 'none' ? c.extId : '';
   const baixo = c?.bass && c.bass !== 'none' ? `/${c.bass}` : '';
   return `${c?.root || ''}${tipo}${ext}${baixo}`;
@@ -117,6 +118,7 @@ export default function FichaAula({
                     bass={c.bass}
                     notesWithIndices={c.notesWithIndices}
                     isCustom={c.isCustom}
+                    name={c.name}
                   />
                 </div>
               </div>
