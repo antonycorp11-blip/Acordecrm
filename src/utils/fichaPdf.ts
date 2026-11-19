@@ -1,5 +1,6 @@
 import { toCanvas } from 'html-to-image';
 import { jsPDF } from 'jspdf';
+import { gerarFichaPdfNativo } from './fichaPdfNativo';
 
 // html2canvas não entende as cores oklch do Tailwind 4 e trava; html-to-image usa o próprio navegador para desenhar
 async function desenharBloco(el: HTMLElement) {
@@ -57,13 +58,15 @@ export async function gerarFichaPdf(container: HTMLElement) {
 
 const comPdf = (n: string) => (n.endsWith('.pdf') ? n : `${n}.pdf`);
 
-export async function baixarFichaPdf(container: HTMLElement, nomeArquivo: string) {
-  const pdf = await gerarFichaPdf(container);
-  pdf.save(comPdf(nomeArquivo));
+export type DadosFicha = { aula: any; alunoNome?: string; professorNome?: string; instrumento?: string };
+
+// PDF desenhado direto (não depende de fotografar a tela): igual em iPhone, Android e computador
+export function baixarFichaPdf(dados: DadosFicha, nomeArquivo: string) {
+  gerarFichaPdfNativo(dados.aula, dados.alunoNome, dados.professorNome, dados.instrumento).save(comPdf(nomeArquivo));
 }
 
-export async function gerarArquivoFicha(container: HTMLElement, nomeArquivo: string) {
-  const pdf = await gerarFichaPdf(container);
+export function gerarArquivoFicha(dados: DadosFicha, nomeArquivo: string) {
+  const pdf = gerarFichaPdfNativo(dados.aula, dados.alunoNome, dados.professorNome, dados.instrumento);
   return new File([pdf.output('blob')], comPdf(nomeArquivo), { type: 'application/pdf' });
 }
 
