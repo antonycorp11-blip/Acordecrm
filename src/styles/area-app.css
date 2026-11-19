@@ -230,3 +230,12 @@
 .area-app .tools-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .area-app .tools-row button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 84px; padding: 8px 4px; text-align: center; font-size: 12px; font-weight: 800; line-height: 1.15; }
 .area-app .tools-row button span { position: static !important; display: grid; place-items: center; width: 34px; height: 34px; font-size: 18px; }
+
+/* Aula com presença dada fica verde; falta fica vermelha clara */
+.area-app .agenda-card.feita { background: #dcfce7; border-color: #15803d; color: #052e16; }
+.area-app .agenda-card.feita .status-chip { background: #22c55e; color: #fff; border-color: #15803d; }
+.area-app .agenda-card.feita .app-subtle, .area-app .agenda-card.faltou .app-subtle { color: #374151; }
+.area-app .agenda-card.faltou { background: #fee2e2; border-color: #b91c1c; color: #450a0a; }
+.area-app .agenda-card.faltou .status-chip { background: #ef4444; color: #fff; border-color: #b91c1c; }
+.area-app .today-card.feita { background: #22c55e; color: #052e16; }
+.area-app .today-card.faltou { background: #fca5a5; color: #450a0a; }

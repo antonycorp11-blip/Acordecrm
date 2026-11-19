@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import MelodiaBimanual from '../components/musiclass/MelodiaBimanual';
+import FichaAula from '../components/musiclass/FichaAula';
+import { baixarFichaPdf, nomeArquivoFicha } from '../utils/fichaPdf';
 import { useReactToPrint } from 'react-to-print';
 import { getMediaStreamUrl, getGoogleDrivePreviewUrl } from '../utils/mediaUtils';
 import { 
@@ -476,6 +479,11 @@ export default function AreaProfessor() {
   const [currentGroupName, setCurrentGroupName] = useState('INTRO');
   const [newMelodyName, setNewMelodyName] = useState('SOLO PRINCIPAL');
   const [newMelodyNotes, setNewMelodyNotes] = useState<string[]>([]);
+  // Mão esquerda: para cada nota da direita, as notas da esquerda tocadas junto (ficam em cima)
+  const [newMelodyLeft, setNewMelodyLeft] = useState<string[][]>([]);
+  const [melodyPhrasesLeft, setMelodyPhrasesLeft] = useState<string[][][]>([]);
+  const [melodyHand, setMelodyHand] = useState<'direita' | 'esquerda'>('direita');
+  const [leftTarget, setLeftTarget] = useState<number | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedBeatTablatura, setSelectedBeatTablatura] = useState<{ strIdx: number, beat: number } | null>(null);
 
@@ -1067,13 +1075,67 @@ export default function AreaProfessor() {
     }
   };
 
+  // Lê a ficha guardada (JSON) e devolve um resumo legível
+  const lerFicha = (conteudoBruto: string | null | undefined): any => {
+    const txt = String(conteudoBruto || '').trim();
+    if (txt.startsWith('{') && txt.endsWith('}')) {
+      try { const r = JSON.parse(txt); if (r && r.isRich) return r; } catch { /* texto comum */ }
+    }
+    return { isRich: false, conteudoText: txt };
+  };
+  const resumoFicha = (aula: any) => {
+    const r = lerFicha(aula.conteudo);
+    const itens: string[] = [];
+    if (r.chords?.length) itens.push(`🎸 Acordes: ${r.chords.map((c: any) => c.name || ((c.root || '') + (c.typeId === 'min' ? 'm' : c.typeId && c.typeId !== 'maj' ? c.typeId : '') + (c.bass && c.bass !== 'none' ? '/' + c.bass : ''))).slice(0, 10).join(', ')}`);
+    if (r.melody?.length) itens.push(`🎹 Melodia: ${r.melody.length} trecho(s)`);
+    if (r.scales?.length) itens.push(`🎼 Escalas: ${r.scales.map((x: any) => x.name || x.nome || [x.root, x.type].filter(Boolean).join(' ')).filter(Boolean).slice(0, 6).join(', ') || r.scales.length}`);
+    if (r.tablatures?.length) itens.push(`🎶 Tablatura: ${r.tablatures.length} trecho(s)`);
+    if (r.drums?.length) itens.push(`🥁 Ritmos: ${r.drums.length}`);
+    if (r.exercises?.length) itens.push(`🏆 Desafios: ${r.exercises.map((x: any) => x.title || x.titulo).filter(Boolean).slice(0, 4).join(', ') || r.exercises.length}`);
+    if (r.recordings?.length) itens.push(`🎙️ Áudios: ${r.recordings.length}`);
+    return { texto: String(r.conteudoText || '').trim(), tarefa: String(r.tarefaCasaText || aula.tarefa_casa || '').trim(), itens };
+  };
+
+  // Coloca uma ficha antiga na aula que está sendo registrada (para repetir ou ajustar)
+  const usarFichaAntiga = (aulaAntiga: any) => {
+    const r = lerFicha(aulaAntiga.conteudo);
+    setConteudo(r.conteudoText || '');
+    setTarefaCasa(r.tarefaCasaText || aulaAntiga.tarefa_casa || '');
+    setMcChords(r.chords || []);
+    setMcScales(r.scales || []);
+    setMcExercises(r.exercises || []);
+    setMcRecordings(r.recordings || []);
+    setMcTablatures(r.tablatures || []);
+    setMcDrums(r.drums || []);
+    setMcMelody(r.melody || []);
+    setMcImages(r.images || []);
+    setMcChecklist(r.checklist || []);
+    try {
+      const m = typeof aulaAntiga.midias === 'string' ? JSON.parse(aulaAntiga.midias) : aulaAntiga.midias;
+      setMidias(Array.isArray(m) ? m : []);
+    } catch { setMidias([]); }
+    setShowFichaChoice(false);
+    setMcActiveTab('geral');
+    setIsHistoricoModalOpen(false);
+    toast.success('Ficha copiada! Mude o que precisar e toque em Salvar ficha.');
+  };
+
   const openRegistroModal = (aula: any) => {
     setSelectedAula(aula);
-    setStatusAula(aula.status === 'realizada' || aula.status === 'pendente' ? 'realizada' : aula.status);
+    setStatusAula(['realizada', 'pendente', 'confirmada', 'aguardando_confirmacao'].includes(aula.status) ? 'realizada' : aula.status);
     setXpGanho(Number(aula.xp_ganho) || 10000);
+
+    // Se ficou um rascunho sem salvar (tela fechou sem querer), recupera
+    let conteudoOrigem = aula.conteudo || '';
+    let rascunhoRecuperado = false;
+    try {
+      const rasc = JSON.parse(localStorage.getItem(`acorde_rascunho_ficha_${aula.id}`) || 'null');
+      if (rasc?.conteudo && rasc.conteudo !== aula.conteudo) { conteudoOrigem = rasc.conteudo; rascunhoRecuperado = true; }
+    } catch { /* ignora */ }
+    if (rascunhoRecuperado) toast.info('Recuperamos a ficha que você estava preenchendo. Confira e toque em Salvar ficha.');
     
     // Tenta decodificar dados ricos do Musiclass de dentro de conteudo
-    let conteudoText = aula.conteudo || '';
+    let conteudoText = conteudoOrigem;
     let tarefaCasaText = aula.tarefa_casa || '';
     let chords: any[] = [];
     let scales: any[] = [];
@@ -1086,8 +1148,8 @@ export default function AreaProfessor() {
     let checklist: string[] = [];
 
     try {
-      if (aula.conteudo && aula.conteudo.trim().startsWith('{') && aula.conteudo.trim().endsWith('}')) {
-        const richData = JSON.parse(aula.conteudo);
+      if (conteudoOrigem && conteudoOrigem.trim().startsWith('{') && conteudoOrigem.trim().endsWith('}')) {
+        const richData = JSON.parse(conteudoOrigem);
         if (richData.isRich) {
           conteudoText = richData.conteudoText || '';
           tarefaCasaText = richData.tarefaCasaText || '';
@@ -1132,7 +1194,7 @@ export default function AreaProfessor() {
     }
     
     // Se a aula for pendente e não tiver conteúdo, oferece a escolha de cópia
-    if (aula.status === 'pendente' && !conteudoText) {
+    if (aula.status !== 'realizada' && !conteudoText && !rascunhoRecuperado) {
       setShowFichaChoice(true);
     } else {
       setShowFichaChoice(false);
@@ -1452,67 +1514,84 @@ export default function AreaProfessor() {
     }
   };
 
-  const handleDownloadPdf = useReactToPrint({
-    contentRef: pdfRef,
-    documentTitle: () => {
-      const studentName = isCreateModalOpen 
-        ? (alunosList.find(a => a.id === newAulaAlunoId)?.nome || 'Aluno')
-        : (selectedAula?.nome || selectedAula?.aluno_nome || 'Aluno');
-        
-      const dateStr = isCreateModalOpen 
-        ? (newAulaData ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(newAulaData)) : '')
-        : (selectedAula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(selectedAula.data)) : '');
+  const [gerandoPdfFicha, setGerandoPdfFicha] = useState(false);
 
-      const safeName = studentName.replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/\s+/g, "_");
-      const safeDate = dateStr.replace(/\//g, "-");
-      return `Ficha_${safeName}_${safeDate}`;
-    },
+  const [salvandoFicha, setSalvandoFicha] = useState(false);
+
+  const montarFichaRica = () => JSON.stringify({
+    isRich: true,
+    conteudoText: conteudo,
+    tarefaCasaText: tarefaCasa,
+    chords: mcChords,
+    scales: mcScales,
+    exercises: mcExercises,
+    recordings: mcRecordings,
+    tablatures: mcTablatures,
+    drums: mcDrums,
+    melody: mcMelody,
+    images: mcImages,
+    checklist: mcChecklist
   });
+
+  // Rascunho automático: se a tela fechar sem querer, nada se perde
+  const chaveRascunho = (aula: any) => aula ? `acorde_rascunho_ficha_${aula.id}` : '';
+  useEffect(() => {
+    if (!isModalOpen || !selectedAula) return;
+    const t = setTimeout(() => {
+      try {
+        if (conteudo || tarefaCasa || mcChords.length || mcMelody.length || mcScales.length || mcTablatures.length || mcDrums.length || mcExercises.length) {
+          localStorage.setItem(chaveRascunho(selectedAula), JSON.stringify({ conteudo: montarFichaRica(), salvoEm: Date.now() }));
+        }
+      } catch { /* armazenamento cheio ou bloqueado */ }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [isModalOpen, selectedAula, conteudo, tarefaCasa, mcChords, mcScales, mcExercises, mcRecordings, mcTablatures, mcDrums, mcMelody, mcImages, mcChecklist]);
 
   const salvarDiarioAula = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAula) return;
-    
-    const richContent = JSON.stringify({
-      isRich: true,
-      conteudoText: conteudo,
-      tarefaCasaText: tarefaCasa,
-      chords: mcChords,
-      scales: mcScales,
-      exercises: mcExercises,
-      recordings: mcRecordings,
-      tablatures: mcTablatures,
-      drums: mcDrums,
-      melody: mcMelody,
-      images: mcImages
-    });
+    if (!selectedAula || salvandoFicha) return;
+    // Só salva quando o professor toca no botão "Salvar ficha" (ou aperta Enter fora de um campo de texto)
+    const submitter = (e.nativeEvent as any)?.submitter as HTMLElement | null | undefined;
+    if (submitter && submitter.getAttribute('data-salvar-ficha') !== 'sim') return;
 
-    const token = localStorage.getItem('acorde_token');
+    if (statusAula === 'realizada' && !conteudo.trim() && !tarefaCasa.trim() && mcChords.length === 0 && mcMelody.length === 0 && mcScales.length === 0 && mcTablatures.length === 0 && mcDrums.length === 0) {
+      toast.error('Escreva o que foi visto na aula ou adicione algum conteúdo antes de salvar.');
+      setMcActiveTab('geral');
+      return;
+    }
+
+    const richContent = montarFichaRica();
+    const isExperimental = selectedAula.type === 'experimental';
+    const body: any = isExperimental
+      ? { status: statusAula, type: 'experimental' }
+      : { status: statusAula, conteudo: richContent, tarefa_casa: tarefaCasa, midias, xp_ganho: xpGanho };
+
+    setSalvandoFicha(true);
     try {
-      const res = await fetch(`/api/aulas/${selectedAula.originalId || selectedAula.id}/status`, {
+      const res = await apiFetch(`/api/aulas/${selectedAula.originalId || selectedAula.id}/status`, {
         method: 'PATCH',
-        headers: { 
-          'Authorization': `Bearer ${token}`, 
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({
-          status: statusAula,
-          conteudo: richContent,
-          tarefa_casa: tarefaCasa,
-          midias: midias,
-          xp_ganho: xpGanho
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       });
-      
+
       if (res.ok) {
+        // Atualiza a agenda na hora, para a ficha aparecer certa ao reabrir
+        setAgendaCompleta((prev: any[]) => prev.map((a: any) => a.id === selectedAula.id
+          ? { ...a, status: statusAula, ...(isExperimental ? {} : { conteudo: richContent, tarefa_casa: tarefaCasa, midias, xp_ganho: xpGanho }) }
+          : a));
+        try { localStorage.removeItem(chaveRascunho(selectedAula)); } catch { /* ignora */ }
+        toast.success(statusAula === 'realizada' ? 'Aula registrada e ficha salva ✓' : 'Presença salva ✓');
         setIsModalOpen(false);
         loadData();
       } else {
-        alert('Erro ao registrar diário de aula.');
+        const err = await res.json().catch(() => ({}));
+        toast.error(`Não foi possível salvar a ficha: ${err.error || 'erro no servidor'}. Seus dados continuam na tela.`);
       }
     } catch (err) {
       console.error(err);
-      alert('Erro de conexão ao salvar diário.');
+      toast.error('Sem internet no momento. Seus dados continuam na tela; tente salvar de novo.');
+    } finally {
+      setSalvandoFicha(false);
     }
   };
 
@@ -1554,6 +1633,8 @@ export default function AreaProfessor() {
 
   const criarNovaAulaAvulsa = async (e: React.FormEvent) => {
     e.preventDefault();
+    const submitterAvulsa = (e.nativeEvent as any)?.submitter as HTMLElement | null | undefined;
+    if (submitterAvulsa && submitterAvulsa.getAttribute('data-salvar-ficha') !== 'sim') return;
     if (!newAulaAlunoId) {
       alert('Por favor, selecione um aluno.');
       return;
@@ -1612,6 +1693,39 @@ export default function AreaProfessor() {
       console.error(err);
       alert('Erro de conexão ao criar aula.');
     }
+  };
+
+  const oitavaAbaixo = (n: string) => n.replace(/(\d+)$/, (_m, d) => String(Math.max(1, Number(d) - 1)));
+  const tocarTeclaMelodia = (note: string) => {
+    if (melodyHand === 'direita') {
+      melodySynth.playNoteByName(note);
+      setNewMelodyNotes(prev => [...prev, note]);
+      setNewMelodyLeft(prev => [...prev, []]);
+      setLeftTarget(null);
+      return;
+    }
+    if (newMelodyNotes.length === 0) {
+      toast.info('Toque primeiro a nota da mão direita. A mão esquerda fica em cima dela.');
+      return;
+    }
+    const nota = oitavaAbaixo(note);
+    melodySynth.playNoteByName(nota);
+    const idx = leftTarget ?? newMelodyNotes.length - 1;
+    setNewMelodyLeft(prev => {
+      const base = newMelodyNotes.map((_, i) => prev[i] || []);
+      base[idx] = [...base[idx], nota];
+      return base;
+    });
+  };
+  const tocarMelodiaComEsquerda = (notas: string[], esquerda: string[][]) => {
+    let time = 0;
+    notas.forEach((note, i) => {
+      setTimeout(() => {
+        melodySynth.playNoteByName(note);
+        (esquerda[i] || []).forEach(l => melodySynth.playNoteByName(l));
+      }, time);
+      time += 400;
+    });
   };
 
   const renderMusiclassTabs = (isAvulsa: boolean) => {
@@ -1700,7 +1814,6 @@ export default function AreaProfessor() {
             <div className="editor-card">
               <label>O que vimos hoje · Resumo</label>
               <textarea
-                required
                 placeholder="O que o aluno aprendeu ou revisou nesta aula..."
                 rows={3}
                 className="w-full p-2.5 bg-white text-black border-2 border-black text-xs font-bold uppercase placeholder:text-black/30 focus:outline-none"
@@ -1713,7 +1826,6 @@ export default function AreaProfessor() {
             <div className="editor-card">
               <label>Tarefa de casa &amp; Desafio</label>
               <textarea
-                required
                 placeholder="Exercícios, músicas ou escalas que o aluno deve treinar..."
                 rows={3}
                 className="w-full p-2.5 bg-white text-black border-2 border-black text-xs font-bold uppercase placeholder:text-black/30 focus:outline-none"
@@ -2922,7 +3034,21 @@ export default function AreaProfessor() {
 
               {/* MINI TECLADO VIRTUAL DE 2 OITAVAS */}
               <div className="relative">
-                <span className="text-[7px] font-black text-black/50 uppercase tracking-widest block mb-2 text-center">PIANO RETRO (TOQUE PARA OUVIR E DIGITAR)</span>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button type="button" onClick={() => { setMelodyHand('direita'); setLeftTarget(null); }}
+                    className={`py-2.5 border-2 border-black font-black text-xs uppercase ${melodyHand === 'direita' ? 'bg-[#1e40af] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black'}`}>
+                    ✋ Mão direita (melodia)
+                  </button>
+                  <button type="button" onClick={() => setMelodyHand('esquerda')}
+                    className={`py-2.5 border-2 border-black font-black text-xs uppercase ${melodyHand === 'esquerda' ? 'bg-[#047857] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black'}`}>
+                    🤚 Mão esquerda (em cima)
+                  </button>
+                </div>
+                <span className="text-[10px] font-bold text-black/70 block mb-2 text-center">
+                  {melodyHand === 'direita'
+                    ? 'Toque as notas da melodia (mão direita).'
+                    : `Toque as notas da mão esquerda: elas entram em cima da nota ${leftTarget !== null ? leftTarget + 1 : newMelodyNotes.length || ''} da direita. Toque numa nota da melodia abaixo para escolher outra.`}
+                </span>
                 
                 <div className="relative flex h-36 border-4 border-black bg-black p-1 overflow-x-auto select-none rounded-none shadow-[4px_4px_0_#000]">
                   <div className="relative flex" style={{ width: '560px' }}>
@@ -2933,10 +3059,7 @@ export default function AreaProfessor() {
                         <button
                           key={note}
                           type="button"
-                          onClick={() => {
-                            melodySynth.playNoteByName(note);
-                            setNewMelodyNotes(prev => [...prev, note]);
-                          }}
+                          onClick={() => tocarTeclaMelodia(note)}
                           className={`w-10 h-32 border border-black flex-shrink-0 flex flex-col justify-end pb-2 items-center font-black text-[8px] text-black transition-all ${
                             isActive 
                               ? 'bg-[#ff6b00] text-white shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]' 
@@ -2966,10 +3089,7 @@ export default function AreaProfessor() {
                         <button
                           key={note}
                           type="button"
-                          onClick={() => {
-                            melodySynth.playNoteByName(note);
-                            setNewMelodyNotes(prev => [...prev, note]);
-                          }}
+                          onClick={() => tocarTeclaMelodia(note)}
                           style={{ left: `${left}px` }}
                           className={`absolute top-0 w-6 h-20 border border-white flex-shrink-0 flex flex-col justify-end pb-1.5 items-center font-black text-[7px] text-white z-10 transition-all ${
                             isActive 
@@ -2991,9 +3111,19 @@ export default function AreaProfessor() {
                 
                 <div className="bg-black/40 p-2.5 min-h-[40px] flex flex-wrap gap-1.5 border border-black font-black text-[10px] uppercase text-[#ff6b00] tracking-wider">
                   {newMelodyNotes.length > 0 ? (
-                    newMelodyNotes.map((note, i) => (
-                      <span key={i} className="bg-[#ff6b00] text-white px-1.5 py-0.5 border border-black text-[8px]">{translateNote(note)}</span>
-                    ))
+                    newMelodyNotes.map((note, i) => {
+                      const alvo = melodyHand === 'esquerda' && (leftTarget ?? newMelodyNotes.length - 1) === i;
+                      return (
+                        <button type="button" key={i} onClick={() => { setMelodyHand('esquerda'); setLeftTarget(i); }}
+                          className={`flex flex-col items-center gap-0.5 p-0.5 ${alvo ? 'outline outline-2 outline-[#22c55e]' : ''}`}
+                          title="Toque para pôr notas da mão esquerda em cima desta">
+                          {(newMelodyLeft[i] || []).map((l, li) => (
+                            <span key={li} className="bg-[#047857] text-white px-1.5 py-0.5 border border-black text-[9px]">{translateNote(l)}</span>
+                          ))}
+                          <span className="bg-[#1e40af] text-white px-1.5 py-0.5 border border-black text-[10px]">{translateNote(note)}</span>
+                        </button>
+                      );
+                    })
                   ) : (
                     <span className="text-[#feccba]/40 italic text-[8px] uppercase">Nenhuma nota digitada. Toque nas teclas do piano acima...</span>
                   )}
@@ -3003,15 +3133,7 @@ export default function AreaProfessor() {
                   <button
                     type="button"
                     disabled={newMelodyNotes.length === 0}
-                    onClick={() => {
-                      let time = 0;
-                      newMelodyNotes.forEach((note) => {
-                        setTimeout(() => {
-                          melodySynth.playNoteByName(note);
-                        }, time);
-                        time += 300;
-                      });
-                    }}
+                    onClick={() => tocarMelodiaComEsquerda(newMelodyNotes, newMelodyLeft)}
                     className="flex-1 py-1.5 bg-emerald-500 text-white border-2 border-black font-black text-[9px] uppercase tracking-wider disabled:opacity-50 shadow-[2px_2px_0_#000] active:translate-y-[1px]"
                   >
                     🔊 PLAY PREVIEW
@@ -3019,7 +3141,16 @@ export default function AreaProfessor() {
                   <button
                     type="button"
                     disabled={newMelodyNotes.length === 0}
-                    onClick={() => setNewMelodyNotes(prev => prev.slice(0, -1))}
+                    onClick={() => {
+                      const idx = leftTarget ?? newMelodyNotes.length - 1;
+                      if (melodyHand === 'esquerda' && (newMelodyLeft[idx] || []).length > 0) {
+                        setNewMelodyLeft(prev => prev.map((l, i) => i === idx ? l.slice(0, -1) : l));
+                        return;
+                      }
+                      setNewMelodyNotes(prev => prev.slice(0, -1));
+                      setNewMelodyLeft(prev => prev.slice(0, newMelodyNotes.length - 1));
+                      setLeftTarget(null);
+                    }}
                     className="flex-1 py-1.5 bg-black text-white border-2 border-black font-black text-[9px] uppercase tracking-wider disabled:opacity-50 shadow-[2px_2px_0_#000] active:translate-y-[1px]"
                   >
                     ◀ APAGAR NOTA
@@ -3027,7 +3158,7 @@ export default function AreaProfessor() {
                   <button
                     type="button"
                     disabled={newMelodyNotes.length === 0}
-                    onClick={() => setNewMelodyNotes([])}
+                    onClick={() => { setNewMelodyNotes([]); setNewMelodyLeft([]); setLeftTarget(null); }}
                     className="flex-1 py-1.5 bg-red-600 text-white border-2 border-black font-black text-[9px] uppercase tracking-wider disabled:opacity-50 shadow-[2px_2px_0_#000] active:translate-y-[1px]"
                   >
                     🗑️ LIMPAR TUDO
@@ -3041,7 +3172,10 @@ export default function AreaProfessor() {
                   onClick={() => {
                     if (newMelodyNotes.length === 0) return;
                     setMelodyPhrases(prev => [...prev, [...newMelodyNotes]]);
+                    setMelodyPhrasesLeft(prev => [...prev, newMelodyNotes.map((_, i) => newMelodyLeft[i] || [])]);
                     setNewMelodyNotes([]);
+                    setNewMelodyLeft([]);
+                    setLeftTarget(null);
                   }}
                   className="w-full py-1.5 bg-[#261812] text-[#feccba] border-2 border-[#ff6b00] font-black text-[9px] uppercase tracking-wider disabled:opacity-50 shadow-[2px_2px_0_#ff6b00] active:translate-y-[1px] flex items-center justify-center gap-1"
                 >
@@ -3056,7 +3190,7 @@ export default function AreaProfessor() {
                       <div key={pi} className="flex items-center gap-2">
                         <span className="bg-[#ff6b00] text-white font-black text-[6px] px-1 border border-black shrink-0">F{pi+1}</span>
                         <p className="text-[7px] font-mono text-[#feccba]/80 uppercase truncate">{phrase.map(translateNote).join(' ')}</p>
-                        <button type="button" onClick={() => setMelodyPhrases(prev => prev.filter((_, i) => i !== pi))} className="text-red-400 text-[8px] shrink-0">✕</button>
+                        <button type="button" onClick={() => { setMelodyPhrases(prev => prev.filter((_, i) => i !== pi)); setMelodyPhrasesLeft(prev => prev.filter((_, i) => i !== pi)); }} className="text-red-400 text-[8px] shrink-0">✕</button>
                       </div>
                     ))}
                   </div>
@@ -3073,15 +3207,26 @@ export default function AreaProfessor() {
                     return;
                   }
                   const allNotes = allPhrases.flat();
+                  const allPhrasesLeft = [
+                    ...melodyPhrases.map((ph, i) => ph.map((_, j) => melodyPhrasesLeft[i]?.[j] || [])),
+                    ...(newMelodyNotes.length > 0 ? [newMelodyNotes.map((_, i) => newMelodyLeft[i] || [])] : [])
+                  ];
+                  const allLeft = allPhrasesLeft.flat();
+                  const temEsquerda = allLeft.some(l => l.length > 0);
                   setMcMelody(prev => [...prev, {
                     name: newMelodyName.toUpperCase(),
                     notes: allNotes,
-                    phrases: allPhrases.length > 1 ? allPhrases : undefined // só salva frases se há múltiplas
+                    phrases: allPhrases.length > 1 ? allPhrases : undefined, // só salva frases se há múltiplas
+                    ...(temEsquerda ? { left: allLeft, phrasesLeft: allPhrases.length > 1 ? allPhrasesLeft : undefined } : {})
                   }]);
                   setNewMelodyNotes([]);
+                  setNewMelodyLeft([]);
                   setMelodyPhrases([]);
+                  setMelodyPhrasesLeft([]);
+                  setLeftTarget(null);
+                  setMelodyHand('direita');
                   setNewMelodyName('NOVA MELODIA / GUIA');
-                  alert('Melodia salva com sucesso na aula!');
+                  toast.success('Melodia adicionada à ficha. Lembre de tocar em Salvar ficha no final.');
                 }}
                 className="w-full py-2 bg-[#ff6b00] text-white border-4 border-black font-black text-[10px] uppercase shadow-[4px_4px_0_#000] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
               >
@@ -3097,22 +3242,12 @@ export default function AreaProfessor() {
                   <div key={idx} className="bg-[#feccba]/20 border-2 border-black p-3 relative overflow-hidden flex justify-between items-center">
                     <div>
                       <p className="text-[9px] font-black uppercase">{mel.name}</p>
-                      <p className="text-[7px] font-mono text-black/60 uppercase tracking-widest mt-1">
-                        {mel.notes?.map(translateNote).join(' ')}
-                      </p>
+                      <div className="mt-1"><MelodiaBimanual mel={{ ...mel, name: undefined }} tamanho="pequeno" /></div>
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => {
-                          let time = 0;
-                          mel.notes?.forEach((note: string) => {
-                            setTimeout(() => {
-                              melodySynth.playNoteByName(note);
-                            }, time);
-                            time += 300;
-                          });
-                        }}
+                        onClick={() => tocarMelodiaComEsquerda(mel.notes || [], mel.left || [])}
                         className="bg-black text-[#ff6b00] border-2 border-black text-[8px] font-black px-2 py-1 uppercase"
                       >
                         PLAY 🔊
@@ -3419,7 +3554,7 @@ export default function AreaProfessor() {
                           const isPrimeira = idx === 0;
 
                           return (
-                            <div key={aula.id || idx} className="today-card">
+                            <div key={aula.id || idx} className={`today-card ${isDone ? 'feita' : isFalta ? 'faltou' : ''}`}>
                               <span className="tiny">{isPrimeira ? 'Hoje · Próxima aula' : 'Hoje'}</span>
                               <div className="time-huge">{String(aula.horario || '').slice(0, 5)}</div>
                               <div>
@@ -3509,7 +3644,7 @@ export default function AreaProfessor() {
 
                       {/* Criar Aula Avulsa - Musiclass */}
                       {localStorage.getItem('acorde_role') === 'admin' && (
-                        <button
+                        <button type="button"
                           onClick={openCreateModal}
                           className="w-full bg-[#ff6b00] text-white py-3 border-2 border-black font-black uppercase text-xs shadow-[4px_4px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2"
                         >
@@ -3544,14 +3679,14 @@ export default function AreaProfessor() {
                         🎁 EVENTO DE PONTOS EM DOBRO (PAINEL DO PROFESSOR)
                       </p>
                       <div className="flex flex-wrap gap-2 justify-center">
-                        <button 
+                        <button type="button" 
                           onClick={() => handleSetDoublePoints(null)}
                           className={`px-3 py-1 border-2 border-black font-black text-[8px] uppercase ${doublePointsGame === null ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black'}`}
                         >
                           DESATIVAR
                         </button>
                         {['Acorde Genius', 'Chord Rush', 'Tríade Ninja', 'Ritmo Pro', 'Voice Rush', 'Metrônomo Bird'].map(jogo => (
-                          <button
+                          <button type="button"
                             key={jogo}
                             onClick={() => handleSetDoublePoints(jogo)}
                             className={`px-3 py-1 border-2 border-black font-black text-[8px] uppercase ${doublePointsGame === jogo ? 'bg-[#ff6b00] text-white shadow-[2px_2px_0_#000]' : 'bg-white text-black hover:bg-gray-200'}`}
@@ -3565,21 +3700,21 @@ export default function AreaProfessor() {
                     {/* Jogos disponíveis */}
                     <div className="space-y-3">
                       <div className="feature gold-bg split-feature">
-                        <div><span className="tiny">Jogar agora</span><h4>Desafio do ritmo</h4><p>Ouça a batida e marque o compasso certo.</p><button className="btn dark" onClick={() => { setIsPlayingRitmoPro(true); playRetroSound(880, 'square', 0.1); }}>Começar →</button></div>
+                        <div><span className="tiny">Jogar agora</span><h4>Desafio do ritmo</h4><p>Ouça a batida e marque o compasso certo.</p><button type="button" className="btn dark" onClick={() => { setIsPlayingRitmoPro(true); playRetroSound(880, 'square', 0.1); }}>Começar →</button></div>
                         <div className="feature-art" aria-hidden="true">🥁</div>
                       </div>
                       <div className="section-row"><h4>Escolha um jogo</h4></div>
                       <div className="tile-grid">
-                        <button className="tile" onClick={() => { setIsPlayingChordRush(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎸</span><strong>Chord Rush</strong><small>Acerte os acordes</small></button>
-                        <button className="tile tint" onClick={() => { setIsPlayingAcordeGenius(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎹</span><strong>Acorde Genius</strong><small>Repita a sequência</small></button>
-                        <button className="tile tint" onClick={() => { setIsPlayingTriadeNinja(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">⚔️</span><strong>Tríade Ninja</strong><small>Encontre as notas</small></button>
-                        <button className="tile" onClick={() => { setIsPlayingMetronomeBird(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🐦</span><strong>MetroBird</strong><small>Siga o ritmo</small></button>
-                        <button className="tile" onClick={() => { setIsPlayingCifrasMusicais(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🚀</span><strong>Cifras Estelares</strong><small>Explore as cifras</small></button>
-                        <button className="tile tint" onClick={() => { setIsPlayingVoiceRush(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎤</span><strong>Voice Rush</strong><small>Treine o ouvido</small></button>
+                        <button type="button" className="tile" onClick={() => { setIsPlayingChordRush(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎸</span><strong>Chord Rush</strong><small>Acerte os acordes</small></button>
+                        <button type="button" className="tile tint" onClick={() => { setIsPlayingAcordeGenius(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎹</span><strong>Acorde Genius</strong><small>Repita a sequência</small></button>
+                        <button type="button" className="tile tint" onClick={() => { setIsPlayingTriadeNinja(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">⚔️</span><strong>Tríade Ninja</strong><small>Encontre as notas</small></button>
+                        <button type="button" className="tile" onClick={() => { setIsPlayingMetronomeBird(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🐦</span><strong>MetroBird</strong><small>Siga o ritmo</small></button>
+                        <button type="button" className="tile" onClick={() => { setIsPlayingCifrasMusicais(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🚀</span><strong>Cifras Estelares</strong><small>Explore as cifras</small></button>
+                        <button type="button" className="tile tint" onClick={() => { setIsPlayingVoiceRush(true); playRetroSound(880, 'square', 0.1); }}><span className="glyph">🎤</span><strong>Voice Rush</strong><small>Treine o ouvido</small></button>
                       </div>
                       <div className="section-row"><h4>Comunidade</h4></div>
-                      <button className="compact-row w-full text-left" onClick={() => { setActiveProfessorTab('ranking'); fetchRanking(); fetchConquistas(); fetchSolicitacoes(); }}><span className="icon-box">🏆</span><span className="flex-1"><strong>Ranking da semana</strong><small>Veja todos os jogadores</small></span><b>→</b></button>
-                      <button className="compact-row w-full text-left" onClick={() => setShowAvatarStore(true)}><span className="icon-box">🪙</span><span className="flex-1"><strong>Loja de moedas</strong><small>{acordeCoins} moedas · itens para o avatar</small></span><b>→</b></button>
+                      <button type="button" className="compact-row w-full text-left" onClick={() => { setActiveProfessorTab('ranking'); fetchRanking(); fetchConquistas(); fetchSolicitacoes(); }}><span className="icon-box">🏆</span><span className="flex-1"><strong>Ranking da semana</strong><small>Veja todos os jogadores</small></span><b>→</b></button>
+                      <button type="button" className="compact-row w-full text-left" onClick={() => setShowAvatarStore(true)}><span className="icon-box">🪙</span><span className="flex-1"><strong>Loja de moedas</strong><small>{acordeCoins} moedas · itens para o avatar</small></span><b>→</b></button>
                     </div>
                   </>
                 ) : isPlayingChordRush ? (
@@ -3641,7 +3776,7 @@ export default function AreaProfessor() {
                 ) : (
                   <div className="bg-black border-8 border-[#3d2d26] p-4 shadow-[8px_8px_0_#000] flex flex-col gap-4 relative">
                     <div className="flex justify-between items-center">
-                      <button
+                      <button type="button"
                         onClick={() => {
                           setIsPlayingAcordeGenius(false);
                           setGeniusState('idle');
@@ -3673,14 +3808,14 @@ export default function AreaProfessor() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 max-w-[200px] mx-auto w-full mt-2">
-                      <button onClick={() => handleGeniusPadClick(0)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 0 ? 'bg-[#00ff66]' : 'bg-[#006622]'}`} />
-                      <button onClick={() => handleGeniusPadClick(1)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 1 ? 'bg-[#ff9900]' : 'bg-[#995c00]'}`} />
-                      <button onClick={() => handleGeniusPadClick(2)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 2 ? 'bg-[#ff0000]' : 'bg-[#990000]'}`} />
-                      <button onClick={() => handleGeniusPadClick(3)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 3 ? 'bg-[#00ccff]' : 'bg-[#007a99]'}`} />
+                      <button type="button" onClick={() => handleGeniusPadClick(0)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 0 ? 'bg-[#00ff66]' : 'bg-[#006622]'}`} />
+                      <button type="button" onClick={() => handleGeniusPadClick(1)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 1 ? 'bg-[#ff9900]' : 'bg-[#995c00]'}`} />
+                      <button type="button" onClick={() => handleGeniusPadClick(2)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 2 ? 'bg-[#ff0000]' : 'bg-[#990000]'}`} />
+                      <button type="button" onClick={() => handleGeniusPadClick(3)} disabled={geniusState !== 'playing'} className={`h-20 border-4 border-black rounded-lg ${geniusActivePad === 3 ? 'bg-[#00ccff]' : 'bg-[#007a99]'}`} />
                     </div>
 
                     <div className="mt-4 flex justify-center gap-4">
-                      <button onClick={startGeniusGame} disabled={geniusState === 'playback' || geniusState === 'playing'} className="bg-[#ff6b00] text-black border-4 border-black px-6 py-3 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 hover:bg-white transition-all disabled:opacity-50">🕹️ INICIAR</button>
+                      <button type="button" onClick={startGeniusGame} disabled={geniusState === 'playback' || geniusState === 'playing'} className="bg-[#ff6b00] text-black border-4 border-black px-6 py-3 font-black text-[10px] uppercase shadow-[4px_4px_0_#000] active:translate-y-1 hover:bg-white transition-all disabled:opacity-50">🕹️ INICIAR</button>
                     </div>
                   </div>
                 )}
@@ -3722,9 +3857,11 @@ export default function AreaProfessor() {
                       const numDia = format(day, 'dd');
                       
                       // Contagem de aulas para este dia específico
-                      const numAulas = agendaCompleta.filter(
-                        (aula: any) => getAulaLocalDateStr(aula) === dayStr
-                      ).length;
+                      const aulasDia = agendaCompleta.filter(
+                        (aula: any) => getAulaLocalDateStr(aula) === dayStr && aula.status !== 'cancelada'
+                      );
+                      const numAulas = aulasDia.length;
+                      const diaTodoFeito = numAulas > 0 && aulasDia.every((a: any) => ['realizada', 'falta_aluno', 'falta', 'reposicao', 'a_repor'].includes(a.status));
                       
                       return (
                         <button
@@ -3737,9 +3874,9 @@ export default function AreaProfessor() {
                           {/* Badge de quantidade de aulas */}
                           {numAulas > 0 && (
                             <span className={`absolute -top-1.5 -right-1 px-1 min-w-[12px] h-3 text-[7px] font-black rounded-full border border-black flex items-center justify-center leading-none ${
-                              isSelected ? 'bg-white text-black' : 'bg-[#ff6b00] text-black'
+                              diaTodoFeito ? 'bg-[#22c55e] text-white' : isSelected ? 'bg-white text-black' : 'bg-[#ff6b00] text-black'
                             }`}>
-                              {numAulas}
+                              {diaTodoFeito ? '✓' : numAulas}
                             </span>
                           )}
                           
@@ -3819,7 +3956,7 @@ export default function AreaProfessor() {
                           className="agenda-slot"
                         >
                           <time>{aula.horario?.substring(0, 5) || '—'}</time>
-                          <div className="agenda-card">
+                          <div className={`agenda-card ${isConcluida ? 'feita' : isFalta ? 'faltou' : ''}`}>
                           <span className={`status-chip ${isConcluida ? 'done' : ''}`}>
                             {isConcluida ? 'Realizada' : isFalta ? 'Falta' : isConfirmada ? 'Confirmada' : isPendente ? 'Aguardando' : aula.status}
                           </span>
@@ -3851,7 +3988,7 @@ export default function AreaProfessor() {
                               XP: +{aula.xp_ganho || 50} XP
                             </span>
                             
-                            <button
+                            <button type="button"
                               onClick={() => openRegistroModal(aula)}
                               className="app-action text-xs"
                             >
@@ -3871,7 +4008,7 @@ export default function AreaProfessor() {
             {activeProfessorTab === 'perfil' && (
               <div className="space-y-5 animate-fade-in">
                 {(() => { const month = format(new Date(), 'yyyy-MM'); const aulas = agendaCompleta.filter((a: any) => String(a.data || '').startsWith(month) && a.status === 'realizada').length; const bruto = aulas * 30; const teto = [2,17].includes(Number(professorData?.id)) ? 500 : null; const premio = Number(professorData?.valor_premios || 0); const total = (teto === null ? bruto : Math.min(bruto,teto)) + premio; return <div className="app-panel app-panel--brown"><p className="text-xs font-bold text-[#ffcc22]">Saldo a receber · {format(new Date(), 'MMMM', { locale: ptBR })}</p><strong className="block text-3xl mt-2">{total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong><p className="text-xs mt-2">Pago no mês seguinte</p><div className="text-xs mt-4 border-t border-white/30 pt-3 space-y-1"><p>{aulas} aulas realizadas × R$ 30 = {bruto.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</p>{teto !== null && <p>Teto mensal: R$ 500,00</p>}<p>Prêmios de matrícula: {premio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} fora do teto</p></div></div>; })()}
-                <div className="app-panel"><h2 className="app-section-title">Aparência</h2><div className="app-theme-control mt-3"><button aria-pressed={choice === null} onClick={() => setTheme(null)}>Celular</button><button aria-pressed={choice === 'light'} onClick={() => setTheme('light')}>Claro</button><button aria-pressed={choice === 'dark'} onClick={() => setTheme('dark')}>Escuro</button></div></div>
+                <div className="app-panel"><h2 className="app-section-title">Aparência</h2><div className="app-theme-control mt-3"><button type="button" aria-pressed={choice === null} onClick={() => setTheme(null)}>Celular</button><button type="button" aria-pressed={choice === 'light'} onClick={() => setTheme('light')}>Claro</button><button type="button" aria-pressed={choice === 'dark'} onClick={() => setTheme('dark')}>Escuro</button></div></div>
                 <details className="app-details app-legacy-section"><summary>Meus dados e disponibilidade</summary><div className="space-y-5">
                 {/* Card Principal de Cadastro */}
                 <div className="bg-[#fff8f6] border-8 border-black p-6 relative shadow-[12px_12px_0_#000]">
@@ -3911,7 +4048,7 @@ export default function AreaProfessor() {
                 <div className="p-6 bg-[#261812] border-8 border-black shadow-[8px_8px_0_#000] text-white">
                   <h3 className="font-black text-[9px] uppercase tracking-widest text-[#ff6b00] mb-4 flex items-center justify-between">
                     <span className="flex items-center gap-2"><span>⚡</span> MINHAS INFORMAÇÕES FINANCEIRAS</span>
-                    <button onClick={() => setIsFinanceiroModalOpen(true)} className="bg-[#ff6b00] text-white font-black text-[7px] px-2 py-1 border-2 border-black active:translate-y-1 active:shadow-none shadow-[2px_2px_0_#000] cursor-pointer">HISTÓRICO COMPLETO</button>
+                    <button type="button" onClick={() => setIsFinanceiroModalOpen(true)} className="bg-[#ff6b00] text-white font-black text-[7px] px-2 py-1 border-2 border-black active:translate-y-1 active:shadow-none shadow-[2px_2px_0_#000] cursor-pointer">HISTÓRICO COMPLETO</button>
                   </h3>
                   <div className="space-y-4">
                     <div>
@@ -3997,7 +4134,7 @@ export default function AreaProfessor() {
                   </div>
 
                   <div className="mt-4 flex justify-end">
-                    <button 
+                    <button type="button" 
                       disabled={salvandoDisponibilidade}
                       onClick={async () => {
                          setSalvandoDisponibilidade(true);
@@ -4045,7 +4182,7 @@ export default function AreaProfessor() {
                             : 'Desativado: Jogos acumulam apenas moedas (coins).'}
                         </p>
                       </div>
-                      <button
+                      <button type="button"
                         onClick={async () => {
                           const token = localStorage.getItem('acorde_token');
                           const newVal = !godModeJogosXp;
@@ -4105,7 +4242,7 @@ export default function AreaProfessor() {
                       </div>
 
                       <div className="flex gap-2 pt-2">
-                        <button
+                        <button type="button"
                           disabled={godModeLoading}
                           onClick={async () => {
                             if (!godModeSelectedAluno || !godModeAmount) return toast.error('Selecione o aluno e o valor!');
@@ -4131,7 +4268,7 @@ export default function AreaProfessor() {
                         >
                           💰 CREDITAR MOEDAS
                         </button>
-                        <button
+                        <button type="button"
                           disabled={godModeLoading}
                           onClick={async () => {
                             if (!godModeSelectedAluno || !godModeAmount) return toast.error('Selecione o aluno e o valor!');
@@ -4163,7 +4300,7 @@ export default function AreaProfessor() {
                 )}
 
                 {/* Botão Logout Vermelho Gigante */}
-                <button
+                <button type="button"
                   onClick={logout}
                   className="w-full bg-[#ff3333] hover:bg-red-700 text-white py-4 border-8 border-black font-black uppercase text-sm shadow-[8px_8px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3 mt-5"
                 >
@@ -4181,16 +4318,16 @@ export default function AreaProfessor() {
                 <span className="tiny">Para acompanhar</span>
                 <h4>{filteredTreinos.filter((t: any) => t.video_url && (!t.video_expira_em || new Date(t.video_expira_em).getTime() > Date.now())).length} vídeos de treino</h4>
                 <p>Ouça e assista aos trechos enviados pelos seus alunos.</p>
-                <button className="btn" onClick={() => { setStudentSection('treinos'); fetchTreinos(); }}>Ver treinos →</button>
+                <button type="button" className="btn" onClick={() => { setStudentSection('treinos'); fetchTreinos(); }}>Ver treinos →</button>
               </div>
               <div className="section-row"><h4>Pedidos de troféu</h4><span className="pill">{filteredSolicitacoes.filter((s: any) => s.status === 'pendente').length} pendentes</span></div>
               {filteredSolicitacoes.filter((s: any) => s.status === 'pendente').map((sol: any) => <div className="student-card" key={sol.id}>
                 <strong>🏅 {sol.aluno?.nome || 'Aluno'}</strong>
                 <small>{sol.conquista?.nome || 'Troféu'} · avaliar pedido</small>
-                <div className="mini-links"><button onClick={() => handleRevisarSolicitacao(sol.id, 'aprovada')}>Conceder</button><button onClick={() => handleRevisarSolicitacao(sol.id, 'rejeitada')}>Negar</button></div>
+                <div className="mini-links"><button type="button" onClick={() => handleRevisarSolicitacao(sol.id, 'aprovada')}>Conceder</button><button type="button" onClick={() => handleRevisarSolicitacao(sol.id, 'rejeitada')}>Negar</button></div>
               </div>)}
               <div className="section-row"><h4>Alunos</h4><span className="app-subtle text-xs">{alunosList.length} no total</span></div>
-              <div className="grid grid-cols-2 gap-2"><button className="app-action" aria-pressed={studentSection === 'fichas'} onClick={() => setStudentSection('fichas')}>Fichas</button><button className="app-action" aria-pressed={studentSection === 'treinos'} onClick={() => {setStudentSection('treinos'); fetchTreinos();}}>Treinos</button></div>
+              <div className="grid grid-cols-2 gap-2"><button type="button" className="app-action" aria-pressed={studentSection === 'fichas'} onClick={() => setStudentSection('fichas')}>Fichas</button><button type="button" className="app-action" aria-pressed={studentSection === 'treinos'} onClick={() => {setStudentSection('treinos'); fetchTreinos();}}>Treinos</button></div>
             </div>}
             {activeProfessorTab === 'alunos' && studentSection === 'fichas' && (() => {
               // Resumo das aulas realizadas de cada aluno, a partir da agenda do professor
@@ -4217,9 +4354,9 @@ export default function AreaProfessor() {
                         <div className="name-line"><strong>{aluno.nome}</strong><span className="app-subtle text-xs">{ultimaFicha?.curso_nome || aluno.curso || 'Música'}</span></div>
                         <small>{ultimaFicha ? `Última ficha · ${format(new Date(ultimaFicha.data + 'T12:00:00'), 'dd/MM/yyyy')}` : 'Ainda sem ficha de aula'}</small>
                         <div className="mini-links flex-wrap">
-                          {ultimaFicha && <button onClick={() => openPreviewModal(ultimaFicha)}>Ver última ficha →</button>}
-                          <button onClick={() => handleAbrirHistoricoAluno(aluno.id, aluno.nome)}>Todas as fichas</button>
-                          {videos > 0 && <button onClick={() => { setStudentSection('treinos'); fetchTreinos(); }}>{videos} vídeo{videos > 1 ? 's' : ''} recente{videos > 1 ? 's' : ''}</button>}
+                          {ultimaFicha && <button type="button" onClick={() => openPreviewModal(ultimaFicha)}>Ver última ficha →</button>}
+                          <button type="button" onClick={() => handleAbrirHistoricoAluno(aluno.id, aluno.nome)}>Todas as fichas</button>
+                          {videos > 0 && <button type="button" onClick={() => { setStudentSection('treinos'); fetchTreinos(); }}>{videos} vídeo{videos > 1 ? 's' : ''} recente{videos > 1 ? 's' : ''}</button>}
                         </div>
                       </div>;
                     })}
@@ -4261,7 +4398,7 @@ export default function AreaProfessor() {
                             <h5 className="font-black text-sm truncate">{aula.aluno_nome}</h5>
                             <p className="app-subtle text-xs">{format(new Date((aula.data || '2099-12-31') + 'T12:00:00'), 'dd/MM/yyyy')} - {aula.curso_nome || 'Música'}</p>
                           </div>
-                          <button
+                          <button type="button"
                             onClick={() => openPreviewModal(aula)}
                             className="bg-black text-white px-3 py-1.5 border-2 border-black font-black text-[9px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none flex items-center gap-1 shrink-0"
                           >
@@ -4372,7 +4509,7 @@ export default function AreaProfessor() {
                                   ⏳ {tempoRestanteStr}
                                 </span>
                               </div>
-                              <button
+                              <button type="button"
                                 onClick={() => {
                                   setSelectedTreinoVideo(treino.video_url);
                                   setIsTreinoVideoModalOpen(true);
@@ -4472,13 +4609,13 @@ export default function AreaProfessor() {
 
                               {/* Ações de Decisão */}
                               <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                                <button
+                                <button type="button"
                                   onClick={() => handleRevisarSolicitacao(sol.id, 'aprovada')}
                                   className="bg-[#2ecc71] hover:bg-[#27ae60] text-white px-2 py-1.5 border-2 border-black font-black uppercase text-[8px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1"
                                 >
                                   CONCEDER ✅
                                 </button>
-                                <button
+                                <button type="button"
                                   onClick={() => handleRevisarSolicitacao(sol.id, 'rejeitada')}
                                   className="bg-[#ff3333] hover:bg-red-700 text-white px-2 py-1.5 border-2 border-black font-black uppercase text-[8px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1"
                                 >
@@ -4497,7 +4634,7 @@ export default function AreaProfessor() {
                       <Trophy className="w-4 h-4 text-white" /> HALL DA FAMA
                     </h3>
                   </div>
-                  <button
+                  <button type="button"
                     onClick={() => {
                       setAssignData({ aluno_id: '', conquista_id: '' });
                       setIsAssignModalOpen(true);
@@ -4636,7 +4773,7 @@ export default function AreaProfessor() {
                               </div>
                               <div className="text-right shrink-0 flex flex-col items-end gap-1">
                                 <p className="font-black text-xs italic text-[#ff6b00] leading-none">{player.xp} XP</p>
-                                <button
+                                <button type="button"
                                   onClick={(e) => { e.stopPropagation(); setAssignData({ aluno_id: String(player.id), conquista_id: '' }); setIsAssignModalOpen(true); fetchConquistas(); }}
                                   className="bg-[#ff6b00] text-white px-2 py-0.5 border-2 border-black font-black text-[7px] shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-0.5"
                                 >
@@ -4674,7 +4811,7 @@ export default function AreaProfessor() {
             
             {/* Fechar botão */}
             <div className="absolute top-4 right-4">
-              <button 
+              <button type="button" 
                 onClick={() => setIsCreateModalOpen(false)} 
                 className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
               >
@@ -4694,7 +4831,7 @@ export default function AreaProfessor() {
               </p>
             </div>
 
-            <form onSubmit={criarNovaAulaAvulsa} className="space-y-4">
+            <form onSubmit={criarNovaAulaAvulsa} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault(); }} className="space-y-4">
               
               {/* Seleção de Aluno */}
               <div>
@@ -4793,6 +4930,7 @@ export default function AreaProfessor() {
               <div className="pt-2">
                 <button
                   type="submit"
+                  data-salvar-ficha="sim"
                   className="w-full bg-[#ff6b00] text-white py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
                 >
                   <CheckCircle2 className="w-5 h-5" /> ENVIAR E SALVAR AULA
@@ -4836,7 +4974,7 @@ export default function AreaProfessor() {
               </button>
             </div>
 
-            <form onSubmit={salvarDiarioAula} className="space-y-4">
+            <form onSubmit={salvarDiarioAula} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault(); }} className="space-y-4">
               
               {showFichaChoice && (
                 <div className="border-4 border-dashed border-[#ff6b00] bg-[#feccba]/10 p-4 space-y-3 mb-4 font-mono">
@@ -4864,6 +5002,16 @@ export default function AreaProfessor() {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {selectedAula.type !== 'experimental' && selectedAula.aluno_id && (
+                <button
+                  type="button"
+                  onClick={() => handleAbrirHistoricoAluno(selectedAula.aluno_id, selectedAula.nome || selectedAula.aluno_nome || 'Aluno')}
+                  className="w-full py-2.5 bg-white text-black border-2 border-black text-xs font-black uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px]"
+                >
+                  📂 Pegar uma ficha antiga deste aluno
+                </button>
               )}
 
               {/* 1. Presença em botões grandes */}
@@ -4908,9 +5056,11 @@ export default function AreaProfessor() {
                 </button>
                 <button
                   type="submit"
-                  className="btn orange"
+                  data-salvar-ficha="sim"
+                  disabled={salvandoFicha}
+                  className="btn orange disabled:opacity-60"
                 >
-                  Salvar ficha →
+                  {salvandoFicha ? 'Salvando…' : 'Salvar ficha →'}
                 </button>
               </div>
             </form>
@@ -4919,255 +5069,65 @@ export default function AreaProfessor() {
       )}
 
       {/* MODAL DE PRE-VISUALIZACAO E IMPRESSÃO (PDF) */}
-      {isPreviewOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#fff8f6] border-8 border-black w-full max-w-4xl max-h-[90vh] overflow-y-auto relative shadow-[12px_12px_0_#000]">
-            {/* Controles do modal (ocultos na impressão via CSS print:hidden) */}
-            <div className="sticky top-0 z-10 flex justify-end gap-2 p-4 bg-[#fff8f6] border-b-4 border-black print:hidden" data-html2canvas-ignore>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                className="bg-emerald-500 text-white px-3 py-2 border-2 border-black font-black text-xs uppercase shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all flex items-center gap-1.5"
-              >
-                <span>⬇️</span> BAIXAR PDF
-              </button>
-              <button 
-                type="button"
-                onClick={() => setIsPreviewOpen(false)} 
-                className="bg-black text-white p-2 border-2 border-black shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all"
-              >
-                <XCircle className="w-4 h-4" />
-              </button>
+      {isPreviewOpen && (() => {
+        const fichaAula = {
+          ...(selectedAula || {}),
+          data: isCreateModalOpen ? newAulaData : selectedAula?.data,
+          midias: isCreateModalOpen ? newAulaMidias : midias,
+          conteudo: JSON.stringify({
+            isRich: true,
+            conteudoText: isCreateModalOpen ? newAulaConteudo : conteudo,
+            tarefaCasaText: isCreateModalOpen ? newAulaTarefa : tarefaCasa,
+            chords: mcChords, scales: mcScales, exercises: mcExercises, recordings: mcRecordings,
+            tablatures: mcTablatures, drums: mcDrums, melody: mcMelody, images: mcImages, checklist: mcChecklist
+          })
+        };
+        const alunoNomeFicha = isCreateModalOpen
+          ? (alunosList.find(a => a.id === newAulaAlunoId)?.nome || 'Aluno')
+          : (selectedAula?.nome || selectedAula?.aluno_nome || 'Aluno');
+        const profNomeFicha = selectedAula?.professor_nome || professorData?.nome;
+        const instFicha = isCreateModalOpen ? newAulaCurso : selectedAula?.curso_nome;
+        return (
+          <div className="fixed inset-0 z-[60] bg-black/70 flex items-stretch md:items-center justify-center md:p-4">
+            <div className="bg-[#fafaf9] w-full md:max-w-[640px] h-full md:h-auto md:max-h-[92vh] md:rounded-2xl flex flex-col overflow-hidden" style={{ colorScheme: 'light' }}>
+              <div className="flex items-center justify-between gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 bg-white border-b border-gray-200">
+                <button type="button" onClick={() => setIsPreviewOpen(false)} className="text-gray-900 font-bold text-base px-2 py-1">‹ Voltar</button>
+                <span className="text-xs font-bold text-gray-500 hidden sm:inline">Assim o aluno vê a ficha</span>
+                <button
+                  type="button"
+                  disabled={gerandoPdfFicha}
+                  onClick={async () => {
+                    if (!pdfRef.current) return;
+                    setGerandoPdfFicha(true);
+                    const id = toast.loading('Gerando o PDF da ficha...');
+                    try {
+                      await baixarFichaPdf(pdfRef.current, nomeArquivoFicha(alunoNomeFicha, fichaAula.data));
+                      toast.success('PDF baixado!', { id });
+                    } catch (err) {
+                      console.error(err);
+                      toast.error('Não foi possível gerar o PDF agora.', { id });
+                    } finally {
+                      setGerandoPdfFicha(false);
+                    }
+                  }}
+                  className="bg-[#16a34a] text-white font-bold text-sm px-4 py-2 rounded-lg disabled:opacity-60"
+                >
+                  {gerandoPdfFicha ? 'Gerando…' : '⬇ Baixar PDF'}
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3 md:p-4">
+                <FichaAula aula={fichaAula} alunoNome={alunoNomeFicha} professorNome={profNomeFicha} instrumento={instFicha} />
+              </div>
             </div>
-
-            {/* CONTEÚDO PEDAGÓGICO */}
-            <div ref={pdfRef} className="print-area p-8 space-y-6 font-['Space_Mono'] bg-[#fff8f6]">
-              {/* Cabeçalho */}
-              <div className="border-b-4 border-black pb-4 text-center">
-                <span className="font-black bg-[#ff6b00] text-white text-[10px] px-3 py-1 uppercase tracking-widest border-2 border-black shadow-[2px_2px_0_#000]">
-                  STUDIO ACORDE
-                </span>
-                <h1 className="text-2xl font-black text-black uppercase italic mt-4">
-                  DIÁRIO PEDAGÓGICO DE AULA
-                </h1>
-                <p className="text-xs font-black text-[#ff6b00] uppercase tracking-wider mt-1">
-                  Musiclass v2
-                </p>
+            {/* Versão para o PDF (fora da tela, largura fixa) */}
+            <div aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, width: 760, background: '#fafaf9', padding: 16 }}>
+              <div ref={pdfRef}>
+                <FichaAula aula={fichaAula} alunoNome={alunoNomeFicha} professorNome={profNomeFicha} instrumento={instFicha} modoPdf />
               </div>
-
-              {/* Informações Gerais */}
-              <div className="grid grid-cols-2 gap-4 border-4 border-black p-4 bg-white">
-                <div>
-                  <p className="text-[10px] font-black text-[#8e7164] uppercase">Aluno</p>
-                  <p className="text-sm font-black text-black uppercase">
-                    {isCreateModalOpen 
-                      ? (alunosList.find(a => a.id === newAulaAlunoId)?.nome || 'Não Selecionado')
-                      : (selectedAula?.nome || selectedAula?.aluno_nome || 'N/A')}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-[#8e7164] uppercase">Curso / Instrumento</p>
-                  <p className="text-sm font-black text-black uppercase">
-                    {isCreateModalOpen ? newAulaCurso : (selectedAula?.curso_nome || 'Regular')}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-[#8e7164] uppercase">Data</p>
-                  <p className="text-sm font-black text-black">
-                    {isCreateModalOpen 
-                      ? (newAulaData ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(newAulaData)) : '')
-                      : (selectedAula?.data ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(selectedAula.data)) : '')}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-[#8e7164] uppercase">Horário</p>
-                  <p className="text-sm font-black text-black">
-                    {isCreateModalOpen ? newAulaHorario : (selectedAula?.horario?.substring(0, 5) || '')}
-                  </p>
-                </div>
-              </div>
-
-              {/* Conteúdo Trabalhado */}
-              <div className="space-y-2 break-inside-avoid">
-                <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
-                  📝 CONTEÚDO TRABALHADO
-                </h3>
-                <div className="border-4 border-black p-4 bg-white text-xs whitespace-pre-wrap font-bold uppercase text-black">
-                  {isCreateModalOpen ? newAulaConteudo : conteudo}
-                </div>
-              </div>
-
-              {/* Tarefa de Casa */}
-              <div className="space-y-2 break-inside-avoid">
-                <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
-                  🎯 DESAFIO / TAREFA DE CASA
-                </h3>
-                <div className="border-4 border-black p-4 bg-white text-xs whitespace-pre-wrap font-bold uppercase text-[#ff6b00]">
-                  {isCreateModalOpen ? newAulaTarefa : tarefaCasa}
-                </div>
-              </div>
-
-              {/* Acordes */}
-              {mcChords.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
-                    🎸 ACORDES TRABALHADOS
-                  </h3>
-                  {Object.entries(
-                    mcChords.reduce((groups: Record<string, any[]>, chord) => {
-                      const groupName = chord.group || 'GERAL';
-                      if (!groups[groupName]) groups[groupName] = [];
-                      groups[groupName].push(chord);
-                      return groups;
-                    }, {})
-                  ).map(([groupName, chords]) => (
-                    <div key={groupName} className="border-4 border-black bg-white p-4 space-y-4">
-                      <div className="bg-black text-[#ff6b00] px-2 py-0.5 text-[8px] font-black uppercase tracking-widest inline-block">
-                        GRUPO: {groupName}
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 items-start">
-                        {(chords as any[]).map((ch, idx) => {
-                          const isTeclado = ch.instrument?.toLowerCase().includes('teclado') || ch.instrument?.toLowerCase().includes('piano');
-                          return (
-                            <div key={idx} className="border-2 border-black p-1 bg-white w-full break-inside-avoid">
-                              <ChordVisualizer
-                                instrument={ch.instrument || mcPlaygroundInstrument}
-                                chordNotes={ch.notes || []}
-                                root={ch.root}
-                                type={ch.typeId}
-                                ext={ch.extId}
-                                bass={ch.bass}
-                                notesWithIndices={ch.notesWithIndices}
-                                isCustom={ch.isCustom}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Escalas */}
-              {mcScales.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
-                    🎼 ESCALAS E DIGITAÇÃO
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {mcScales.map((sc, idx) => (
-                      <div key={idx} className="border-4 border-black p-4 bg-white space-y-1">
-                        <p className="text-[10px] font-black uppercase text-[#ff6b00]">{sc.name}</p>
-                        <p className="text-xs font-black text-black tracking-widest">{sc.notes?.join(' - ')}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Tablatura */}
-              {mcTablatures.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
-                    📝 TABLATURA
-                  </h3>
-                  {mcTablatures.map((tab, idx) => (
-                    <div key={idx} className="border-4 border-black p-4 bg-white space-y-2">
-                      <p className="text-[10px] font-black uppercase text-[#ff6b00]">{tab.name}</p>
-                      <div className="overflow-x-auto">
-                        <div className="grid gap-px" style={{ gridTemplateColumns: 'auto repeat(16, 1fr)', minWidth: '340px' }}>
-                          {['e','B','G','D','A','E'].map((str, strIdx) => (
-                            <React.Fragment key={strIdx}>
-                              <div className="flex items-center justify-center bg-[#261812] text-[#ff6b00] font-black text-[7px] border border-black px-1 min-w-[16px]">{str}</div>
-                              {Array.from({ length: 16 }).map((_, beat) => (
-                                <div key={beat} className="h-6 flex items-center justify-center bg-white border border-black/20 text-[10px] font-black">
-                                  {tab.matrix?.[strIdx]?.[beat] || '-'}
-                                </div>
-                              ))}
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Bateria */}
-              {mcDrums.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-black uppercase bg-[#261812] text-white px-2 py-1 inline-block">
-                    🥁 RITMOS E BATERIA
-                  </h3>
-                  {mcDrums.map((drum, idx) => (
-                    <div key={idx} className="border-4 border-black p-4 bg-white space-y-2">
-                      <div className="flex justify-between items-center">
-                        <p className="text-[10px] font-black uppercase text-[#ff6b00]">{drum.name}</p>
-                        <span className="text-[9px] font-mono text-black font-black">{drum.bpm} BPM</span>
-                      </div>
-                      <DrumsVisualizer rhythmName={drum.name} />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Melodia */}
-              {mcMelody.length > 0 && (
-                <div className="bg-[#f8f9fa] border-4 border-black p-4 space-y-4 shadow-[6px_6px_0_#000] rounded-xl font-['Inter']">
-                  <div className="flex flex-col sm:flex-row gap-6">
-                    <div className="flex-1 space-y-5">
-                      <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black/10 pb-2">
-                        🎹 SOLOS E MELODIAS (BIMANUAL)
-                      </h4>
-                      {mcMelody.map((mel, idx) => (
-                        <div key={idx} className="space-y-4">
-                          {mel.name && mel.name !== 'NOVA MELODIA / GUIA' && (
-                            <p className="text-xs font-black uppercase text-gray-500">{mel.name}</p>
-                          )}
-                          {Array.isArray(mel.phrases) && mel.phrases.length > 1 ? (
-                            <div className="space-y-4">
-                              {mel.phrases.map((phrase: string[], pIdx: number) => (
-                                <div key={pIdx} className="space-y-3">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">PARTE {pIdx + 1}</span>
-                                    <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
-                                  </div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {phrase.map((note: string, nIdx: number) => (
-                                      <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
-                                        {translateNote(note)}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[#ff6b00] font-black text-xs sm:text-sm uppercase tracking-wider">MELODIA</span>
-                                <div className="flex-1 border-t-2 border-dashed border-gray-300"></div>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {Array.isArray(mel.notes) && mel.notes.map((note: string, nIdx: number) => (
-                                  <div key={nIdx} className="bg-[#1e40af] text-white shadow-[0_4px_0_#1e3a8a] active:shadow-[0_0_0_#1e3a8a] active:translate-y-1 transition-all rounded-lg px-4 py-2 text-sm sm:text-base font-black uppercase flex items-center justify-center min-w-[40px]">
-                                    {translateNote(note)}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal de Ferramentas */}
       {showTools && (
@@ -5189,7 +5149,7 @@ export default function AreaProfessor() {
                 </h2>
                 <p className="text-[8px] font-black text-[#8e7164] uppercase tracking-widest">Clique para carregar na grade atual</p>
               </div>
-              <button onClick={() => setShowBibliotecaModal(null)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
+              <button type="button" onClick={() => setShowBibliotecaModal(null)} className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all">
                 ✕
               </button>
             </header>
@@ -5204,7 +5164,7 @@ export default function AreaProfessor() {
                     <div className="flex items-center justify-between">
                       <p className="font-black text-[10px] uppercase text-black">{mat.titulo}</p>
                       <div className="flex gap-2">
-                        <button
+                        <button type="button"
                           onClick={() => {
                             if (showBibliotecaModal === 'tablatura') {
                               setNewTabName(mat.titulo);
@@ -5217,7 +5177,7 @@ export default function AreaProfessor() {
                         >
                           📥 CARREGAR
                         </button>
-                        <button
+                        <button type="button"
                           onClick={() => deleteMaterialSalvo(mat.id)}
                           className="bg-red-600 text-white px-2 py-1 border-2 border-black font-black text-[8px] uppercase shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none"
                         >
@@ -5256,7 +5216,7 @@ export default function AreaProfessor() {
             
             {/* Fechar botão */}
             <div className="absolute top-4 right-4">
-              <button 
+              <button type="button" 
                 onClick={() => setIsAssignModalOpen(false)} 
                 className="bg-black text-white p-2 border-2 border-white shadow-[4px_4px_0_#000] active:translate-y-1 active:shadow-none transition-all cursor-pointer"
               >
@@ -5336,7 +5296,7 @@ export default function AreaProfessor() {
             
             {/* Fechar botão */}
             <div className="absolute top-4 right-4">
-              <button 
+              <button type="button" 
                 onClick={() => {
                   setIsHistoricoModalOpen(false);
                   playRetroSound(146.83, 'sawtooth', 0.15); // som retrô de fechar
@@ -5438,26 +5398,38 @@ export default function AreaProfessor() {
                         <span className="text-[7.5px] font-black text-black/55 uppercase tracking-widest block mb-0.5">
                           💡 CONTEÚDO PRATICADO:
                         </span>
-                        <p className="text-[10px] text-black font-semibold bg-stone-50 p-2 border-2 border-black whitespace-pre-line leading-relaxed">
-                          {aula.conteudo || 'Nenhum diário registrado.'}
-                        </p>
+                        {(() => { const rf = resumoFicha(aula); return (
+                          <div className="text-sm text-black bg-stone-50 p-2.5 border-2 border-black leading-relaxed space-y-1">
+                            <p className="whitespace-pre-line font-semibold">{rf.texto || (rf.itens.length ? 'Ficha com conteúdo musical:' : 'Nenhum diário registrado.')}</p>
+                            {rf.itens.map((it, i) => <p key={i} className="text-xs font-bold">{it}</p>)}
+                          </div>
+                        ); })()}
                       </div>
 
                       {/* Tarefa de Casa */}
-                      {aula.tarefa_casa && (
+                      {resumoFicha(aula).tarefa && (
                         <div>
                           <span className="text-[7.5px] font-black text-[#ff6b00] uppercase tracking-widest block mb-0.5">
                             📝 TAREFA DE CASA / MISSÃO:
                           </span>
-                          <p className="text-[10px] text-black font-semibold bg-[#fff8f6] p-2 border-2 border-[#ff6b00] whitespace-pre-line leading-relaxed">
-                            {aula.tarefa_casa}
+                          <p className="text-sm text-black font-semibold bg-[#fff8f6] p-2.5 border-2 border-[#ff6b00] whitespace-pre-line leading-relaxed">
+                            {resumoFicha(aula).tarefa}
                           </p>
                         </div>
                       )}
 
+                      {isModalOpen && selectedAula && String(selectedAula.originalId) !== String(aula.id) && (
+                        <button type="button"
+                          onClick={() => usarFichaAntiga(aula)}
+                          className="w-full bg-[#ff6b00] text-white py-3 border-2 border-black font-black text-xs uppercase shadow-[3px_3px_0_#000] active:translate-y-[1px] active:shadow-none"
+                        >
+                          🔁 Usar esta ficha na aula de hoje
+                        </button>
+                      )}
+
                       {/* Professor + ficha completa */}
                       <div className="flex items-center justify-between gap-2">
-                        <button
+                        {!isModalOpen && <button type="button"
                           onClick={() => {
                             setIsHistoricoModalOpen(false);
                             openPreviewModal({
@@ -5473,7 +5445,7 @@ export default function AreaProfessor() {
                           className="bg-black text-white px-3 py-1.5 border-2 border-black font-black text-[8px] uppercase shadow-[2px_2px_0_#ff6b00] active:translate-y-[1px] active:shadow-none flex items-center gap-1"
                         >
                           <FileText className="w-3 h-3" /> ABRIR FICHA COMPLETA
-                        </button>
+                        </button>}
                         <span className="text-[7px] font-black text-black/30 uppercase">
                           Instrutor: {aula.professores?.nome || 'HUB'}
                         </span>
@@ -5495,7 +5467,7 @@ export default function AreaProfessor() {
             
             {/* Fechar botão */}
             <div className="absolute top-4 right-4 z-10">
-              <button 
+              <button type="button" 
                 onClick={() => {
                   setIsNotifDrawerOpen(false);
                   playRetroSound(146.83, 'sawtooth', 0.15); // som retrô de fechar
@@ -5515,7 +5487,7 @@ export default function AreaProfessor() {
                   🔔 NOTIFICAÇÕES
                 </h2>
                 {notificacoes.length > 0 && (
-                  <button
+                  <button type="button"
                     onClick={limparNotificacoes}
                     className="bg-[#ff3333] hover:bg-red-700 text-white border-2 border-black font-black uppercase text-[7.5px] px-2 py-1.5 shadow-[2px_2px_0_#000] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer"
                   >
@@ -5612,7 +5584,7 @@ export default function AreaProfessor() {
             
             {/* Fechar botão */}
             <div className="absolute top-4 right-4 z-10">
-              <button 
+              <button type="button" 
                 onClick={() => {
                   setIsTreinoVideoModalOpen(false);
                   setSelectedTreinoVideo(null);
@@ -5676,7 +5648,7 @@ export default function AreaProfessor() {
       {isFinanceiroModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 font-['Space_Mono']">
           <div className="bg-[#261812] border-8 border-black p-6 w-full max-w-sm relative shadow-[8px_8px_0_#000]">
-            <button 
+            <button type="button" 
               onClick={() => setIsFinanceiroModalOpen(false)}
               className="absolute -top-4 -right-4 bg-[#ff6b00] text-black w-8 h-8 rounded-full border-4 border-black font-black flex items-center justify-center active:translate-y-1 shadow-[2px_2px_0_#000]"
             >

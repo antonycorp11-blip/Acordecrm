@@ -5749,6 +5749,69 @@ async function startServer() {
         await Promise.all([envioEmail, envioPush]);
     }
 
+    // Push agendado (OneSignal "send_after"): chega no celular na hora marcada, mesmo sem o servidor estar rodando
+    async function agendarPush(titulo: string, mensagem: string, destinatario: string, enviarEm: Date, urlDestino: string) {
+        const { data: usuarioDestino } = await supabase.from('usuarios').select('id').ilike('email', escapeLike(destinatario)).limit(1).maybeSingle();
+        if (!usuarioDestino?.id) return false;
+        const { data: config } = await supabase.from('system_config').select('key_value').eq('key_name', 'ONESIGNAL_REST_API_KEY').maybeSingle();
+        const appKey = config?.key_value || process.env.ONESIGNAL_REST_API_KEY;
+        const appId = process.env.VITE_ONESIGNAL_APP_ID || ONESIGNAL_APP_ID;
+        if (!appKey) return false;
+        const response = await fetch('https://api.onesignal.com/notifications?c=push', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Authorization': String(appKey).startsWith('os_v2_') ? `Key ${appKey}` : `Basic ${appKey}`
+            },
+            body: JSON.stringify({
+                app_id: appId,
+                target_channel: 'push',
+                include_aliases: { external_id: [String(usuarioDestino.id)] },
+                headings: { en: titulo, pt: titulo },
+                contents: { en: mensagem, pt: mensagem },
+                url: urlDestino,
+                send_after: enviarEm.toISOString()
+            })
+        });
+        const data: any = await response.json().catch(() => ({}));
+        if (!response.ok || data?.errors) {
+            console.error('[PUSH_AGENDADO] OneSignal recusou:', response.status, JSON.stringify(data));
+            return false;
+        }
+        return true;
+    }
+
+    // Todo dia às 7h: agenda, para cada aula do dia, um push ao professor no horário da aula
+    // e outro 50 min depois (fim da aula) lembrando de dar a presença e salvar a ficha.
+    async function agendarLembretesAulasDoDia(hoje: string) {
+        const { data: aulas } = await supabase.from('aulas')
+            .select('id, horario, status, professor_id, alunos(nome), professores(id, email)')
+            .eq('data', hoje)
+            .in('status', ['pendente', 'confirmada', 'aguardando_confirmacao']);
+        let agendados = 0;
+        const agora = Date.now();
+        for (const a of (aulas || []) as any[]) {
+            const prof = Array.isArray(a.professores) ? a.professores[0] : a.professores;
+            const aluno = Array.isArray(a.alunos) ? a.alunos[0] : a.alunos;
+            if (!prof?.email || !a.horario) continue;
+            const [h, m] = String(a.horario).split(':').map(Number);
+            if (isNaN(h)) continue;
+            // Cuiabá = UTC-4 (sem horário de verão)
+            const inicio = new Date(`${hoje}T${String(h).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}:00-04:00`);
+            const fim = new Date(inicio.getTime() + 50 * 60 * 1000);
+            const primeiroNome = String(aluno?.nome || 'aluno').split(' ')[0];
+            const hora = String(a.horario).slice(0, 5);
+            const url = 'https://acordecrm.vercel.app/area-professor';
+            if (inicio.getTime() > agora) {
+                if (await agendarPush(`🎵 Aula agora: ${primeiroNome} (${hora})`, 'Abra a aula no app para montar a ficha durante a aula.', prof.email, inicio, url)) agendados++;
+            }
+            if (fim.getTime() > agora) {
+                if (await agendarPush(`✅ Registre a aula de ${primeiroNome}`, `Aula das ${hora}: marque a presença e salve a ficha antes de esquecer.`, prof.email, fim, url)) agendados++;
+            }
+        }
+        return { aulas: (aulas || []).length, avisos_agendados: agendados };
+    }
+
     // Notificação interna + push/e-mail para o professor da matrícula mais recente do aluno
     async function notificarProfessorDoAluno(alunoId: number, titulo: string, mensagem: string) {
         try {
@@ -6473,6 +6536,7 @@ async function startServer() {
             });
             if (auto.AUTO_EMAIL_DIARIO_DONO) await etapa('relatorio_diario_direcao', () => relatorioDiarioDono(hoje));
             if (auto.AUTO_LEMBRETE_PRESENCA) await etapa('lembrete_presenca', () => lembretePresencaProfessores(hoje));
+            await etapa('lembretes_horario_aulas', () => agendarLembretesAulasDoDia(hoje));
             if (auto.AUTO_COBRANCA_ALUNOS) await etapa('cobranca_alunos', () => cobrancaAlunos(hoje));
             if (auto.AUTO_RESUMO_SEMANAL && parseDateOnly(hoje).getUTCDay() === 1) await etapa('resumo_semanal', () => resumoSemanalEscola(hoje));
             // Sensor do Drive: avisa a direção quando o espaço passa do limite configurado
