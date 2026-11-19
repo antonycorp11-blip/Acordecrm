@@ -521,7 +521,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
           <span className="w-2.5 h-2.5 rounded-full bg-[#ff6b00] animate-pulse border border-black shadow-inner"></span>
           <span className="text-[10px] font-black text-white/50 tracking-wider font-sans">MUSICLASS CONSOLE V1.0</span>
         </div>
-        <button 
+        <button type="button" 
           onClick={onClose}
           className="text-white hover:text-[#ff6b00] border-2 border-transparent hover:border-[#ff6b00]/30 p-0.5 transition-all active:scale-95"
           title="Fechar"
@@ -532,7 +532,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
 
       {/* Abas Superiores 8-Bit */}
       <div className="grid grid-cols-3 border-b-4 border-black bg-[#feccba]/10">
-        <button
+        <button type="button"
           onClick={() => handleTabChange('metronome')}
           className={`py-2 text-[9px] font-black tracking-tighter uppercase transition-all ${
             activeTab === 'metronome'
@@ -542,7 +542,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
         >
           🥁 Metrônomo
         </button>
-        <button
+        <button type="button"
           onClick={() => handleTabChange('tuner')}
           className={`py-2 text-[9px] font-black tracking-tighter uppercase transition-all ${
             activeTab === 'tuner'
@@ -552,7 +552,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
         >
           🎸 Afinador
         </button>
-        <button
+        <button type="button"
           onClick={() => handleTabChange('stopwatch')}
           className={`py-2 text-[9px] font-black tracking-tighter uppercase transition-all ${
             activeTab === 'stopwatch'
@@ -582,7 +582,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
               </div>
 
               {/* Botão de Tela Cheia */}
-              <button
+              <button type="button"
                 onClick={() => setIsFullScreen(true)}
                 className="bg-black/40 hover:bg-black/60 border-2 border-black/40 hover:border-black text-[7.5px] font-black text-[#ff6b00] uppercase tracking-widest py-1.5 px-3 shadow-[2px_2px_0_rgba(0,0,0,0.5)] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1"
               >
@@ -622,25 +622,25 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
 
             {/* Controles de BPM */}
             <div className="flex gap-1.5 justify-center">
-              <button
+              <button type="button"
                 onClick={() => setBpm(Math.max(40, bpm - 5))}
                 className="bg-[#261812] text-white border-2 border-black p-1 px-3 shadow-[2px_2px_0_#000] font-black text-xs hover:bg-[#ff6b00] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
               >
                 -5
               </button>
-              <button
+              <button type="button"
                 onClick={() => setBpm(Math.max(40, bpm - 1))}
                 className="bg-[#261812] text-white border-2 border-black p-1 px-3 shadow-[2px_2px_0_#000] font-black text-xs hover:bg-[#ff6b00] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
               >
                 -1
               </button>
-              <button
+              <button type="button"
                 onClick={() => setBpm(Math.min(500, bpm + 1))}
                 className="bg-[#261812] text-white border-2 border-black p-1 px-3 shadow-[2px_2px_0_#000] font-black text-xs hover:bg-[#ff6b00] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
               >
                 +1
               </button>
-              <button
+              <button type="button"
                 onClick={() => setBpm(Math.min(500, bpm + 5))}
                 className="bg-[#261812] text-white border-2 border-black p-1 px-3 shadow-[2px_2px_0_#000] font-black text-xs hover:bg-[#ff6b00] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
               >
@@ -661,7 +661,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                 <option value={6}>6/8 Compasso</option>
               </select>
 
-              <button
+              <button type="button"
                 onClick={startMetronome}
                 className={`border-2 border-black p-2 font-black text-[10px] uppercase shadow-[2px_2px_0_#000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none flex items-center justify-center gap-1.5 ${
                   isPlayingMetronome 
@@ -692,7 +692,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
             
             {/* Seletor de Modo */}
             <div className="grid grid-cols-2 gap-2 bg-[#261812]/5 p-1 border border-black/15">
-              <button
+              <button type="button"
                 onClick={() => {
                   stopMicTuner();
                   setTunerMode('ear');
@@ -705,7 +705,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
               >
                 👂 SOPRO / REF
               </button>
-              <button
+              <button type="button"
                 onClick={() => {
                   stopReferenceTone();
                   setTunerMode('mic');
@@ -732,7 +732,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                   <span className="text-[7.5px] font-black text-[#ff6b00] tracking-wide uppercase">🎸 GUITARRA / VIOLÃO:</span>
                   <div className="grid grid-cols-6 gap-1">
                     {guitarStrings.map((item) => (
-                      <button
+                      <button type="button"
                         key={item.note}
                         onClick={() => playReferenceTone(item.note, item.freq)}
                         className={`border-2 border-black py-2.5 font-mono text-[9px] font-black flex flex-col items-center transition-all ${
@@ -753,7 +753,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                   <span className="text-[7.5px] font-black text-[#ff6b00] tracking-wide uppercase">🎸 CONTRABAIXO (4C):</span>
                   <div className="grid grid-cols-4 gap-1">
                     {bassStrings.map((item) => (
-                      <button
+                      <button type="button"
                         key={item.note}
                         onClick={() => playReferenceTone(item.note, item.freq)}
                         className={`border-2 border-black py-2 font-mono text-[9px] font-black flex flex-col items-center transition-all ${
@@ -770,7 +770,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                 </div>
 
                 {activeReferenceNote && (
-                  <button
+                  <button type="button"
                     onClick={stopReferenceTone}
                     className="mt-1.5 bg-red-500 text-white border-2 border-black py-1 px-3 shadow-[2px_2px_0_#000] font-black text-[9px] uppercase hover:bg-red-600 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                   >
@@ -840,7 +840,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                 </div>
 
                 {/* Botão Liga/Desliga */}
-                <button
+                <button type="button"
                   onClick={startMicTuner}
                   className={`border-2 border-black p-2 font-black text-[10px] uppercase shadow-[2px_2px_0_#000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none flex items-center justify-center gap-1.5 ${
                     micActive 
@@ -872,7 +872,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
             
             {/* Seletor de Modo do Cronômetro / Timer */}
             <div className="grid grid-cols-2 gap-2 bg-[#261812]/5 p-1 border border-black/15">
-              <button
+              <button type="button"
                 onClick={() => {
                   stopAllTimers();
                   setStopwatchMode('stopwatch');
@@ -886,7 +886,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
               >
                 ⏱️ CRONÔMETRO PROGRESSIVO
               </button>
-              <button
+              <button type="button"
                 onClick={() => {
                   stopAllTimers();
                   setStopwatchMode('timer');
@@ -905,7 +905,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
             {stopwatchMode === 'timer' && !isStopwatchRunning && (
               <div className="grid grid-cols-4 gap-1.5 bg-black/5 p-2 border-2 border-black/10">
                 {[60, 120, 300, 600].map(s => (
-                  <button
+                  <button type="button"
                     key={s}
                     onClick={() => setTimerLimit(s)}
                     className={`py-1 border border-black font-black text-[9.5px] ${timerLimit === s ? 'bg-black text-white' : 'bg-white text-black'}`}
@@ -933,7 +933,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                   </div>
                 </div>
                 {/* Botão de Tela Cheia */}
-                <button
+                <button type="button"
                   onClick={() => setIsFullScreen(true)}
                   className="bg-black/40 hover:bg-black/60 border-2 border-black/40 hover:border-black text-[7.5px] font-black text-[#ff6b00] uppercase tracking-widest py-1.5 px-3 shadow-[2px_2px_0_rgba(0,0,0,0.5)] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1"
                 >
@@ -944,7 +944,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
 
             {/* Controles de Play, Pause e Reset */}
             <div className="grid grid-cols-2 gap-2">
-              <button
+              <button type="button"
                 onClick={startStopwatch}
                 className={`border-2 border-black p-2 font-black text-[10px] uppercase shadow-[2px_2px_0_#000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none flex items-center justify-center gap-1.5 ${
                   isStopwatchRunning 
@@ -965,7 +965,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
                 )}
               </button>
 
-              <button
+              <button type="button"
                 onClick={resetStopwatch}
                 className="bg-stone-500 text-white border-2 border-black p-2 font-black text-[10px] uppercase shadow-[2px_2px_0_#000] hover:bg-stone-600 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
               >
@@ -990,7 +990,7 @@ export const MusiclassTools: React.FC<MusiclassToolsProps> = ({ onClose }) => {
         <div className="fixed inset-0 bg-black z-[250] flex flex-col items-center justify-between p-8 font-mono text-white select-none">
           <div className="w-full flex justify-between items-center border-b-2 border-white/20 pb-4">
             <span className="text-xs font-black text-white/50 tracking-wider">⚡ MODO FOCO ATIVO</span>
-            <button
+            <button type="button"
               onClick={() => setIsFullScreen(false)}
               className="border-2 border-white text-white font-black text-xs px-4 py-2 hover:bg-white hover:text-black transition-all"
             >
